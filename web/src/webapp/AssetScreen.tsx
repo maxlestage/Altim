@@ -3,7 +3,8 @@ import { analyze, type Signal } from "../engine/signal";
 import { gate } from "../engine/reliability";
 import { backtest, trackRecord, type BacktestResult } from "../engine/backtest";
 import { formatPrice } from "../market";
-import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type Quote, type Sentiment, type Snapshot } from "./api";
+import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot } from "./api";
+import { GuardCard } from "./GuardCard";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
 import { ActionBadge, Change, Gauge, Price, PriceChart, ReliabilityBadge, Segmented } from "./ui";
@@ -34,6 +35,19 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
   const [data, setData] = useState<Loaded | null>(null);
   const [bt, setBt] = useState<BacktestResult | null>(null);
   const [sent, setSent] = useState<Sentiment | null>(null);
+  const [guardReport, setGuardReport] = useState<GuardReport | null>(null);
+
+  // Market guard: independent of the timeframe, refreshed every 2 minutes.
+  useEffect(() => {
+    let alive = true;
+    const load = () => api.guard(symbol, kind).then((g) => alive && setGuardReport(g)).catch(() => {});
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), 120_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [symbol, kind]);
   const [error, setError] = useState<string | null>(null);
   const [showSources, setShowSources] = useState(false);
   const inWatchlist = watchlist.some((w) => assetKey(w) === `${kind}:${symbol}`);
@@ -94,6 +108,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
     ? adviseAsset({
         signal, reliability: rel?.level ?? null, price, line: held && heldMarket ? line : null, capital: portfolio.total, risk,
         track: bt ? trackRecord(bt) : null, symbol, kind,
+        guard: guardReport ? { shock: guardReport.shock.level, reversalScore: guardReport.reversal.score, reversalDirection: guardReport.reversal.direction } : null,
       })
     : null;
 
@@ -137,6 +152,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
           <p className="muted small">Conseil indicatif, pas une recommandation d'investissement personnalisée. Altim ne passe aucun ordre.</p>
         </div>
       )}
+
+      {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
 
       {data && (
         <div className="asset-grid">

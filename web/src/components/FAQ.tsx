@@ -26,6 +26,10 @@ const QA = [
     "Renseignez vos avoirs (actif, quantité, prix d'achat moyen, liquidités) : Altim calcule votre patrimoine, vos plus-values, vos risques, et adapte chaque conseil — par exemple le montant prudent pour un nouvel achat, ou s'il faut alléger une ligne trop lourde.",
   ],
   [
+    "Altim peut-il protéger mon bot de trading des grands mouvements imprévus ?",
+    "Oui, via le garde-fou marché : tendance de fond, risque de choc (volatilité anormale, sauts de prix, rafales d'actualités, VIX) et risque de retournement contre la tendance (excès techniques, foule surendettée, sentiment extrême, ton des actualités). Chaque signal est vérifié sur l'historique de l'actif avant de compter. Votre bot l'interroge via /api/guard et applique la consigne : continuer, réduire la taille ou suspendre. Aucun outil ne prévoit une vraie surprise, mais on peut éviter d'y être exposé à pleine taille.",
+  ],
+  [
     "Où sont stockés mes avoirs ?",
     "Dans votre navigateur (localStorage) sur le web, et dans une base SQLite sur votre iPhone. Jamais sur nos serveurs. Un export permet de les transférer d'un appareil à l'autre.",
   ],

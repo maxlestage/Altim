@@ -1,0 +1,275 @@
+[
+ {
+  "name": "calmUp",
+  "regime": {
+   "trend": "up",
+   "strength": 100
+  },
+  "shock": {
+   "score": 0,
+   "level": "calm",
+   "factors": []
+  },
+  "reversal": {
+   "score": 0,
+   "direction": "down",
+   "factors": []
+  },
+  "policy": {
+   "scalping": "ok",
+   "sizeMultiplier": 1,
+   "stopMultiplier": 1
+  }
+ },
+ {
+  "name": "down",
+  "regime": {
+   "trend": "down",
+   "strength": 100
+  },
+  "shock": {
+   "score": 0,
+   "level": "calm",
+   "factors": []
+  },
+  "reversal": {
+   "score": 45,
+   "direction": "up",
+   "factors": [
+    {
+     "code": "rsi1d",
+     "points": 0,
+     "basePoints": 15,
+     "status": "rejected",
+     "samples": 277,
+     "lift": 0
+    },
+    {
+     "code": "extension4h",
+     "points": 15,
+     "basePoints": 15,
+     "status": "verified",
+     "samples": 43,
+     "lift": 1.9360465116279069
+    },
+    {
+     "code": "funding",
+     "points": 19,
+     "basePoints": 25,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "fearGreed",
+     "points": 11,
+     "basePoints": 15,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    }
+   ]
+  },
+  "policy": {
+   "scalping": "ok",
+   "sizeMultiplier": 1,
+   "stopMultiplier": 1
+  }
+ },
+ {
+  "name": "broken",
+  "regime": {
+   "trend": "range",
+   "strength": 40
+  },
+  "shock": {
+   "score": 0,
+   "level": "calm",
+   "factors": []
+  },
+  "reversal": {
+   "score": 0,
+   "direction": "up",
+   "factors": [
+    {
+     "code": "rsi1d",
+     "points": 0,
+     "basePoints": 15,
+     "status": "rejected",
+     "samples": 303,
+     "lift": 0.1485148514851485
+    },
+    {
+     "code": "extension1d",
+     "points": 0,
+     "basePoints": 15,
+     "status": "rejected",
+     "samples": 298,
+     "lift": 0.15100671140939598
+    }
+   ]
+  },
+  "policy": {
+   "scalping": "ok",
+   "sizeMultiplier": 1,
+   "stopMultiplier": 1
+  }
+ },
+ {
+  "name": "jumped",
+  "regime": {
+   "trend": "up",
+   "strength": 100
+  },
+  "shock": {
+   "score": 44,
+   "level": "agitated",
+   "factors": [
+    {
+     "code": "vol2",
+     "points": 18,
+     "basePoints": 35,
+     "status": "unproven",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "jump4",
+     "points": 18,
+     "basePoints": 35,
+     "status": "unproven",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "volume",
+     "points": 8,
+     "basePoints": 15,
+     "status": "unproven",
+     "samples": null,
+     "lift": null
+    }
+   ]
+  },
+  "reversal": {
+   "score": 0,
+   "direction": "down",
+   "factors": []
+  },
+  "policy": {
+   "scalping": "reduce",
+   "sizeMultiplier": 0.5,
+   "stopMultiplier": 1.5
+  }
+ },
+ {
+  "name": "crowd",
+  "regime": {
+   "trend": "up",
+   "strength": 100
+  },
+  "shock": {
+   "score": 0,
+   "level": "calm",
+   "factors": []
+  },
+  "reversal": {
+   "score": 57,
+   "direction": "down",
+   "factors": [
+    {
+     "code": "funding",
+     "points": 19,
+     "basePoints": 25,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "longShort",
+     "points": 8,
+     "basePoints": 10,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "fearGreed",
+     "points": 11,
+     "basePoints": 15,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "social",
+     "points": 8,
+     "basePoints": 10,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "newsTone",
+     "points": 11,
+     "basePoints": 15,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    }
+   ]
+  },
+  "policy": {
+   "scalping": "reduce",
+   "sizeMultiplier": 0.5,
+   "stopMultiplier": 1
+  }
+ },
+ {
+  "name": "stock",
+  "regime": {
+   "trend": "up",
+   "strength": 100
+  },
+  "shock": {
+   "score": 41,
+   "level": "agitated",
+   "factors": [
+    {
+     "code": "newsBurst",
+     "points": 15,
+     "basePoints": 20,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "vixHigh",
+     "points": 15,
+     "basePoints": 20,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    },
+    {
+     "code": "vixJump",
+     "points": 11,
+     "basePoints": 15,
+     "status": "unverifiable",
+     "samples": null,
+     "lift": null
+    }
+   ]
+  },
+  "reversal": {
+   "score": 0,
+   "direction": "down",
+   "factors": []
+  },
+  "policy": {
+   "scalping": "reduce",
+   "sizeMultiplier": 0.5,
+   "stopMultiplier": 1.5
+  }
+ }
+]
