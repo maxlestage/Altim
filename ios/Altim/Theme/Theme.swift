@@ -13,6 +13,11 @@ enum Theme {
     static let warning = Color(red: 1.0, green: 0.78, blue: 0.2)
     static let textSecondary = Color.white.opacity(0.6)
 
+    // Allocation: categorical palette validated (dark mode, all pairs, colorblind readers).
+    static let allocCrypto = Color(red: 0x39 / 255, green: 0x87 / 255, blue: 0xE5 / 255)
+    static let allocStock = Color(red: 0xD9 / 255, green: 0x59 / 255, blue: 0x26 / 255)
+    static let allocCash = Color(red: 0x19 / 255, green: 0x9E / 255, blue: 0x70 / 255)
+
     static let accentGradient = LinearGradient(colors: [cyan, violet, magenta], startPoint: .leading, endPoint: .trailing)
 
     static func color(for action: SignalAction) -> Color {

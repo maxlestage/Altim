@@ -5,10 +5,12 @@ import { Radar } from "./Radar";
 import { AssetScreen } from "./AssetScreen";
 import { Portfolio } from "./Portfolio";
 import { Settings } from "./Settings";
+import { MyHoldings } from "./MyHoldings";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
-  { href: "/app/portefeuille", label: "Portefeuille", icon: "M3 7h18v13H3zM16 13h2M3 7l2-3h14l2 3" },
+  { href: "/app/avoirs", label: "Mes avoirs", icon: "M12 2 3 7l9 5 9-5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5" },
+  { href: "/app/portefeuille", label: "Démo", icon: "M3 7h18v13H3zM16 13h2M3 7l2-3h14l2 3" },
   { href: "/app/reglages", label: "Réglages", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4" },
 ];
 
@@ -33,6 +35,7 @@ export function WebApp() {
   const asset = path.match(/^\/app\/actif\/(crypto|stock)\/([A-Za-z0-9.\-]{1,10})$/);
   let screen;
   if (asset) screen = <AssetScreen key={path} kind={asset[1] as "crypto" | "stock"} symbol={asset[2]!.toUpperCase()} />;
+  else if (path === "/app/avoirs") screen = <MyHoldings />;
   else if (path === "/app/portefeuille") screen = <Portfolio />;
   else if (path === "/app/reglages") screen = <Settings />;
   else screen = <Radar />;

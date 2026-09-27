@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import type { Kind } from "../engine/reliability";
+import type { Holding } from "../engine/holdings";
 
 export type Interval = "1h" | "4h" | "1d";
 export type WatchItem = { symbol: string; kind: Kind; name: string };
@@ -137,4 +138,83 @@ export function realizedPnLToday(journal: JournalEntry[]): number {
     pos.set(k, p);
   }
   return pnl;
+}
+
+// ---------- My holdings (real portfolio entered by the user) ----------
+
+
+export interface HoldingsState {
+  version: 1;
+  cash: number;
+  holdings: Holding[];
+  updatedAt: number;
+}
+
+const HOLDINGS_KEY = "altim.holdings.v1";
+
+function loadHoldings(): HoldingsState {
+  try {
+    const raw = localStorage.getItem(HOLDINGS_KEY);
+    if (raw) {
+      const p = JSON.parse(raw) as HoldingsState;
+      if (p.version === 1 && Array.isArray(p.holdings)) return { ...p, holdings: p.holdings.filter(isValidHolding) };
+    }
+  } catch {}
+  return { version: 1, cash: 0, holdings: [], updatedAt: 0 };
+}
+
+export function isValidHolding(h: unknown): h is Holding {
+  const x = h as Holding;
+  return !!x && typeof x.id === "string" && typeof x.symbol === "string" && (x.kind === "crypto" || x.kind === "stock") &&
+    Number.isFinite(x.quantity) && x.quantity > 0 && Number.isFinite(x.averagePrice) && x.averagePrice >= 0;
+}
+
+let holdingsState: HoldingsState = typeof window === "undefined" ? { version: 1, cash: 0, holdings: [], updatedAt: 0 } : loadHoldings();
+const holdingsListeners = new Set<() => void>();
+
+export function setHoldings(update: Partial<Omit<HoldingsState, "version">> | ((s: HoldingsState) => Partial<HoldingsState>)) {
+  const patch = typeof update === "function" ? update(holdingsState) : update;
+  holdingsState = { ...holdingsState, ...patch, version: 1, updatedAt: Date.now() };
+  try {
+    localStorage.setItem(HOLDINGS_KEY, JSON.stringify(holdingsState));
+  } catch {}
+  holdingsListeners.forEach((l) => l());
+}
+
+export function useHoldings(): HoldingsState {
+  return useSyncExternalStore(
+    (l) => (holdingsListeners.add(l), () => holdingsListeners.delete(l)),
+    () => holdingsState,
+    () => holdingsState,
+  );
+}
+
+/** Adds or updates a line (a second purchase of the same asset recomputes the weighted average cost). */
+export function upsertHolding(h: Omit<Holding, "id"> & { id?: string }, merge = false) {
+  setHoldings((s) => {
+    const existing = s.holdings.find((x) => (h.id ? x.id === h.id : x.symbol === h.symbol && x.kind === h.kind));
+    if (existing && merge && !h.id) {
+      const qty = existing.quantity + h.quantity;
+      const avg = (existing.quantity * existing.averagePrice + h.quantity * h.averagePrice) / qty;
+      return { holdings: s.holdings.map((x) => (x.id === existing.id ? { ...x, quantity: qty, averagePrice: avg } : x)) };
+    }
+    if (existing) return { holdings: s.holdings.map((x) => (x.id === existing.id ? { ...existing, ...h, id: existing.id } : x)) };
+    return { holdings: [...s.holdings, { ...h, id: crypto.randomUUID() }] };
+  });
+}
+
+export function exportHoldings(): string {
+  return JSON.stringify({ app: "altim", ...holdingsState }, null, 2);
+}
+
+export function importHoldings(json: string): string | null {
+  try {
+    const p = JSON.parse(json) as Partial<HoldingsState>;
+    if (!Array.isArray(p.holdings)) return "Fichier invalide.";
+    const holdings = p.holdings.filter(isValidHolding);
+    setHoldings({ holdings, cash: Number.isFinite(p.cash) && (p.cash as number) >= 0 ? (p.cash as number) : 0 });
+    return null;
+  } catch {
+    return "Fichier illisible.";
+  }
 }

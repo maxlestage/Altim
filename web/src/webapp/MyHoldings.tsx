@@ -1,0 +1,339 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { analyzePortfolio, insightText, REASON_TEXT, RECOMMENDATION_LABEL, type Holding, type MarketInput, type PortfolioAnalysis, type Recommendation } from "../engine/holdings";
+import { formatPrice } from "../market";
+import { api } from "./api";
+import { onLink } from "./router";
+import { exportHoldings, importHoldings, setHoldings, upsertHolding, useHoldings } from "./store";
+import { Change } from "./ui";
+
+const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+const REC_CLASS: Record<Recommendation, string> = { sell: "sell", protect: "sell", lighten: "hold", strengthen: "buy", hold: "hold", unknown: "unknown" };
+const LEVEL_ICON = { danger: "⛔", warning: "⚠", info: "ℹ", good: "✔" } as const;
+
+/** Real portfolio entered by the user (localStorage) and full analysis. */
+export function MyHoldings() {
+  const { holdings, cash, updatedAt } = useHoldings();
+  const [market, setMarket] = useState<Record<string, MarketInput>>({});
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Holding | "new" | null>(null);
+  const [cashText, setCashText] = useState(cash ? String(cash) : "");
+  const fileInput = useRef<HTMLInputElement>(null);
+  const symbolsKey = holdings.map((h) => `${h.kind}:${h.symbol}`).sort().join(",");
+
+  useEffect(() => {
+    if (!holdings.length) return setMarket({});
+    let alive = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const assets = holdings.map((h) => ({ symbol: h.symbol, kind: h.kind, name: h.name }));
+        const unique = [...new Map(assets.map((a) => [`${a.kind}:${a.symbol}`, a])).values()];
+        const [day, short, candles] = await Promise.all([
+          api.radar(unique, "1d"),
+          api.radar(unique, "4h").catch(() => []),
+          Promise.all(unique.map((a) => api.candles(a.symbol, a.kind, "1d").catch(() => null))),
+        ]);
+        if (!alive) return;
+        const m: Record<string, MarketInput> = {};
+        unique.forEach((a, i) => {
+          const k = `${a.kind}:${a.symbol}`;
+          const d = day.find((r) => r.symbol === a.symbol && r.kind === a.kind);
+          const s = short.find((r) => r.symbol === a.symbol && r.kind === a.kind);
+          m[k] = {
+            price: d?.price ?? s?.price ?? 0,
+            daily: candles[i]?.candles ?? [],
+            daySignal: d?.signal ?? null,
+            shortSignal: s?.signal ?? null,
+            // The least reliable of the two timeframes wins (caution).
+            reliability: [d?.reliability?.level, s?.reliability?.level].includes("low") ? "low" : d?.reliability?.level ?? s?.reliability?.level ?? null,
+          };
+        });
+        setMarket(m);
+        setError(null);
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : "Données indisponibles");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    };
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), 120_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [symbolsKey]);
+
+  const analysis = useMemo<PortfolioAnalysis>(() => analyzePortfolio(holdings, cash, market), [holdings, cash, market]);
+  const ready = holdings.length === 0 || Object.keys(market).length > 0;
+
+  const saveCash = () => {
+    const v = Number(cashText.replace(/\s/g, "").replace(",", "."));
+    if (Number.isFinite(v) && v >= 0) setHoldings({ cash: v });
+    else setCashText(cash ? String(cash) : "");
+  };
+
+  const download = () => {
+    const blob = new Blob([exportHoldings()], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `altim-avoirs-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  return (
+    <section className="app-screen">
+      <div className="screen-top">
+        <div>
+          <h1>Mes avoirs</h1>
+          <p className="muted small">Enregistrés uniquement dans ce navigateur{updatedAt ? ` · modifiés le ${new Date(updatedAt).toLocaleDateString("fr-FR")}` : ""}</p>
+        </div>
+        <button className="btn btn-small" onClick={() => setEditing("new")}>+ Ajouter</button>
+      </div>
+
+      {!holdings.length && (
+        <div className="card empty-card">
+          <h2>Renseignez ce que vous possédez déjà</h2>
+          <p className="muted">
+            Ajoutez chaque actif avec sa quantité et votre prix d'achat moyen. Altim calcule alors votre patrimoine, vos gains, vos risques et
+            vous dit, ligne par ligne, quoi faire. Vos données restent dans ce navigateur.
+          </p>
+          <button className="btn" onClick={() => setEditing("new")}>Ajouter mon premier actif</button>
+        </div>
+      )}
+
+      <div className="card">
+        <label className="field">
+          <span>Liquidités disponibles (USD)</span>
+          <input inputMode="decimal" value={cashText} placeholder="0" onChange={(e) => setCashText(e.target.value)} onBlur={saveCash} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()} />
+        </label>
+      </div>
+
+      {error && <p className="notice warn">⚠ {error} — nouvelle tentative automatique.</p>}
+
+      {holdings.length > 0 && (
+        <>
+          <div className="card summary-card">
+            <small className="muted">Patrimoine total</small>
+            <b className="mono big">{ready ? usd(analysis.total) : "…"}</b>
+            {ready && (
+              <p className="kv"><span>Plus-value latente</span><b className={analysis.pnl >= 0 ? "up" : "down"}>{analysis.pnl >= 0 ? "+" : "−"}{usd(Math.abs(analysis.pnl))} (<Change value={analysis.pnlPercent} />)</b></p>
+            )}
+            <p className="kv small"><span>Investi (prix d'achat)</span><b>{usd(analysis.invested)}</b></p>
+            {ready && <AllocationBar a={analysis.allocation} />}
+            {loading && <p className="muted small">Actualisation des cours et des signaux…</p>}
+          </div>
+
+          {ready && (
+            <div className="card insights-card">
+              <h2 className="card-title">Ce qu'Altim vous dit</h2>
+              <ul className="insights">
+                {analysis.insights.map((i, n) => (
+                  <li key={n} className={`insight ${i.level}`}>
+                    <span aria-hidden>{LEVEL_ICON[i.level]}</span>
+                    <span>{insightText(i)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <h2 className="section-label">Ligne par ligne</h2>
+          <ul className="holding-list">
+            {analysis.lines.map((l) => (
+              <li key={l.id} className={`card holding ${REC_CLASS[l.recommendation]}`}>
+                <div className="holding-head">
+                  <a href={`/app/actif/${l.kind}/${l.symbol}`} onClick={onLink} className="holding-name">
+                    <b>{l.name}</b>
+                    <small className="muted mono">{l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {l.symbol} · PRU {formatPrice(l.averagePrice)} $</small>
+                  </a>
+                  <span className={`rec rec-${REC_CLASS[l.recommendation]}`}>{RECOMMENDATION_LABEL[l.recommendation]}</span>
+                </div>
+                <div className="holding-figures">
+                  <div><small>Valeur</small><b>{usd(l.value)}</b></div>
+                  <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>
+                  <div><small>Cours</small><b>{l.price ? `${formatPrice(l.price)} $` : "—"}</b></div>
+                </div>
+                <div className="weight" role="img" aria-label={`Poids ${l.weight.toFixed(1)} % du patrimoine`}>
+                  <div className="weight-track"><i style={{ width: `${Math.min(100, l.weight)}%` }} /></div>
+                  <small>{l.weight.toFixed(1)} % du patrimoine</small>
+                </div>
+                <ul className="reasons">
+                  {l.reasons.map((r) => <li key={r}>{REASON_TEXT[r] ?? r}</li>)}
+                  {l.recommendation === "lighten" && l.trimValue > 0 && l.price && (
+                    <li>
+                      Suggestion : vendre environ {usd(l.trimValue)} (≈ {(l.trimValue / l.price).toLocaleString("fr-FR", { maximumFractionDigits: 6 })} {l.symbol}).
+                    </li>
+                  )}
+                  {l.stop && l.lossAtStop !== null && (
+                    <li>
+                      Stop de protection conseillé : <b>{formatPrice(l.stop)} $</b> (2 × la volatilité journalière) — perte limitée à ≈ {usd(l.lossAtStop)} depuis le cours actuel.
+                    </li>
+                  )}
+                </ul>
+                <div className="holding-actions">
+                  <button className="link-btn" onClick={() => setEditing(holdings.find((h) => h.id === l.id)!)}>Modifier</button>
+                  <button className="link-btn danger" onClick={() => confirm(`Supprimer ${l.name} de vos avoirs ?`) && setHoldings((s) => ({ holdings: s.holdings.filter((h) => h.id !== l.id) }))}>Supprimer</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {ready && (
+            <div className="card">
+              <h2 className="card-title">Risque du portefeuille</h2>
+              <p className="kv"><span>Volatilité annuelle</span><b>{analysis.risk.volatilityAnnual !== null ? `${analysis.risk.volatilityAnnual.toFixed(1)} %` : "—"}</b></p>
+              <p className="kv"><span>Perte possible sur 1 jour (1 fois sur 20)</span><b>{analysis.risk.var95Day !== null ? `${usd(analysis.risk.var95Day)} (${analysis.risk.var95DayPercent!.toFixed(1)} %)` : "—"}</b></p>
+              <p className="kv"><span>Perte si tous les stops sont touchés</span><b>{usd(analysis.risk.lossAtStops)}</b></p>
+              <p className="kv"><span>Ligne la plus lourde</span><b>{analysis.risk.maxWeight.toFixed(1)} %</b></p>
+              <p className="kv"><span>Diversification effective</span><b>{analysis.risk.effectiveAssets.toFixed(1)} actif(s)</b></p>
+              <p className="kv"><span>Corrélation moyenne</span><b>{analysis.risk.averageCorrelation !== null ? analysis.risk.averageCorrelation.toFixed(2) : "—"}</b></p>
+              <p className="muted small">Calculé sur les 90 derniers jours de cours journaliers, recoupés entre plusieurs sources. Les performances passées ne préjugent pas des performances futures.</p>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="card">
+        <h2 className="card-title">Sauvegarde</h2>
+        <p className="muted small">Vos avoirs sont conservés dans ce navigateur (localStorage). Exportez-les pour les garder en sécurité ou les transférer.</p>
+        <div className="row-actions">
+          <button className="btn btn-ghost" onClick={download} disabled={!holdings.length && !cash}>Exporter (JSON)</button>
+          <button className="btn btn-ghost" onClick={() => fileInput.current?.click()}>Importer</button>
+          <input
+            ref={fileInput}
+            type="file"
+            accept="application/json,.json"
+            hidden
+            onChange={async (e) => {
+              const f = e.target.files?.[0];
+              if (!f) return;
+              const err = importHoldings(await f.text());
+              alert(err ?? "Avoirs importés.");
+              e.target.value = "";
+            }}
+          />
+        </div>
+      </div>
+
+      {editing && <HoldingForm initial={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+    </section>
+  );
+}
+
+/** Allocation by class: stacked bar + legend + labels (color never the only cue). */
+function AllocationBar({ a }: { a: PortfolioAnalysis["allocation"] }) {
+  const parts = [
+    { key: "crypto", label: "Crypto", value: a.crypto },
+    { key: "stock", label: "Actions", value: a.stock },
+    { key: "cash", label: "Liquidités", value: a.cash },
+  ].filter((p) => p.value > 0.05);
+  return (
+    <figure className="alloc">
+      <figcaption className="muted small">Répartition</figcaption>
+      <div className="alloc-bar" role="img" aria-label={parts.map((p) => `${p.label} ${p.value.toFixed(1)} %`).join(", ")}>
+        {parts.map((p) => (
+          <span key={p.key} className={`alloc-${p.key}`} style={{ flexGrow: p.value }} title={`${p.label} : ${p.value.toFixed(1)} %`} />
+        ))}
+      </div>
+      <ul className="alloc-legend">
+        {parts.map((p) => (
+          <li key={p.key}><i className={`alloc-${p.key}`} />{p.label} <b>{p.value.toFixed(1)} %</b></li>
+        ))}
+      </ul>
+    </figure>
+  );
+}
+
+type Asset = { symbol: string; kind: "crypto" | "stock"; name: string };
+
+function HoldingForm({ initial, onClose }: { initial: Holding | null; onClose: () => void }) {
+  const [asset, setAsset] = useState<Asset | null>(initial ? { symbol: initial.symbol, kind: initial.kind, name: initial.name } : null);
+  const [q, setQ] = useState("");
+  const [results, setResults] = useState<Asset[]>([]);
+  const [qty, setQty] = useState(initial ? String(initial.quantity) : "");
+  const [pru, setPru] = useState(initial ? String(initial.averagePrice) : "");
+  const [merge, setMerge] = useState(true);
+  const [price, setPrice] = useState<number | null>(null);
+  const { holdings } = useHoldings();
+  const exists = !initial && asset && holdings.some((h) => h.symbol === asset.symbol && h.kind === asset.kind);
+
+  useEffect(() => {
+    if (asset || q.trim().length < 2) return setResults([]);
+    let alive = true;
+    const t = setTimeout(() => api.search(q.trim()).then((r) => alive && setResults(r)).catch(() => {}), 300);
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
+  }, [q, asset]);
+
+  useEffect(() => {
+    if (!asset) return setPrice(null);
+    api.quotes([asset]).then((r) => setPrice(r[0]?.price ?? null)).catch(() => setPrice(null));
+  }, [asset?.symbol, asset?.kind]);
+
+  const n = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
+  const quantity = n(qty);
+  const averagePrice = pru.trim() === "" && price ? price : n(pru);
+  const valid = !!asset && quantity > 0 && Number.isFinite(averagePrice) && averagePrice >= 0;
+
+  const save = () => {
+    if (!valid || !asset) return;
+    upsertHolding({ id: initial?.id, symbol: asset.symbol, kind: asset.kind, name: asset.name, quantity, averagePrice }, merge);
+    onClose();
+  };
+
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={initial ? "Modifier un avoir" : "Ajouter un avoir"} onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="sheet-head"><h2>{initial ? `Modifier ${initial.name}` : "Ajouter un avoir"}</h2></div>
+
+        {!asset ? (
+          <>
+            <label className="field">
+              <span>Actif (crypto ou action)</span>
+              <input type="search" autoFocus placeholder="BTC, ETH, Apple, NVDA…" value={q} onChange={(e) => setQ(e.target.value)} />
+            </label>
+            <ul className="search-results">
+              {results.map((r) => (
+                <li key={`${r.kind}:${r.symbol}`}>
+                  <button onClick={() => setAsset(r)}><b>{r.symbol}</b> <span className="muted">{r.name}</span> <small className="tag">{r.kind === "crypto" ? "Crypto" : "Action"}</small></button>
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : (
+          <>
+            <div className="chosen">
+              <b>{asset.name}</b> <small className="muted mono">{asset.symbol}</small>
+              {!initial && <button className="link-btn" onClick={() => setAsset(null)}>Changer</button>}
+            </div>
+            {price && <p className="muted small">Cours actuel (consensus) : {formatPrice(price)} $</p>}
+            <label className="field">
+              <span>Quantité détenue</span>
+              <input inputMode="decimal" autoFocus value={qty} onChange={(e) => setQty(e.target.value)} placeholder="ex. 0,25" />
+            </label>
+            <label className="field">
+              <span>Prix d'achat moyen (USD, PRU)</span>
+              <input inputMode="decimal" value={pru} onChange={(e) => setPru(e.target.value)} placeholder={price ? `vide = cours actuel (${formatPrice(price)})` : "ex. 42000"} />
+            </label>
+            {exists && (
+              <label className="check-row">
+                <input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
+                <span>Déjà présent : ajouter à la ligne existante (PRU recalculé)</span>
+              </label>
+            )}
+            {quantity > 0 && averagePrice > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * averagePrice)}</b></p>}
+          </>
+        )}
+
+        <button className="btn" disabled={!valid} onClick={save}>{initial ? "Enregistrer" : "Ajouter"}</button>
+        <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
+      </div>
+    </div>
+  );
+}

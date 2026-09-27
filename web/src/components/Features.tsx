@@ -30,6 +30,11 @@ const FEATURES = [
     text: "Avant d'acheter, voyez comment la stratégie s'est comportée sur cet actif : rendement, taux de réussite, pire baisse — comparés à l'achat-conservation.",
   },
   {
+    icon: "M12 2 3 7l9 5 9-5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5",
+    title: "Vos avoirs analysés",
+    text: "Renseignez ce que vous possédez déjà : patrimoine, plus-values, répartition, risque d'une mauvaise journée et, ligne par ligne, quoi faire (conserver, alléger, protéger, renforcer).",
+  },
+  {
     icon: "M12 2 3 6v6c0 5 4 9 9 10 5-1 9-5 9-10V6z",
     title: "Gestion du risque pro",
     text: "Taille de position calculée pour ne risquer que 1 % du capital, plafond par position, coupe-circuit de perte journalière.",

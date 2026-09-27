@@ -12,6 +12,9 @@ final class AppServices {
     let journal = TradeJournal()
     /// Simulated broker shared across the session: its balances persist.
     let paperBroker: PaperBroker
+    /// Holdings entered by the user: SQLite database on the device.
+    let holdingsDB: HoldingsDatabase?
+    let holdingsDBError: String?
 
     /// Multi-source market data with cross-validation (rebuilt with the keys currently entered).
     var market: ConsensusMarketData { Self.makeMarket(transport: transport) }
@@ -20,6 +23,13 @@ final class AppServices {
     init() {
         let transport = ResilientTransport()
         self.transport = transport
+        do {
+            self.holdingsDB = try HoldingsDatabase(path: HoldingsDatabase.defaultURL().path)
+            self.holdingsDBError = nil
+        } catch {
+            self.holdingsDB = nil
+            self.holdingsDBError = error.localizedDescription
+        }
         self.paperBroker = PaperBroker(startingCash: 10_000, quoteAsset: "USDT") { symbol in
             let asset = symbol.hasSuffix("USDT")
                 ? Asset(symbol: symbol, name: symbol, assetClass: .crypto, quote: "USDT")

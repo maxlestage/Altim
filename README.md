@@ -9,7 +9,7 @@ Application iOS (Swift / SwiftUI) de **signaux d'achat et de vente** pour la cry
 | Dossier | Rôle |
 |---|---|
 | `ios/AltimCore` | Moteur en Swift pur, testé : indicateurs, moteur de signaux, gestion du risque, backtest, données de marché, courtiers |
-| `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, passage d'ordre, portefeuille, réglages |
+| `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, **Mes avoirs (base SQLite)**, passage d'ordre, portefeuille, réglages |
 | `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source** |
 | `.github/workflows` | CI iOS (build + tests sur macOS), CI web, déploiement Heroku, envoi TestFlight |
 
@@ -22,6 +22,7 @@ Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
 - **Radar** : signaux validés de vos actifs (crypto et actions), fiabilité des données, Fear & Greed, opportunités détectées ; actualisation automatique toutes les 60 s.
 - **Analyse** : graphique (EMA 20/50, stop/objectif, entrées du backtest), jauge et détail des 7 facteurs, fiabilité avec la liste des sources et leurs écarts, backtest, sentiment.
 - **Ordres de démonstration** : taille calculée par le gestionnaire de risque, mêmes contrôles que l'app iOS, prix d'exécution revérifié sur plusieurs sources juste avant l'ordre.
+- **Mes avoirs** : vous renseignez ce que vous possédez déjà (actif, quantité, prix d'achat moyen, liquidités). Les données sont **gardées dans le navigateur (localStorage)**, avec export/import JSON. Altim en déduit tout : patrimoine et plus-values au prix de consensus, répartition crypto/actions/liquidités, et pour chaque ligne une recommandation expliquée (*Vendre ou protéger*, *Protéger*, *Alléger*, *Renforcer possible*, *Conserver*, ou *Données insuffisantes*) avec le stop de protection conseillé. S'y ajoutent les risques du portefeuille : volatilité, perte possible sur une mauvaise journée (VaR 95 %), perte si les stops sont touchés, concentration, diversification effective et corrélation.
 - **Portefeuille** démo (10 000 USDT fictifs, valorisé au prix de consensus) et **réglages** (radar, gestion du risque).
 
 Le trading réel reste réservé à l'app iOS (clés dans le trousseau, Face ID) : aucune clé n'est demandée sur le web. Les données de l'app web restent dans le navigateur (localStorage).
@@ -61,6 +62,26 @@ Chaque indicateur vote entre −1 (baissier) et +1 (haussier) ; le score pondér
 ### Résultats honnêtes sur données réelles (500 bougies, septembre 2026)
 
 La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −3,8 % contre −29,6 % en achat-conservation ; ETH 1 j : +12,8 % contre −10,6 %) mais **fait moins bien qu'un simple achat-conservation en marché très haussier** (NVDA 4 h : −23 % contre +27 %). C'est pour cela que l'app affiche le backtest de chaque actif avant tout ordre.
+
+## Mes avoirs : web (localStorage) et iOS (SQLite)
+
+- **Web** : les avoirs sont stockés dans le `localStorage` du navigateur, jamais sur le serveur (seuls les symboles sont envoyés pour obtenir les cours).
+- **iOS** : base **SQLite** sur l'iPhone (`HoldingsDatabase`) avec :
+  - schéma versionné (`PRAGMA user_version`) et migrations ;
+  - contraintes d'intégrité (quantité > 0, une ligne par actif) ;
+  - journal WAL ;
+  - import atomique : tout ou rien.
+- Le fichier d'export JSON est **commun** : on peut passer ses avoirs du web à l'iPhone et inversement.
+- Le moteur d'analyse (`holdings.ts` et `HoldingsAnalyzer.swift`) est identique sur les deux plateformes, vérifié par un fichier de référence partagé.
+- Règles de recommandation (par ordre de priorité) :
+  1. Données peu fiables → aucun conseil.
+  2. Signaux baissiers en journalier **et** en 4 h → vendre ou protéger.
+  3. Signal journalier baissier, ou vente forte en 4 h → protéger (stop).
+  4. Ligne au-dessus de 35 % du patrimoine → alléger jusqu'à 30 %.
+  5. Plus de 50 % de gain sans signal haussier → sécuriser une partie.
+  6. Signaux haussiers en journalier et en 4 h, avec un poids inférieur à 20 % → renforcement possible.
+  7. Sinon → conserver.
+- Stop de protection conseillé : 2 × l'ATR journalier.
 
 ## Fiabilité des données : 16 sources de prix recoupées
 
