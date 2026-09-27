@@ -13,6 +13,7 @@ import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
 import { guardReport } from "./guard";
 import { LiveHub } from "./live";
+import { authConfig, createAuth, type AuthConfig } from "./auth";
 import { macro, macroSeries } from "./macro";
 import { fibZones } from "../src/engine/fibonacci";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
@@ -187,8 +188,9 @@ async function sentiment(symbol: string, kind: Kind) {
 
 // ---------- Application ----------
 
-export function createApp({ live }: { live?: LiveHub } = {}) {
+export function createApp({ live, auth = { cfg: authConfig(), production: process.env.NODE_ENV === "production" } }: { live?: LiveHub; auth?: { cfg: AuthConfig | null; production: boolean } } = {}) {
   const app = express();
+  const access = createAuth(auth.cfg, auth.production);
   let hub = live ?? null;
   const liveHub = () => (hub ??= new LiveHub());
   app.disable("x-powered-by");
@@ -231,11 +233,18 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
 
   app.get("/health", (_req, res) => res.type("text").send("ok"));
 
+  // ----- Private access (auth.ts): everything below requires a session, or the bot token on /api -----
+  app.get("/robots.txt", (_req, res) => res.type("text").send("User-agent: *\nDisallow: /\n"));
+  app.get("/login", access.loginForm);
+  app.post("/login", express.urlencoded({ extended: false, limit: "2kb" }), (req, res, next) => access.login(req, res).catch(next));
+  app.post("/logout", access.logout);
+  app.use(access.guard);
+
   // ----- API -----
   const api = express.Router();
   api.use(rateLimit(240, 60_000));
   api.use((_req, res, next) => {
-    res.setHeader("Cache-Control", "public, max-age=15");
+    res.setHeader("Cache-Control", "private, max-age=15");
     next();
   });
 
@@ -281,7 +290,7 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
     const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
     const list = await universe(kind);
     const matches = q.trim() ? searchUniverse(list, q, list.length) : list;
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Cache-Control", "private, max-age=3600");
     res.json({ total: matches.length, offset, items: matches.slice(offset, offset + limit).map((e) => toItem(e, kind)) });
   }));
 
@@ -297,7 +306,7 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
         return { report: ctx.report, evidence: await ctx.evidence };
       }));
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", "public, max-age=30");
+    res.setHeader("Cache-Control", "private, max-age=30");
     res.json(report);
   }));
 
@@ -342,7 +351,7 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
   // Macro / geopolitical context (market-wide), readable by bots.
   api.get("/macro", wrap(async (_req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", "public, max-age=60");
+    res.setHeader("Cache-Control", "private, max-age=60");
     res.json(await macroNow());
   }));
 
@@ -358,7 +367,7 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
   const staticOptions = {
     index: false,
     setHeaders: (res: Response, path: string) => {
-      res.setHeader("Cache-Control", /-[a-z0-9]{8,}\.(js|css|svg|png)$/.test(path) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
+      res.setHeader("Cache-Control", /-[a-z0-9]{8,}\.(js|css|svg|png)$/.test(path) ? "private, max-age=31536000, immutable" : "private, max-age=3600");
     },
   };
   app.use(express.static(DIST, staticOptions));
