@@ -1,0 +1,43 @@
+name: iOS
+
+on:
+  push:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  pull_request:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+jobs:
+  kit-linux:
+    name: Tests du noyau AltimKit (Linux)
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - run: cd ios/AltimKit && swift test
+
+  app:
+    name: Build de l'app iOS + tests (macOS)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tests du noyau AltimKit (macOS)
+        run: cd ios/AltimKit && swift test
+      - run: brew install xcodegen
+      - name: Génération du projet Xcode
+        run: cd ios && xcodegen generate
+      - name: Compilation pour le simulateur iPhone
+        run: |
+          cd ios
+          xcodebuild -project Altim.xcodeproj -scheme Altim -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build > debug.log 2>&1 \
+            || { grep -E "error:" debug.log | head -80; tail -30 debug.log; exit 1; }
+          grep -E "warning: .*/Altim/" debug.log | sort -u | head -40 || true
+          grep "BUILD SUCCEEDED" debug.log
+      - name: Compilation Release (celle de TestFlight, sans signature)
+        run: |
+          cd ios
+          xcodebuild -project Altim.xcodeproj -scheme Altim -configuration Release \
+            -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build > release.log 2>&1 \
+            || { grep -E "error:" release.log | head -80; tail -30 release.log; exit 1; }
+          grep "BUILD SUCCEEDED" release.log
