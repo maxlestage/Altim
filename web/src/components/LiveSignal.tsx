@@ -42,7 +42,7 @@ export function LiveSignal() {
   return (
     <section className="section live reveal" id="live" ref={ref}>
       <div className="section-head">
-        <p className="eyebrow">Démo en direct</p>
+        <p className="eyebrow">Signal en direct</p>
         <h2>
           Le moteur Altim tourne <span className="gradient">dans votre navigateur</span>
         </h2>

@@ -18,7 +18,7 @@
 
 .app-tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(3, 1fr);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: rgba(7, 9, 20, 0.92); border-top: 1px solid var(--line);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -164,6 +164,20 @@
 .stepper button { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.06); color: var(--cyan); font-size: 20px; cursor: pointer; }
 .stepper b { min-width: 64px; text-align: center; }
 
+/* Altim's advice */
+.advice { display: grid; gap: 8px; }
+.advice-title { margin: 0; font-family: var(--display); font-weight: 700; font-size: 20px; }
+.advice ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 15px; }
+.advice-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 18px; }
+.advice-actions .link { display: inline-flex; align-items: center; min-height: 44px; }
+.advice-buy { border-color: rgba(57, 255, 136, 0.55); box-shadow: 0 0 40px rgba(57, 255, 136, 0.12); }
+.advice-buy .advice-title { color: var(--buy); }
+.advice-sell { border-color: rgba(255, 59, 92, 0.55); }
+.advice-sell .advice-title { color: var(--sell); }
+.advice-hold .advice-title { color: var(--cyan); }
+.advice-unknown { border-color: rgba(255, 199, 51, 0.45); }
+.advice-unknown .advice-title { color: var(--warn); }
+
 /* My holdings */
 .empty-card { display: grid; gap: 12px; border-color: rgba(0, 240, 255, 0.4); }
 .empty-card h2 { font-size: 20px; }
@@ -248,7 +262,5 @@
   .asset-grid { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); align-items: start; }
   .asset-grid .chart-box { grid-column: 1; }
   .asset-grid .signal-card { grid-column: 2; grid-row: 1 / span 2; }
-  /* Desktop: action bar under the header, no longer floating over the content. */
-  .asset-screen .action-bar { position: static; order: 1; width: 100%; max-width: 460px; justify-self: end; margin: 0; }
-  .asset-screen > .segmented, .asset-screen > .asset-grid, .asset-screen > .notice, .asset-screen > .skeleton { order: 2; }
+
 }

@@ -4,9 +4,8 @@ import { api } from "./api";
 import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type WatchItem } from "./store";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
-  { key: "riskPerTradePercent", label: "Risque par trade", min: 0.25, max: 5, step: 0.25, unit: " %" },
-  { key: "maxPositionPercent", label: "Position max", min: 5, max: 100, step: 5, unit: " %" },
-  { key: "dailyLossLimitPercent", label: "Perte max / jour", min: 1, max: 20, step: 0.5, unit: " %" },
+  { key: "riskPerTradePercent", label: "Risque accepté par idée", min: 0.25, max: 5, step: 0.25, unit: " %" },
+  { key: "maxPositionPercent", label: "Taille max d'une ligne", min: 5, max: 100, step: 5, unit: " %" },
   { key: "minRiskReward", label: "Gain/risque min", min: 1, max: 5, step: 0.25, unit: "" },
 ];
 
@@ -72,7 +71,8 @@ export function Settings() {
       </div>
 
       <div className="card">
-        <h2 className="card-title">Gestion du risque</h2>
+        <h2 className="card-title">Prudence des conseils</h2>
+        <p className="muted small">Ces réglages déterminent les montants conseillés : la part de votre patrimoine qu'un conseil d'achat accepte de risquer si le stop est touché, et la taille maximale d'une ligne.</p>
         {RISK_FIELDS.map((f) => (
           <div className="stepper" key={f.key}>
             <span>{f.label}</span>
@@ -83,15 +83,8 @@ export function Settings() {
             </div>
           </div>
         ))}
-        <p className="muted small">Règle professionnelle : ne jamais risquer plus de 1 à 2 % du capital par position.</p>
+        <p className="muted small">Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.</p>
         <button className="link-btn" onClick={() => setState({ risk: DEFAULT_RISK })}>Valeurs recommandées</button>
-      </div>
-
-      <div className="card">
-        <h2 className="card-title">Trading réel</h2>
-        <p className="muted small">
-          La version web fonctionne en démo. Le trading réel (Binance, Alpaca) se fait dans l'app iOS : vos clés restent chiffrées dans le trousseau de l'iPhone et chaque ordre est confirmé par Face ID. Aucune clé n'est jamais demandée sur le web.
-        </p>
       </div>
 
       <div className="card">

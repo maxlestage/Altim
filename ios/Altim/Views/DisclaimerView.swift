@@ -20,10 +20,9 @@ struct DisclaimerView: View {
 
                     VStack(alignment: .leading, spacing: 14) {
                         point("waveform.path.ecg", "Les signaux sont des probabilités calculées sur l'historique, jamais des certitudes. Aucun outil ne garantit un gain.")
-                        point("exclamationmark.triangle", "Le trading de crypto-actifs et d'actions comporte un risque de perte totale du capital investi.")
-                        point("testtube.2", "L'application démarre en mode DÉMO (argent fictif). Testez longtemps avant de passer en réel.")
-                        point("lock.shield", "Vos clés API restent chiffrées sur cet appareil. N'activez jamais la permission de retrait.")
-                        point("person.fill.checkmark", "Chaque ordre doit être confirmé par Face ID / code. Altim n'exécute rien sans vous.")
+                        point("exclamationmark.triangle", "Investir en crypto-actifs et en actions comporte un risque de perte totale du capital investi.")
+                        point("lightbulb", "Altim est un conseiller : il ne passe aucun ordre et ne demande aucun accès à vos comptes. Vous décidez, chez votre courtier habituel.")
+                        point("lock.shield", "Vos avoirs restent sur cet iPhone (base SQLite locale), jamais sur un serveur.")
                     }
                     .glassCard(glow: Theme.warning)
 

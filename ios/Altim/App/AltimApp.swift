@@ -42,8 +42,6 @@ struct RootView: View {
                     .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
                 HoldingsView()
                     .tabItem { Label("Mes avoirs", systemImage: "square.stack.3d.up.fill") }
-                PortfolioView()
-                    .tabItem { Label("Courtiers", systemImage: "chart.pie.fill") }
                 SettingsView()
                     .tabItem { Label("Réglages", systemImage: "slider.horizontal.3") }
             }

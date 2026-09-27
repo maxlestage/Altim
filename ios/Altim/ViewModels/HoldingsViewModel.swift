@@ -30,7 +30,7 @@ final class HoldingsViewModel {
 
     /// Prices, daily candles and signals (1 d and 4 h) from the multi-source consensus.
     func refreshMarket(services: AppServices) async {
-        let assets = Dictionary(holdings.map { ("\($0.kind.rawValue):\($0.symbol)", $0) }, uniquingKeysWith: { a, _ in a })
+        let assets = Dictionary(holdings.map { ($0.marketKey, $0) }, uniquingKeysWith: { a, _ in a })
         guard !assets.isEmpty else { market = [:]; recompute(); return }
         isLoading = true
         defer { isLoading = false }
@@ -38,19 +38,7 @@ final class HoldingsViewModel {
         let results = await withTaskGroup(of: (String, HoldingsAnalyzer.MarketInput?).self) { group in
             for (key, h) in assets {
                 group.addTask {
-                    let asset = Asset(symbol: h.kind == .crypto ? "\(h.symbol)USDT" : h.symbol, name: h.name, assetClass: h.kind,
-                                      quote: h.kind == .crypto ? "USDT" : "USD")
-                    guard let day = try? await MarketAnalysis.run(asset: asset, timeframe: .d1, market: consensus) else { return (key, nil) }
-                    let short = try? await MarketAnalysis.run(asset: asset, timeframe: .h4, market: consensus)
-                    // The least reliable of the two timeframes wins (caution).
-                    let levels = [day.snapshot.reliability, short?.snapshot.reliability].compactMap { $0 }
-                    let reliability: ReliabilityLevel = levels.contains(.low) ? .low : levels.contains(.medium) ? .medium : .high
-                    return (key, HoldingsAnalyzer.MarketInput(
-                        price: day.price,
-                        daily: day.snapshot.candles,
-                        daySignal: .init(action: day.signal.action, score: day.signal.score),
-                        shortSignal: short.map { .init(action: $0.signal.action, score: $0.signal.score) },
-                        reliability: reliability))
+                    (key, await Self.marketInput(for: h.asset, market: consensus))
                 }
             }
             var out: [String: HoldingsAnalyzer.MarketInput] = [:]
@@ -60,6 +48,21 @@ final class HoldingsViewModel {
         market = results
         error = results.count < assets.count ? "Certains cours sont indisponibles : analyse partielle." : nil
         recompute()
+    }
+
+    /// Full market input for a held asset: daily price and candles, 1 d and 4 h signals.
+    nonisolated static func marketInput(for asset: Asset, market: ConsensusMarketData) async -> HoldingsAnalyzer.MarketInput? {
+        guard let day = try? await MarketAnalysis.run(asset: asset, timeframe: .d1, market: market) else { return nil }
+        let short = try? await MarketAnalysis.run(asset: asset, timeframe: .h4, market: market)
+        // The least reliable of the two timeframes wins (caution).
+        let levels = [day.snapshot.reliability, short?.snapshot.reliability].compactMap { $0 }
+        let reliability: ReliabilityLevel = levels.contains(.low) ? .low : levels.contains(.medium) ? .medium : .high
+        return HoldingsAnalyzer.MarketInput(
+            price: day.price,
+            daily: day.snapshot.candles,
+            daySignal: .init(action: day.signal.action, score: day.signal.score),
+            shortSignal: short.map { .init(action: $0.signal.action, score: $0.signal.score) },
+            reliability: reliability)
     }
 
     func save(_ holding: Holding, merge: Bool, services: AppServices) async {
@@ -118,4 +121,14 @@ final class HoldingsViewModel {
     private func recompute() {
         analysis = HoldingsAnalyzer.analyze(holdings: holdings, cash: cash, market: market)
     }
+}
+
+extension Holding {
+    /// Market asset used to price this holding (crypto quoted in USDT, stocks in USD).
+    var asset: Asset {
+        Asset(symbol: kind == .crypto ? "\(symbol)USDT" : symbol, name: name, assetClass: kind,
+              quote: kind == .crypto ? "USDT" : "USD")
+    }
+
+    var marketKey: String { "\(kind.rawValue):\(symbol)" }
 }

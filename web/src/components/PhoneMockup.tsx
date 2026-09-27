@@ -24,7 +24,7 @@ export function PhoneMockup({ ticks }: { ticks: Tick[] }) {
         <div className="screen">
           <div className="screen-head">
             <span className="screen-title">Radar</span>
-            <span className="env">DÉMO</span>
+            <span className="env">CONSEIL</span>
           </div>
           <div className="seg">
             <span>15 min</span>

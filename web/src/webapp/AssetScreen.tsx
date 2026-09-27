@@ -4,20 +4,37 @@ import { gate } from "../engine/reliability";
 import { backtest, type BacktestResult } from "../engine/backtest";
 import { formatPrice } from "../market";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type Quote, type Sentiment, type Snapshot } from "./api";
-import { navigate, onLink } from "./router";
-import { assetKey, setState, useAppState, type Interval } from "./store";
+import { onLink } from "./router";
+import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
 import { ActionBadge, Change, Gauge, Price, PriceChart, ReliabilityBadge, Segmented } from "./ui";
-import { TradeSheet } from "./TradeSheet";
+import { adviseAsset } from "../engine/advice";
+import { analyzePortfolio, type MarketInput } from "../engine/holdings";
 
 type Loaded = { snap: Snapshot; signal: Signal | null; quote: Quote | null };
 
 export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol: string }) {
-  const { interval, watchlist } = useAppState();
+  const { interval, watchlist, risk } = useAppState();
+  const holdingsState = useHoldings();
+  const held = holdingsState.holdings.find((h) => h.symbol === symbol && h.kind === kind) ?? null;
+  const [heldMarket, setHeldMarket] = useState<MarketInput | null>(null);
+  const [holdingPrices, setHoldingPrices] = useState<Record<string, number>>({});
+  const holdingsKey = holdingsState.holdings.map((h) => `${h.kind}:${h.symbol}`).sort().join(",");
+
+  // Current value of every line (same valuation as "Mes avoirs").
+  useEffect(() => {
+    if (!holdingsState.holdings.length) return setHoldingPrices({});
+    let alive = true;
+    api.quotes(holdingsState.holdings)
+      .then((q) => alive && setHoldingPrices(Object.fromEntries(q.map((x) => [`${x.kind}:${x.symbol}`, x.price]))))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [holdingsKey]);
   const [data, setData] = useState<Loaded | null>(null);
   const [bt, setBt] = useState<BacktestResult | null>(null);
   const [sent, setSent] = useState<Sentiment | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [trade, setTrade] = useState<"buy" | "sell" | null>(null);
   const [showSources, setShowSources] = useState(false);
   const inWatchlist = watchlist.some((w) => assetKey(w) === `${kind}:${symbol}`);
   const name = watchlist.find((w) => assetKey(w) === `${kind}:${symbol}`)?.name ?? data?.quote?.name ?? symbol;
@@ -41,14 +58,39 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       })
       .catch((e) => alive && setError(e instanceof Error ? e.message : "Données indisponibles"));
     api.sentiment(symbol, kind).then((s) => alive && setSent(s)).catch(() => {});
+    // Asset held: same inputs as "Mes avoirs" (1 d and 4 h signals, daily candles).
+    if (held) {
+      Promise.all([api.radar([{ symbol, kind, name: held.name }], "1d"), api.radar([{ symbol, kind, name: held.name }], "4h").catch(() => []), api.candles(symbol, kind, "1d")])
+        .then(([d, s4, daily]) => {
+          if (!alive) return;
+          const dr = d[0];
+          const sr = s4[0];
+          setHeldMarket({
+            price: dr?.price ?? 0,
+            daily: daily.candles,
+            daySignal: dr?.signal ?? null,
+            shortSignal: sr?.signal ?? null,
+            reliability: [dr?.reliability?.level, sr?.reliability?.level].includes("low") ? "low" : dr?.reliability?.level ?? null,
+          });
+        })
+        .catch(() => {});
+    }
     return () => {
       alive = false;
     };
-  }, [symbol, kind, interval]);
+  }, [symbol, kind, interval, !!held]);
 
   const signal = data?.signal ?? null;
   const price = data?.quote?.price ?? signal?.price ?? null;
   const rel = data?.snap.reliability;
+  // Wealth (other lines valued at their purchase price) and line of this asset if held.
+  const valuation: Record<string, MarketInput> = Object.fromEntries(
+    Object.entries(holdingPrices).map(([k, price]) => [k, { price, daily: [], daySignal: null, shortSignal: null, reliability: null }]),
+  );
+  if (held && heldMarket) valuation[`${kind}:${symbol}`] = heldMarket;
+  const portfolio = analyzePortfolio(holdingsState.holdings, holdingsState.cash, valuation);
+  const line = held ? portfolio.lines.find((l) => l.id === held.id) ?? null : null;
+  const advice = data ? adviseAsset({ signal, reliability: rel?.level ?? null, price, line: held && heldMarket ? line : null, capital: portfolio.total, risk }) : null;
 
   return (
     <section className="app-screen asset-screen">
@@ -74,6 +116,22 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
 
       {error && <p className="notice warn">⚠ {error}</p>}
       {!data && !error && <div className="skeleton tall" />}
+
+      {advice && (
+        <div className={`card advice advice-${advice.tone}`}>
+          <h2 className="card-title">Le conseil d'Altim</h2>
+          <p className="advice-title">{advice.title}</p>
+          <ul>{advice.points.map((p) => <li key={p}>{p}</li>)}</ul>
+          <div className="advice-actions">
+            {!held && <a href="/app/avoirs" onClick={onLink} className="link">J'en possède déjà</a>}
+            {held && <a href="/app/avoirs" onClick={onLink} className="link">Voir mes avoirs</a>}
+            {!inWatchlist && (
+              <button className="link-btn" onClick={() => setState((s) => ({ watchlist: [...s.watchlist, { symbol, kind, name }] }))}>+ Ajouter au radar</button>
+            )}
+          </div>
+          <p className="muted small">Conseil indicatif, pas une recommandation d'investissement personnalisée. Altim ne passe aucun ordre.</p>
+        </div>
+      )}
 
       {data && (
         <div className="asset-grid">
@@ -194,27 +252,6 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
         </div>
       )}
 
-      <div className="action-bar">
-        <button className="btn buy-btn" disabled={!signal || !price} onClick={() => setTrade("buy")}>Acheter</button>
-        <button className="btn btn-ghost sell-btn" disabled={!price} onClick={() => setTrade("sell")}>Vendre</button>
-        {!inWatchlist && (
-          <button className="btn btn-ghost" onClick={() => setState((s) => ({ watchlist: [...s.watchlist, { symbol, kind, name }] }))}>+ Radar</button>
-        )}
-      </div>
-
-      {trade && price && (
-        <TradeSheet
-          side={trade}
-          asset={{ symbol, kind, name }}
-          price={price}
-          signal={signal}
-          reliability={rel ?? null}
-          onClose={(done) => {
-            setTrade(null);
-            if (done) navigate("/app/portefeuille");
-          }}
-        />
-      )}
     </section>
   );
 }

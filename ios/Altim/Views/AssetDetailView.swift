@@ -4,13 +4,8 @@ import AltimCore
 
 struct AssetDetailView: View {
     @Environment(AppServices.self) private var services
+    @Environment(AppSettings.self) private var settings
     @State private var model: AssetViewModel
-    @State private var trade: TradeIntent?
-
-    struct TradeIntent: Identifiable {
-        let side: OrderSide
-        var id: String { side.rawValue }
-    }
 
     init(asset: Asset, timeframe: Timeframe) {
         _model = State(initialValue: AssetViewModel(asset: asset, timeframe: timeframe))
@@ -42,6 +37,7 @@ struct AssetDetailView: View {
                         ProgressView("Analyse en cours…").tint(Theme.cyan).frame(height: 260)
                     }
 
+                    if let advice = model.advice { AdviceCard(advice: advice, held: model.heldLine != nil) }
                     if let signal = model.signal { SignalCard(signal: signal) }
                     if let snapshot = model.snapshot { ReliabilityCard(snapshot: snapshot) }
                     if model.fearGreed != nil || model.social?.bullishPercent != nil {
@@ -49,27 +45,18 @@ struct AssetDetailView: View {
                     }
                     if let backtest = model.backtest { BacktestCard(result: backtest, timeframe: model.timeframe) }
 
-                    HStack(spacing: 12) {
-                        Button("ACHETER") { trade = TradeIntent(side: .buy) }
-                            .buttonStyle(NeonButtonStyle(color: Theme.buy))
-                        Button("VENDRE") { trade = TradeIntent(side: .sell) }
-                            .buttonStyle(NeonButtonStyle(color: Theme.sell, filled: false))
-                    }
-                    .disabled(model.signal == nil)
-                    .padding(.top, 4)
-                }
                 .padding()
             }
-            .refreshable { await model.load(services: services) }
+            .refreshable { await reload() }
         }
         .navigationTitle(model.asset.name)
         .navigationBarTitleDisplayMode(.inline)
-        .task(id: model.timeframe) { await model.load(services: services) }
-        .sheet(item: $trade) { intent in
-            TradeSheet(asset: model.asset, side: intent.side, signal: model.signal,
-                       price: model.analysis?.price ?? model.signal?.price ?? 0,
-                       reliability: model.snapshot?.reliability)
-        }
+        .task(id: model.timeframe) { await reload() }
+    }
+
+    private func reload() async {
+        await model.load(services: services)
+        await model.loadAdvice(services: services, risk: settings.risk)
     }
 
     private var priceHeader: some View {
@@ -92,6 +79,61 @@ struct AssetDetailView: View {
                     .background(RoundedRectangle(cornerRadius: 10).fill(Theme.color(forChange: change).opacity(0.12)))
             }
         }
+    }
+}
+
+// MARK: - Conseil
+
+/// Altim's advice in plain language: Altim never places orders.
+struct AdviceCard: View {
+    let advice: Advisor.Advice
+    let held: Bool
+
+    private var color: Color {
+        switch advice.tone {
+        case .buy: return Theme.buy
+        case .sell: return Theme.sell
+        case .hold: return Theme.cyan
+        case .unknown: return Theme.warning
+        }
+    }
+
+    private var icon: String {
+        switch advice.tone {
+        case .buy: return "arrow.up.right.circle.fill"
+        case .sell: return "shield.lefthalf.filled"
+        case .hold: return "pause.circle.fill"
+        case .unknown: return "questionmark.circle.fill"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(text: held ? "Le conseil d'Altim · vous en détenez" : "Le conseil d'Altim")
+            Label(advice.title, systemImage: icon)
+                .font(.title3.bold())
+                .foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(advice.points, id: \.self) { point in
+                    HStack(alignment: .top, spacing: 8) {
+                        Circle().fill(color).frame(width: 5, height: 5).padding(.top, 7)
+                        Text(point).font(.subheadline).foregroundStyle(.white.opacity(0.88))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            if let amount = advice.amount {
+                HStack {
+                    Text("Montant prudent").font(.caption).foregroundStyle(Theme.textSecondary)
+                    Spacer()
+                    Text(Format.price(amount)).font(Theme.mono(15, weight: .bold)).foregroundStyle(color)
+                }
+            }
+            Text("Conseil indicatif : Altim ne passe aucun ordre. Vous décidez, chez votre courtier habituel.")
+                .font(.caption2).foregroundStyle(Theme.textSecondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassCard(glow: color)
     }
 }
 

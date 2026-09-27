@@ -10,7 +10,7 @@ const COLUMNS = [
       ["/#features", "Fonctionnalités"],
       ["/#sources", "Sources de données"],
       ["/#how", "Le moteur"],
-      ["/#security", "Sécurité"],
+      ["/#security", "Confidentialité"],
     ],
   },
   {
