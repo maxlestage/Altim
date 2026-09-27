@@ -182,3 +182,30 @@ test("/api/live : flux SSE non compressé, dernier prix d'abord puis chaque chan
     hub.close();
   }
 });
+
+test("/api/live : 8 flux au plus par adresse, la place se libère à la fermeture", async () => {
+  const hub = new LiveHub([], [], 60_000);
+  const server: Server = createApp({ live: hub }).listen(0);
+  await new Promise((r) => server.once("listening", r));
+  const addr = server.address();
+  const base = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+  const ctrls: AbortController[] = [];
+  try {
+    for (let i = 0; i < 8; i++) {
+      const c = new AbortController();
+      ctrls.push(c);
+      expect((await fetch(`${base}/api/live?symbols=ETH:crypto`, { signal: c.signal })).status).toBe(200);
+    }
+    const refused = await fetch(`${base}/api/live?symbols=ETH:crypto`);
+    expect(refused.status).toBe(429);
+    ctrls.pop()!.abort();
+    await wait(150);
+    const c = new AbortController();
+    ctrls.push(c);
+    expect((await fetch(`${base}/api/live?symbols=ETH:crypto`, { signal: c.signal })).status).toBe(200);
+  } finally {
+    ctrls.forEach((c) => c.abort());
+    server.close();
+    hub.close();
+  }
+});
