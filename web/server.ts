@@ -3,12 +3,35 @@
  * compression gzip, en-têtes de sécurité et cache long pour les fichiers versionnés.
  */
 import { join, normalize } from "node:path";
+import { consensus, type Consensus, type Interval } from "./server/market";
 
 const port = Number(process.env.PORT ?? 3000);
 const root = import.meta.dir;
 const dirs = [join(root, "dist"), join(root, "public")];
 const compressible = /\.(html|js|css|svg|json|txt)$/;
 const gzipCache = new Map<string, Uint8Array>();
+const marketCache = new Map<string, { at: number; data: Consensus }>();
+const BASES = new Set(["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE"]);
+
+async function candlesAPI(url: URL): Promise<Response> {
+  const base = (url.searchParams.get("base") ?? "").toUpperCase();
+  const interval = url.searchParams.get("interval") as Interval;
+  if (!BASES.has(base) || !["1h", "4h", "1d"].includes(interval)) {
+    return Response.json({ error: "paramètres invalides" }, { status: 400 });
+  }
+  const key = `${base}:${interval}`;
+  const hit = marketCache.get(key);
+  if (hit && Date.now() - hit.at < 30_000) return Response.json(hit.data, { headers: { "Cache-Control": "max-age=30" } });
+  try {
+    const data = await consensus(base, interval);
+    marketCache.set(key, { at: Date.now(), data });
+    return Response.json(data, { headers: { "Cache-Control": "max-age=30" } });
+  } catch (e) {
+    // Last good data rather than an error.
+    if (hit) return Response.json(hit.data, { headers: { "X-Altim-Stale": "1" } });
+    return Response.json({ error: e instanceof Error ? e.message : "indisponible" }, { status: 502 });
+  }
+}
 
 const securityHeaders: Record<string, string> = {
   "X-Content-Type-Options": "nosniff",
@@ -42,6 +65,7 @@ const server = Bun.serve({
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === "/health") return new Response("ok");
+    if (url.pathname === "/api/candles") return candlesAPI(url);
 
     // Redirection HTTPS derrière le routeur Heroku.
     if (req.headers.get("x-forwarded-proto") === "http") {

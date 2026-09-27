@@ -43,6 +43,10 @@ struct AssetDetailView: View {
                     }
 
                     if let signal = model.signal { SignalCard(signal: signal) }
+                    if let snapshot = model.snapshot { ReliabilityCard(snapshot: snapshot) }
+                    if model.fearGreed != nil || model.social?.bullishPercent != nil {
+                        SentimentCard(fearGreed: model.fearGreed, social: model.social)
+                    }
                     if let backtest = model.backtest { BacktestCard(result: backtest, timeframe: model.timeframe) }
 
                     HStack(spacing: 12) {
@@ -63,7 +67,8 @@ struct AssetDetailView: View {
         .task(id: model.timeframe) { await model.load(services: services) }
         .sheet(item: $trade) { intent in
             TradeSheet(asset: model.asset, side: intent.side, signal: model.signal,
-                       price: model.quote?.price ?? model.signal?.price ?? 0)
+                       price: model.analysis?.price ?? model.signal?.price ?? 0,
+                       reliability: model.snapshot?.reliability)
         }
     }
 
@@ -71,7 +76,7 @@ struct AssetDetailView: View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.asset.symbol).font(Theme.mono(13)).foregroundStyle(Theme.textSecondary)
-                if let price = model.quote?.price ?? model.signal?.price {
+                if let price = model.analysis?.price {
                     Text(Format.price(price))
                         .font(Theme.mono(34, weight: .bold))
                         .neonGlow(Theme.cyan, radius: 6)
@@ -79,7 +84,7 @@ struct AssetDetailView: View {
                 }
             }
             Spacer()
-            if let change = model.quote?.changePercent24h {
+            if let change = model.analysis?.change24h {
                 Text(Format.percent(change))
                     .font(Theme.mono(15))
                     .foregroundStyle(Theme.color(forChange: change))
@@ -297,5 +302,129 @@ struct BacktestCard: View {
             Text(value).font(Theme.mono(15)).foregroundStyle(color)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Reliability
+
+struct ReliabilityBadge: View {
+    let level: ReliabilityLevel
+
+    var color: Color {
+        switch level {
+        case .high: return Theme.buy
+        case .medium: return Theme.warning
+        case .low: return Theme.sell
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: level == .high ? "checkmark.shield.fill" : level == .medium ? "exclamationmark.shield.fill" : "xmark.shield.fill")
+            Text(level.label)
+        }
+        .font(.system(size: 11, weight: .bold, design: .rounded))
+        .foregroundStyle(color)
+    }
+}
+
+struct ReliabilityCard: View {
+    let snapshot: MarketSnapshot
+    @State private var expanded = false
+
+    var body: some View {
+        let badge = ReliabilityBadge(level: snapshot.reliability)
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(text: "Fiabilité des données")
+            HStack {
+                badge
+                Spacer()
+                Text("\(Int(snapshot.reliabilityScore))/100").font(Theme.mono(15)).foregroundStyle(badge.color)
+            }
+            Text(snapshot.summary).font(.caption).foregroundStyle(Theme.textSecondary)
+            Text("Analyse basée sur \(snapshot.primarySource), recoupée avec les autres sources.")
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+
+            Button {
+                withAnimation(.spring(response: 0.3)) { expanded.toggle() }
+            } label: {
+                Label(expanded ? "Masquer les sources" : "Voir les \(snapshot.checks.count) sources",
+                      systemImage: expanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.bold())
+            }
+
+            if expanded {
+                VStack(spacing: 8) {
+                    ForEach(snapshot.checks) { check in
+                        SourceRow(check: check)
+                    }
+                }
+                ForEach(snapshot.quality.issues, id: \.self) { issue in
+                    Label(issue, systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(Theme.warning)
+                }
+            }
+        }
+        .glassCard(glow: badge.color)
+    }
+}
+
+struct SourceRow: View {
+    let check: SourceCheck
+
+    var body: some View {
+        let (icon, color, text): (String, Color, String) = {
+            switch check.status {
+            case .primary: return ("star.circle.fill", Theme.cyan, "principale")
+            case .agrees: return ("checkmark.circle.fill", Theme.buy, "concordante")
+            case .diverges: return ("xmark.circle.fill", Theme.sell, "écartée")
+            case .failed(let m): return ("wifi.exclamationmark", Theme.warning, m)
+            case .skipped: return ("circle.dotted", Theme.textSecondary, "en réserve")
+            }
+        }()
+        HStack(alignment: .top) {
+            Image(systemName: icon).foregroundStyle(color)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(check.name).font(.subheadline.weight(.semibold))
+                Text(text).font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(2)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                if let p = check.lastPrice { Text(Format.price(p)).font(Theme.mono(12)) }
+                if let d = check.deviationPercent {
+                    Text(String(format: "écart %.3f %%", d)).font(Theme.mono(10)).foregroundStyle(Theme.textSecondary)
+                }
+            }
+        }
+    }
+}
+
+struct SentimentCard: View {
+    let fearGreed: FearGreedIndex?
+    let social: SocialSentiment?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionTitle(text: "Sentiment du marché")
+            if let fg = fearGreed {
+                HStack {
+                    Text("Fear & Greed crypto").font(.subheadline)
+                    Spacer()
+                    Text("\(fg.value) · \(fg.label)").font(Theme.mono(13))
+                        .foregroundStyle(fg.value < 45 ? Theme.sell : fg.value > 55 ? Theme.buy : Theme.cyan)
+                }
+            }
+            if let s = social, let bull = s.bullishPercent {
+                HStack {
+                    Text("StockTwits").font(.subheadline)
+                    Spacer()
+                    Text(String(format: "%.0f %% haussier (%d avis)", bull, s.sampleSize)).font(Theme.mono(13))
+                        .foregroundStyle(bull >= 50 ? Theme.buy : Theme.sell)
+                }
+            }
+            Text("Information de contexte, non intégrée au score : la foule se trompe souvent aux extrêmes.")
+                .font(.caption2).foregroundStyle(Theme.textSecondary)
+        }
+        .glassCard(glow: Theme.magenta)
     }
 }

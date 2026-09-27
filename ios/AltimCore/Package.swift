@@ -19,5 +19,7 @@ let package = Package(
             ]
         ),
         .testTarget(name: "AltimCoreTests", dependencies: ["AltimCore"]),
+        // Compiled WITHOUT @testable: guarantees that everything the iOS app uses is really public.
+        .testTarget(name: "PublicAPITests", dependencies: ["AltimCore"]),
     ]
 )

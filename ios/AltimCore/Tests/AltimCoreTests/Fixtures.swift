@@ -34,12 +34,10 @@ final class MockTransport: HTTPTransport, @unchecked Sendable {
     private var _requests: [URLRequest] = []
     var routes: [String: (Int, String)] = [:]
 
-    var requests: [URLRequest] { lock.lock(); defer { lock.unlock() }; return _requests }
+    var requests: [URLRequest] { lock.withLock { _requests } }
 
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        lock.lock()
-        _requests.append(request)
-        lock.unlock()
+        lock.withLock { _requests.append(request) }
         let key = "\(request.httpMethod ?? "GET") \(request.url!.path)"
         let (status, body) = routes[key] ?? (404, #"{"code":-1,"msg":"no route \#(key)"}"#)
         let response = HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!

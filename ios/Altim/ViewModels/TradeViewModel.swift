@@ -38,12 +38,16 @@ final class TradeViewModel {
     private(set) var issues: [String] = []
     private(set) var result: OrderResult?
 
-    /// Dernier cours connu (utilisé pour estimer le montant d'un ordre au marché).
+    /// Dernier cours consolidé (utilisé pour estimer le montant d'un ordre au marché).
     let referencePrice: Double
+    /// Fiabilité des données de marché au moment de l'ordre.
+    let reliability: ReliabilityLevel?
 
-    init(asset: Asset, side: OrderSide, signal: Signal?, price: Double, settings: AppSettings, services: AppServices) {
+    init(asset: Asset, side: OrderSide, signal: Signal?, price: Double, reliability: ReliabilityLevel?,
+         settings: AppSettings, services: AppServices) {
         self.asset = asset
         self.referencePrice = price
+        self.reliability = reliability
         self.side = side
         self.signal = signal
         self.settings = settings
@@ -132,6 +136,9 @@ final class TradeViewModel {
         } else if quantity > baseBalance {
             issues.append("Vous ne détenez que \(Format.quantity(baseBalance)) \(rules.baseAsset).")
         }
+        if side == .buy && reliability == .low {
+            issues.append("Données de marché non fiables (sources absentes ou en désaccord) : achat bloqué.")
+        }
         if isLive && !liveConfirmed { issues.append("Cochez la confirmation « argent réel ».") }
         return issues.isEmpty ? order : nil
     }
@@ -140,6 +147,18 @@ final class TradeViewModel {
         guard let order = buildOrder() else { return }
         phase = .executing
         do {
+            // Price anti-error check: the broker must quote the same price as independent sources.
+            let broker = self.broker
+            let asset = self.asset
+            let market = services.market
+            async let brokerPriceTask = broker.lastPrice(for: asset.symbol)
+            async let consensusTask = market.quote(for: asset)
+            let brokerPrice = try await brokerPriceTask.doubleValue
+            let consensus = try? await consensusTask
+            if let issue = PriceGuard.issue(brokerPrice: brokerPrice, consensusPrice: consensus?.price,
+                                            tolerancePercent: asset.assetClass == .crypto ? 1 : 1.5) {
+                throw BrokerError.validation([issue])
+            }
             try await authenticate()
             try await broker.test(order)
             let result = try await broker.place(order)

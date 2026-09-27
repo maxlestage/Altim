@@ -46,9 +46,20 @@ export async function fetchTicks(): Promise<Tick[]> {
 
 export type Interval = "1h" | "4h" | "1d";
 
-/** Bougies clôturées uniquement (la bougie en cours est exclue, comme dans l'app). */
-export async function fetchCandles(coin: Coin, interval: Interval): Promise<{ candles: Candle[]; source: string }> {
+export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
+
+/** Candles validated by multi-source consensus (Altim server), falling back to Binance directly. */
+export async function fetchCandles(
+  coin: Coin,
+  interval: Interval,
+): Promise<{ candles: Candle[]; source: string; sources: SourceStatus[]; agreeing: number }> {
   try {
+    const d = await json<{ candles: Candle[]; source: string; sources: SourceStatus[]; agreeing: number }>(
+      `/api/candles?base=${coin.symbol.replace("USDT", "")}&interval=${interval}`,
+    );
+    if (!d.candles?.length) throw new Error("vide");
+    return d;
+  } catch {
     const rows = await json<(string | number)[][]>(
       `https://api.binance.com/api/v3/klines?symbol=${coin.symbol}&interval=${interval}&limit=500`,
     );
@@ -63,16 +74,7 @@ export async function fetchCandles(coin: Coin, interval: Interval): Promise<{ ca
         close: Number(r[4]),
         volume: Number(r[5]),
       }));
-    return { candles, source: "Binance" };
-  } catch {
-    const days = interval === "1d" ? 365 : interval === "4h" ? 90 : 30;
-    const rows = await json<number[][]>(
-      `https://api.coingecko.com/api/v3/coins/${coin.gecko}/ohlc?vs_currency=usd&days=${days}`,
-    );
-    const candles = rows.slice(0, -1).map(([time, open, high, low, close]) => ({
-      time: time!, open: open!, high: high!, low: low!, close: close!, volume: 0,
-    }));
-    return { candles, source: "CoinGecko (sans volume)" };
+    return { candles, source: "Binance", sources: [{ name: "Binance", ok: true }], agreeing: 1 };
   }
 }
 

@@ -7,20 +7,35 @@ import AltimCore
 @MainActor
 @Observable
 final class AppServices {
-    let market: MarketDataProvider
+    /// Shared network transport: retries, circuit breaker per source.
+    let transport: ResilientTransport
     let journal = TradeJournal()
-    /// Courtier simulé partagé : ses soldes persistent pendant la session.
+    /// Simulated broker shared across the session: its balances persist.
     let paperBroker: PaperBroker
 
+    /// Multi-source market data with cross-validation (rebuilt with the keys currently entered).
+    var market: ConsensusMarketData { Self.makeMarket(transport: transport) }
+    var sentiment: SentimentProvider { SentimentProvider(transport: transport) }
+
     init() {
-        let market = MarketRouter()
-        self.market = market
+        let transport = ResilientTransport()
+        self.transport = transport
         self.paperBroker = PaperBroker(startingCash: 10_000, quoteAsset: "USDT") { symbol in
             let asset = symbol.hasSuffix("USDT")
                 ? Asset(symbol: symbol, name: symbol, assetClass: .crypto, quote: "USDT")
                 : Asset(symbol: symbol, name: symbol, assetClass: .stock, quote: "USD")
-            return try await market.quote(for: asset).price
+            return try await AppServices.makeMarket(transport: transport).quote(for: asset).price
         }
+    }
+
+    nonisolated static func makeMarket(transport: HTTPTransport) -> ConsensusMarketData {
+        let alpacaKey = KeychainStore.get(.alpacaKey)
+        let alpacaSecret = KeychainStore.get(.alpacaSecret)
+        return .standard(transport: transport,
+                         alpaca: alpacaKey.isEmpty ? nil : (key: alpacaKey, secret: alpacaSecret),
+                         twelveDataKey: KeychainStore.get(.twelveDataKey),
+                         polygonKey: KeychainStore.get(.polygonKey),
+                         finnhubKey: KeychainStore.get(.finnhubKey))
     }
 
     func broker(for asset: Asset, settings: AppSettings) -> Broker {

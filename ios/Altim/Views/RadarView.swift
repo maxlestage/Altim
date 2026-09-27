@@ -74,6 +74,13 @@ struct RadarView: View {
                 }
             }
             Spacer()
+            if let fg = model.fearGreed {
+                VStack(spacing: 0) {
+                    Text("\(fg.value)").font(Theme.mono(14, weight: .bold))
+                        .foregroundStyle(fg.value < 45 ? Theme.sell : fg.value > 55 ? Theme.buy : Theme.cyan)
+                    Text("F&G").font(.system(size: 8, weight: .bold, design: .monospaced)).foregroundStyle(Theme.textSecondary)
+                }
+            }
             if model.isRefreshing { ProgressView().tint(Theme.cyan) }
             EnvironmentBadge(isLive: settings.cryptoEnvironment == .live || settings.stockEnvironment == .live,
                              demo: settings.demoMode)
@@ -123,10 +130,10 @@ struct AssetRow: View {
                 Sparkline(values: spark).frame(width: 70, height: 30)
             }
             VStack(alignment: .trailing, spacing: 4) {
-                if let q = row?.quote {
-                    Text(Format.price(q.price)).font(Theme.mono(15))
-                    Text(Format.percent(q.changePercent24h))
-                        .font(Theme.mono(11)).foregroundStyle(Theme.color(forChange: q.changePercent24h))
+                if let price = row?.price, let change = row?.change24h {
+                    Text(Format.price(price)).font(Theme.mono(15))
+                    Text(Format.percent(change))
+                        .font(Theme.mono(11)).foregroundStyle(Theme.color(forChange: change))
                 } else if row?.error != nil {
                     Image(systemName: "wifi.exclamationmark").foregroundStyle(Theme.warning)
                 } else {
@@ -137,7 +144,14 @@ struct AssetRow: View {
         }
         .overlay(alignment: .bottomLeading) {
             if let signal = row?.signal {
-                ActionBadge(action: signal.action, compact: true).offset(y: 30)
+                HStack(spacing: 8) {
+                    ActionBadge(action: signal.action, compact: true)
+                    if let level = row?.reliability { ReliabilityBadge(level: level) }
+                    if row?.error != nil {
+                        Image(systemName: "clock.arrow.circlepath").font(.caption2).foregroundStyle(Theme.warning)
+                    }
+                }
+                .offset(y: 30)
             }
         }
         .padding(.bottom, row?.signal != nil ? 26 : 0)

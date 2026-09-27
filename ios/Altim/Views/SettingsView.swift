@@ -8,6 +8,10 @@ struct SettingsView: View {
     @State private var binanceSecret = ""
     @State private var alpacaKey = ""
     @State private var alpacaSecret = ""
+    @State private var twelveDataKey = ""
+    @State private var polygonKey = ""
+    @State private var finnhubKey = ""
+    @State private var showSourcesTest = false
     @State private var saved = false
     @State private var confirmLive: LiveTarget?
 
@@ -40,6 +44,20 @@ struct SettingsView: View {
                     Text("Alpaca · actions US")
                 } footer: {
                     Text("Clés stockées chiffrées dans le trousseau de cet iPhone uniquement. Créez des clés SANS permission de retrait et, si possible, restreintes à une IP.")
+                }
+
+                Section {
+                    SecureField("Twelve Data (gratuit)", text: $twelveDataKey)
+                    SecureField("Polygon.io (gratuit)", text: $polygonKey)
+                    SecureField("Finnhub (gratuit)", text: $finnhubKey)
+                    Button("Tester toutes les sources") {
+                        saveKeys()
+                        showSourcesTest = true
+                    }
+                } header: {
+                    Text("Sources de données supplémentaires")
+                } footer: {
+                    Text("Sans clé, Altim recoupe déjà Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, CoinGecko, Yahoo Finance, Nasdaq et Cboe. Ces clés gratuites ajoutent des sources indépendantes pour les actions.")
                 }
 
                 Section {
@@ -82,8 +100,8 @@ struct SettingsView: View {
                 }
 
                 Section("À propos") {
-                    LabeledContent("Données crypto", value: "Binance (repli Yahoo)")
-                    LabeledContent("Données actions", value: "Yahoo Finance")
+                    LabeledContent("Données crypto", value: "9 sources recoupées")
+                    LabeledContent("Données actions", value: "3 à 6 sources recoupées")
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
                     Text("Altim est un outil d'aide à la décision. Il ne constitue pas un conseil en investissement.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -93,6 +111,7 @@ struct SettingsView: View {
             .background(CyberGridBackground())
             .navigationTitle("Réglages")
             .onAppear(perform: loadKeys)
+            .sheet(isPresented: $showSourcesTest) { SourcesTestView() }
             .alert(item: $confirmLive) { target in
                 Alert(
                     title: Text("Passer en argent réel ?"),
@@ -129,6 +148,9 @@ struct SettingsView: View {
         binanceSecret = KeychainStore.get(.binanceSecret)
         alpacaKey = KeychainStore.get(.alpacaKey)
         alpacaSecret = KeychainStore.get(.alpacaSecret)
+        twelveDataKey = KeychainStore.get(.twelveDataKey)
+        polygonKey = KeychainStore.get(.polygonKey)
+        finnhubKey = KeychainStore.get(.finnhubKey)
         saved = false
     }
 
@@ -137,6 +159,65 @@ struct SettingsView: View {
         KeychainStore.set(binanceSecret, for: .binanceSecret)
         KeychainStore.set(alpacaKey, for: .alpacaKey)
         KeychainStore.set(alpacaSecret, for: .alpacaSecret)
+        KeychainStore.set(twelveDataKey, for: .twelveDataKey)
+        KeychainStore.set(polygonKey, for: .polygonKey)
+        KeychainStore.set(finnhubKey, for: .finnhubKey)
         saved = true
+    }
+}
+
+/// Live diagnostic of every source (crypto and stocks), to check reliability from the iPhone.
+struct SourcesTestView: View {
+    @Environment(AppServices.self) private var services
+    @Environment(\.dismiss) private var dismiss
+    @State private var results: [(title: String, snapshot: MarketSnapshot?, error: String?)] = []
+    @State private var running = true
+
+    private let targets: [(Asset, Timeframe)] = [(Asset.defaults[0], .h1), (Asset.defaults[4], .d1)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    if running { ProgressView("Interrogation de toutes les sources…").tint(Theme.cyan).padding() }
+                    ForEach(results.indices, id: \.self) { i in
+                        let r = results[i]
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(r.title).font(.headline)
+                            if let s = r.snapshot {
+                                ReliabilityBadge(level: s.reliability)
+                                Text(s.summary).font(.caption).foregroundStyle(Theme.textSecondary)
+                                ForEach(s.checks) { SourceRow(check: $0) }
+                            } else if let e = r.error {
+                                Text(e).font(.caption).foregroundStyle(Theme.sell)
+                            }
+                        }
+                        .glassCard()
+                    }
+                }
+                .padding()
+            }
+            .background(Theme.background)
+            .navigationTitle("Test des sources")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("OK") { dismiss() } } }
+        }
+        .task { await run() }
+    }
+
+    private func run() async {
+        running = true
+        // Every source is queried (not just the first three) for a full diagnostic.
+        var market = services.market
+        market.targetSources = market.sources.count
+        for (asset, tf) in targets {
+            let title = "\(asset.name) · \(tf.label)"
+            do {
+                let snapshot = try await market.snapshot(for: asset, timeframe: tf)
+                results.append((title: title, snapshot: snapshot, error: nil))
+            } catch {
+                results.append((title: title, snapshot: nil, error: error.localizedDescription))
+            }
+        }
+        running = false
     }
 }

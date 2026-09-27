@@ -7,6 +7,7 @@ import { Features } from "./components/Features";
 import { HowItWorks } from "./components/HowItWorks";
 import { Security } from "./components/Security";
 import { Transparency } from "./components/Transparency";
+import { Sources } from "./components/Sources";
 import { FAQ } from "./components/FAQ";
 import { Download } from "./components/Download";
 import { Footer } from "./components/Footer";
@@ -23,6 +24,7 @@ export function App() {
         <Ticker ticks={ticks} />
         <LiveSignal />
         <Features />
+        <Sources />
         <HowItWorks />
         <Transparency />
         <Security />

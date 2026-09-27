@@ -27,6 +27,10 @@ public actor PaperBroker: Broker {
                     maxQuantity: 0, tickSize: Decimal(string: "0.01")!, minNotional: 5, isTradable: true)
     }
 
+    public func lastPrice(for symbol: String) async throws -> Decimal {
+        try await priceOf(symbol).decimal
+    }
+
     public func test(_ order: OrderRequest) async throws {
         let price = try await priceOf(order.symbol).decimal
         let rules = try await rules(for: order.symbol)

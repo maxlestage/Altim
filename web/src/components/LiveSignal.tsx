@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ACTION_LABEL, analyze, ema, type Candle, type Signal } from "../engine/signal";
-import { COINS, fetchCandles, formatPrice, type Interval } from "../market";
+import { COINS, fetchCandles, formatPrice, type Interval, type SourceStatus } from "../market";
 import { useReveal } from "../hooks";
 
 const INTERVALS: [Interval, string][] = [
@@ -15,15 +15,21 @@ export function LiveSignal() {
   const ref = useReveal<HTMLElement>();
   const [coin, setCoin] = useState(COINS[0]!);
   const [interval, setTimeframe] = useState<Interval>("4h");
-  const [state, setState] = useState<{ candles: Candle[]; signal: Signal | null; source: string } | null>(null);
+  const [state, setState] = useState<{
+    candles: Candle[];
+    signal: Signal | null;
+    source: string;
+    sources: SourceStatus[];
+    agreeing: number;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     setError(null);
     fetchCandles(coin, interval)
-      .then(({ candles, source }) => {
-        if (alive) setState({ candles, signal: analyze(candles), source });
+      .then(({ candles, source, sources, agreeing }) => {
+        if (alive) setState({ candles, signal: analyze(candles), source, sources, agreeing });
       })
       .catch(() => alive && setError("Marchés injoignables depuis votre réseau. Réessayez dans un instant."));
     return () => {
@@ -67,7 +73,20 @@ export function LiveSignal() {
       <div className="live-grid">
         <div className="card chart-card">
           {state ? <MiniChart candles={state.candles} signal={signal} /> : <div className={error ? "skeleton idle" : "skeleton"} />}
-          {state && <small className="muted source">Source : {state.source}</small>}
+          {state && (
+            <div className="sources">
+              <span className={state.agreeing >= 2 ? "rel high" : "rel low"}>
+                {state.agreeing >= 2 ? "✔" : "!"} {state.agreeing} source{state.agreeing > 1 ? "s" : ""} concordante
+                {state.agreeing > 1 ? "s" : ""}
+              </span>
+              {state.sources.map((s) => (
+                <span key={s.name} className={s.ok ? "src ok" : "src ko"} title={s.error ?? ""}>
+                  {s.ok ? "●" : "○"} {s.name}
+                  {s.ok && s.deviation !== undefined && Number.isFinite(s.deviation) ? ` ${s.deviation.toFixed(3)} %` : ""}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className={`card signal-card ${signal ? kind(signal) : ""}`}>

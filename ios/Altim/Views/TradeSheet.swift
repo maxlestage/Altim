@@ -7,6 +7,7 @@ struct TradeSheet: View {
     let side: OrderSide
     let signal: Signal?
     let price: Double
+    let reliability: ReliabilityLevel?
 
     @Environment(AppSettings.self) private var settings
     @Environment(AppServices.self) private var services
@@ -28,7 +29,8 @@ struct TradeSheet: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } } }
         }
         .task {
-            let vm = TradeViewModel(asset: asset, side: side, signal: signal, price: price, settings: settings, services: services)
+            let vm = TradeViewModel(asset: asset, side: side, signal: signal, price: price, reliability: reliability,
+                                    settings: settings, services: services)
             model = vm
             await vm.prepare()
         }
@@ -164,7 +166,7 @@ private struct TradeForm: View {
             .buttonStyle(NeonButtonStyle(color: sideColor))
             .disabled(model.phase == .executing)
 
-            Text("L'ordre est d'abord validé par le courtier (ordre test), puis exécuté après Face ID / code.")
+            Text("Avant exécution : prix du courtier comparé aux sources indépendantes, ordre test chez le courtier, puis Face ID / code.")
                 .font(.caption2).foregroundStyle(Theme.textSecondary).multilineTextAlignment(.center)
         }
         .onChange(of: model.quantityText) { _, _ in _ = model.buildOrder() }

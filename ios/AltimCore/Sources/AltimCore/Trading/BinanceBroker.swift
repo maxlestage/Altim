@@ -64,7 +64,19 @@ public actor BinanceBroker: Broker {
             }
         }
 
-        let obj = try JSON.object(try await signed("POST", "/api/v3/order", orderParams(order, rules: rules)))
+        let params = orderParams(order, rules: rules)
+        let clientId = params.first { $0.0 == "newClientOrderId" }!.1
+        let obj: [String: Any]
+        do {
+            obj = try JSON.object(try await signed("POST", "/api/v3/order", params))
+        } catch let error as BrokerError {
+            throw error // explicit refusal by Binance: the order does not exist
+        } catch {
+            // Network cut: the order may have gone through. Look it up by our identifier
+            // rather than resending it (never a double buy).
+            obj = try await recoverOrder(symbol: order.symbol, clientId: clientId)
+            notes.append("Connexion instable : ordre retrouvé et confirmé auprès de Binance.")
+        }
         let orderId = (obj["orderId"] as? NSNumber)?.stringValue ?? "\(obj["orderId"] ?? "?")"
         let status = obj["status"] as? String ?? "UNKNOWN"
         let executed = JSON.decimal(obj["executedQty"]) ?? 0
@@ -107,6 +119,22 @@ public actor BinanceBroker: Broker {
 
     // MARK: Interne
 
+    private func recoverOrder(symbol: String, clientId: String) async throws -> [String: Any] {
+        for attempt in 0..<3 {
+            if attempt > 0 { try? await Task.sleep(nanoseconds: 800_000_000) }
+            do {
+                return try JSON.object(try await signed("GET", "/api/v3/order",
+                                                        [("symbol", symbol), ("origClientOrderId", clientId)]))
+            } catch let BrokerError.rejected(code, _) where code == -2013 {
+                // Order unknown to Binance: it was never received.
+                throw BrokerError.rejected(code: -2013, message: "Ordre non transmis (connexion perdue). Aucun achat effectué, vous pouvez réessayer.")
+            } catch {
+                continue
+            }
+        }
+        throw BrokerError.unknownOrderState(clientOrderId: clientId)
+    }
+
     @discardableResult
     private func validate(_ order: OrderRequest) async throws -> SymbolRules {
         guard !apiKey.isEmpty, !secret.isEmpty else { throw APIError.missingCredentials }
@@ -116,6 +144,10 @@ public actor BinanceBroker: Broker {
         let issues = rules.issues(for: order, referencePrice: reference)
         if !issues.isEmpty { throw BrokerError.validation(issues) }
         return rules
+    }
+
+    public func lastPrice(for symbol: String) async throws -> Decimal {
+        try await lastPrice(symbol)
     }
 
     private func lastPrice(_ symbol: String) async throws -> Decimal {

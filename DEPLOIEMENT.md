@@ -41,7 +41,16 @@ Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depui
 
 Alternative avec un iPad : l'app *Swift Playgrounds* peut compiler une app SwiftUI directement sur l'iPad.
 
-## 3. Connecter vos comptes de trading (dans l'app → Réglages)
+## 3. Sources de données supplémentaires (facultatif, gratuit)
+
+Dans l'app → Réglages → *Sources de données supplémentaires* :
+- **Twelve Data** : [twelvedata.com](https://twelvedata.com) → *Get free API key* (800 requêtes/jour)
+- **Polygon.io** : [polygon.io](https://polygon.io) → *Sign up* → clé gratuite (données différées)
+- **Finnhub** : [finnhub.io](https://finnhub.io) → *Get free API key*
+
+Puis **Tester toutes les sources** : l'écran affiche chaque source, son prix et son écart au consensus.
+
+## 4. Connecter vos comptes de trading (dans l'app → Réglages)
 
 **Commencez toujours en test :**
 - Binance **testnet** : [testnet.binance.vision](https://testnet.binance.vision) → connexion GitHub → *Generate HMAC_SHA256 Key*. Ces clés ne fonctionnent qu'en mode « Test ».

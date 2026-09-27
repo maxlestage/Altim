@@ -53,7 +53,7 @@ public struct AlpacaBroker: Broker {
         // Alpaca n'a pas d'endpoint de test : validation locale + pouvoir d'achat.
         let rules = try await rules(for: order.symbol)
         let price: Decimal
-        if let limit = order.limitPrice { price = limit } else { price = try await lastPrice(order.symbol) }
+        if let limit = order.limitPrice { price = limit } else { price = try await lastPrice(for: order.symbol) }
         var issues = rules.issues(for: order, referencePrice: price)
         if order.side == .buy {
             let account = try JSON.object(try await call("GET", "/v2/account"))
@@ -65,7 +65,7 @@ public struct AlpacaBroker: Broker {
         if !issues.isEmpty { throw BrokerError.validation(issues) }
     }
 
-    private func lastPrice(_ symbol: String) async throws -> Decimal {
+    public func lastPrice(for symbol: String) async throws -> Decimal {
         let encoded = symbol.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? symbol
         let url = URL(string: "https://data.alpaca.markets/v2/stocks/\(encoded)/trades/latest")!
         let obj = try JSON.object(try await call("GET", url: url))
@@ -91,14 +91,33 @@ public struct AlpacaBroker: Broker {
             body["take_profit"] = ["limit_price": rules.normalizePrice(target).plainString]
             body["stop_loss"] = ["stop_price": rules.normalizePrice(stop).plainString]
         }
-        let obj = try JSON.object(try await call("POST", "/v2/orders", body: body))
+        let clientId = body["client_order_id"] as! String
+        var recovered = false
+        let obj: [String: Any]
+        do {
+            obj = try JSON.object(try await call("POST", "/v2/orders", body: body))
+        } catch let error as BrokerError {
+            throw error
+        } catch {
+            // Network cut: look up the order by its identifier instead of resending it.
+            let url = URL(string: "\(baseURL.absoluteString)/v2/orders:by_client_order_id?client_order_id=\(clientId)")!
+            do {
+                obj = try JSON.object(try await call("GET", url: url))
+                recovered = true
+            } catch let BrokerError.rejected(code, _) where code == 404 || code == 40_410_000 {
+                throw BrokerError.rejected(code: 404, message: "Ordre non transmis (connexion perdue). Vous pouvez réessayer.")
+            } catch {
+                throw BrokerError.unknownOrderState(clientOrderId: clientId)
+            }
+        }
         let executed = JSON.decimal(obj["filled_qty"]) ?? 0
         return OrderResult(
             orderId: obj["id"] as? String ?? "?", symbol: order.symbol, side: order.side,
             status: (obj["status"] as? String ?? "unknown").uppercased(), executedQuantity: executed,
             averagePrice: JSON.decimal(obj["filled_avg_price"]),
             protectionOrderId: body["order_class"] != nil ? (obj["id"] as? String) : nil, isSimulated: false,
-            notes: body["order_class"] != nil ? ["Ordre bracket : stop et objectif attachés."] : []
+            notes: (body["order_class"] != nil ? ["Ordre bracket : stop et objectif attachés."] : [])
+                + (recovered ? ["Connexion instable : ordre retrouvé et confirmé auprès d'Alpaca."] : [])
         )
     }
 

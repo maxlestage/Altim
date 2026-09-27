@@ -2,18 +2,22 @@ import Foundation
 import Observation
 import AltimCore
 
-/// Analyse détaillée d'un actif : graphique, signal, backtest.
+/// Detailed analysis of an asset: multi-source data, signal, backtest, sentiment.
 @MainActor
 @Observable
 final class AssetViewModel {
     let asset: Asset
     var timeframe: Timeframe
-    private(set) var candles: [Candle] = []
-    private(set) var signal: Signal?
+    private(set) var analysis: MarketAnalysis?
     private(set) var backtest: Backtester.Result?
-    private(set) var quote: Quote?
+    private(set) var fearGreed: FearGreedIndex?
+    private(set) var social: SocialSentiment?
     private(set) var isLoading = false
     private(set) var error: String?
+
+    var candles: [Candle] { analysis?.snapshot.candles ?? [] }
+    var signal: Signal? { analysis?.signal }
+    var snapshot: MarketSnapshot? { analysis?.snapshot }
 
     init(asset: Asset, timeframe: Timeframe) {
         self.asset = asset
@@ -25,27 +29,23 @@ final class AssetViewModel {
         error = nil
         defer { isLoading = false }
         let market = services.market
+        let sentiment = services.sentiment
         let asset = asset
         let timeframe = timeframe
+        let isCrypto = asset.assetClass == .crypto
+        async let socialTask = try? await sentiment.social(asset)
+        async let fgTask: FearGreedIndex? = isCrypto ? (try? await sentiment.cryptoFearGreed()) : nil
         do {
-            async let candlesTask = market.candles(for: asset, timeframe: timeframe, limit: 500)
-            async let quoteTask = market.quote(for: asset)
-            let candles = try await candlesTask
-            quote = try? await quoteTask
-            var higher: [Candle]?
-            if let h = timeframe.higher { higher = try? await market.candles(for: asset, timeframe: h, limit: 300) }
-
-            // Calculs lourds hors du thread principal.
-            let (signal, backtest) = try await Task.detached(priority: .userInitiated) {
-                let signal = try SignalEngine().analyze(candles, higherTimeframe: higher, timeframe: timeframe)
-                let backtest = Backtester().run(candles)
-                return (signal, backtest)
-            }.value
-            self.candles = candles.sanitized()
-            self.signal = signal
+            let analysis = try await MarketAnalysis.run(asset: asset, timeframe: timeframe, market: market)
+            // Heavy computation off the main thread.
+            let candles = analysis.snapshot.candles
+            let backtest = await Task.detached(priority: .userInitiated) { Backtester().run(candles) }.value
+            self.analysis = analysis
             self.backtest = backtest
         } catch {
             self.error = error.localizedDescription
         }
+        social = await socialTask
+        fearGreed = await fgTask
     }
 }

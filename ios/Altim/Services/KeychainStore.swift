@@ -4,7 +4,7 @@ import Security
 /// Stockage chiffré des clés API dans le trousseau iOS (jamais dans UserDefaults ni iCloud).
 enum KeychainStore {
     enum Key: String, CaseIterable {
-        case binanceKey, binanceSecret, alpacaKey, alpacaSecret
+        case binanceKey, binanceSecret, alpacaKey, alpacaSecret, twelveDataKey, polygonKey, finnhubKey
     }
 
     private static let service = "com.altim.app.credentials"

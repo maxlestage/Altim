@@ -11,7 +11,11 @@ const QA = [
   ],
   [
     "Utilisez-vous Bloomberg ?",
-    "Les données Bloomberg (Terminal, B-PIPE) nécessitent une licence professionnelle. Altim utilise des sources publiques fiables et son architecture permet de brancher un flux Bloomberg si vous disposez d'une licence.",
+    "Les données Bloomberg (Terminal, B-PIPE) nécessitent une licence professionnelle. Altim recoupe à la place jusqu'à 16 sources de prix (Binance, OKX, Coinbase, Kraken, Nasdaq, Cboe…) et son architecture permet de brancher un flux Bloomberg si vous disposez d'une licence.",
+  ],
+  [
+    "Que se passe-t-il si une source donne un mauvais prix ?",
+    "Elle est comparée aux autres bougie par bougie et écartée si elle s'éloigne de la médiane. Si les sources sont en désaccord ou trop peu nombreuses, le signal est suspendu et les achats sont bloqués. Avant chaque ordre, le prix du courtier est aussi comparé au consensus.",
   ],
   [
     "Puis-je essayer sans risque ?",

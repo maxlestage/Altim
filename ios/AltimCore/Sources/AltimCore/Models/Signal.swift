@@ -44,6 +44,12 @@ public struct TradePlan: Codable, Hashable, Sendable {
     public let stopLoss: Double
     public let takeProfit: Double
 
+    public init(entry: Double, stopLoss: Double, takeProfit: Double) {
+        self.entry = entry
+        self.stopLoss = stopLoss
+        self.takeProfit = takeProfit
+    }
+
     public var riskPerUnit: Double { abs(entry - stopLoss) }
     public var rewardPerUnit: Double { abs(takeProfit - entry) }
     public var riskReward: Double { riskPerUnit > 0 ? rewardPerUnit / riskPerUnit : 0 }

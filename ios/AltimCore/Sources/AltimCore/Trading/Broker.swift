@@ -67,11 +67,15 @@ public struct SymbolRules: Hashable, Sendable {
 public enum BrokerError: Error, LocalizedError, Equatable {
     case rejected(code: Int, message: String)
     case validation([String])
+    /// Network cut during submission and the order could not be found: its state is unknown.
+    case unknownOrderState(clientOrderId: String)
 
     public var errorDescription: String? {
         switch self {
         case let .rejected(code, message): return BrokerError.explain(code: code, message: message)
         case let .validation(issues): return issues.joined(separator: "\n")
+        case let .unknownOrderState(id):
+            return "Connexion perdue pendant l'envoi : impossible de confirmer l'ordre \(id). Vérifiez vos ordres chez le courtier avant de réessayer."
         }
     }
 
@@ -93,6 +97,8 @@ public protocol Broker: Sendable {
     var environment: BrokerEnvironment { get }
     func balances() async throws -> [Balance]
     func rules(for symbol: String) async throws -> SymbolRules
+    /// Current price on the broker (compared with the multi-source consensus before any order).
+    func lastPrice(for symbol: String) async throws -> Decimal
     /// Valide l'ordre auprès du courtier sans l'exécuter.
     func test(_ order: OrderRequest) async throws
     func place(_ order: OrderRequest) async throws -> OrderResult

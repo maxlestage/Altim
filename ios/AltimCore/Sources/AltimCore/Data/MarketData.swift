@@ -79,13 +79,21 @@ public struct BinanceMarketData: MarketDataProvider {
 
 // MARK: - Yahoo Finance (actions, ETF, indices, crypto en secours)
 
-public struct YahooMarketData: MarketDataProvider {
+public struct YahooMarketData: MarketSource {
+    public let name: String
+    public let assetClass = AssetClass.stock
     let transport: HTTPTransport
-    let baseURL = URL(string: "https://query1.finance.yahoo.com")!
+    let baseURL: URL
 
-    public init(transport: HTTPTransport = URLSessionTransport()) {
+    /// `server` : 1 ou 2 (query1 / query2) — deux serveurs indépendants pour la redondance.
+    public init(server: Int = 1, transport: HTTPTransport = URLSessionTransport()) {
         self.transport = transport
+        self.baseURL = URL(string: "https://query\(server).finance.yahoo.com")!
+        self.name = server == 1 ? "Yahoo Finance" : "Yahoo Finance (2)"
     }
+
+    /// Yahoo cote aussi les cryptos (BTC-USD) : source de secours.
+    public func supports(_ asset: Asset) -> Bool { true }
 
     /// Symbole Yahoo : `BTC-USD` pour une crypto, inchangé pour une action.
     static func yahooSymbol(_ asset: Asset) -> String {
