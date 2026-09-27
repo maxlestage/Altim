@@ -46,18 +46,19 @@ Alternative avec un iPad : l'app *Swift Playgrounds* peut compiler une app Swift
 ## 3. Sources de données supplémentaires (facultatif, gratuit)
 
 Dans l'app → Réglages → *Sources de données supplémentaires* :
+- **Alpaca (données de marché)** : [app.alpaca.markets](https://app.alpaca.markets) → compte Paper → *API Keys* (lecture des cours uniquement)
 - **Twelve Data** : [twelvedata.com](https://twelvedata.com) → *Get free API key* (800 requêtes/jour)
 - **Polygon.io** : [polygon.io](https://polygon.io) → *Sign up* → clé gratuite (données différées)
 - **Finnhub** : [finnhub.io](https://finnhub.io) → *Get free API key*
 
 Puis **Tester toutes les sources** : l'écran affiche chaque source, son prix et son écart au consensus.
 
-## 4. Connecter vos comptes de trading (dans l'app → Réglages)
+## 4. Renseigner vos avoirs
 
-**Commencez toujours en test :**
-- Binance **testnet** : [testnet.binance.vision](https://testnet.binance.vision) → connexion GitHub → *Generate HMAC_SHA256 Key*. Ces clés ne fonctionnent qu'en mode « Test ».
-- Alpaca **paper trading** : [app.alpaca.markets](https://app.alpaca.markets) → compte Paper → *API Keys*.
+Altim est un conseiller : il ne passe aucun ordre et ne demande aucune clé de courtier.
 
-**Passage au réel :**
-- Binance → *Gestion des API* → créer une clé avec **uniquement** « Activer le trading Spot et sur marge » (**jamais** « Activer les retraits »), restreinte à une IP si possible.
-- Dans l'app : désactivez le mode démo, collez les clés, choisissez « Réel » et confirmez.
+- Dans l'app iOS → **Mes avoirs** : ajoutez chaque actif (quantité, prix d'achat moyen) et vos liquidités. Tout est enregistré dans une base SQLite sur l'iPhone.
+- Sur le web → **Ouvrir l'app** → **Mes avoirs** : même chose, gardé dans le navigateur.
+- **Exporter** / **Importer** transfère vos avoirs d'un appareil à l'autre (fichier JSON commun au web et à l'iPhone).
+
+Chaque fiche d'actif affiche alors **« Le conseil d'Altim »**, adapté à ce que vous possédez.

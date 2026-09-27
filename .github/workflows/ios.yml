@@ -14,6 +14,8 @@ jobs:
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
+      - name: SQLite (en-têtes pour la base des avoirs)
+        run: apt-get update -qq && apt-get install -y -qq libsqlite3-dev pkg-config > /dev/null
       - run: cd ios/AltimCore && swift test
 
   app:

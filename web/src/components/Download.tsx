@@ -9,10 +9,17 @@ export function Download() {
         <h2>
           Prêt à voir le <span className="gradient">signal</span> ?
         </h2>
-        <p className="muted">Altim arrive sur iPhone (iOS 17 et plus). Rejoignez la bêta TestFlight.</p>
-        <a className="btn" href="https://testflight.apple.com/" target="_blank" rel="noreferrer">
-          Rejoindre la bêta TestFlight
-        </a>
+        <p className="muted">
+          Utilisez Altim tout de suite dans votre navigateur, ou sur iPhone (iOS 17 et plus) via la bêta TestFlight.
+        </p>
+        <div className="download-actions">
+          <a className="btn" href="/app">
+            Ouvrir l'app web
+          </a>
+          <a className="btn btn-ghost" href="https://testflight.apple.com/" target="_blank" rel="noreferrer">
+            Bêta iPhone (TestFlight)
+          </a>
+        </div>
       </div>
     </section>
   );

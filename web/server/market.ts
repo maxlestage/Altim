@@ -3,12 +3,15 @@
  * Sources are queried in parallel, compared candle by candle, and the first agreeing one is served.
  */
 import type { Candle } from "../src/engine/signal";
+import { assessQuality, reliability, type Kind, type QualityReport, type Reliability } from "../src/engine/reliability";
 
 export type Interval = "1h" | "4h" | "1d";
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
-export type Consensus = { candles: Candle[]; source: string; sources: SourceStatus[]; agreeing: number };
+export type Consensus = { candles: Candle[]; source: string; sources: SourceStatus[]; agreeing: number; conflict?: boolean };
+export type Snapshot = Consensus & { symbol: string; kind: Kind; interval: Interval; quality: QualityReport; reliability: Reliability };
 
-const STEP: Record<Interval, number> = { "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 };
+export const STEP: Record<Interval, number> = { "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 };
+export const HIGHER: Record<Interval, Interval | null> = { "1h": "4h", "4h": "1d", "1d": null };
 const num = (v: unknown) => Number(v);
 
 async function getJSON(url: string): Promise<unknown> {
@@ -66,7 +69,7 @@ export const parse = {
     (d as string[][]).map((r) => ({ time: num(r[0]) * 1000, close: num(r[2]), high: num(r[3]), low: num(r[4]), open: num(r[5]), volume: num(r[6]) })),
 };
 
-type Source = { name: string; fetch: (base: string, interval: Interval) => Promise<Candle[]> };
+type Source = { name: string; fetch: (base: string, interval: Interval) => Promise<Candle[]>; supports?: (i: Interval) => boolean };
 
 export const SOURCES: Source[] = [
   { name: "Binance", fetch: async (b, i) => parse.binance(await getJSON(`https://api.binance.com/api/v3/klines?symbol=${b}USDT&interval=${i}&limit=500`)) },
@@ -105,7 +108,15 @@ export function deviations(series: Candle[][]): number[] {
   });
 }
 
-export async function consensus(base: string, interval: Interval, sources = SOURCES, target = 3, tolerance = 0.5): Promise<Consensus> {
+export async function consensus(
+  base: string,
+  interval: Interval,
+  sources = SOURCES,
+  target = 3,
+  tolerance = 0.5,
+  closed: (c: Candle[], i: Interval) => Candle[] = closedOnly,
+): Promise<Consensus> {
+  sources = sources.filter((s) => !s.supports || s.supports(interval));
   const results: { name: string; candles?: Candle[]; error?: string }[] = [];
   let cursor = 0;
   while (cursor < sources.length && results.filter((r) => r.candles).length < target) {
@@ -115,7 +126,7 @@ export async function consensus(base: string, interval: Interval, sources = SOUR
       ...(await Promise.all(
         wave.map(async (s) => {
           try {
-            const candles = closedOnly(await s.fetch(base, interval), interval);
+            const candles = closed(await s.fetch(base, interval), interval);
             if (!candles.length) throw new Error("vide");
             return { name: s.name, candles };
           } catch (e) {
@@ -134,9 +145,109 @@ export async function consensus(base: string, interval: Interval, sources = SOUR
     candles: primary.r.candles!,
     source: primary.r.name,
     agreeing: agreeing.length,
+    conflict: ok.length > 1 && agreeing.length === 0,
     sources: results.map((r) => {
       const i = ok.indexOf(r);
       return r.candles ? { name: r.name, ok: devs[i]! <= tolerance, deviation: devs[i] } : { name: r.name, ok: false, error: r.error };
     }),
   };
+}
+
+// ---------- Stocks: Yahoo Finance (all timeframes) + Nasdaq (daily) ----------
+
+/** Opening of the New York session (9:30 local) for a date, US daylight saving time handled. */
+export function nyOpen(year: number, month: number, day: number): number {
+  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  for (const utcHour of [13, 14]) {
+    const t = Date.UTC(year, month - 1, day, utcHour, 30);
+    if (fmt.format(t) === "09:30") return t;
+  }
+  return Date.UTC(year, month - 1, day, 13, 30);
+}
+
+export const parseStock = {
+  yahoo: (d: any): Candle[] => {
+    const r = d?.chart?.result?.[0];
+    if (!r) throw new Error(d?.chart?.error?.description ?? "Yahoo : aucune donnée");
+    const q = r.indicators?.quote?.[0] ?? {};
+    const ts: number[] = r.timestamp ?? [];
+    return ts.flatMap((t, i) => {
+      const [o, h, l, c] = [q.open?.[i], q.high?.[i], q.low?.[i], q.close?.[i]];
+      if ([o, h, l, c].some((v) => v == null)) return [];
+      return [{ time: t * 1000, open: o, high: h, low: l, close: c, volume: q.volume?.[i] ?? 0 }];
+    });
+  },
+  nasdaq: (d: any): Candle[] => {
+    const rows: any[] = d?.data?.tradesTable?.rows ?? [];
+    const num = (v: string) => Number(String(v).replace(/[$,]/g, ""));
+    return rows
+      .map((r) => {
+        const [m, day, y] = String(r.date).split("/").map(Number);
+        return { time: nyOpen(y!, m!, day!), open: num(r.open), high: num(r.high), low: num(r.low), close: num(r.close), volume: num(r.volume) || 0 };
+      })
+      .reverse();
+  },
+};
+
+/** 1h → 4h for stocks: 4-bar blocks inside each session (New York day). */
+export function aggregateSession(candles: Candle[], per = 4): Candle[] {
+  const day = (t: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(t);
+  const out: Candle[] = [];
+  let bucket: Candle[] = [];
+  const flush = () => {
+    if (!bucket.length) return;
+    out.push({
+      time: bucket[0]!.time, open: bucket[0]!.open, high: Math.max(...bucket.map((c) => c.high)),
+      low: Math.min(...bucket.map((c) => c.low)), close: bucket[bucket.length - 1]!.close,
+      volume: bucket.reduce((a, c) => a + c.volume, 0),
+    });
+    bucket = [];
+  };
+  for (const c of candles) {
+    if (bucket.length && (bucket.length === per || day(bucket[0]!.time) !== day(c.time))) flush();
+    bucket.push(c);
+  }
+  flush();
+  return out;
+}
+
+const isoDate = (t: number) => new Date(t).toISOString().slice(0, 10);
+
+export const STOCK_SOURCES: Source[] = [
+  {
+    name: "Yahoo Finance",
+    fetch: async (symbol, i) => {
+      const [interval, range] = i === "1d" ? ["1d", "2y"] : i === "4h" ? ["1h", "2y"] : ["1h", "6mo"];
+      const c = parseStock.yahoo(await getJSON(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`));
+      return i === "4h" ? aggregateSession(c) : c;
+    },
+  },
+  {
+    name: "Nasdaq",
+    supports: (i) => i === "1d",
+    fetch: async (symbol) => {
+      const from = isoDate(Date.now() - 800 * 86_400_000);
+      for (const cls of ["stocks", "etf"]) {
+        const c = parseStock.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical?assetclass=${cls}&fromdate=${from}&todate=${isoDate(Date.now())}&limit=9999`));
+        if (c.length) return c;
+      }
+      throw new Error("symbole inconnu");
+    },
+  },
+];
+
+/** Stock candle closed: the daily session lasts 6h30, not 24h. */
+const stockClosed = (candles: Candle[], interval: Interval, now = Date.now()) => {
+  const duration = interval === "1d" ? 6.5 * 3_600_000 : STEP[interval];
+  return candles.filter((c) => c.time + duration <= now && Number.isFinite(c.close) && c.close > 0).sort((a, b) => a.time - b.time);
+};
+
+/** Validated snapshot: multi-source candles + quality + reliability score. */
+export async function snapshot(symbol: string, kind: Kind, interval: Interval): Promise<Snapshot> {
+  const c = kind === "crypto"
+    ? await consensus(symbol, interval)
+    : await consensus(symbol, interval, STOCK_SOURCES, 3, 1, (candles, i) => stockClosed(candles, i));
+  const quality = assessQuality(c.candles, STEP[interval], kind);
+  const independent = c.sources.filter((s) => s.ok).length;
+  return { ...c, symbol, kind, interval, quality, reliability: reliability(quality.score, independent, !!c.conflict) };
 }

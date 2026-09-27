@@ -82,8 +82,11 @@ struct RadarView: View {
                 }
             }
             if model.isRefreshing { ProgressView().tint(Theme.cyan) }
-            EnvironmentBadge(isLive: settings.cryptoEnvironment == .live || settings.stockEnvironment == .live,
-                             demo: settings.demoMode)
+            Text("CONSEIL")
+                .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .foregroundStyle(Theme.cyan)
+                .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.cyan, lineWidth: 1))
         }
     }
 

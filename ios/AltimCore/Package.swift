@@ -12,10 +12,18 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
     ],
     targets: [
+        // System SQLite for Linux (CI); iOS/macOS use the SDK's SQLite3 module.
+        .systemLibrary(
+            name: "CSQLite",
+            path: "Sources/CSQLite",
+            pkgConfig: "sqlite3",
+            providers: [.apt(["libsqlite3-dev"])]
+        ),
         .target(
             name: "AltimCore",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
+                .target(name: "CSQLite", condition: .when(platforms: [.linux])),
             ]
         ),
         .testTarget(name: "AltimCoreTests", dependencies: ["AltimCore"]),

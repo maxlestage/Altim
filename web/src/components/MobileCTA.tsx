@@ -19,8 +19,8 @@ export function MobileCTA() {
         <b>Altim</b>
         <small>Signaux crypto & actions</small>
       </div>
-      <a href="#download" className="btn btn-small" tabIndex={visible ? 0 : -1}>
-        Télécharger
+      <a href="/app" className="btn btn-small" tabIndex={visible ? 0 : -1}>
+        Ouvrir l'app
       </a>
     </div>
   );

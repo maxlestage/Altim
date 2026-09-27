@@ -14,6 +14,10 @@ final class AssetViewModel {
     private(set) var social: SocialSentiment?
     private(set) var isLoading = false
     private(set) var error: String?
+    /// Altim's advice, adapted to the user's holdings (SQLite).
+    private(set) var advice: Advisor.Advice?
+    /// Held line of this asset, if any.
+    private(set) var heldLine: HoldingsAnalyzer.Line?
 
     var candles: [Candle] { analysis?.snapshot.candles ?? [] }
     var signal: Signal? { analysis?.signal }
@@ -47,5 +51,41 @@ final class AssetViewModel {
         }
         social = await socialTask
         fearGreed = await fgTask
+    }
+
+    /// Advice based on the market and on what the user already owns.
+    /// Every holding is valued at the consensus price so that weights match "Mes avoirs".
+    func loadAdvice(services: AppServices, risk: RiskSettings) async {
+        let holdings = (try? await services.holdingsDB?.all()) ?? []
+        let cash = (try? await services.holdingsDB?.cash()) ?? 0
+        let consensus = services.market
+        let asset = asset
+        let held = holdings.first { $0.kind == asset.assetClass && $0.asset.symbol == asset.symbol }
+        let others = Dictionary(holdings.filter { $0.id != held?.id }.map { ($0.marketKey, $0) }, uniquingKeysWith: { a, _ in a })
+        var market = await withTaskGroup(of: (String, HoldingsAnalyzer.MarketInput?).self) { group in
+            for (key, h) in others {
+                group.addTask {
+                    guard let q = try? await consensus.quote(for: h.asset) else { return (key, nil) }
+                    return (key, HoldingsAnalyzer.MarketInput(price: q.price, daily: [], daySignal: nil, shortSignal: nil, reliability: nil))
+                }
+            }
+            var out: [String: HoldingsAnalyzer.MarketInput] = [:]
+            for await (k, v) in group { if let v { out[k] = v } }
+            return out
+        }
+        var heldInput: HoldingsAnalyzer.MarketInput?
+        if let held {
+            heldInput = await HoldingsViewModel.marketInput(for: held.asset, market: consensus)
+            if let heldInput { market[held.marketKey] = heldInput }
+        }
+        let portfolio = HoldingsAnalyzer.analyze(holdings: holdings, cash: cash, market: market)
+        let heldPortfolioLine: HoldingsAnalyzer.Line? = held.flatMap { h in portfolio.lines.first { $0.id == h.id } }
+        heldLine = heldPortfolioLine
+        // Without market data for the held line, fall back on the market-only advice.
+        let line: HoldingsAnalyzer.Line? = heldInput == nil ? nil : heldPortfolioLine
+        guard let analysis else { advice = nil; return }
+        advice = Advisor.advise(signal: analysis.signal, reliability: analysis.snapshot.reliability,
+                                price: analysis.price, line: line,
+                                capital: portfolio.total > 0 ? portfolio.total : nil, risk: risk)
     }
 }

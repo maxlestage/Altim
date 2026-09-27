@@ -26,6 +26,22 @@ enum Fixtures {
         }
         return candles
     }
+
+    /// Trend followed by a pullback then a rebound (typical buy setup), or its mirror with a negative `drift`.
+    static func pullback(drift: Double, dip: Int, dipSize: Double, bounce: Int) -> [Candle] {
+        var c = candles(count: 240, drift: drift, amplitude: 1, seed: 3)
+        var price = c.last!.close
+        var t = c.last!.time
+        let sign: Double = drift >= 0 ? 1 : -1
+        for i in 0..<(dip + bounce) {
+            let open = price
+            price *= i < dip ? (1 - sign * dipSize) : (1 + sign * dipSize * 1.5)
+            t = t.addingTimeInterval(3600)
+            c.append(Candle(time: t, open: open, high: max(open, price) * 1.002, low: min(open, price) * 0.998,
+                            close: price, volume: i < dip ? 800 : 2000))
+        }
+        return c
+    }
 }
 
 /// Transport HTTP simulé : réponses par chemin, enregistrement des requêtes.

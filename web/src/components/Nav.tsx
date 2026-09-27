@@ -5,7 +5,7 @@ const LINKS = [
   ["/#features", "Fonctionnalités"],
   ["/#sources", "Sources"],
   ["/#how", "Moteur"],
-  ["/#security", "Sécurité"],
+  ["/#security", "Confidentialité"],
   ["/#faq", "FAQ"],
 ] as const;
 
@@ -23,8 +23,8 @@ export function Nav() {
             {label}
           </a>
         ))}
-        <a href="/#download" className="btn btn-small">
-          Télécharger
+        <a href="/app" className="btn btn-small">
+          Ouvrir l'app
         </a>
       </nav>
       <button className="burger" aria-label="Menu" aria-expanded={open} onClick={() => setOpen(!open)}>
