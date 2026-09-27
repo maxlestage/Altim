@@ -8,11 +8,14 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { analyze } from "../src/engine/signal";
 import { gate, type Kind } from "../src/engine/reliability";
-import { HIGHER, STEP, snapshot, type Interval } from "./market";
+import { HIGHER, STEP, longDaily, snapshot, type Interval } from "./market";
 import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
 import { guardReport } from "./guard";
 import { LiveHub } from "./live";
+import { macro, macroSeries } from "./macro";
+import { fibZones } from "../src/engine/fibonacci";
+import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
 const ROOT = join(import.meta.dir, "..");
@@ -80,6 +83,38 @@ const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Re
 const SNAP_TTL: Record<Interval, number> = { "1h": 60_000, "4h": 120_000, "1d": 300_000 };
 const snap = (symbol: string, kind: Kind, interval: Interval) =>
   cached(`snap:${kind}:${symbol}:${interval}`, SNAP_TTL[interval], () => snapshot(symbol, kind, interval));
+
+/** Long daily history (≈ 3 years), for the long-term horizon and the macro evidence. */
+const long = (symbol: string, kind: Kind) => cached(`long:${kind}:${symbol}`, 3_600_000, () => longDaily(symbol, kind));
+const macroNow = () => cached("macro:report", 300_000, () => macro());
+
+/** Macro context + what its stress announced on this asset (its long daily history). */
+async function macroContext(symbol: string, kind: Kind) {
+  const [report, series, hist] = await Promise.all([macroNow(), macroSeries(), long(symbol, kind).catch(() => null)]);
+  return { report, evidence: hist ? cached(`macroEv:${kind}:${symbol}`, 3_600_000, async () => macroEvidence(hist.candles, series)) : null };
+}
+
+/** Buy zones by horizon (Fibonacci) with the macro context. */
+async function zones(symbol: string, kind: Kind) {
+  const [h4, d, hist, q, ctx] = await Promise.all([
+    snap(symbol, kind, "4h"),
+    snap(symbol, kind, "1d"),
+    long(symbol, kind).catch(() => null),
+    quotes([makeAsset(symbol, kind)]).catch(() => []),
+    macroContext(symbol, kind).catch(() => null),
+  ]);
+  const price = q[0]?.price ?? h4.candles[h4.candles.length - 1]?.close ?? null;
+  const computed = await cached(`zones:${kind}:${symbol}`, 300_000, async () => fibZones(h4.candles, d.candles, hist?.candles ?? [], price));
+  // Status and distance follow the current price (the levels only change with the candles).
+  const current = price ? fibZones(h4.candles, d.candles, hist?.candles ?? [], price, false).map((z, i) => ({ ...z, evidence: computed[i]!.evidence })) : computed;
+  const evidence = ctx ? await ctx.evidence : null;
+  const level = ctx?.report.level ?? "calm";
+  return {
+    symbol, kind, price, asOf: Date.now(),
+    zones: current.map((z) => ({ ...z, macroNote: macroAdvice(level, z.horizon) })),
+    macro: ctx ? { ...ctx.report, evidence } : null,
+  };
+}
 
 const quotes = (assets: Asset[]) =>
   cached(`quotes:${assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",")}`, 15_000, () => consensusQuotes(assets));
@@ -257,7 +292,10 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
     const list = await universe(kind).catch(() => [] as UniverseEntry[]);
     const name = list.find((e) => e[0] === symbol)?.[1] ?? makeAsset(symbol, kind).name;
     const report = await cached(`guard:${kind}:${symbol}`, 60_000, () =>
-      guardReport(symbol, kind, name, async (i) => (await snap(symbol, kind, i)).candles));
+      guardReport(symbol, kind, name, async (i) => (await snap(symbol, kind, i)).candles, Date.now(), async () => {
+        const ctx = await macroContext(symbol, kind);
+        return { report: ctx.report, evidence: await ctx.evidence };
+      }));
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "public, max-age=30");
     res.json(report);
@@ -292,6 +330,21 @@ export function createApp({ live }: { live?: LiveHub } = {}) {
       unsubscribe();
     });
   });
+
+  // Buy zones by horizon (Fibonacci, short / medium / long term) with the macro context.
+  api.get("/zones", wrap(async (req, res) => {
+    const kind = parseKind(req.query.kind);
+    const z = await zones(parseSymbol(req.query.symbol, kind), kind);
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.json(z);
+  }));
+
+  // Macro / geopolitical context (market-wide), readable by bots.
+  api.get("/macro", wrap(async (_req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=60");
+    res.json(await macroNow());
+  }));
 
   api.get("/sentiment", wrap(async (req, res) => {
     const kind = parseKind(req.query.kind);

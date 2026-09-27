@@ -8,6 +8,8 @@ import type { Holding } from "../engine/holdings";
 
 export type Interval = "1h" | "4h" | "1d";
 export type WatchItem = { symbol: string; kind: Kind; name: string };
+/** Investment horizon of the user: which buy zones come first (Fibonacci on 4 h, daily or weekly candles). */
+export type HorizonPref = "short" | "medium" | "long";
 
 export interface AppState {
   version: 1;
@@ -15,6 +17,7 @@ export interface AppState {
   interval: Interval;
   watchlist: WatchItem[];
   risk: RiskSettings;
+  horizon: HorizonPref;
 }
 
 export const DEFAULT_WATCHLIST: WatchItem[] = [
@@ -36,6 +39,7 @@ const initial = (): AppState => ({
   interval: "4h",
   watchlist: DEFAULT_WATCHLIST,
   risk: DEFAULT_RISK,
+  horizon: "medium",
 });
 
 function load(): AppState {
@@ -50,6 +54,7 @@ function load(): AppState {
           interval: parsed.interval ?? "4h",
           watchlist: Array.isArray(parsed.watchlist) ? parsed.watchlist : DEFAULT_WATCHLIST,
           risk: { ...DEFAULT_RISK, ...parsed.risk },
+          horizon: ["short", "medium", "long"].includes(parsed.horizon as string) ? parsed.horizon! : "medium",
         };
       }
     }

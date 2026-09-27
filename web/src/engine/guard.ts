@@ -14,6 +14,7 @@
  */
 import { adx, atr, ema, rsi, sanitize, type Candle } from "./signal";
 import type { Kind } from "./reliability";
+import { MACRO, type MacroReport } from "./macro";
 
 export type Trend = "up" | "down" | "range";
 export type ShockLevel = "calm" | "agitated" | "shock";
@@ -45,8 +46,10 @@ export interface GuardInput {
   positioning?: Positioning | null;
   sentiment?: SentimentInput | null;
   news?: NewsItem[] | null;
-  /** VIX daily closes, oldest first (stocks). */
+  /** VIX daily closes, oldest first (stocks). Ignored when `macro` is given (the VIX is part of it). */
   vix?: number[] | null;
+  /** Macro / geopolitical context (market-wide) and what its stress announced on this asset's history. */
+  macro?: { report: MacroReport; evidence: Evidence | null } | null;
   now?: number;
 }
 
@@ -303,15 +306,26 @@ export function shock(input: GuardInput): GuardResult["shock"] {
     if (burst >= 3 && recent >= 4) raw.push({ code: "newsBurst", points: 20, text: `Rafale d'actualités : ${recent} articles en 6 h, ${one(burst)} fois plus que d'habitude.` });
     else if (burst >= 2 && recent >= 3) raw.push({ code: "newsBusy", points: 10, text: `Actualité plus chargée que d'habitude (${recent} articles en 6 h).` });
   }
+  // Macro / geopolitical context: market stress (checked on this asset) and escalation headlines (not checkable).
+  const m = input.macro?.report;
+  if (m && m.marketScore >= MACRO.tense) {
+    const top = m.factors.filter((f) => f.code !== "escalation").sort((a, b) => b.points - a.points).slice(0, 2).map((f) => f.text).join(" ");
+    raw.push({ code: "macro", points: m.marketScore >= MACRO.high ? 35 : 20, text: `Contexte macro ${m.marketScore >= MACRO.high ? "très tendu" : "tendu"} : ${top}` });
+  }
+  const esc = m?.factors.find((f) => f.code === "escalation");
+  if (esc) raw.push({ code: "macroNews", points: esc.points, text: esc.text });
   // Market-wide fear (stocks): VIX.
   const vix = input.vix ?? [];
-  if (input.kind === "stock" && vix.length >= 2) {
+  if (!m && input.kind === "stock" && vix.length >= 2) {
     const v = last(vix)!, prev = vix[vix.length - 2]!;
     if (v >= 30) raw.push({ code: "vixHigh", points: 20, text: `Peur généralisée sur les marchés (VIX à ${one(v)}).` });
     if (prev > 0 && v / prev - 1 >= 0.2) raw.push({ code: "vixJump", points: 15, text: `Le VIX a bondi de ${pct((v / prev - 1) * 100)} en une séance.` });
   }
   const historical = new Set(["vol2", "vol15", "jump4", "jump3", "volume", "squeeze"]);
-  const factors = finalize(raw, raw.length ? shockEvidence(h1, h4) : {}, (c) => historical.has(c));
+  const evidence = raw.length ? shockEvidence(h1, h4) : {};
+  if (input.macro?.evidence) evidence.macro = input.macro.evidence;
+  historical.add("macro");
+  const factors = finalize(raw, evidence, (c) => historical.has(c));
   const score = Math.min(100, factors.reduce((acc, f) => acc + f.points, 0));
   const level: ShockLevel = score >= GUARD.shockLevel ? "shock" : score >= GUARD.shockAgitated ? "agitated" : "calm";
   return { score, level, factors };

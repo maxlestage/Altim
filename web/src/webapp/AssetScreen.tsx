@@ -3,8 +3,10 @@ import { analyze, type Signal } from "../engine/signal";
 import { gate } from "../engine/reliability";
 import { backtest, trackRecord, type BacktestResult } from "../engine/backtest";
 import { formatPrice } from "../market";
-import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot } from "./api";
+import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot, type ZonesReport } from "./api";
 import { GuardCard } from "./GuardCard";
+import { ZonesCard } from "./ZonesCard";
+import { zoneState } from "../engine/fibonacci";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
 import { ActionBadge, Change, Gauge, PriceChart, ReliabilityBadge, Segmented } from "./ui";
@@ -15,7 +17,7 @@ import { analyzePortfolio, type MarketInput } from "../engine/holdings";
 type Loaded = { snap: Snapshot; signal: Signal | null; quote: Quote | null };
 
 export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol: string }) {
-  const { interval, watchlist, risk } = useAppState();
+  const { interval, watchlist, risk, horizon } = useAppState();
   const holdingsState = useHoldings();
   const held = holdingsState.holdings.find((h) => h.symbol === symbol && h.kind === kind) ?? null;
   const [heldMarket, setHeldMarket] = useState<MarketInput | null>(null);
@@ -37,6 +39,20 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
   const [bt, setBt] = useState<BacktestResult | null>(null);
   const [sent, setSent] = useState<Sentiment | null>(null);
   const [guardReport, setGuardReport] = useState<GuardReport | null>(null);
+  const [zonesReport, setZonesReport] = useState<ZonesReport | null>(null);
+
+  // Buy zones by horizon and macro context: they change with the candles, refreshed every 2 minutes.
+  useEffect(() => {
+    let alive = true;
+    setZonesReport(null);
+    const load = () => api.zones(symbol, kind).then((z) => alive && setZonesReport(z)).catch(() => {});
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), 120_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [symbol, kind]);
 
   // Market guard: independent of the timeframe, refreshed every 2 minutes.
   useEffect(() => {
@@ -113,11 +129,17 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
     : candles;
   const portfolio = analyzePortfolio(holdingsState.holdings, holdingsState.cash, valuation);
   const line = held ? portfolio.lines.find((l) => l.id === held.id) ?? null : null;
+  // Buy zone of the user's horizon, at the live price.
+  const rawZone = zonesReport?.zones.find((z) => z.horizon === horizon);
+  const myZone = rawZone && rawZone.status !== "none"
+    ? { label: rawZone.label, macroNote: rawZone.macroNote, ...(price && rawZone.swing?.trend === "up" ? zoneState(rawZone.swing, price) : { status: rawZone.status, text: rawZone.text }) }
+    : null;
   const advice = data
     ? adviseAsset({
         signal, reliability: rel?.level ?? null, price, line: held && heldMarket ? line : null, capital: portfolio.total, risk,
         track: bt ? trackRecord(bt) : null, symbol, kind,
         guard: guardReport ? { shock: guardReport.shock.level, reversalScore: guardReport.reversal.score, reversalDirection: guardReport.reversal.direction } : null,
+        zone: myZone,
       })
     : null;
 
@@ -164,6 +186,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
           <p className="muted small">Conseil indicatif, pas une recommandation d'investissement personnalisée. Altim ne passe aucun ordre.</p>
         </div>
       )}
+
+      {zonesReport ? <ZonesCard report={zonesReport} price={price} horizon={horizon} /> : data && <div className="skeleton" aria-label="Chargement des zones d'achat" />}
 
       {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
 

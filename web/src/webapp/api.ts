@@ -23,6 +23,14 @@ export type GuardReport = import("../engine/guard").GuardResult & {
     socialBullish: number | null; socialSample: number; news24h: number; newsTone: { negative: number; positive: number };
     headlines: { title: string; time: number; source?: string }[]; vix: number | null;
   };
+  macro: MacroInfo | null;
+};
+
+export type MacroInfo = import("../engine/macro").MacroReport & { evidence?: import("../engine/guard").Evidence | null };
+export type ZonesReport = {
+  symbol: string; kind: Kind; price: number | null; asOf: number;
+  zones: (import("../engine/fibonacci").FibZone & { macroNote: string | null })[];
+  macro: MacroInfo | null;
 };
 
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
@@ -52,6 +60,8 @@ export const api = {
   universe: (kind: Kind, q: string, offset: number, limit: number) =>
     get<{ total: number; offset: number; items: UniverseItem[] }>(`/api/universe?kind=${kind}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`),
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  macro: () => get<MacroInfo>("/api/macro"),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 
