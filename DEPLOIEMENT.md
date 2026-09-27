@@ -66,7 +66,25 @@ Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depui
 
 Sans compte Apple Developer, le site reste utilisable comme une app : Safari → **Ouvrir l'app** → **Partager** → **Sur l'écran d'accueil**.
 
-## 3. Renseigner vos avoirs
+## 3. Application Android native
+
+Même principe que l'iPhone : l'app se connecte à votre serveur Heroku. Aucun compte Google Play n'est nécessaire, l'APK s'installe directement.
+
+### Créer la clé de signature (une seule fois)
+Android n'accepte une mise à jour que si elle est signée par la **même clé** que la version installée : créez-la une fois et gardez-la.
+
+1. Sur un ordinateur avec Java : `keytool -genkeypair -keystore altim.jks -alias altim -keyalg RSA -keysize 4096 -validity 10000 -dname "CN=Altim"` (choisissez un mot de passe robuste), puis `base64 -w0 altim.jks` (sur Mac : `base64 -i altim.jks`).
+2. GitHub → **Settings** → **Secrets and variables** → **Actions** : `ANDROID_KEYSTORE_BASE64` (le texte base64), `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`altim`), `ANDROID_KEY_PASSWORD` (le même mot de passe).
+3. Gardez `altim.jks` et son mot de passe en lieu sûr, hors du dépôt : sans eux, plus de mise à jour possible (il faudrait désinstaller puis réinstaller).
+
+### Installer l'APK
+1. Onglet **Actions** → **Android APK signé** → **Run workflow**. Environ 5 min plus tard : **Summary** → **Artifacts** → **Altim-apk**.
+2. Ouvrez le fichier sur le téléphone (décompressez le .zip), autorisez l'installation depuis cette source quand Android le demande, puis **Installer**.
+3. Premier lancement : avertissement, adresse du serveur (`mon-app.herokuapp.com`), identifiant et mot de passe, comme sur iPhone.
+
+Pour un simple essai sans clé, chaque exécution du workflow **Android** fournit aussi un APK de test (`altim-debug-apk`) ; il ne pourra pas être mis à jour par l'APK signé (désinstallez-le avant).
+
+## 4. Renseigner vos avoirs
 
 Altim est un conseiller : il ne passe aucun ordre et ne demande aucune clé de courtier.
 
