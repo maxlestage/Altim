@@ -305,11 +305,21 @@ export async function consensus(
 // ---------- Stocks: Yahoo Finance (all timeframes) + Nasdaq (daily) ----------
 
 /** Opening of the New York session (9:30 local) for a date, US daylight saving time handled. */
+// Built once: creating a formatter per candle made long histories take seconds to parse.
+const NY_TIME = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const NY_DAY = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+const nyOpenCache = new Map<number, number>();
+
 export function nyOpen(year: number, month: number, day: number): number {
-  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const key = year * 10_000 + month * 100 + day;
+  const hit = nyOpenCache.get(key);
+  if (hit !== undefined) return hit;
   for (const utcHour of [13, 14]) {
     const t = Date.UTC(year, month - 1, day, utcHour, 30);
-    if (fmt.format(t) === "09:30") return t;
+    if (NY_TIME.format(t) === "09:30") {
+      nyOpenCache.set(key, t);
+      return t;
+    }
   }
   return Date.UTC(year, month - 1, day, 13, 30);
 }
@@ -367,7 +377,7 @@ export const parseStock = {
 
 /** 1h → 4h for stocks: 4-bar blocks inside each session (New York day). */
 export function aggregateSession(candles: Candle[], per = 4): Candle[] {
-  const day = (t: number) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(t);
+  const day = (t: number) => NY_DAY.format(t);
   const out: Candle[] = [];
   let bucket: Candle[] = [];
   const flush = () => {

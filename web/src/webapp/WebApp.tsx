@@ -5,9 +5,11 @@ import { Radar } from "./Radar";
 import { AssetScreen } from "./AssetScreen";
 import { Settings } from "./Settings";
 import { MyHoldings } from "./MyHoldings";
+import { Selection } from "./Selection";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
+  { href: "/app/selection", label: "Sélection", icon: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z" },
   { href: "/app/avoirs", label: "Mes avoirs", icon: "M12 2 3 7l9 5 9-5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5" },
   { href: "/app/reglages", label: "Réglages", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4" },
 ];
@@ -34,6 +36,7 @@ export function WebApp() {
   let screen;
   if (asset) screen = <AssetScreen key={path} kind={asset[1] as "crypto" | "stock"} symbol={asset[2]!.toUpperCase()} />;
   else if (path === "/app/avoirs") screen = <MyHoldings />;
+  else if (path === "/app/selection") screen = <Selection />;
   else if (path === "/app/reglages") screen = <Settings />;
   else screen = <Radar />;
 

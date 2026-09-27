@@ -18,7 +18,7 @@
 
 .app-tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(3, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: rgba(7, 9, 20, 0.92); border-top: 1px solid var(--line);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -354,3 +354,41 @@
 .macro-high .kv b { color: #ff3b5c; }
 .macro details ul { padding-left: 18px; margin: 6px 0 0; }
 .macro summary { cursor: pointer; color: var(--muted); }
+
+/* ---------- Selection (which stocks to buy) ---------- */
+.selection .method ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 14px; }
+.validation p { margin: 0 0 8px; }
+.validation.good { border-color: rgba(57, 255, 136, 0.4); }
+.validation.weak { border-color: rgba(255, 199, 51, 0.4); }
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.pick { display: grid; gap: 12px; min-width: 0; }
+.pick-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
+.pick-rank { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-weight: 800; background: rgba(0, 240, 255, 0.12); color: var(--cyan); border: 1px solid rgba(0, 240, 255, 0.4); }
+.pick-id { display: grid; min-width: 0; }
+.pick-id b { overflow-wrap: anywhere; }
+.pick-price { display: grid; justify-items: end; font-size: 14px; }
+.pick-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.pick-plan > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); min-width: 0; }
+.pick-plan small { font-size: 11px; color: var(--muted); }
+.pick-plan b { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
+.pick-plan .pick-amount { grid-column: 1 / -1; border-color: rgba(0, 240, 255, 0.35); }
+.pick-toggle { justify-self: start; }
+.pick-detail { display: grid; gap: 12px; }
+.crit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.crit-list li { display: grid; gap: 4px; }
+.crit-list li.main .crit-head span { color: var(--cyan); font-weight: 700; }
+.crit-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: baseline; font-size: 14px; }
+.crit-role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.crit-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.crit-bar i { display: block; height: 100%; border-radius: 4px; }
+.crit-bar i.good { background: #39ff88; }
+.crit-bar i.mid { background: #ffc733; }
+.crit-bar i.low { background: #ff3b5c; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13px; }
+.checks .ok span { color: #39ff88; }
+.checks .ko span { color: #ffc733; }
+.checks .info span { color: var(--cyan); }
+.pick-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.watch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.watch-list p { margin: 4px 0 0; }
+@media (max-width: 380px) { .app-tabs a { font-size: 10px; } }
