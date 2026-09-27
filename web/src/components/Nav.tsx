@@ -3,6 +3,7 @@ import { useState } from "react";
 const LINKS = [
   ["/#live", "Signal live"],
   ["/#features", "Fonctionnalités"],
+  ["/#apps", "Apps"],
   ["/#sources", "Sources"],
   ["/#how", "Moteur"],
   ["/#security", "Confidentialité"],
