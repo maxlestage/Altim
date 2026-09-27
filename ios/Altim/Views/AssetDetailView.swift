@@ -44,7 +44,7 @@ struct AssetDetailView: View {
                         SentimentCard(fearGreed: model.fearGreed, social: model.social)
                     }
                     if let backtest = model.backtest { BacktestCard(result: backtest, timeframe: model.timeframe) }
-
+                }
                 .padding()
             }
             .refreshable { await reload() }
