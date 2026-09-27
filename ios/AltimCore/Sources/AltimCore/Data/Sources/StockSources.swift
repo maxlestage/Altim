@@ -216,7 +216,9 @@ public struct NasdaqMarketData: MarketSource {
         let from = isoDate(Date().addingTimeInterval(-lookbackDays(.d1) * 86_400 * 1.5))
         // Symbol unknown as a stock: retry as an ETF.
         for assetClass in ["stocks", "etf"] {
-            let url = SourceHTTP.url("https://api.nasdaq.com/api/quote/\(asset.symbol)/historical",
+            // Class shares: BRK-B (Yahoo) = BRK.B (Nasdaq).
+            let symbol = asset.symbol.replacingOccurrences(of: "-", with: ".")
+            let url = SourceHTTP.url("https://api.nasdaq.com/api/quote/\(symbol)/historical",
                                      [("assetclass", assetClass), ("fromdate", from), ("todate", isoDate(Date())), ("limit", "9999")])
             let data = try await SourceHTTP.get(transport, url, headers: ["Accept-Language": "en-US,en;q=0.9"])
             let candles = try Self.parse(data, now: Date())
@@ -257,7 +259,8 @@ public struct NasdaqMarketData: MarketSource {
 // MARK: - Cboe (delayed quote, no key)
 
 public struct CboeQuotes: MarketSource {
-    public let name = "Cboe"
+    /// Same provider as `CboeMarketData`: counted once in the independent sources.
+    public let name = "Cboe (cours)"
     public let assetClass = AssetClass.stock
     public var providesCandles: Bool { false }
     let transport: HTTPTransport
@@ -268,7 +271,7 @@ public struct CboeQuotes: MarketSource {
     }
 
     public func quote(for asset: Asset) async throws -> Quote {
-        let url = SourceHTTP.url("https://www.cboe.com/education/tools/trade-optimizer/symbol-info/", [("symbol", asset.symbol)])
+        let url = SourceHTTP.url("https://www.cboe.com/education/tools/trade-optimizer/symbol-info/", [("symbol", asset.symbol.replacingOccurrences(of: "-", with: "."))])
         return try Self.parse(try await SourceHTTP.get(transport, url))
     }
 
@@ -333,5 +336,149 @@ public struct SentimentProvider: Sendable {
               let value = JSON.double(row["value"]) else { throw APIError.decoding("Fear & Greed") }
         return FearGreedIndex(value: Int(value), classification: row["value_classification"] as? String ?? "",
                               time: JSON.double(row["timestamp"]).map { Date(timeIntervalSince1970: $0) } ?? Date())
+    }
+}
+
+// MARK: - Class shares
+
+/// BRK-B (Yahoo format, used by Altim) is written BRK.B at Nasdaq, Cboe, Robinhood and TradingView.
+func dottedSymbol(_ symbol: String) -> String { symbol.replacingOccurrences(of: "-", with: ".") }
+
+private func sessionCandle(_ date: String, _ o: Double?, _ h: Double?, _ l: Double?, _ c: Double?, _ v: Double?,
+                           now: Date, source: String) throws -> Candle {
+    let p = date.prefix(10).split(separator: "-").compactMap { Int($0) }
+    guard p.count == 3, let t = newYorkOpen(year: p[0], month: p[1], day: p[2]), let o, let h, let l, let c else {
+        throw APIError.decoding("bougie \(source)")
+    }
+    return Candle(time: t, open: o, high: h, low: l, close: c, volume: v ?? 0, isClosed: t.addingTimeInterval(6.5 * 3600) <= now)
+}
+
+// MARK: - Cboe daily history (no key)
+
+public struct CboeMarketData: MarketSource {
+    public let name = "Cboe"
+    public let assetClass = AssetClass.stock
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func supports(_ timeframe: Timeframe) -> Bool { timeframe == .d1 }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        guard timeframe == .d1 else { throw APIError.decoding("Cboe : journalier uniquement") }
+        let url = URL(string: "https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/\(dottedSymbol(asset.symbol)).json")!
+        return Array(try Self.parse(try await SourceHTTP.get(transport, url), now: Date()).suffix(limit))
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        let c = try await candles(for: asset, timeframe: .d1, limit: 2)
+        guard let last = c.last else { throw APIError.decoding("Cboe") }
+        let prev = c.count > 1 ? c[c.count - 2].close : last.close
+        return Quote(price: last.close, changePercent24h: (last.close / prev - 1) * 100, time: last.time)
+    }
+
+    /// {"data": [{"date": "2026-09-24", "open": 764.0, "high": …, "low": …, "close": …, "volume": …}]}, since 2004.
+    static func parse(_ data: Data, now: Date) throws -> [Candle] {
+        let rows = (try JSON.object(data))["data"] as? [[String: Any]] ?? []
+        return try rows.suffix(800).map { r in
+            try sessionCandle(r["date"] as? String ?? "", JSON.double(r["open"]), JSON.double(r["high"]), JSON.double(r["low"]),
+                              JSON.double(r["close"]), JSON.double(r["volume"]), now: now, source: "Cboe")
+        }
+    }
+}
+
+// MARK: - Robinhood (public market data, no key)
+
+public struct RobinhoodMarketData: MarketSource {
+    public let name = "Robinhood"
+    public let assetClass = AssetClass.stock
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    /// Robinhood hourly bars start on the hour (Yahoo's at :30): daily only, to compare the same candles.
+    public func supports(_ timeframe: Timeframe) -> Bool { timeframe == .d1 }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        guard timeframe == .d1 else { throw APIError.decoding("Robinhood : journalier uniquement") }
+        let url = SourceHTTP.url("https://api.robinhood.com/marketdata/historicals/\(dottedSymbol(asset.symbol))/",
+                                 [("interval", "day"), ("span", "5year"), ("bounds", "regular")])
+        return Array(try Self.parse(try await SourceHTTP.get(transport, url), now: Date()).suffix(limit))
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote { try await RobinhoodQuotes(transport: transport).quote(for: asset) }
+
+    /// {"historicals": [{"begins_at": "2026-09-25T00:00:00Z", "open_price": "336.04", …, "session": "reg", "interpolated": false}]}
+    static func parse(_ data: Data, now: Date) throws -> [Candle] {
+        let rows = (try JSON.object(data))["historicals"] as? [[String: Any]] ?? []
+        return try rows.filter { $0["session"] as? String == "reg" && ($0["interpolated"] as? Bool) != true }.map { r in
+            try sessionCandle(r["begins_at"] as? String ?? "", JSON.double(r["open_price"]), JSON.double(r["high_price"]),
+                              JSON.double(r["low_price"]), JSON.double(r["close_price"]), JSON.double(r["volume"]),
+                              now: now, source: "Robinhood")
+        }
+    }
+}
+
+/// Robinhood live price: cross-checks the last intraday close (Yahoo is the only aligned hourly source).
+public struct RobinhoodQuotes: MarketSource {
+    public let name = "Robinhood (cours)"
+    public let assetClass = AssetClass.stock
+    public var providesCandles: Bool { false }
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        throw APIError.decoding("Robinhood : cours uniquement")
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        let url = SourceHTTP.url("https://api.robinhood.com/quotes/", [("symbols", dottedSymbol(asset.symbol))])
+        return try Self.parse(try await SourceHTTP.get(transport, url))
+    }
+
+    /// {"results": [{"last_trade_price": "341.04", "adjusted_previous_close": "335.92", …}]} (null for an unknown symbol).
+    static func parse(_ data: Data) throws -> Quote {
+        guard let r = ((try JSON.object(data))["results"] as? [Any])?.first as? [String: Any],
+              let price = JSON.double(r["last_trade_price"]), price > 0 else { throw APIError.decoding("Robinhood : symbole inconnu") }
+        let prev = JSON.double(r["adjusted_previous_close"]) ?? JSON.double(r["previous_close"])
+        return Quote(price: price, changePercent24h: prev.map { (price / $0 - 1) * 100 } ?? 0, time: Date())
+    }
+}
+
+// MARK: - TradingView (scanner, delayed quote, no key)
+
+public struct TradingViewQuotes: MarketSource {
+    public let name = "TradingView"
+    public let assetClass = AssetClass.stock
+    public var providesCandles: Bool { false }
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        throw APIError.decoding("TradingView : cours uniquement")
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        var request = URLRequest(url: URL(string: "https://scanner.tradingview.com/america/scan")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Altim/1.0", forHTTPHeaderField: "User-Agent")
+        let body: [String: Any] = [
+            "filter": [
+                ["left": "name", "operation": "equal", "right": dottedSymbol(asset.symbol)],
+                ["left": "exchange", "operation": "in_range", "right": ["NASDAQ", "NYSE", "AMEX", "CBOE"]],
+            ],
+            "columns": ["name", "exchange", "close", "change"],
+            "range": [0, 5],
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await transport.send(request)
+        guard (200..<300).contains(response.statusCode) else { throw APIError.http(status: response.statusCode, message: "TradingView") }
+        return try Self.parse(data)
+    }
+
+    /// {"data": [{"s": "NASDAQ:AAPL", "d": ["AAPL", "NASDAQ", 341.07, 1.53]}]}
+    static func parse(_ data: Data) throws -> Quote {
+        guard let row = ((try JSON.object(data))["data"] as? [[String: Any]])?.first, let d = row["d"] as? [Any], d.count >= 4,
+              let price = JSON.double(d[2]), price > 0 else { throw APIError.decoding("TradingView : symbole inconnu") }
+        return Quote(price: price, changePercent24h: JSON.double(d[3]) ?? 0, time: Date())
     }
 }

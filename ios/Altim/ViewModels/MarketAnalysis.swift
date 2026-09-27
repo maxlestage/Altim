@@ -30,3 +30,26 @@ struct MarketAnalysis: Sendable {
         return ref > 0 ? (price / ref - 1) * 100 : 0
     }
 }
+
+/// Runs `work` on every item, at most `limit` at a time: a long radar or portfolio
+/// must not flood the exchanges (rate limits). Results keep the order of `items`.
+func concurrentMap<T: Sendable, R: Sendable>(_ items: [T], limit: Int = 6, _ work: @escaping @Sendable (T) async -> R) async -> [R] {
+    await withTaskGroup(of: (Int, R).self) { group in
+        var results = [R?](repeating: nil, count: items.count)
+        var next = 0
+        while next < min(limit, items.count) {
+            let i = next
+            group.addTask { (i, await work(items[i])) }
+            next += 1
+        }
+        while let (i, r) = await group.next() {
+            results[i] = r
+            if next < items.count {
+                let j = next
+                group.addTask { (j, await work(items[j])) }
+                next += 1
+            }
+        }
+        return results.compactMap { $0 }
+    }
+}

@@ -27,10 +27,13 @@ test("qualité : trou, pic aberrant et données périmées (comme DataQuality.sw
 });
 
 test("fiabilité : plafonds selon les sources indépendantes", () => {
-  expect(reliability(100, 1, false)).toMatchObject({ score: 50, level: "medium" });
-  expect(reliability(100, 2, false)).toMatchObject({ score: 80, level: "high" });
-  expect(reliability(100, 3, false)).toMatchObject({ score: 100, level: "high" });
-  expect(reliability(100, 3, true)).toMatchObject({ score: 30, level: "low" });
+  expect(reliability(100, 1, false)).toMatchObject({ score: 40, level: "low" });
+  expect(reliability(100, 2, false)).toMatchObject({ score: 60, level: "medium" });
+  expect(reliability(100, 3, false)).toMatchObject({ score: 75, level: "high" });
+  expect(reliability(100, 4, false)).toMatchObject({ score: 90, level: "high" });
+  expect(reliability(100, 12, false)).toMatchObject({ score: 100, level: "high" });
+  expect(reliability(100, 12, true)).toMatchObject({ score: 30, level: "low" });
+  expect(reliability(60, 12, false)).toMatchObject({ score: 60, level: "medium" });
 });
 
 test("garde-fou : signal suspendu si fiabilité faible, rétrogradé si moyenne", () => {
@@ -39,6 +42,7 @@ test("garde-fou : signal suspendu si fiabilité faible, rétrogradé si moyenne"
   expect(low.action).toBe("hold");
   expect(low.warnings[0]).toContain("signal suspendu");
   expect(low.confidence).toBeCloseTo(24, 9);
-  expect(gate(s, reliability(100, 1, false)).action).toBe("buy");
+  expect(gate(s, reliability(100, 1, false)).action).toBe("hold");
+  expect(gate(s, reliability(100, 2, false)).action).toBe("buy");
   expect(gate(s, reliability(100, 3, false)).action).toBe("strongBuy");
 });

@@ -3,6 +3,8 @@ import { analyzePortfolio, insightText, REASON_TEXT, RECOMMENDATION_LABEL, type 
 import { formatPrice } from "../market";
 import { api } from "./api";
 import { onLink } from "./router";
+import { AddHoldings } from "./AddHoldings";
+import { KIND_LABEL } from "./AssetPicker";
 import { exportHoldings, importHoldings, setHoldings, upsertHolding, useHoldings } from "./store";
 import { Change } from "./ui";
 
@@ -16,7 +18,8 @@ export function MyHoldings() {
   const [market, setMarket] = useState<Record<string, MarketInput>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Holding | "new" | null>(null);
+  const [editing, setEditing] = useState<Holding | null>(null);
+  const [adding, setAdding] = useState(false);
   const [cashText, setCashText] = useState(cash ? String(cash) : "");
   const fileInput = useRef<HTMLInputElement>(null);
   const symbolsKey = holdings.map((h) => `${h.kind}:${h.symbol}`).sort().join(",");
@@ -90,17 +93,17 @@ export function MyHoldings() {
           <h1>Mes avoirs</h1>
           <p className="muted small">Enregistrés uniquement dans ce navigateur{updatedAt ? ` · modifiés le ${new Date(updatedAt).toLocaleDateString("fr-FR")}` : ""}</p>
         </div>
-        <button className="btn btn-small" onClick={() => setEditing("new")}>+ Ajouter</button>
+        <button className="btn btn-small" onClick={() => setAdding(true)}>+ Ajouter</button>
       </div>
 
       {!holdings.length && (
         <div className="card empty-card">
           <h2>Renseignez ce que vous possédez déjà</h2>
           <p className="muted">
-            Ajoutez chaque actif avec sa quantité et votre prix d'achat moyen. Altim calcule alors votre patrimoine, vos gains, vos risques et
+            Ajoutez en une fois toutes vos cryptos et toutes vos actions, avec leur quantité et votre prix d'achat moyen. Altim calcule alors votre patrimoine, vos gains, vos risques et
             vous dit, ligne par ligne, quoi faire. Vos données restent dans ce navigateur.
           </p>
-          <button className="btn" onClick={() => setEditing("new")}>Ajouter mon premier actif</button>
+          <button className="btn" onClick={() => setAdding(true)}>Ajouter mes cryptos et actions</button>
         </div>
       )}
 
@@ -140,46 +143,58 @@ export function MyHoldings() {
             </div>
           )}
 
-          <h2 className="section-label">Ligne par ligne</h2>
-          <ul className="holding-list">
-            {analysis.lines.map((l) => (
-              <li key={l.id} className={`card holding ${REC_CLASS[l.recommendation]}`}>
-                <div className="holding-head">
-                  <a href={`/app/actif/${l.kind}/${l.symbol}`} onClick={onLink} className="holding-name">
-                    <b>{l.name}</b>
-                    <small className="muted mono">{l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {l.symbol} · PRU {formatPrice(l.averagePrice)} $</small>
-                  </a>
-                  <span className={`rec rec-${REC_CLASS[l.recommendation]}`}>{RECOMMENDATION_LABEL[l.recommendation]}</span>
-                </div>
-                <div className="holding-figures">
-                  <div><small>Valeur</small><b>{usd(l.value)}</b></div>
-                  <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>
-                  <div><small>Cours</small><b>{l.price ? `${formatPrice(l.price)} $` : "—"}</b></div>
-                </div>
-                <div className="weight" role="img" aria-label={`Poids ${l.weight.toFixed(1)} % du patrimoine`}>
-                  <div className="weight-track"><i style={{ width: `${Math.min(100, l.weight)}%` }} /></div>
-                  <small>{l.weight.toFixed(1)} % du patrimoine</small>
-                </div>
-                <ul className="reasons">
-                  {l.reasons.map((r) => <li key={r}>{REASON_TEXT[r] ?? r}</li>)}
-                  {l.recommendation === "lighten" && l.trimValue > 0 && l.price && (
-                    <li>
-                      Suggestion : vendre environ {usd(l.trimValue)} (≈ {(l.trimValue / l.price).toLocaleString("fr-FR", { maximumFractionDigits: 6 })} {l.symbol}).
+          {(["crypto", "stock"] as const).map((kind) => {
+            const lines = analysis.lines.filter((l) => l.kind === kind);
+            if (!lines.length) return null;
+            const value = lines.reduce((a, l) => a + l.value, 0);
+            return (
+              <div key={kind} className="holding-group">
+                <h2 className="section-label group-head">
+                  <span>{KIND_LABEL[kind]} · {lines.length}</span>
+                  {ready && <span className="mono">{usd(value)}</span>}
+                </h2>
+                <ul className="holding-list">
+                  {lines.map((l) => (
+                    <li key={l.id} className={`card holding ${REC_CLASS[l.recommendation]}`}>
+                      <div className="holding-head">
+                        <a href={`/app/actif/${l.kind}/${l.symbol}`} onClick={onLink} className="holding-name">
+                          <b>{l.name}</b>
+                          <small className="muted mono">{l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {l.symbol} · PRU {formatPrice(l.averagePrice)} $</small>
+                        </a>
+                        <span className={`rec rec-${REC_CLASS[l.recommendation]}`}>{RECOMMENDATION_LABEL[l.recommendation]}</span>
+                      </div>
+                      <div className="holding-figures">
+                        <div><small>Valeur</small><b>{usd(l.value)}</b></div>
+                        <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>
+                        <div><small>Cours</small><b>{l.price ? `${formatPrice(l.price)} $` : "—"}</b></div>
+                      </div>
+                      <div className="weight" role="img" aria-label={`Poids ${l.weight.toFixed(1)} % du patrimoine`}>
+                        <div className="weight-track"><i style={{ width: `${Math.min(100, l.weight)}%` }} /></div>
+                        <small>{l.weight.toFixed(1)} % du patrimoine</small>
+                      </div>
+                      <ul className="reasons">
+                        {l.reasons.map((r) => <li key={r}>{REASON_TEXT[r] ?? r}</li>)}
+                        {l.recommendation === "lighten" && l.trimValue > 0 && l.price && (
+                          <li>
+                            Suggestion : vendre environ {usd(l.trimValue)} (≈ {(l.trimValue / l.price).toLocaleString("fr-FR", { maximumFractionDigits: 6 })} {l.symbol}).
+                          </li>
+                        )}
+                        {l.stop && l.lossAtStop !== null && (
+                          <li>
+                            Stop de protection conseillé : <b>{formatPrice(l.stop)} $</b> (2 × la volatilité journalière) — perte limitée à ≈ {usd(l.lossAtStop)} depuis le cours actuel.
+                          </li>
+                        )}
+                      </ul>
+                      <div className="holding-actions">
+                        <button className="link-btn" onClick={() => setEditing(holdings.find((h) => h.id === l.id)!)}>Modifier</button>
+                        <button className="link-btn danger" onClick={() => confirm(`Supprimer ${l.name} de vos avoirs ?`) && setHoldings((s) => ({ holdings: s.holdings.filter((h) => h.id !== l.id) }))}>Supprimer</button>
+                      </div>
                     </li>
-                  )}
-                  {l.stop && l.lossAtStop !== null && (
-                    <li>
-                      Stop de protection conseillé : <b>{formatPrice(l.stop)} $</b> (2 × la volatilité journalière) — perte limitée à ≈ {usd(l.lossAtStop)} depuis le cours actuel.
-                    </li>
-                  )}
+                  ))}
                 </ul>
-                <div className="holding-actions">
-                  <button className="link-btn" onClick={() => setEditing(holdings.find((h) => h.id === l.id)!)}>Modifier</button>
-                  <button className="link-btn danger" onClick={() => confirm(`Supprimer ${l.name} de vos avoirs ?`) && setHoldings((s) => ({ holdings: s.holdings.filter((h) => h.id !== l.id) }))}>Supprimer</button>
-                </div>
-              </li>
-            ))}
-          </ul>
+              </div>
+            );
+          })}
 
           {ready && (
             <div className="card">
@@ -218,7 +233,8 @@ export function MyHoldings() {
         </div>
       </div>
 
-      {editing && <HoldingForm initial={editing === "new" ? null : editing} onClose={() => setEditing(null)} />}
+      {editing && <HoldingForm initial={editing} onClose={() => setEditing(null)} />}
+      {adding && <AddHoldings onClose={() => setAdding(false)} />}
     </section>
   );
 }
@@ -247,91 +263,44 @@ function AllocationBar({ a }: { a: PortfolioAnalysis["allocation"] }) {
   );
 }
 
-type Asset = { symbol: string; kind: "crypto" | "stock"; name: string };
-
-function HoldingForm({ initial, onClose }: { initial: Holding | null; onClose: () => void }) {
-  const [asset, setAsset] = useState<Asset | null>(initial ? { symbol: initial.symbol, kind: initial.kind, name: initial.name } : null);
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<Asset[]>([]);
-  const [qty, setQty] = useState(initial ? String(initial.quantity) : "");
-  const [pru, setPru] = useState(initial ? String(initial.averagePrice) : "");
-  const [merge, setMerge] = useState(true);
+/** Editing one existing line (new lines are added with AddHoldings). */
+function HoldingForm({ initial, onClose }: { initial: Holding; onClose: () => void }) {
+  const [qty, setQty] = useState(String(initial.quantity));
+  const [pru, setPru] = useState(String(initial.averagePrice));
   const [price, setPrice] = useState<number | null>(null);
-  const { holdings } = useHoldings();
-  const exists = !initial && asset && holdings.some((h) => h.symbol === asset.symbol && h.kind === asset.kind);
 
   useEffect(() => {
-    if (asset || q.trim().length < 2) return setResults([]);
-    let alive = true;
-    const t = setTimeout(() => api.search(q.trim()).then((r) => alive && setResults(r)).catch(() => {}), 300);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [q, asset]);
-
-  useEffect(() => {
-    if (!asset) return setPrice(null);
-    api.quotes([asset]).then((r) => setPrice(r[0]?.price ?? null)).catch(() => setPrice(null));
-  }, [asset?.symbol, asset?.kind]);
+    api.quotes([initial]).then((r) => setPrice(r[0]?.price ?? null)).catch(() => setPrice(null));
+  }, [initial.symbol, initial.kind]);
 
   const n = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
   const quantity = n(qty);
-  const averagePrice = pru.trim() === "" && price ? price : n(pru);
-  const valid = !!asset && quantity > 0 && Number.isFinite(averagePrice) && averagePrice >= 0;
+  const averagePrice = n(pru);
+  const valid = quantity > 0 && Number.isFinite(averagePrice) && averagePrice >= 0;
 
   const save = () => {
-    if (!valid || !asset) return;
-    upsertHolding({ id: initial?.id, symbol: asset.symbol, kind: asset.kind, name: asset.name, quantity, averagePrice }, merge);
+    if (!valid) return;
+    upsertHolding({ id: initial.id, symbol: initial.symbol, kind: initial.kind, name: initial.name, quantity, averagePrice });
     onClose();
   };
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={initial ? "Modifier un avoir" : "Ajouter un avoir"} onClick={(e) => e.stopPropagation()}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label={`Modifier ${initial.name}`} onClick={(e) => e.stopPropagation()}>
         <div className="sheet-handle" />
-        <div className="sheet-head"><h2>{initial ? `Modifier ${initial.name}` : "Ajouter un avoir"}</h2></div>
-
-        {!asset ? (
-          <>
-            <label className="field">
-              <span>Actif (crypto ou action)</span>
-              <input type="search" autoFocus placeholder="BTC, ETH, Apple, NVDA…" value={q} onChange={(e) => setQ(e.target.value)} />
-            </label>
-            <ul className="search-results">
-              {results.map((r) => (
-                <li key={`${r.kind}:${r.symbol}`}>
-                  <button onClick={() => setAsset(r)}><b>{r.symbol}</b> <span className="muted">{r.name}</span> <small className="tag">{r.kind === "crypto" ? "Crypto" : "Action"}</small></button>
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : (
-          <>
-            <div className="chosen">
-              <b>{asset.name}</b> <small className="muted mono">{asset.symbol}</small>
-              {!initial && <button className="link-btn" onClick={() => setAsset(null)}>Changer</button>}
-            </div>
-            {price && <p className="muted small">Cours actuel (consensus) : {formatPrice(price)} $</p>}
-            <label className="field">
-              <span>Quantité détenue</span>
-              <input inputMode="decimal" autoFocus value={qty} onChange={(e) => setQty(e.target.value)} placeholder="ex. 0,25" />
-            </label>
-            <label className="field">
-              <span>Prix d'achat moyen (USD, PRU)</span>
-              <input inputMode="decimal" value={pru} onChange={(e) => setPru(e.target.value)} placeholder={price ? `vide = cours actuel (${formatPrice(price)})` : "ex. 42000"} />
-            </label>
-            {exists && (
-              <label className="check-row">
-                <input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
-                <span>Déjà présent : ajouter à la ligne existante (PRU recalculé)</span>
-              </label>
-            )}
-            {quantity > 0 && averagePrice > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * averagePrice)}</b></p>}
-          </>
-        )}
-
-        <button className="btn" disabled={!valid} onClick={save}>{initial ? "Enregistrer" : "Ajouter"}</button>
+        <div className="sheet-head"><h2>Modifier {initial.name}</h2></div>
+        <div className="chosen"><b>{initial.name}</b> <small className="muted mono">{initial.symbol}</small></div>
+        {price && <p className="muted small">Cours actuel (consensus) : {formatPrice(price)} $</p>}
+        <label className="field">
+          <span>Quantité détenue</span>
+          <input inputMode="decimal" autoFocus value={qty} onChange={(e) => setQty(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Prix d'achat moyen (USD, PRU)</span>
+          <input inputMode="decimal" value={pru} onChange={(e) => setPru(e.target.value)} />
+        </label>
+        {quantity > 0 && averagePrice > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * averagePrice)}</b></p>}
+        <button className="btn" disabled={!valid} onClick={save}>Enregistrer</button>
         <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
       </div>
     </div>
