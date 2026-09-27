@@ -54,11 +54,12 @@ export const LEGAL_PAGES: Record<string, { title: string; body: ReactNode }> = {
           demandée) conservés pour une durée limitée à des fins de sécurité. La démonstration en direct interroge le
           serveur Altim, qui relaie des données de marché publiques sans rien conserver vous concernant.
         </p>
-        <h2>Application iOS</h2>
+        <h2>Vos avoirs</h2>
         <p>
-          Vos clés API de courtier sont stockées uniquement dans le trousseau chiffré de votre iPhone. Elles ne sont
-          jamais envoyées à Altim : elles servent seulement à signer vos ordres directement auprès de votre courtier
-          (Binance, Alpaca). Vos réglages et votre journal d'ordres restent sur l'appareil.
+          Les avoirs que vous renseignez sont enregistrés uniquement sur votre appareil : dans le navigateur
+          (localStorage) pour l'application web, dans une base SQLite sur votre iPhone pour l'application iOS. Altim ne
+          passe aucun ordre et ne demande aucun accès à vos comptes. Seuls les symboles des actifs sont envoyés au
+          serveur pour obtenir leurs cours, sans les quantités.
         </p>
         <h2>Vos droits</h2>
         <p>
@@ -81,7 +82,8 @@ export const LEGAL_PAGES: Record<string, { title: string; body: ReactNode }> = {
         <p>
           Altim est un outil d'analyse technique et d'aide à la décision. Il ne fournit pas de conseil en
           investissement personnalisé, n'est pas un prestataire de services d'investissement ni un prestataire de
-          services sur actifs numériques, et ne détient jamais vos fonds. Vous restez seul responsable de vos décisions.
+          services sur actifs numériques : il ne passe aucun ordre et ne détient jamais vos fonds. Vous restez seul
+          responsable de vos décisions.
         </p>
         <h2>Limites des signaux</h2>
         <p>
@@ -91,8 +93,8 @@ export const LEGAL_PAGES: Record<string, { title: string; body: ReactNode }> = {
         </p>
         <h2>Bonnes pratiques</h2>
         <p>
-          Commencez en mode démo, n'investissez que ce que vous pouvez vous permettre de perdre, utilisez toujours un
-          stop et ne donnez jamais la permission de retrait à une clé API.
+          N'investissez que ce que vous pouvez vous permettre de perdre, diversifiez vos lignes, fixez-vous un stop et
+          considérez les conseils d'Altim comme un avis parmi d'autres.
         </p>
       </>
     ),

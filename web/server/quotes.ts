@@ -28,6 +28,19 @@ export const ASSETS: Asset[] = [
   { symbol: "NVDA", name: "NVIDIA", kind: "stock" },
 ];
 
+/** CoinGecko identifiers for the common cryptos (other cryptos go through the exchanges). */
+export const GECKO: Record<string, string> = {
+  BTC: "bitcoin", ETH: "ethereum", SOL: "solana", BNB: "binancecoin", XRP: "ripple", ADA: "cardano", DOGE: "dogecoin",
+  AVAX: "avalanche-2", DOT: "polkadot", LINK: "chainlink", LTC: "litecoin", TRX: "tron", TON: "the-open-network",
+  SHIB: "shiba-inu", ATOM: "cosmos", UNI: "uniswap", NEAR: "near", APT: "aptos", ARB: "arbitrum", OP: "optimism",
+  SUI: "sui", PEPE: "pepe", BCH: "bitcoin-cash", XLM: "stellar", ETC: "ethereum-classic", FIL: "filecoin",
+};
+
+export function makeAsset(symbol: string, kind: Kind, name?: string): Asset {
+  const known = ASSETS.find((a) => a.symbol === symbol && a.kind === kind);
+  return known ?? { symbol, kind, name: name ?? symbol, gecko: kind === "crypto" ? GECKO[symbol] : undefined };
+}
+
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Safari/605.1.15 Altim/1.0", Accept: "application/json" };
 async function getJSON(url: string): Promise<any> {
   const res = await fetch(url, { headers: UA, signal: AbortSignal.timeout(8000) });
@@ -135,8 +148,10 @@ export const QUOTE_SOURCES: QuoteSource[] = [
   {
     name: "CoinGecko", kind: "crypto",
     fetch: async (a) => {
-      const ids = cryptos(a).map((x) => x.gecko).join(",");
-      return parseQuotes.coingecko(await getJSON(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`), cryptos(a));
+      const known = cryptos(a).filter((x) => x.gecko);
+      if (!known.length) return new Map();
+      const ids = known.map((x) => x.gecko).join(",");
+      return parseQuotes.coingecko(await getJSON(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`), known);
     },
   },
   {

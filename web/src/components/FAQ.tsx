@@ -7,7 +7,7 @@ const QA = [
   ],
   [
     "Quels marchés sont couverts ?",
-    "Les cryptos cotées en USDT sur Binance (BTC, ETH, SOL…) et les actions/ETF via Yahoo Finance. L'exécution d'actions passe par Alpaca (actions US).",
+    "Les principales cryptos (BTC, ETH, SOL…) et les actions/ETF, avec des cours recoupés sur de nombreuses places de marché.",
   ],
   [
     "Utilisez-vous Bloomberg ?",
@@ -15,15 +15,19 @@ const QA = [
   ],
   [
     "Que se passe-t-il si une source donne un mauvais prix ?",
-    "Elle est comparée aux autres bougie par bougie et écartée si elle s'éloigne de la médiane. Si les sources sont en désaccord ou trop peu nombreuses, le signal est suspendu et les achats sont bloqués. Avant chaque ordre, le prix du courtier est aussi comparé au consensus.",
+    "Elle est comparée aux autres bougie par bougie et écartée si elle s'éloigne de la médiane. Si les sources sont en désaccord ou trop peu nombreuses, le signal est suspendu et Altim ne donne aucun conseil sur cet actif.",
   ],
   [
-    "Puis-je essayer sans risque ?",
-    "Oui : l'app démarre en mode démo avec 10 000 USDT fictifs. Vous pouvez ensuite utiliser le testnet Binance ou le paper trading Alpaca avant le réel.",
+    "Altim achète-t-il ou vend-il à ma place ?",
+    "Non. Altim est un conseiller : il ne passe aucun ordre et ne demande aucun accès à vos comptes. Vous suivez ou non ses conseils chez votre courtier habituel.",
   ],
   [
-    "Mes clés API sont-elles en sécurité ?",
-    "Elles sont stockées chiffrées dans le trousseau de votre iPhone (accessible uniquement appareil déverrouillé) et ne quittent jamais l'appareil, sauf pour signer vos ordres chez le courtier.",
+    "Comment Altim tient-il compte de ce que je possède ?",
+    "Renseignez vos avoirs (actif, quantité, prix d'achat moyen, liquidités) : Altim calcule votre patrimoine, vos plus-values, vos risques, et adapte chaque conseil — par exemple le montant prudent pour un nouvel achat, ou s'il faut alléger une ligne trop lourde.",
+  ],
+  [
+    "Où sont stockés mes avoirs ?",
+    "Dans votre navigateur (localStorage) sur le web, et dans une base SQLite sur votre iPhone. Jamais sur nos serveurs. Un export permet de les transférer d'un appareil à l'autre.",
   ],
 ];
 

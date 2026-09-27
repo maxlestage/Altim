@@ -6,7 +6,7 @@ export function Hero({ ticks }: { ticks: Tick[] }) {
     <section className="hero">
       <div className="hero-text">
         <p className="chip">
-          <span className="dot" /> iOS · Crypto & Actions · Swift natif
+          <span className="dot" /> Conseiller crypto & actions · iOS et web
         </p>
         <h1>
           Le marché,
@@ -21,11 +21,11 @@ export function Hero({ ticks }: { ticks: Tick[] }) {
           <em className="sell">vendre</em> — et surtout quand <em className="hold">attendre</em>.
         </p>
         <div className="cta">
-          <a className="btn" href="#live">
-            Voir le signal en direct
+          <a className="btn" href="/app">
+            Ouvrir l'app web
           </a>
-          <a className="btn btn-ghost" href="#features">
-            Découvrir l'app
+          <a className="btn btn-ghost" href="#live">
+            Voir le signal en direct
           </a>
         </div>
         <dl className="stats">
@@ -38,8 +38,8 @@ export function Hero({ ticks }: { ticks: Tick[] }) {
             <dd>unités de temps</dd>
           </div>
           <div>
-            <dt>0</dt>
-            <dd>ordre sans Face ID</dd>
+            <dt>16</dt>
+            <dd>sources de prix recoupées</dd>
           </div>
         </dl>
       </div>

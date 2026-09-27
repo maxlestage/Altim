@@ -13,8 +13,8 @@ const STEPS = [
   },
   {
     n: "03",
-    title: "Exécution",
-    text: "Vous validez : taille calculée par le gestionnaire de risque, vérification des règles du marché, ordre test, Face ID, puis exécution avec protection.",
+    title: "Conseil",
+    text: "Altim traduit le tout en conseil clair — acheter, attendre, éviter, alléger, protéger — adapté à ce que vous possédez déjà. Vous décidez.",
   },
 ];
 
