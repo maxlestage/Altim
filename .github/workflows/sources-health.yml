@@ -7,6 +7,10 @@ on:
     - cron: "17 6 * * *"
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   live:
     runs-on: ubuntu-latest

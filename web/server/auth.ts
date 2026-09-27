@@ -9,8 +9,10 @@
  * - ALTIM_API_TOKEN       token for trading bots: `Authorization: Bearer <token>` on /api/*
  *
  * Protections: argon2id password hash, TOTP (RFC 6238) with anti-replay, HMAC-SHA256 signed cookie (HttpOnly,
- * Secure, SameSite=Strict, 7 days), constant-time comparisons, lock-out after repeated failures per IP, Origin check
- * on forms (CSRF), no indexing. Fails closed: in production, without configuration, nothing is served.
+ * Secure, SameSite=Strict, 7 days, revoked at logout), constant-time comparisons, lock-out after repeated failures per
+ * IP (IPv6: per /64) plus a global cap, one attempt at a time per IP and at most 2 password checks at once on the
+ * server (argon2id takes 64 MiB each: a flood of parallel logins cannot exhaust the memory), Origin check on forms
+ * (CSRF), no indexing. Fails closed: in production, without configuration, nothing is served.
  * Generate the values with `bun run secrets` (web/scripts/secrets.ts).
  */
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
@@ -28,6 +30,10 @@ export const SESSION_COOKIE = "altim_session";
 const SESSION_DAYS = 7;
 const MAX_FAILURES = 5;
 const LOCK_MS = 15 * 60_000;
+/** Failures from all addresses together within LOCK_MS before every new login is paused (distributed guessing). */
+const GLOBAL_FAILURES = 30;
+/** Password checks running at the same time (argon2id: 64 MiB each). */
+const MAX_VERIFYING = 2;
 
 /** Configuration from the environment; null when access control is not configured. Throws on a weak configuration. */
 export function authConfig(env: Record<string, string | undefined> = process.env): AuthConfig | null {
@@ -97,20 +103,33 @@ export function makeSession(cfg: AuthConfig, now = Date.now()): string {
   return `${payload}.${sign(cfg.sessionSecret, payload)}`;
 }
 
-export function readSession(cfg: AuthConfig, cookie: string | undefined, now = Date.now()): boolean {
-  if (!cookie) return false;
+/** Valid session → its payload (nonce and expiry, for revocation); otherwise null. */
+export function sessionPayload(cfg: AuthConfig, cookie: string | undefined, now = Date.now()): { n: string; exp: number } | null {
+  if (!cookie || cookie.length > 512) return null;
   const [payload, mac] = cookie.split(".");
-  if (!payload || !mac || !safeEqual(sign(cfg.sessionSecret, payload), mac)) return false;
+  if (!payload || !mac || !safeEqual(sign(cfg.sessionSecret, payload), mac)) return null;
   try {
     const p = JSON.parse(Buffer.from(payload, "base64url").toString());
-    return p.u === cfg.user && typeof p.exp === "number" && p.exp > now;
+    return p.u === cfg.user && typeof p.exp === "number" && p.exp > now && typeof p.n === "string" ? { n: p.n, exp: p.exp } : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
+export function readSession(cfg: AuthConfig, cookie: string | undefined, now = Date.now(), revoked?: Map<string, number>): boolean {
+  const p = sessionPayload(cfg, cookie, now);
+  return !!p && !revoked?.has(p.n);
+}
+
 export function cookies(req: Request): Record<string, string> {
-  return Object.fromEntries((req.headers.cookie ?? "").split(";").map((c) => c.trim().split("=")).filter((kv) => kv.length === 2).map(([k, v]) => [k!, decodeURIComponent(v!)]));
+  const decode = (v: string) => {
+    try {
+      return decodeURIComponent(v);
+    } catch {
+      return v; // malformed escape (%E0…): kept raw, it will simply not match
+    }
+  };
+  return Object.fromEntries((req.headers.cookie ?? "").split(";").map((c) => c.trim().split("=")).filter((kv) => kv.length === 2).map(([k, v]) => [k!, decode(v!)]));
 }
 
 // ---------- Login page ----------
@@ -147,23 +166,52 @@ input:focus{outline:2px solid #00f0ff;outline-offset:1px}button{min-height:48px;
 const PUBLIC_PATHS = new Set(["/health", "/login", "/robots.txt"]);
 
 export function createAuth(cfg: AuthConfig | null, production: boolean) {
-  const failures = new Map<string, { n: number; until: number }>();
+  const failures = new Map<string, { n: number; first: number; until: number; busy: boolean }>();
+  /** Times of the recent failures, all addresses together. */
+  let globalFailures: number[] = [];
+  let globalUntil = 0;
+  let verifying = 0;
+  /** Sessions closed by "Se déconnecter" (nonce → expiry), until they would have expired anyway. */
+  const revoked = new Map<string, number>();
   let lastTotp = 0;
   const secureCookie = production;
 
   const cookieHeader = (value: string, maxAge: number) =>
     `${SESSION_COOKIE}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${secureCookie ? "; Secure" : ""}`;
 
-  const locked = (ip: string, now: number) => (failures.get(ip)?.until ?? 0) > now;
-  const fail = (ip: string, now: number) => {
-    const f = failures.get(ip) ?? { n: 0, until: 0 };
+  /** IPv4 as is; IPv6 by /64 (one subscriber owns a whole /64 and could rotate addresses in it). */
+  const clientKey = (ip: string) => {
+    const v6 = ip.replace(/^::ffff:/, "");
+    if (!v6.includes(":")) return v6;
+    const parts = v6.split("::")[0]!.split(":");
+    return parts.slice(0, 4).join(":") + "::/64";
+  };
+  const locked = (key: string, now: number) => (failures.get(key)?.until ?? 0) > now || globalUntil > now;
+  const fail = (key: string, now: number) => {
+    const f = failures.get(key) ?? { n: 0, first: now, until: 0, busy: false };
+    // Failures are counted over a 15-minute window, not forever.
+    if (now - f.first > LOCK_MS) {
+      f.n = 0;
+      f.first = now;
+    }
     f.n++;
     if (f.n >= MAX_FAILURES) {
       f.until = now + LOCK_MS;
       f.n = 0;
+      f.first = now;
     }
-    failures.set(ip, f);
-    if (failures.size > 10_000) for (const [k, v] of failures) if (v.until < now && v.n === 0) failures.delete(k);
+    failures.set(key, f);
+    globalFailures = globalFailures.filter((t) => now - t < LOCK_MS);
+    globalFailures.push(now);
+    if (globalFailures.length >= GLOBAL_FAILURES) {
+      globalUntil = now + LOCK_MS;
+      globalFailures = [];
+    }
+  };
+  /** Forgets expired entries (called on each attempt, bounded work). */
+  const sweep = (now: number) => {
+    if (failures.size > 1_000) for (const [k, v] of failures) if (!v.busy && Math.max(v.until, v.first + LOCK_MS) < now) failures.delete(k);
+    if (revoked.size > 1_000) for (const [n, exp] of revoked) if (exp < now) revoked.delete(n);
   };
 
   /** Same-origin form only (CSRF): the Origin (or Referer) must be this host. */
@@ -181,14 +229,15 @@ export function createAuth(cfg: AuthConfig | null, production: boolean) {
 
   function isAuthenticated(req: Request): boolean {
     if (!cfg) return !production;
-    if (readSession(cfg, cookies(req)[SESSION_COOKIE])) return true;
+    if (readSession(cfg, cookies(req)[SESSION_COOKIE], Date.now(), revoked)) return true;
     const bearer = /^Bearer (.+)$/.exec(req.headers.authorization ?? "")?.[1];
     return !!(cfg.apiToken && bearer && req.path.startsWith("/api/") && safeEqual(bearer, cfg.apiToken));
   }
 
   async function login(req: Request, res: Response) {
     const now = Date.now();
-    const ip = req.ip ?? "?";
+    const ip = clientKey(req.ip ?? "?");
+    sweep(now);
     res.setHeader("X-Robots-Tag", "noindex, nofollow");
     res.setHeader("Cache-Control", "no-store");
     const page = (status: number, error: string) =>
@@ -196,17 +245,36 @@ export function createAuth(cfg: AuthConfig | null, production: boolean) {
     if (!cfg) return page(503, "Accès privé non configuré.");
     if (!sameOrigin(req)) return page(403, "Requête refusée.");
     if (locked(ip, now)) return page(429, "Trop d'essais. Réessayez dans 15 minutes.");
-    const { user = "", password = "", code = "" } = (req.body ?? {}) as Record<string, string>;
-    // Every check runs whatever the result of the previous ones (no hint on which one failed).
-    const userOk = safeEqual(String(user), cfg.user);
-    const passOk = await Bun.password.verify(String(password).slice(0, 256), cfg.passwordHash).catch(() => false);
-    const step = cfg.totpSecret ? checkTotp(cfg.totpSecret, String(code), now, lastTotp) : 0;
-    if (!userOk || !passOk || step === null) {
-      fail(ip, now);
-      await new Promise((r) => setTimeout(r, 400 + Math.random() * 400));
-      return page(401, "Identifiant, mot de passe ou code incorrect.");
+    // One attempt at a time per address, reserved before any await: parallel requests cannot all slip past the
+    // lock-out check before the first failure is counted.
+    const entry = failures.get(ip) ?? { n: 0, first: now, until: 0, busy: false };
+    if (entry.busy) return page(429, "Une connexion est déjà en cours. Réessayez dans un instant.");
+    if (verifying >= MAX_VERIFYING) return page(503, "Serveur occupé. Réessayez dans un instant.");
+    entry.busy = true;
+    failures.set(ip, entry);
+    try {
+      const { user = "", password = "", code = "" } = (req.body ?? {}) as Record<string, string>;
+      // Every check runs whatever the result of the previous ones (no hint on which one failed).
+      const userOk = safeEqual(String(user), cfg.user);
+      verifying++;
+      let passOk = false;
+      try {
+        passOk = await Bun.password.verify(String(password).slice(0, 256), cfg.passwordHash).catch(() => false);
+      } finally {
+        verifying--;
+      }
+      const step = cfg.totpSecret ? checkTotp(cfg.totpSecret, String(code), Date.now(), lastTotp) : 0;
+      if (!userOk || !passOk || step === null) {
+        fail(ip, Date.now());
+        // Slows guessing down; the address stays "busy" meanwhile, but the password-check slot is already free.
+        await new Promise((r) => setTimeout(r, 400 + Math.random() * 400));
+        return page(401, "Identifiant, mot de passe ou code incorrect.");
+      }
+      if (step) lastTotp = step;
+    } finally {
+      const f = failures.get(ip);
+      if (f) f.busy = false;
     }
-    if (step) lastTotp = step;
     failures.delete(ip);
     res.setHeader("Set-Cookie", cookieHeader(makeSession(cfg), SESSION_DAYS * 86_400));
     res.redirect(303, safeNext(req.body?.next));
@@ -214,6 +282,9 @@ export function createAuth(cfg: AuthConfig | null, production: boolean) {
 
   function logout(req: Request, res: Response) {
     if (!sameOrigin(req)) return res.status(403).type("text").send("Requête refusée.");
+    // The cookie is revoked on the server too: a copy of it (stolen, or on another device) stops working.
+    const p = cfg ? sessionPayload(cfg, cookies(req)[SESSION_COOKIE]) : null;
+    if (p) revoked.set(p.n, p.exp);
     res.setHeader("Set-Cookie", cookieHeader("", 0));
     res.redirect(303, "/login");
   }

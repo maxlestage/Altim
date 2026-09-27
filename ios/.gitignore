@@ -4,3 +4,6 @@ xcuserdata/
 DerivedData/
 .swiftpm/
 Altim/Info.plist
+AltimWidgets/Info.plist
+AltimWatch/Info.plist
+build/

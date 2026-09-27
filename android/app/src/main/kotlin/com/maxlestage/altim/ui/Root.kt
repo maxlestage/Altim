@@ -2,7 +2,6 @@ package com.maxlestage.altim.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
-import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
@@ -84,7 +83,7 @@ fun Root(model: AppModel) {
     val key = "${model.phase}|$resumed|" + followed.map { it.id }.toSortedSet().joinToString(",")
     LaunchedEffect(key) {
         if (model.phase != AppModel.Phase.READY || !resumed) model.live.stop()
-        else model.live.follow(followed, model.client) { model.sessionLost() }
+        else model.live.follow(followed, model.client, onRenewed = { model.persistSession() }) { model.sessionLost() }
     }
 }
 
@@ -104,6 +103,13 @@ fun MainTabs(model: AppModel) {
     val open: (Asset) -> Unit = { stack.add(it) }
     BackHandler(enabled = stack.isNotEmpty()) { stack.removeAt(stack.lastIndex) }
     LaunchedEffect(stack.lastOrNull()) { model.focus = stack.lastOrNull() }
+    // Tapped notification: open the asset on top of the Radar.
+    LaunchedEffect(model.pendingOpen) {
+        val a = model.pendingOpen ?: return@LaunchedEffect
+        tab = Tab.RADAR
+        stacks.getValue(Tab.RADAR).add(a)
+        model.pendingOpen = null
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -185,9 +191,11 @@ private fun Point(icon: ImageVector, text: String) {
 fun LockScreen(model: AppModel) {
     val activity = LocalActivity.current as FragmentActivity
     val prompt = {
-        val manager = BiometricManager.from(activity)
-        // No biometrics nor screen lock on this phone: nothing to check against.
-        if (manager.canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) != BiometricManager.BIOMETRIC_SUCCESS) {
+        val keyguard = activity.getSystemService(android.app.KeyguardManager::class.java)
+        // Opens without asking only when the phone has no screen lock at all (nothing to check against). Any other
+        // unavailability (sensor busy, temporary error) keeps the app locked and shows the prompt, which falls back
+        // to the PIN / pattern.
+        if (keyguard?.isDeviceSecure != true) {
             model.unlocked()
         } else {
             BiometricPrompt(

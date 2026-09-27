@@ -4,11 +4,14 @@ import android.content.Context
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.maxlestage.altim.BuildConfig
 import com.maxlestage.altim.kit.AccessMode
 import com.maxlestage.altim.kit.AltimClient
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.AltimJson
+import com.maxlestage.altim.kit.AlertTracker
 import com.maxlestage.altim.kit.Asset
+import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Credentials
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Horizon
@@ -52,6 +55,19 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     var selectionHorizon by mutableStateOf(Horizon.of(prefs.getString("selectionHorizon", null)) ?: Horizon.MO1)
         private set
 
+    /** Buy notifications (Réglages): on by default once allowed; "strong only" = signal and zone together. */
+    var alertsEnabled by mutableStateOf(prefs.getBoolean("alertsEnabled", false))
+        private set
+    var alertsStrongOnly by mutableStateOf(prefs.getBoolean("alertsStrongOnly", false))
+        private set
+    /** Time of the last background check and what it found (shown in Réglages). */
+    var lastAlertCheck by mutableStateOf(prefs.getLong("lastAlertCheck", 0L).takeIf { it > 0 })
+        private set
+    var lastBuyable by mutableStateOf(prefs.getInt("lastBuyable", 0))
+        private set
+    /** Asset to open, from a tapped notification. */
+    var pendingOpen by mutableStateOf<Asset?>(null)
+
     /** Asset open on screen (its live price is followed too). */
     var focus by mutableStateOf<Asset?>(null)
     /** Picks shown in the Sélection tab (live prices too). */
@@ -86,11 +102,48 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         prefs.edit().putString("selectionMarket", market.raw).putString("selectionHorizon", horizon.raw).apply()
     }
 
+    fun updateAlerts(context: Context, enabled: Boolean = alertsEnabled, strongOnly: Boolean = alertsStrongOnly) {
+        alertsEnabled = enabled
+        alertsStrongOnly = strongOnly
+        prefs.edit().putBoolean("alertsEnabled", enabled).putBoolean("alertsStrongOnly", strongOnly).apply()
+        BuyAlerts.schedule(context, enabled)
+    }
+
+    /**
+     * One check of the buy alerts (background worker): the server's rule applied to the watch list and the holdings;
+     * returns the alerts to notify (new or changed situation only), null without access.
+     */
+    suspend fun checkAlerts(): List<BuyAlert>? {
+        val c = client ?: return null
+        val assets = (watchlist + holdings.map { it.asset }).distinctBy { it.id }
+        val items = c.alerts(assets)
+        val tracker = prefs.getString("alertTracker", null)?.let { runCatching { AltimJson.decodeFromString(AlertTracker.serializer(), it) }.getOrNull() } ?: AlertTracker()
+        val (next, fresh) = tracker.newAlerts(items, alertsStrongOnly)
+        val now = System.currentTimeMillis()
+        lastAlertCheck = now
+        lastBuyable = items.count { it.buy }
+        prefs.edit()
+            .putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next))
+            .putLong("lastAlertCheck", now)
+            .putInt("lastBuyable", lastBuyable)
+            .apply()
+        persistSession()
+        return fresh
+    }
+
+    /** From a tapped notification: "crypto:BTC" → the asset to open. */
+    fun openFromNotification(id: String?) {
+        if (id == null) return
+        val (kind, symbol) = id.split(":").takeIf { it.size == 2 } ?: return
+        val k = Kind.of(kind) ?: return
+        pendingOpen = (watchlist + holdings.map { it.asset }).firstOrNull { it.id == id } ?: Asset(symbol, k, symbol)
+    }
+
     // ---------- Access ----------
 
     /** Reopens the saved access (server + encrypted store) without asking anything, apart from the fingerprint / face. */
     private fun restore() {
-        val url = prefs.getString("server", null)?.let { AltimClient.normalize(it) } ?: return
+        val url = prefs.getString("server", null)?.let { AltimClient.normalize(it, BuildConfig.DEBUG) } ?: return
         val creds = secure.get(SecureStore.Key.CREDENTIALS)?.let { runCatching { AltimJson.decodeFromString(Credentials.serializer(), it) }.getOrNull() }
         val open = prefs.getBoolean("openServer", false)
         if (creds == null && !open) return
@@ -104,7 +157,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     /** Checks the server and returns what it asks for (user/password, 2FA code, or nothing for a local server). */
     suspend fun probe(server: String): Pair<HttpUrl, AccessMode> {
-        val url = AltimClient.normalize(server) ?: throw AltimException.InvalidServer
+        val url = AltimClient.normalize(server, BuildConfig.DEBUG) ?: throw AltimException.InvalidServer
         return url to AltimClient(url, null).accessMode()
     }
 
@@ -148,6 +201,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     /** The session expired and could not be renewed (2FA on, or password changed): back to the login screen. */
     fun sessionLost() {
         live.stop()
+        // The dead cookie is dropped: the next launch asks to log in instead of failing silently again.
+        secure.set(SecureStore.Key.SESSION, null)
         client = null
         phase = Phase.SETUP
     }

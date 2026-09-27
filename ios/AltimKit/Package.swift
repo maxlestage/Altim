@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "AltimKit",
-    platforms: [.iOS(.v17), .macOS(.v14)],
+    platforms: [.iOS(.v17), .macOS(.v14), .watchOS(.v10)],
     products: [.library(name: "AltimKit", targets: ["AltimKit"])],
     targets: [
         .target(name: "AltimKit"),

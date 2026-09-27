@@ -31,7 +31,7 @@ const QA = [
   ],
   [
     "Où sont stockés mes avoirs ?",
-    "Dans votre navigateur (localStorage). Jamais sur nos serveurs. Un export permet de les transférer d'un appareil à l'autre.",
+    "Sur votre appareil : dans le navigateur pour l'app web, dans un stockage protégé et exclu des sauvegardes pour les apps iPhone et Android. Jamais sur nos serveurs. Un export permet de les transférer d'un navigateur à l'autre.",
   ],
 ];
 

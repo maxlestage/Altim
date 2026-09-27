@@ -5,6 +5,7 @@ const COLUMNS = [
   {
     title: "Produit",
     links: [
+      ["/#apps", "Applications iPhone, Watch et Android"],
       ["/app", "Application web"],
       ["/#live", "Signal en direct"],
       ["/#features", "Fonctionnalités"],
@@ -48,11 +49,11 @@ export function Footer() {
           </a>
           <p className="footer-tagline">Le marché, décodé.</p>
           <p className="muted">
-            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 40 sources de prix. Application web,
-            sur mobile comme sur ordinateur.
+            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 40 sources de prix. Applications iPhone,
+            Apple Watch et Android, et application web.
           </p>
           <ul className="footer-badges" aria-label="Caractéristiques">
-            <li>Web</li>
+            <li>iPhone · Watch · Android · Web</li>
             <li>Prix en direct</li>
             <li>40 sources</li>
           </ul>

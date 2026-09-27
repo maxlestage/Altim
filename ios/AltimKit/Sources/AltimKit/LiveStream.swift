@@ -18,6 +18,12 @@ final class LiveDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable 
         completionHandler(.cancel)
     }
 
+    /// A redirect is refused (the session cookie must stay on the server's host): the 30x ends the stream.
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+
     func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
         for tick in parser.ticks(data) { continuation.yield(tick) }
     }
