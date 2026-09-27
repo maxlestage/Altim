@@ -1,0 +1,17 @@
+# Checks every day that each data source still responds in the expected format.
+# In case of failure, GitHub sends an email: a source that changed its API is detected before it causes a bad signal.
+name: Santé des sources
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    container: swift:6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toutes les sources, toutes les unités de temps (données réelles)
+        run: cd ios/AltimCore && ALTIM_LIVE=1 swift test --filter "LiveSourcesTests"

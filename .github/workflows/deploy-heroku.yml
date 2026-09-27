@@ -1,0 +1,50 @@
+# Déploiement Heroku 100 % depuis GitHub (aucun ordinateur requis).
+# Secrets à créer dans GitHub → Settings → Secrets and variables → Actions :
+#   HEROKU_API_KEY   : clé API Heroku (Heroku → Account settings → API Key)
+#   HEROKU_APP_NAME  : nom de l'app Heroku (ex. altim-web) — créée automatiquement si absente
+name: Déploiement Heroku
+
+on:
+  push:
+    branches: [master]
+    paths: ["web/**", "package.json", "bun.lock", ".bun-version", "Procfile", ".github/workflows/deploy-heroku.yml"]
+  workflow_dispatch:
+
+concurrency: heroku-deploy
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HEROKU_API_KEY: ${{ secrets.HEROKU_API_KEY }}
+      APP: ${{ secrets.HEROKU_APP_NAME }}
+    steps:
+      - name: Vérification des secrets
+        run: |
+          if [ -z "$HEROKU_API_KEY" ] || [ -z "$APP" ]; then
+            echo "::error::Ajoutez les secrets HEROKU_API_KEY et HEROKU_APP_NAME (voir DEPLOIEMENT.md)."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Heroku refuse les push depuis un clone partiel
+
+      - name: Création de l'app si nécessaire + buildpack Bun
+        run: |
+          api() { curl -fsS -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer $HEROKU_API_KEY" -H "Content-Type: application/json" "$@"; }
+          if ! api "https://api.heroku.com/apps/$APP" > /dev/null 2>&1; then
+            echo "Création de l'app $APP (région Europe)…"
+            api -X POST https://api.heroku.com/apps -d "{\"name\":\"$APP\",\"region\":\"eu\",\"stack\":\"heroku-24\"}"
+          fi
+          api -X PUT "https://api.heroku.com/apps/$APP/buildpack-installations" \
+            -d '{"updates":[{"buildpack":"https://github.com/jakeg/heroku-buildpack-bun"}]}' > /dev/null
+
+      - name: Déploiement (git push)
+        run: git push --force "https://heroku:$HEROKU_API_KEY@git.heroku.com/$APP.git" HEAD:refs/heads/main
+
+      - name: Vérification en ligne
+        run: |
+          URL=$(curl -fsS -H "Accept: application/vnd.heroku+json; version=3" -H "Authorization: Bearer $HEROKU_API_KEY" "https://api.heroku.com/apps/$APP" | python3 -c "import json,sys;print(json.load(sys.stdin)['web_url'])")
+          for i in 1 2 3 4 5 6; do curl -fsS "${URL}health" && break; sleep 10; done
+          echo "### ✅ Site en ligne : $URL" >> "$GITHUB_STEP_SUMMARY"
