@@ -80,6 +80,11 @@ struct HoldingsView: View {
             cashText = model.cash > 0 ? String(model.cash) : ""
             exportURL = await model.exportFile(services: services)
         }
+        // Live prices: value, gains and amounts follow the market tick by tick.
+        .task(id: model.holdings.map(\.marketKey).sorted().joined(separator: ",")) {
+            await services.live.watch(Array(Dictionary(model.holdings.map { ($0.marketKey, $0.asset) }, uniquingKeysWith: { a, _ in a }).values))
+        }
+        .onChange(of: services.live.version) { model.applyLive(services.live.ticks) }
     }
 
     // MARK: Cards
@@ -113,8 +118,13 @@ struct HoldingsView: View {
 
     private func summaryCard(_ a: HoldingsAnalyzer.Analysis) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Patrimoine total").font(.caption).foregroundStyle(Theme.textSecondary)
+            HStack {
+                Text("Patrimoine total").font(.caption).foregroundStyle(Theme.textSecondary)
+                Spacer()
+                LiveBadge(lastTick: services.live.lastTick)
+            }
             Text(usd(a.total)).font(Theme.mono(30, weight: .bold)).neonGlow(Theme.cyan, radius: 6)
+                .contentTransition(.numericText(value: a.total)).animation(.snappy, value: a.total)
             HStack {
                 Text("Plus-value latente").foregroundStyle(Theme.textSecondary)
                 Spacer()

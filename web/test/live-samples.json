@@ -1,0 +1,178 @@
+{
+ "OKX": [
+  {
+   "arg": {
+    "channel": "tickers",
+    "instId": "BTC-USDT"
+   },
+   "data": [
+    {
+     "instType": "SPOT",
+     "instId": "BTC-USDT",
+     "last": "84595.2",
+     "lastSz": "0.00059105",
+     "askPx": "84595.2",
+     "askSz": "0.25549295",
+     "bidPx": "84595.1",
+     "bidSz": "0.14076819",
+     "open24h": "84060.1",
+     "high24h": "85199.8",
+     "low24h": "83818",
+     "sodUtc0": "84439.9",
+     "sodUtc8": "84156.3",
+     "volCcy24h": "282458630.957637355",
+     "vol24h": "3343.85694134",
+     "ts": "1790522966462"
+    }
+   ]
+  }
+ ],
+ "Coinbase": [
+  {
+   "type": "ticker",
+   "sequence": 136846989237,
+   "product_id": "BTC-USD",
+   "price": "84581.99",
+   "open_24h": "84146.86",
+   "volume_24h": "2335.21123001",
+   "low_24h": "83811.99",
+   "high_24h": "85158.5",
+   "volume_30d": "177081.32613416",
+   "best_bid": "84581.99",
+   "best_bid_size": "0.02797797",
+   "best_ask": "84582.00",
+   "best_ask_size": "0.09481426",
+   "side": "sell",
+   "time": "2026-09-27T15:29:26.349052Z",
+   "trade_id": 1099141074,
+   "last_size": "0.00000007"
+  }
+ ],
+ "Kraken": [
+  {
+   "channel": "ticker",
+   "type": "snapshot",
+   "data": [
+    {
+     "symbol": "BTC/USD",
+     "bid": 84576,
+     "bid_qty": 0.58865728,
+     "ask": 84576.1,
+     "ask_qty": 0.00279728,
+     "last": 84576,
+     "volume": 1234.23664881,
+     "vwap": 84504.7,
+     "low": 83816.2,
+     "high": 85142.8,
+     "change": 527,
+     "change_pct": 0.63,
+     "trades": 71539,
+     "timestamp": "2026-09-27T15:29:27.363653Z"
+    }
+   ]
+  }
+ ],
+ "Bitfinex": [
+  {
+   "event": "subscribed",
+   "channel": "ticker",
+   "chanId": 146429,
+   "symbol": "tBTCUSD",
+   "pair": "BTCUSD"
+  },
+  [
+   146429,
+   [
+    84518,
+    2.3627902,
+    84529,
+    2.94664886,
+    352,
+    0.00418166,
+    84529,
+    351.23417578,
+    85084,
+    83781,
+    1358182043000
+   ]
+  ]
+ ],
+ "Bitget": [
+  {
+   "action": "snapshot",
+   "arg": {
+    "instType": "SPOT",
+    "channel": "ticker",
+    "instId": "BTCUSDT"
+   },
+   "data": [
+    {
+     "instId": "BTCUSDT",
+     "lastPr": "84608.29",
+     "open24h": "84161.83",
+     "high24h": "85170",
+     "low24h": "83839.01",
+     "change24h": "0.00635",
+     "bidPr": "84608.29",
+     "askPr": "84608.3",
+     "bidSz": "0.60463",
+     "askSz": "0.456007",
+     "baseVolume": "1654.023474",
+     "quoteVolume": "139851511.834686",
+     "openUtc": "84445.11",
+     "changeUtc24h": "0.00173",
+     "ts": "1790522966978"
+    }
+   ],
+   "ts": 1790522966981
+  }
+ ],
+ "Gate.io": [
+  {
+   "time": 1790522968,
+   "time_ms": 1790522968562,
+   "channel": "spot.tickers",
+   "event": "update",
+   "result": {
+    "currency_pair": "BTC_USDT",
+    "last": "84596.4",
+    "lowest_ask": "84596.5",
+    "highest_bid": "84596.4",
+    "change_percentage": "0.6384",
+    "base_volume": "2329.305236",
+    "quote_volume": "196935537.1203207",
+    "high_24h": "85164.3",
+    "low_24h": "83841"
+   }
+  }
+ ],
+ "Crypto.com": [
+  {
+   "id": 1790522966827,
+   "method": "subscribe",
+   "code": 0,
+   "result": {
+    "instrument_name": "BTC_USDT",
+    "subscription": "ticker.BTC_USDT",
+    "channel": "ticker",
+    "data": [
+     {
+      "h": "85166.99",
+      "l": "83818.84",
+      "a": "84600.03",
+      "c": "0.0064",
+      "b": "84597.52",
+      "bs": "0.08866",
+      "k": "84597.53",
+      "ks": "0.01789",
+      "i": "BTC_USDT",
+      "v": "582.2765",
+      "vv": "49217452.30",
+      "oi": "0",
+      "t": 1790522966949
+     }
+    ]
+   }
+  }
+ ]
+}

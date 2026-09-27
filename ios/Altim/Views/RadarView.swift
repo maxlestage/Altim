@@ -25,7 +25,7 @@ struct RadarView: View {
 
                         ForEach(settings.watchlist) { asset in
                             NavigationLink(value: asset) {
-                                AssetRow(asset: asset, row: model.rows[asset.id])
+                                AssetRow(asset: asset, row: model.rows[asset.id], live: services.live.ticks[asset.id])
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
@@ -53,6 +53,8 @@ struct RadarView: View {
                                 onToggle: toggleWatch)
             }
         }
+        // Live prices while the radar is on screen.
+        .task(id: settings.watchlist.map(\.id).joined(separator: ",")) { await services.live.watch(settings.watchlist) }
         .task(id: "\(settings.timeframe.rawValue)-\(settings.watchlist.count)") {
             // Rafraîchissement automatique toutes les 60 s tant que l'écran est visible.
             while !Task.isCancelled {
@@ -82,8 +84,9 @@ struct RadarView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("MARCHÉS · \(settings.timeframe.label.uppercased())")
                     .font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                LiveBadge(lastTick: services.live.lastTick)
                 if let date = model.lastUpdate {
-                    Text("Mis à jour \(date.formatted(date: .omitted, time: .standard))")
+                    Text("Signaux recalculés \(date.formatted(date: .omitted, time: .standard))")
                         .font(.caption2).foregroundStyle(Theme.textSecondary)
                 }
             }
@@ -134,6 +137,7 @@ struct RadarView: View {
 struct AssetRow: View {
     let asset: Asset
     let row: RadarViewModel.Row?
+    var live: LiveTick? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -144,13 +148,17 @@ struct AssetRow: View {
             }
             Spacer(minLength: 8)
             if let spark = row?.sparkline, spark.count > 2 {
-                Sparkline(values: spark).frame(width: 70, height: 30)
+                // The sparkline ends on the live price: the chart moves with the market.
+                Sparkline(values: live.map { spark + [$0.price] } ?? spark).frame(width: 70, height: 30)
             }
             VStack(alignment: .trailing, spacing: 4) {
-                if let price = row?.price, let change = row?.change24h {
-                    Text(Format.price(price)).font(Theme.mono(15))
+                if let price = live?.price ?? row?.price, let change = live?.change ?? row?.change24h {
+                    LivePriceText(price: price)
                     Text(Format.percent(change))
                         .font(Theme.mono(11)).foregroundStyle(Theme.color(forChange: change))
+                    if live?.marketOpen == false {
+                        Text("Bourse fermée").font(Theme.mono(9)).foregroundStyle(Theme.warning)
+                    }
                 } else if row?.error != nil {
                     Image(systemName: "wifi.exclamationmark").foregroundStyle(Theme.warning)
                 } else {

@@ -53,6 +53,7 @@ struct AssetDetailView: View {
         .navigationTitle(model.asset.name)
         .navigationBarTitleDisplayMode(.inline)
         .task(id: model.timeframe) { await reload() }
+        .task(id: model.asset.id) { await services.live.watch([model.asset]) }
     }
 
     private func reload() async {
@@ -64,19 +65,24 @@ struct AssetDetailView: View {
         await model.loadAdvice(services: services, risk: settings.risk)
     }
 
+    private var live: LiveTick? { services.live.ticks[model.asset.id] }
+
     private var priceHeader: some View {
         HStack(alignment: .firstTextBaseline) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(model.asset.symbol).font(Theme.mono(13)).foregroundStyle(Theme.textSecondary)
-                if let price = model.analysis?.price {
-                    Text(Format.price(price))
-                        .font(Theme.mono(34, weight: .bold))
+                if let price = live?.price ?? model.analysis?.price {
+                    LivePriceText(price: price, size: 34, weight: .bold)
                         .neonGlow(Theme.cyan, radius: 6)
-                        .contentTransition(.numericText())
+                }
+                LiveBadge(lastTick: live?.time)
+                if let live {
+                    Text(live.marketOpen == false ? "Bourse fermée · \(live.agreeing)/\(live.total) sources" : "\(live.agreeing)/\(live.total) sources en direct")
+                        .font(Theme.mono(10, weight: .regular)).foregroundStyle(live.marketOpen == false ? Theme.warning : Theme.textSecondary)
                 }
             }
             Spacer()
-            if let change = model.analysis?.change24h {
+            if let change = live?.change ?? model.analysis?.change24h {
                 Text(Format.percent(change))
                     .font(Theme.mono(15))
                     .foregroundStyle(Theme.color(forChange: change))
