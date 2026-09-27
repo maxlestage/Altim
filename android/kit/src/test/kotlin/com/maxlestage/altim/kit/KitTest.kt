@@ -1,0 +1,196 @@
+package com.maxlestage.altim.kit
+
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.builtins.ListSerializer
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.test.fail
+
+/** Fixtures = real answers of the Altim server (September 2026), shared with the iPhone app's tests. */
+private fun fixture(name: String): String =
+    requireNotNull(KitTest::class.java.getResource("/fixtures/$name")) { name }.readText()
+
+class KitTest {
+    @Test fun radar() {
+        val rows = AltimJson.decodeFromString(ListSerializer(RadarRow.serializer()), fixture("radar.json"))
+        assertEquals(listOf("BTC", "AAPL"), rows.map { it.symbol })
+        assertEquals(Action.BUY, rows[0].signal?.action)
+        assertEquals("high", rows[0].reliability?.level)
+        assertTrue((rows[0].sparkline?.size ?: 0) > 10)
+    }
+
+    @Test fun quotesAndSearch() {
+        val q = AltimJson.decodeFromString(ListSerializer(Quote.serializer()), fixture("tickers.json"))
+        assertTrue(q.isNotEmpty() && q[0].price > 0)
+        val s = AltimJson.decodeFromString(ListSerializer(SearchItem.serializer()), fixture("search.json"))
+        assertEquals(Asset("NVDA", Kind.STOCK, "NVIDIA Corporation"), s.first().asset)
+    }
+
+    @Test fun guardZonesMacro() {
+        val g = AltimJson.decodeFromString(GuardReport.serializer(), fixture("guard.json"))
+        assertEquals("Haussière", g.trendLabel)
+        assertEquals("peu d'historique : compté à moitié", g.shock.factors.first().statusText)
+        assertNotNull(g.macro)
+        val z = AltimJson.decodeFromString(ZonesReport.serializer(), fixture("zones.json"))
+        assertEquals(listOf("short", "medium", "long"), z.zones.map { it.horizon })
+        assertEquals("Attendre le repli", z.zones[0].statusLabel)
+        assertNotNull(z.zones[0].zone)
+        assertTrue(z.zones[0].evidenceText.startsWith("Historique : sur 1 repli dans la zone"))
+        val m = AltimJson.decodeFromString(MacroInfo.serializer(), fixture("macro.json"))
+        assertEquals("Calme", m.levelLabel)
+        assertNotNull(m.values["vix"])
+    }
+
+    @Test fun selectionAndAllocation() {
+        val r = AltimJson.decodeFromString(SelectionReport.serializer(), fixture("sel.json"))
+        assertEquals(Horizon.MO1, r.horizon)
+        assertEquals(Kind.CRYPTO, r.market)
+        assertEquals(Criterion.SIGNAL, r.orderedCriteria.first())
+        assertEquals(5, r.orderedCriteria.toSet().size)
+        assertNotNull(r.buy.first().plan)
+        assertEquals("clear", r.validation?.edge)
+        val amounts = r.allocate(10_000.0)
+        assertEquals(r.buy.count { it.plan != null }, amounts.size)
+        assertTrue(amounts.values.sum() <= 10_000.01)
+        assertTrue(amounts.values.all { it <= 2000.0001 })
+    }
+
+    @Test fun candles() {
+        val s = AltimJson.decodeFromString(Snapshot.serializer(), fixture("candles.json"))
+        assertEquals(30, s.candles.size)
+        assertTrue(s.agreeing > 10)
+    }
+
+    @Test fun horizonsMatchServer() {
+        assertEquals(listOf("30m", "1h", "5h", "7d", "14d", "1m", "3m", "6m"), Horizon.entries.map { it.raw })
+    }
+}
+
+class SseTest {
+    @Test fun realStreamCutAnywhere() {
+        val raw = fixture("live.txt").toByteArray()
+        val whole = SseParser()
+        val all = whole.ticks(raw)
+        assertTrue(all.size >= 3)
+        assertEquals(3000, whole.retryMs)
+        assertEquals("crypto:BTC", all.first().key)
+        assertTrue(all.any { it.market == "closed" })
+        // Same stream delivered byte by byte: same ticks.
+        val split = SseParser()
+        val got = raw.flatMap { split.ticks(byteArrayOf(it)) }
+        assertEquals(all.map { it.price }, got.map { it.price })
+    }
+
+    @Test fun commentsCrlfAndMultiline() {
+        val p = SseParser()
+        assertEquals(listOf("a\nb", "c"), p.feed(": ok\r\n\r\ndata: a\r\ndata: b\r\n\r\ndata:c\n\n".toByteArray()))
+    }
+
+    @Test fun utf8SplitInsideCharacter() {
+        val p = SseParser()
+        val out = "data: é€\n\n".toByteArray().flatMap { p.feed(byteArrayOf(it)) }
+        assertEquals(listOf("é€"), out)
+    }
+}
+
+class FormatAndClientTest {
+    @Test fun frenchFormats() {
+        assertEquals("84 518,16 $", Format.price(84518.16))
+        assertEquals("0,3432 $", Format.price(0.3432))
+        assertEquals("0,00001234 $", Format.price(0.00001234))
+        assertEquals("—", Format.price(null))
+        assertEquals("−0,40 %", Format.percent(-0.4))
+        assertEquals("+1,25 %", Format.percent(1.25))
+        assertEquals("1 500 $", Format.money(1500.0))
+        assertEquals(10_000.0, Format.parse("10 000"))
+        assertEquals(0.25, Format.parse("0,25"))
+        assertNull(Format.parse("abc"))
+    }
+
+    @Test fun normalizeServer() {
+        assertEquals("https://mon-app.herokuapp.com/", AltimClient.normalize("mon-app.herokuapp.com/").toString())
+        assertEquals("https://x.herokuapp.com/", AltimClient.normalize(" https://x.herokuapp.com ").toString())
+        assertEquals("http://10.0.2.2:4410/", AltimClient.normalize("http://10.0.2.2:4410").toString())
+        assertNull(AltimClient.normalize("http://x.herokuapp.com"), "no plain http on the Internet: the password would travel in clear")
+        assertNull(AltimClient.normalize("https://x.herokuapp.com/app"))
+        assertNull(AltimClient.normalize(""))
+    }
+
+    @Test fun requests() {
+        val c = AltimClient(AltimClient.normalize("x.herokuapp.com")!!, null)
+        val r = c.request("/api/radar", mapOf("symbols" to AltimClient.list(Asset.defaults.take(2)), "interval" to "4h"))
+        assertEquals("https://x.herokuapp.com/api/radar?interval=4h&symbols=BTC%3Acrypto%2CETH%3Acrypto", r.url.toString())
+        assertEquals("q=a%2Bb", c.request("/api/search", mapOf("q" to "a+b")).url.encodedQuery)
+    }
+
+    @Test fun sessionCookieHeader() {
+        assertEquals("abc.def-1", AltimClient.sessionCookie(listOf("altim_session=abc.def-1; Path=/; HttpOnly; SameSite=Strict; Max-Age=604800; Secure")))
+        assertEquals("xyz", AltimClient.sessionCookie(listOf("other=1; Path=/", "altim_session=xyz; Path=/")))
+        assertNull(AltimClient.sessionCookie(listOf("altim_session=; Path=/; Max-Age=0")))
+        assertNull(AltimClient.sessionCookie(emptyList()))
+    }
+
+    @Test fun portfolio() {
+        val btc = Holding(asset = Asset("BTC", Kind.CRYPTO, "Bitcoin"), quantity = 0.5, averagePrice = 60000.0)
+        val aapl = Holding(asset = Asset("AAPL", Kind.STOCK, "Apple"), quantity = 10.0, averagePrice = 200.0)
+        val p = Portfolio(listOf(aapl, btc), mapOf("crypto:BTC" to 80000.0, "stock:AAPL" to 300.0))
+        assertEquals(43000.0, p.total)
+        assertEquals(32000.0, p.cost)
+        assertEquals(11000.0, p.gain)
+        assertEquals("BTC", p.lines.first().holding.asset.symbol)
+        assertEquals(33.333, p.lines.first().gainPercent!!, 0.01)
+        assertEquals(40000.0 / 43000 * 100, p.cryptoShare, 0.001)
+        assertEquals(2, p.warnings.size)
+        val partial = Portfolio(listOf(aapl, btc), mapOf("stock:AAPL" to 300.0))
+        assertEquals(3000.0, partial.total)
+        assertTrue(partial.warnings.any { "BTC" in it })
+    }
+}
+
+/** Against a running server: ALTIM_SERVER=http://localhost:4410 ALTIM_USER=… ALTIM_PASSWORD=… gradle :kit:test */
+class LiveServerTest {
+    @Test fun loginAndApi() = runBlocking {
+        val server = System.getenv("ALTIM_SERVER") ?: return@runBlocking println("ALTIM_SERVER absent : test de bout en bout ignoré")
+        val url = requireNotNull(AltimClient.normalize(server))
+        val creds = System.getenv("ALTIM_USER")?.let { Credentials(it, System.getenv("ALTIM_PASSWORD") ?: "") }
+        val anonymous = AltimClient(url, null)
+        val mode = anonymous.accessMode()
+        if (mode is AccessMode.Login) {
+            val c = requireNotNull(creds)
+            assertFailsWith<AltimException.Unauthorized> { anonymous.macro() }
+            val e = runCatching { anonymous.login(Credentials(c.user, c.password + "x")) }.exceptionOrNull()
+            assertEquals(AltimException.WrongCredentials, e)
+        }
+        // No cookie yet: logged in automatically on the first 401.
+        val client = AltimClient(url, creds)
+        val rows = client.radar(Asset.defaults)
+        assertEquals(Asset.defaults.size, rows.size)
+        if (mode is AccessMode.Login) assertNotNull(client.sessionCookie)
+        // The saved cookie is enough for a new client (next launch), without credentials.
+        AltimClient(url, null, client.sessionCookie).macro()
+        assertEquals(3, client.zones(Asset.defaults[0]).zones.size)
+        client.guardReport(Asset.defaults[5])
+        assertFalse(client.search("sol").isEmpty())
+        // Live prices: several ticks within a few seconds, for the assets asked.
+        val ticks = withTimeout(30_000) { client.liveTicks(listOf(Asset.defaults[0], Asset.defaults[5])).take(5).toList() }
+        assertTrue(ticks.all { it.key in setOf("crypto:BTC", "stock:AAPL") && it.price > 0 })
+        // Without session, the stream says so instead of hanging.
+        if (mode is AccessMode.Login) {
+            try {
+                withTimeout(15_000) { AltimClient(url, null).liveTicks(listOf(Asset.defaults[0])).toList() }
+                fail("live stream open without login")
+            } catch (e: AltimException.Unauthorized) {
+                // expected
+            }
+        }
+        assertTrue(client.candles(Asset.defaults[0], "1d").candles.size > 100)
+    }
+}
