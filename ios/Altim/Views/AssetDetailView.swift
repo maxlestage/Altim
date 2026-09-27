@@ -38,6 +38,7 @@ struct AssetDetailView: View {
                     }
 
                     if let advice = model.advice { AdviceCard(advice: advice, held: model.heldLine != nil) }
+                    if let g = model.guardResult { GuardCard(result: g, headlines: model.headlines, asset: model.asset) }
                     if let signal = model.signal { SignalCard(signal: signal) }
                     if let snapshot = model.snapshot { ReliabilityCard(snapshot: snapshot) }
                     if model.fearGreed != nil || model.social?.bullishPercent != nil {
@@ -55,7 +56,11 @@ struct AssetDetailView: View {
     }
 
     private func reload() async {
+        async let guardLoad: Void = model.loadGuard(services: services)
         await model.load(services: services)
+        await model.loadAdvice(services: services, risk: settings.risk)
+        await guardLoad
+        // The advice takes the market guard into account once it is known.
         await model.loadAdvice(services: services, risk: settings.risk)
     }
 

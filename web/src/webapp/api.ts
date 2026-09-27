@@ -16,6 +16,15 @@ export type RadarRow = {
 export type Quote = { symbol: string; kind: Kind; name: string; price: number; change: number | null; agreeing: number; total: number; sources: { name: string; ok: boolean; price?: number; error?: string }[] };
 export type Sentiment = { fearGreed?: { value: number; label: string }; social?: { bullishPercent: number | null; sample: number } };
 
+export type GuardReport = import("../engine/guard").GuardResult & {
+  symbol: string; kind: Kind; asOf: number; price: number | null;
+  inputs: {
+    fundingRate: number | null; longShortRatio: number | null; openInterestUsd: number | null; fearGreed: number | null;
+    socialBullish: number | null; socialSample: number; news24h: number; newsTone: { negative: number; positive: number };
+    headlines: { title: string; time: number; source?: string }[]; vix: number | null;
+  };
+};
+
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
 
 async function get<T>(url: string): Promise<T> {
@@ -42,6 +51,7 @@ export const api = {
   search: (q: string, limit = 20) => get<UniverseItem[]>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   universe: (kind: Kind, q: string, offset: number, limit: number) =>
     get<{ total: number; offset: number; items: UniverseItem[] }>(`/api/universe?kind=${kind}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`),
+  guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

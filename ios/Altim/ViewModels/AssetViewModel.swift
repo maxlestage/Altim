@@ -16,6 +16,9 @@ final class AssetViewModel {
     private(set) var error: String?
     /// Altim's advice, adapted to the user's holdings (SQLite).
     private(set) var advice: Advisor.Advice?
+    /// Market guard (regime, shock risk, reversal risk, policy for bots).
+    private(set) var guardResult: MarketGuard.Result?
+    private(set) var headlines: [MarketGuard.NewsItem] = []
     /// Held line of this asset, if any.
     private(set) var heldLine: HoldingsAnalyzer.Line?
 
@@ -53,6 +56,26 @@ final class AssetViewModel {
         fearGreed = await fgTask
     }
 
+    /// Market guard: daily, 4 h and 1 h consensus candles + positioning, sentiment, news, VIX.
+    func loadGuard(services: AppServices) async {
+        let market = services.market
+        let asset = asset
+        async let d = try? market.snapshot(for: asset, timeframe: .d1, limit: 500)
+        async let h4 = try? market.snapshot(for: asset, timeframe: .h4, limit: 500)
+        async let h1 = try? market.snapshot(for: asset, timeframe: .h1, limit: 500)
+        async let extra = GuardDataProvider(transport: services.transport).inputs(for: asset)
+        guard let daily = await d?.candles, let four = await h4?.candles else { return }
+        let hour = await h1?.candles ?? []
+        let inputs = await extra
+        let now = Date()
+        let input = MarketGuard.Input(kind: asset.assetClass, daily: daily, h4: four, h1: hour, positioning: inputs.positioning,
+                                      sentiment: inputs.sentiment, news: inputs.news, vix: inputs.vix, now: now)
+        // Heavy computation (self-validation on the history) off the main thread.
+        guardResult = await Task.detached(priority: .userInitiated) { MarketGuard.evaluate(input) }.value
+        headlines = inputs.news.filter { $0.time >= now.addingTimeInterval(-86_400) && $0.time <= now }
+            .sorted { $0.time > $1.time }.prefix(5).map { $0 }
+    }
+
     /// Advice based on the market and on what the user already owns.
     /// Every holding is valued at the consensus price so that weights match "Mes avoirs".
     func loadAdvice(services: AppServices, risk: RiskSettings) async {
@@ -82,6 +105,7 @@ final class AssetViewModel {
         advice = Advisor.advise(signal: analysis.signal, reliability: analysis.snapshot.reliability,
                                 price: analysis.price, line: line,
                                 capital: portfolio.total > 0 ? portfolio.total : nil, risk: risk,
-                                track: backtest.map(Advisor.TrackRecord.init), symbol: asset.base, kind: asset.assetClass)
+                                track: backtest.map(Advisor.TrackRecord.init), symbol: asset.base, kind: asset.assetClass,
+                                guard: guardResult.map(Advisor.GuardContext.init))
     }
 }

@@ -83,3 +83,27 @@ test("actions entières : le montant et la perte au stop sont ceux de la quantit
   expect(a.amount!).toBeCloseTo(a.quantity! * 341.07, 6);
   expect(a.points.join(" ")).toContain(`soit ${a.quantity} actions AAPL`);
 });
+
+test("garde-fou : pas d'achat en plein choc ni sur un retournement probable, montant divisé par deux si agité", () => {
+  const base_ = { signal: sig("strongBuy"), reliability: "high" as const, price: base.price, capital: 20_000, risk: DEFAULT_RISK, symbol: "BTC", kind: "crypto" as const };
+  const chocked = adviseAsset({ ...base_, guard: { shock: "shock", reversalScore: 0, reversalDirection: null } });
+  expect(chocked.tone).toBe("hold");
+  expect(chocked.title).toContain("choc");
+  const rev = adviseAsset({ ...base_, guard: { shock: "calm", reversalScore: 60, reversalDirection: "down" } });
+  expect(rev.title).toContain("retournement");
+  // A reversal UPWARD does not block a buy.
+  expect(adviseAsset({ ...base_, guard: { shock: "calm", reversalScore: 80, reversalDirection: "up" } }).tone).toBe("buy");
+  const calm = adviseAsset({ ...base_, guard: { shock: "calm", reversalScore: 0, reversalDirection: null } });
+  const agitated = adviseAsset({ ...base_, guard: { shock: "agitated", reversalScore: 0, reversalDirection: null } });
+  expect(agitated.tone).toBe("buy");
+  expect(agitated.amount!).toBeCloseTo(calm.amount! / 2, 0);
+  expect(agitated.quantity! * base.price).toBeLessThanOrEqual(agitated.amount! + 1e-9);
+  expect(agitated.points.join(" ")).toContain("divisé par deux");
+});
+
+test("garde-fou sur un actif détenu : resserrer le stop si un retournement à la baisse est probable", () => {
+  const line = { quantity: 2, value: 5000, pnl: 800, weight: 20, reasons: ["momentum"], recommendation: "strengthen", trimValue: 0, stop: 2300, lossAtStop: 400, price: 2500, kind: "crypto", symbol: "ETH" } as unknown as LineAnalysis;
+  const a = adviseAsset({ signal: sig("buy"), reliability: "high", price: 2500, line, risk: DEFAULT_RISK, guard: { shock: "calm", reversalScore: 55, reversalDirection: "down" } });
+  expect(a.tone).toBe("hold");
+  expect(a.points.join(" ")).toContain("resserrez votre stop");
+});

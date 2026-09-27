@@ -11,6 +11,7 @@ import { gate, type Kind } from "../src/engine/reliability";
 import { HIGHER, STEP, snapshot, type Interval } from "./market";
 import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
+import { guardReport } from "./guard";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
 const ROOT = join(import.meta.dir, "..");
@@ -245,6 +246,19 @@ export function createApp() {
     const matches = q.trim() ? searchUniverse(list, q, list.length) : list;
     res.setHeader("Cache-Control", "public, max-age=3600");
     res.json({ total: matches.length, offset, items: matches.slice(offset, offset + limit).map((e) => toItem(e, kind)) });
+  }));
+
+  // Market guard (regime, shock risk, reversal risk, policy for bots). Readable from any origin: trading bots poll it.
+  api.get("/guard", wrap(async (req, res) => {
+    const kind = parseKind(req.query.kind);
+    const symbol = parseSymbol(req.query.symbol, kind);
+    const list = await universe(kind).catch(() => [] as UniverseEntry[]);
+    const name = list.find((e) => e[0] === symbol)?.[1] ?? makeAsset(symbol, kind).name;
+    const report = await cached(`guard:${kind}:${symbol}`, 60_000, () =>
+      guardReport(symbol, kind, name, async (i) => (await snap(symbol, kind, i)).candles));
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", "public, max-age=30");
+    res.json(report);
   }));
 
   api.get("/sentiment", wrap(async (req, res) => {
