@@ -110,6 +110,46 @@ Les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avo
 
 Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et les tests les rejouent.
 
+## Quelles actions acheter (onglet « Sélection »)
+
+Chaque jour, Altim analyse les **150 plus grandes sociétés cotées aux États-Unis** (capitalisation et secteur : Nasdaq ; une seule classe d'actions par société). Il en retient **10 à acheter**, avec pour chacune un plan et le détail de la décision.
+
+**Mesurer d'abord, choisir ensuite.** Cinq critères ont été testés un par un. Sur 136 grandes actions, de 2021 à 2026, on compare les 10 mieux notées par chaque critère à la moyenne, sur la durée suivante :
+
+| Critère | 10 jours | 3 mois | 6 mois | Verdict |
+|---|---|---|---|---|
+| Force relative (6 mois, hors dernier mois) | +2,0 % vs +1,2 % | +9,4 % vs +5,1 % | +19,2 % vs +10,3 % | **classe les actions** |
+| Tendance de fond | ≈ moyenne | +5,4 % vs +5,1 % | +11,2 % vs +10,2 % | alerte seulement |
+| Signal technique d'Altim | moins bien | moins bien | ≈ moyenne | information |
+| Zone d'achat (acheter les replis) | moins bien | ≈ moyenne | moins bien | fixe le prix d'entrée |
+| Faible volatilité | moins bien | moins bien | moins bien | règle le stop et le montant |
+
+La première version pondérait les cinq critères. Rejouée sur le passé, elle faisait **moins bien que la moyenne** (+6,0 % contre +9,5 %), et elle a été abandonnée. La version publiée classe uniquement par **force relative**, avec au plus **3 actions par secteur**. Sur 52 périodes rejouées depuis novembre 2021 :
+
+| Horizon | Durée de détention | Sélection | Moyenne des 150 | Fait mieux |
+|---|---|---|---|---|
+| Court terme | 10 séances | +0,66 % | +0,51 % | 52 % du temps : **pas d'avance réelle** |
+| Moyen terme | 3 mois | **+9,9 %** | +5,3 % | 69 % du temps |
+| Long terme | 6 mois | **+20,5 %** | +11,2 % | 73 % du temps |
+
+**Limites honnêtes :**
+- La liste est celle des plus grandes sociétés d'*aujourd'hui* (biais du survivant), ce qui gonfle ces chiffres.
+- Entre fin 2021 et 2023, la force relative n'a presque rien apporté : l'essentiel de l'avance vient de 2023–2026.
+- La page affiche ces résultats, recalculés chaque jour.
+
+**Pour chaque action retenue :**
+- **Rang et secteur.**
+- **Détail des 5 critères** : note sur 100, rôle et explication en clair (« +275 % sur 6 mois, mieux que 100 % des autres », « au-dessus de la zone : repli de 23 % pour l'atteindre »…).
+- **Vérifications** : prix recoupés sur plusieurs sources, garde-fou marché (choc, retournement, contexte macro) et tendance de fond. Un titre qui échoue passe « à surveiller », avec la raison.
+- **Plan** :
+  - entrée maintenant, ou ordre limite en haut de la zone d'achat si le prix en est à moins de 10 % ;
+  - stop à 1,5 / 2 / 3 fois la volatilité quotidienne selon l'horizon ;
+  - objectif à 2 fois le risque.
+- **Montant** : le budget saisi est réparti pour que chaque ligne risque la même somme au stop (une action volatile reçoit moins), plafonné par ligne (Réglages). Le nombre d'actions et la perte maximale sont affichés.
+- **Historique des signaux d'Altim** sur ce titre, et **prix en direct**.
+
+API : `GET /api/selection?horizon=short|medium|long`. La sélection est calculée au démarrage puis toutes les 25 minutes ; le premier calcul prend environ 30 s.
+
 ## Zones d'achat par horizon (Fibonacci) et contexte macro
 
 On n'achète pas au même endroit selon qu'on investit pour quelques jours ou pour des années. Chaque fiche d'actif montre trois horizons ; celui choisi dans **Réglages → Mon horizon d'investissement** est mis en avant et repris dans le conseil.
