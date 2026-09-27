@@ -27,38 +27,15 @@ Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** �
 
 Aucun buildpack à configurer : Heroku détecte une app Node.js et Bun est installé automatiquement comme dépendance npm.
 
-## 2. App iOS
+## 2. Utiliser l'app sur iPhone
 
-### Vérifier que l'app compile
-À chaque modification, le workflow **iOS** compile l'app sur un Mac de GitHub et lance les tests. Rien à faire.
+Ouvrez le site dans Safari → **Ouvrir l'app** → bouton **Partager** → **Sur l'écran d'accueil**. Altim s'ouvre alors comme une app, en plein écran.
 
-### Installer l'app sur votre iPhone via TestFlight
-Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depuis l'app *Apple Developer* sur iPhone.
-
-1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → **Apps** → **+** → **Nouvelle app** : plateforme iOS, nom « Altim », identifiant de lot `com.maxlestage.altim` (s'il n'apparaît pas, lancez une première fois le workflow TestFlight : il enregistre l'identifiant).
-2. **Utilisateurs et accès** → **Intégrations** → **Clés App Store Connect** → **+** → rôle **Admin** → téléchargez le fichier `.p8` (ouvrez-le dans l'app Fichiers et copiez son contenu).
-3. Notez l'**Issuer ID**, le **Key ID** et votre **Team ID** (developer.apple.com → Account → Membership).
-4. Ajoutez sur GitHub les secrets `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (contenu complet du .p8, lignes BEGIN/END comprises).
-5. Onglet **Actions** → **TestFlight** → **Run workflow**. Environ 15 min plus tard, le build apparaît dans l'app **TestFlight**.
-
-Alternative avec un iPad : l'app *Swift Playgrounds* peut compiler une app SwiftUI directement sur l'iPad.
-
-## 3. Sources de données supplémentaires (facultatif, gratuit)
-
-Dans l'app → Réglages → *Sources de données supplémentaires* :
-- **Alpaca (données de marché)** : [app.alpaca.markets](https://app.alpaca.markets) → compte Paper → *API Keys* (lecture des cours uniquement)
-- **Twelve Data** : [twelvedata.com](https://twelvedata.com) → *Get free API key* (800 requêtes/jour)
-- **Polygon.io** : [polygon.io](https://polygon.io) → *Sign up* → clé gratuite (données différées)
-- **Finnhub** : [finnhub.io](https://finnhub.io) → *Get free API key*
-
-Puis **Tester toutes les sources** : l'écran affiche chaque source, son prix et son écart au consensus.
-
-## 4. Renseigner vos avoirs
+## 3. Renseigner vos avoirs
 
 Altim est un conseiller : il ne passe aucun ordre et ne demande aucune clé de courtier.
 
-- Dans l'app iOS → **Mes avoirs** : ajoutez chaque actif (quantité, prix d'achat moyen) et vos liquidités. Tout est enregistré dans une base SQLite sur l'iPhone.
-- Sur le web → **Ouvrir l'app** → **Mes avoirs** : même chose, gardé dans le navigateur.
-- **Exporter** / **Importer** transfère vos avoirs d'un appareil à l'autre (fichier JSON commun au web et à l'iPhone).
+- **Ouvrir l'app** → **Mes avoirs** : ajoutez chaque actif (quantité, prix d'achat moyen) et vos liquidités. Tout est gardé dans le navigateur.
+- **Exporter** / **Importer** transfère vos avoirs d'un appareil à l'autre (fichier JSON).
 
 Chaque fiche d'actif affiche alors **« Le conseil d'Altim »**, adapté à ce que vous possédez.

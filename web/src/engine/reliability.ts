@@ -1,5 +1,5 @@
 /**
- * Ports of DataQuality.swift and ReliabilityGate: candle-series quality check and
+ * Candle-series quality check and
  * reliability score (quality capped by the number of independent sources).
  */
 import { sanitize, type Candle, type Signal } from "./signal";
@@ -92,7 +92,7 @@ export const LEVEL_LABEL: Record<ReliabilityLevel, string> = {
   low: "Fiabilité faible",
 };
 
-/** Never a BUY/SELL on doubtful data (same as ReliabilityGate.swift). */
+/** Never a BUY/SELL on doubtful data. */
 export function gate(signal: Signal, rel: Reliability, qualityIssues: string[] = []): Signal {
   let action = signal.action;
   const warnings = [...signal.warnings];

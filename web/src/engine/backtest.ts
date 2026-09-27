@@ -1,5 +1,5 @@
 /**
- * TypeScript port of Backtester.swift (long only, no look-ahead bias):
+ * Backtest (long only, no look-ahead bias):
  * signal computed on the closed candle i, executed at the open of i + 1, 0.1 % fees,
  * stop assumed hit first when stop and target fall in the same candle.
  */

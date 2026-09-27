@@ -1,6 +1,6 @@
 {
   "name": "Altim",
-  "description": "Site de présentation de l'application iOS Altim (React + TypeScript + Bun).",
+  "description": "Altim : site et application web de conseil crypto et actions (React + TypeScript + Bun).",
   "repository": "https://github.com/maxlestage/altim",
   "logo": "https://raw.githubusercontent.com/maxlestage/altim/master/web/public/icon-192.png",
   "keywords": [

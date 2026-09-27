@@ -47,7 +47,7 @@ export function LiveSignal() {
           Le moteur Altim tourne <span className="gradient">dans votre navigateur</span>
         </h2>
         <p className="muted">
-          Même algorithme que l'app iOS (vérifié par des tests automatiques), appliqué aux dernières bougies clôturées.
+          Même algorithme que l'application (vérifié par des tests automatiques), appliqué aux dernières bougies clôturées.
         </p>
       </div>
 

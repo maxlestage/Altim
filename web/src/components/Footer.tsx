@@ -18,7 +18,7 @@ const COLUMNS = [
     links: [
       ["/#faq", "Questions fréquentes"],
       ["/#transparency", "Transparence"],
-      ["/#download", "Bêta TestFlight"],
+      ["/#download", "Ouvrir l'app"],
       [GITHUB, "GitHub"],
     ],
   },
@@ -48,12 +48,12 @@ export function Footer() {
           </a>
           <p className="footer-tagline">Le marché, décodé.</p>
           <p className="muted">
-            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 31 sources de prix. Application
-            iOS native.
+            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 31 sources de prix. Application web,
+            sur mobile comme sur ordinateur.
           </p>
           <ul className="footer-badges" aria-label="Caractéristiques">
-            <li>iOS 17+</li>
-            <li>Swift natif</li>
+            <li>Web</li>
+            <li>Prix en direct</li>
             <li>31 sources</li>
           </ul>
         </div>
@@ -93,7 +93,7 @@ export function Footer() {
           </div>
           <div>
             <dt>Technologies</dt>
-            <dd>Swift · SwiftUI · React · TypeScript · Bun · hébergé sur Heroku</dd>
+            <dd>React · TypeScript · Bun · Express · hébergé sur Heroku</dd>
           </div>
           <div>
             <dt>Typographies</dt>

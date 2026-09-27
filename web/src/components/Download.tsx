@@ -10,14 +10,11 @@ export function Download() {
           Prêt à voir le <span className="gradient">signal</span> ?
         </h2>
         <p className="muted">
-          Utilisez Altim tout de suite dans votre navigateur, ou sur iPhone (iOS 17 et plus) via la bêta TestFlight.
+          Utilisez Altim tout de suite dans votre navigateur, sur téléphone comme sur ordinateur. Sur iPhone : Partager → « Sur l'écran d'accueil » pour l'ouvrir comme une app.
         </p>
         <div className="download-actions">
           <a className="btn" href="/app">
             Ouvrir l'app web
-          </a>
-          <a className="btn btn-ghost" href="https://testflight.apple.com/" target="_blank" rel="noreferrer">
-            Bêta iPhone (TestFlight)
           </a>
         </div>
       </div>

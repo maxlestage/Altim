@@ -1,10 +1,7 @@
 /**
- * Writes the scenarios expected by GuardTests.swift: the Swift engine must find exactly the same scores,
- * factors, statuses and points. Candles come from a deterministic generator reproduced bit for bit in Swift.
+ * Reference scenarios of the market guard (deterministic candles): each of the three layers must be exercised.
  */
 import { expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { guard, type GuardInput, type GuardResult } from "../src/engine/guard";
 import type { Candle } from "../src/engine/signal";
 
@@ -73,7 +70,7 @@ export const SCENARIOS: Record<string, () => GuardInput> = {
 const factors = (fs: GuardResult["shock"]["factors"]) =>
   fs.map((f) => ({ code: f.code, points: f.points, basePoints: f.basePoints, status: f.status, samples: f.evidence?.samples ?? null, lift: f.evidence?.lift ?? null }));
 
-test("fixture du garde-fou pour la parité Swift", () => {
+test("scénarios de référence du garde-fou", () => {
   const out = Object.entries(SCENARIOS).map(([name, make]) => {
     const g = guard(make());
     return {
@@ -92,5 +89,4 @@ test("fixture du garde-fou pour la parité Swift", () => {
   expect(byName.jumped!.shock.level).not.toBe("calm");
   expect(byName.crowd!.reversal.score).toBeGreaterThanOrEqual(50);
   expect(byName.stock!.shock.factors.map((f) => f.code)).toEqual(expect.arrayContaining(["newsBurst", "vixHigh", "vixJump"]));
-  writeFileSync(join(import.meta.dir, "..", "..", "ios", "AltimCore", "Tests", "AltimCoreTests", "guard-fixture.json"), JSON.stringify(out, null, 1));
 });

@@ -1,6 +1,4 @@
 import { expect, test } from "bun:test";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
 import fixture from "./swift-fixture.json";
 import { alignedReturns, analyzePortfolio, correlation, insightText, percentile, type Holding, type MarketInput } from "../src/engine/holdings";
 import type { Candle } from "../src/engine/signal";
@@ -97,9 +95,3 @@ test("portefeuille vide", () => {
   expect(a.insights.map((i) => i.code)).toEqual(["empty"]);
 });
 
-test("fichier de référence pour l'app iOS (Swift)", () => {
-  const out = CASES.map((c) => ({ name: c.name, holdings: c.holdings, cash: c.cash, market: c.market, expected: analyzePortfolio(c.holdings, c.cash, c.market) }));
-  const path = join(import.meta.dir, "..", "..", "ios", "AltimCore", "Tests", "AltimCoreTests", "holdings-fixture.json");
-  writeFileSync(path, JSON.stringify(out));
-  expect(out.length).toBe(4);
-});

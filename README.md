@@ -1,6 +1,6 @@
 # Altim
 
-Application iOS (Swift / SwiftUI) de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Plus un site de présentation en React + TypeScript + Bun déployé sur Heroku.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku. Sur iPhone, Safari → Partager → « Sur l'écran d'accueil » l'ouvre comme une app.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -8,10 +8,8 @@ Application iOS (Swift / SwiftUI) de **conseil** pour la crypto et les actions :
 
 | Dossier | Rôle |
 |---|---|
-| `ios/AltimCore` | Moteur en Swift pur, testé : indicateurs, moteur de signaux, gestion du risque, backtest, données de marché, analyse des avoirs, conseiller |
-| `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, **conseil adapté à vos avoirs**, **Mes avoirs (base SQLite)**, réglages |
 | `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source**, **API garde-fou pour bots** |
-| `.github/workflows` | CI iOS (build + tests sur macOS), CI web, déploiement Heroku, envoi TestFlight |
+| `.github/workflows` | CI web, déploiement Heroku, santé quotidienne des sources |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
 
@@ -22,13 +20,13 @@ Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
 - **Radar** : signaux validés de vos actifs (crypto et actions), fiabilité des données, Fear & Greed, opportunités détectées ; actualisation automatique toutes les 60 s.
 - **Analyse** : graphique (EMA 20/50, stop/objectif, entrées du backtest), jauge et détail des 7 facteurs, fiabilité avec la liste des sources et leurs écarts, backtest, sentiment.
 - **Le conseil d'Altim** sur chaque actif : *Achat envisageable* (avec zone d'entrée, stop, objectif et **montant prudent** calculé sur votre patrimoine), *Attendre*, *À éviter*, ou *Pas de conseil* si les sources sont en désaccord. Si vous détenez déjà l'actif, le conseil devient celui de votre ligne : *Conserver*, *Renforcer possible*, *Alléger* (avec le montant), *Protéger* ou *Vendre ou protéger*.
-- **Catalogue complet** : toutes les cryptos listées en USD/USDT sur OKX, Coinbase, Kraken, KuCoin et Gate (≈ 2 000, classées par capitalisation CoinGecko) et toutes les actions et ETF cotés aux États-Unis (≈ 11 600, annuaire officiel Nasdaq Trader, classés par capitalisation). Parcours par catégorie ou recherche par symbole ou nom, sur le web (`/api/universe`) comme sur l'iPhone.
+- **Catalogue complet** : toutes les cryptos listées en USD/USDT sur OKX, Coinbase, Kraken, KuCoin et Gate (≈ 2 000, classées par capitalisation CoinGecko) et toutes les actions et ETF cotés aux États-Unis (≈ 11 600, annuaire officiel Nasdaq Trader, classés par capitalisation). Parcours par catégorie ou recherche par symbole ou nom (`/api/universe`).
 - **Mes avoirs** : vous renseignez en une fois plusieurs cryptos et plusieurs actions (actif, quantité, prix d'achat moyen), plus vos liquidités. Les données sont **gardées dans le navigateur (localStorage)**, avec export/import JSON. Altim en déduit tout : patrimoine et plus-values au prix de consensus, répartition crypto/actions/liquidités, et pour chaque ligne une recommandation expliquée (*Vendre ou protéger*, *Protéger*, *Alléger*, *Renforcer possible*, *Conserver*, ou *Données insuffisantes*) avec le stop de protection conseillé. S'y ajoutent les risques du portefeuille : volatilité, perte possible sur une mauvaise journée (VaR 95 %), perte si les stops sont touchés, concentration, diversification effective et corrélation.
 - **Réglages** : radar, prudence des conseils (risque accepté par idée, taille maximale d'une ligne).
 
 Aucun ordre, aucune clé de courtier : les données de l'app web restent dans le navigateur (localStorage).
 
-Le moteur TypeScript (signal, confirmation par l'unité supérieure, avertissements, garde-fou de fiabilité, backtest, gestion du risque) est **vérifié contre le moteur Swift** sur 17 scénarios, backtest compris trade par trade.
+Le moteur (signal, confirmation par l'unité supérieure, avertissements, garde-fou de fiabilité, backtest, gestion du risque) est **vérifié sur 17 scénarios de référence**, backtest compris trade par trade.
 
 ### Serveur (Express sur Bun)
 
@@ -65,16 +63,10 @@ Chaque indicateur vote entre −1 (baissier) et +1 (haussier) ; le score pondér
 
 La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −3,8 % contre −29,6 % en achat-conservation ; ETH 1 j : +12,8 % contre −10,6 %) mais **fait moins bien qu'un simple achat-conservation en marché très haussier** (NVDA 4 h : −23 % contre +27 %). C'est pour cela que l'app affiche le backtest de chaque actif avant tout ordre.
 
-## Mes avoirs : web (localStorage) et iOS (SQLite)
+## Mes avoirs (localStorage)
 
-- **Web** : les avoirs sont stockés dans le `localStorage` du navigateur, jamais sur le serveur (seuls les symboles sont envoyés pour obtenir les cours).
-- **iOS** : base **SQLite** sur l'iPhone (`HoldingsDatabase`) avec :
-  - schéma versionné (`PRAGMA user_version`) et migrations ;
-  - contraintes d'intégrité (quantité > 0, une ligne par actif) ;
-  - journal WAL ;
-  - import atomique : tout ou rien.
-- Le fichier d'export JSON est **commun** : on peut passer ses avoirs du web à l'iPhone et inversement.
-- Le moteur d'analyse (`holdings.ts` et `HoldingsAnalyzer.swift`) est identique sur les deux plateformes, vérifié par un fichier de référence partagé.
+- Les avoirs sont stockés dans le `localStorage` du navigateur, jamais sur le serveur (seuls les symboles sont envoyés pour obtenir les cours).
+- L'export / import JSON permet de passer ses avoirs d'un appareil ou d'un navigateur à l'autre.
 - Règles de recommandation (par ordre de priorité) :
   1. Données peu fiables → aucun conseil.
   2. Signaux baissiers en journalier **et** en 4 h → vendre ou protéger.
@@ -87,11 +79,11 @@ La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −
 
 ## Fiabilité des données : 31 sources de prix recoupées
 
-| Classe | Sources sans clé | Sources avec clé gratuite |
-|---|---|---|
-| Crypto (jusqu'à 24) | Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, Bitstamp, Gemini, Crypto.com, Bitget, MEXC, HTX, Poloniex, HitBTC, WhiteBIT, CoinEx, XT, WOO X, BingX, LBank, CoinGecko (cours), Yahoo Finance | Twelve Data |
-| Actions / ETF (8) | Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull (journalier) ; TradingView, Zacks, et les cours en direct de Robinhood, Cboe, Webull | Alpaca (IEX), Twelve Data, Polygon, Finnhub (cours) |
-| Contexte (hors score) | Fear & Greed (alternative.me), StockTwits | |
+| Classe | Sources (aucune clé nécessaire) |
+|---|---|
+| Crypto (jusqu'à 23) | Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, Bitstamp, Gemini, Crypto.com, Bitget, MEXC, HTX, Poloniex, HitBTC, WhiteBIT, CoinEx, XT, WOO X, BingX, LBank, CoinGecko (cours) |
+| Actions / ETF (8) | Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull (journalier) ; TradingView, Zacks, et les cours en direct de Robinhood, Cboe, Webull |
+| Contexte (hors score) | Fear & Greed (alternative.me), StockTwits |
 
 HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commence à 16 h UTC). En 1 h / 4 h, les bougies d'actions viennent de Yahoo (seules alignées sur la séance) et sont recoupées avec 6 cours en direct.
 
@@ -106,20 +98,19 @@ Mesuré en direct le 27/09/2026 : sur BTC, ETH, SOL, BNB et DOGE, OKX, Coinbase,
 
 ## Prix en direct : rien de figé
 
-Sur le web comme sur iPhone, les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avoirs ».
+Les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avoirs ».
 
 - **Cryptos** : flux WebSocket temps réel de **7 bourses** (OKX, Coinbase, Kraken, Bitfinex, Bitget, Gate.io, Crypto.com). Il y a une seule connexion par bourse, partagée par tous les visiteurs, et les abonnements suivent ce qui est affiché. Le prix affiché est la **médiane des bourses d'accord** : une bourse à plus de 1 % des autres est écartée. Une crypto qu'aucune de ces bourses ne cote, ou dont les flux se taisent, est relayée par les sources REST.
 - **Actions** : il n'existe pas de flux temps réel gratuit. Robinhood, TradingView, Zacks et Webull sont interrogés **toutes les 5 s** tant que l'écran est ouvert. Hors séance (9 h 30 – 16 h à New York), le badge « Bourse fermée » signale que c'est le dernier cours.
 - **Affichage** : 4 mises à jour par seconde au plus par actif, et rien n'est envoyé si le prix n'a pas changé. Le prix clignote en vert ou en rouge à chaque mouvement. Le badge « EN DIRECT » donne l'heure du dernier tick. La courbe du radar et le graphique se terminent sur le prix en direct.
 - **Montants** : la zone d'entrée, la valeur du patrimoine, les gains et les quantités suggérées suivent le prix en direct. Les signaux, eux, ne changent qu'à la clôture d'une bougie, pour ne jamais être décidés sur une bougie inachevée.
 - **Web** : Server-Sent Events non compressés, avec un battement toutes les 15 s pour traverser le routeur Heroku. Le flux se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
-- **iOS** : WebSocket natif (`URLSessionWebSocketTask`) vers les mêmes bourses, avec les mêmes règles.
 
-Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et TypeScript comme Swift sont testés dessus.
+Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et les tests les rejouent.
 
 ## Garde-fou marché (et API pour vos bots)
 
-Un bot court terme voit les petites variations mais pas ce qui l'entoure. Le garde-fou ajoute trois couches, pour chaque actif (web, iOS et API) :
+Un bot court terme voit les petites variations mais pas ce qui l'entoure. Le garde-fou ajoute trois couches, pour chaque actif (application web et API) :
 
 | Couche | Ce qu'elle mesure | À quoi elle sert |
 |---|---|---|
@@ -207,24 +198,20 @@ Altim ne passe aucun ordre et ne demande aucun accès à vos comptes. Les consei
 1. **Pas de conseil plutôt qu'un mauvais conseil** : si les sources sont absentes ou en désaccord, Altim le dit et ne conseille rien.
 2. **Montant prudent** : pour une idée d'achat, le montant est calculé pour que la perte au stop reste limitée à 1 % du patrimoine (réglable), avec un plafond par ligne.
 3. **Vos avoirs d'abord** : sur un actif déjà détenu, le conseil tient compte de votre plus-value, du poids de la ligne et des signaux 1 j / 4 h.
-4. **Confidentialité** : vos avoirs restent sur l'appareil (SQLite sur iPhone, localStorage sur le web), jamais sur un serveur.
-
-Le moteur `AltimCore` contient encore des connecteurs Binance / Alpaca testés, qui ne sont plus utilisés par l'app.
+4. **Confidentialité** : vos avoirs restent dans votre navigateur (localStorage), jamais sur un serveur.
 
 ## Bloomberg
 
-Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 31 sources ci-dessus ; toute source se branche via le protocole `MarketSource` : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
+Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 31 sources ci-dessus ; toute source s'ajoute à la liste `SOURCES` du serveur : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
 
 ## Tests
 
 ```bash
-cd ios/AltimCore && swift test                         # 83 tests : indicateurs, moteur, risque, backtest, avoirs, conseiller,
-                                                       # consensus, qualité, résilience réseau, API publique
-ALTIM_LIVE=1 swift test --filter LiveSourcesTests      # toutes les sources × toutes les unités de temps, en réel
-cd web && bun test && bun run typecheck                # moteur TS = moteur Swift à 1e-9 près, consensus serveur
+cd web && bun test && bun run typecheck                        # moteur, conseils, garde-fou, consensus, prix en direct, serveur
+cd web && ALTIM_LIVE=1 bun test test/sources-live.test.ts     # toutes les sources × unités de temps + flux temps réel, en réel
 ```
 
-Références vérifiées : RSI de Wilder (exemple StockCharts), vecteur de signature HMAC officiel de la documentation Binance, corps d'ordres Binance/Alpaca et OCO sur quantité nette de frais, parseurs construits à partir de réponses réelles de chaque source.
+Références vérifiées : RSI de Wilder (exemple StockCharts), parseurs construits à partir de réponses réelles de chaque source.
 
 ## Crédits
 

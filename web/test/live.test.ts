@@ -182,8 +182,3 @@ test("/api/live : flux SSE non compressé, dernier prix d'abord puis chaque chan
     hub.close();
   }
 });
-
-test("les messages de référence sont les mêmes pour l'app iOS", async () => {
-  const ios = await Bun.file(new URL("../../ios/AltimCore/Tests/AltimCoreTests/live-samples.json", import.meta.url)).json();
-  expect(ios).toEqual(samples);
-});
