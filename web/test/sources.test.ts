@@ -115,7 +115,7 @@ test("actions : StockAnalysis et Webull (journalier), Webull et Zacks (cours)", 
   expect(parseQuotes.webullTicker(s_wbsearch, "BRK-B")).toBe(916040668);
   expect(parseQuotes.webullTicker(s_wbsearch, "BRK-A")).toBeNull();
   expect(parseQuotes.zacks(s_zacks).get("AAPL")!.price).toBe(341.07);
-  expect(STOCK_SOURCES.map((s) => s.name)).toEqual(["Yahoo Finance", "Nasdaq", "Robinhood", "StockAnalysis", "Webull", "Cboe"]);
+  expect(STOCK_SOURCES.map((s) => s.name)).toEqual(["Yahoo Finance", "Nasdaq", "Robinhood", "StockAnalysis", "Webull", "Cboe", "WSJ / MarketWatch", "AlphaQuery", "Finviz", "Financial Times", "eToro"]);
 });
 
 test("une source en retard (paire inactive) est écartée même si ses vieilles bougies concordent", async () => {

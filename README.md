@@ -79,12 +79,12 @@ La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −
   7. Sinon → conserver.
 - Stop de protection conseillé : 2 × l'ATR journalier.
 
-## Fiabilité des données : 31 sources de prix recoupées
+## Fiabilité des données : 40 sources de prix recoupées
 
 | Classe | Sources (aucune clé nécessaire) |
 |---|---|
 | Crypto (jusqu'à 23) | Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, Bitstamp, Gemini, Crypto.com, Bitget, MEXC, HTX, Poloniex, HitBTC, WhiteBIT, CoinEx, XT, WOO X, BingX, LBank, CoinGecko (cours) |
-| Actions / ETF (8) | Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull (journalier) ; TradingView, Zacks, et les cours en direct de Robinhood, Cboe, Webull |
+| Actions / ETF (17) | Bougies journalières : Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull, WSJ / MarketWatch (Dow Jones), Financial Times, Finviz, AlphaQuery, eToro. Cours en direct : TradingView, Zacks, Fidelity, StockCharts, TipRanks, Public.com, et ceux de Robinhood, Cboe, Webull, Nasdaq, Yahoo |
 | Contexte (hors score) | Fear & Greed (alternative.me), StockTwits |
 
 HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commence à 16 h UTC). En 1 h / 4 h, les bougies d'actions viennent de Yahoo (seules alignées sur la séance) et sont recoupées avec 6 cours en direct.
@@ -96,7 +96,7 @@ HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commenc
 5. **Réseau résilient** : nouvelles tentatives avec attente exponentielle sur les lectures (jamais sur les ordres), respect des limites de débit, disjoncteur par source (60 s), conservation des dernières données valides.
 6. **Surveillance** : le workflow *Santé des sources* interroge chaque jour toutes les sources sur toutes les unités de temps et alerte par e-mail si un format d'API change.
 
-Mesuré en direct le 27/09/2026 : sur BTC, ETH, SOL, BNB et DOGE, OKX, Coinbase, Kraken et CoinGecko concordent à **0,02–0,15 %** près. Sur AAPL, Nasdaq et Yahoo donnent les mêmes clôtures sur 500 séances, date par date.
+Mesuré en direct le 27/09/2026 : sur BTC, ETH, SOL, BNB et DOGE, OKX, Coinbase, Kraken et CoinGecko concordent à **0,02–0,15 %** près. Sur AAPL, JPM et NVDA, les 11 sources de bougies journalières concordent (11/11) et les 11 cours en direct aussi ; fiabilité 100/100. Le FT ne cote pas BRK-B, TipRanks ne couvre pas les ETF : ils sont simplement absents du consensus pour ces titres.
 
 ## Prix en direct : rien de figé
 
@@ -251,7 +251,7 @@ Altim ne passe aucun ordre et ne demande aucun accès à vos comptes. Les consei
 
 ## Bloomberg
 
-Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 31 sources ci-dessus ; toute source s'ajoute à la liste `SOURCES` du serveur : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
+Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 40 sources ci-dessus ; toute source s'ajoute à la liste `SOURCES` du serveur : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
 
 ## Tests
 

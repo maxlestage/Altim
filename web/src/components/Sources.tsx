@@ -4,7 +4,10 @@ const CRYPTO = [
   "Binance", "OKX", "Coinbase", "Kraken", "KuCoin", "Gate.io", "Bitfinex", "Binance.US", "Bitstamp", "Gemini", "Crypto.com",
   "Bitget", "MEXC", "HTX", "Poloniex", "HitBTC", "WhiteBIT", "CoinEx", "XT", "WOO X", "BingX", "LBank", "CoinGecko",
 ];
-const STOCKS = ["Yahoo Finance", "Nasdaq", "Robinhood", "Cboe", "StockAnalysis", "Webull", "TradingView", "Zacks"];
+const STOCKS = [
+  "Yahoo Finance", "Nasdaq", "Robinhood", "Cboe", "StockAnalysis", "Webull", "TradingView", "Zacks", "WSJ / MarketWatch", "Financial Times",
+  "Fidelity", "Finviz", "AlphaQuery", "eToro", "StockCharts", "TipRanks", "Public.com",
+];
 const CONTEXT = ["Fear & Greed (alternative.me)", "StockTwits"];
 
 export function Sources() {
@@ -14,7 +17,7 @@ export function Sources() {
       eyebrow="Fiabilité"
       title={
         <>
-          <span className="gradient">31 sources de prix</span> recoupées en permanence
+          <span className="gradient">40 sources de prix</span> recoupées en permanence
         </>
       }
       intro="Chaque prix est vérifié auprès de plusieurs places de marché indépendantes. Une source qui diverge est écartée ; si les données ne sont pas fiables, Altim suspend le signal au lieu de deviner. Ce site applique le même consensus à chaque cours affiché."
@@ -34,7 +37,7 @@ export function Sources() {
         </div>
       </div>
       <ol className="pipeline">
-        <li><b>Consensus</b> jusqu'à 23 sources par crypto et 8 par action interrogées ensemble ; médiane bougie par bougie, écart toléré 0,5 % (crypto) / 1 % (actions) ; une source en retard est écartée</li>
+        <li><b>Consensus</b> jusqu'à 23 sources par crypto et 17 par action interrogées ensemble ; médiane bougie par bougie, écart toléré 0,5 % (crypto) / 1 % (actions) ; une source en retard est écartée</li>
         <li><b>Contrôle qualité</b> trous, pics aberrants, données périmées, volume absent</li>
         <li><b>Réseau résilient</b> nouvelles tentatives, disjoncteur par source, bascule automatique</li>
         <li><b>Garde-fou</b> données douteuses ou sources en désaccord : aucun conseil plutôt qu'un mauvais conseil</li>
