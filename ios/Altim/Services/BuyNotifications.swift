@@ -1,0 +1,108 @@
+import BackgroundTasks
+import Foundation
+import UserNotifications
+import AltimKit
+
+/// Notifications "you can buy" on the iPhone (and on the Apple Watch, which shows the iPhone's notifications when
+/// the iPhone is locked). The check runs when iOS grants a background refresh (at best every 15 minutes, iOS decides
+/// according to usage and battery) and each time the app comes to the foreground.
+@MainActor
+enum BuyNotifications {
+    static let taskID = "com.maxlestage.altim.alerts"
+    private static var lastForegroundCheck: Date?
+
+    /// To call before the end of the launch (iOS requirement for background tasks).
+    static func register(model: @escaping @MainActor () -> AppModel) {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskID, using: nil) { task in
+            guard let refresh = task as? BGAppRefreshTask else { return task.setTaskCompleted(success: false) }
+            let work = Task { @MainActor in
+                let ok = await run(model())
+                schedule(enabled: model().alertsEnabled)
+                refresh.setTaskCompleted(success: ok)
+            }
+            refresh.expirationHandler = { work.cancel() }
+        }
+    }
+
+    static func schedule(enabled: Bool) {
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskID)
+        guard enabled else { return }
+        let request = BGAppRefreshTaskRequest(identifier: taskID)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(request)
+    }
+
+    /// Asks the permission (first time only) and turns the checks on.
+    static func enable(_ model: AppModel) async -> Bool {
+        let center = UNUserNotificationCenter.current()
+        let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+        model.alertsEnabled = granted
+        schedule(enabled: granted)
+        if granted { await run(model) }
+        return granted
+    }
+
+    /// App in the foreground: a check at most every 15 minutes.
+    static func foregroundCheck(_ model: AppModel) async {
+        guard model.alertsEnabled else { return }
+        if let last = lastForegroundCheck, Date().timeIntervalSince(last) < 15 * 60 { return }
+        lastForegroundCheck = Date()
+        await run(model)
+        schedule(enabled: true)
+    }
+
+    /// One check: new alerts notified, the Watch and the Live Activity refreshed. False on failure (network…).
+    @discardableResult
+    static func run(_ model: AppModel) async -> Bool {
+        guard model.alertsEnabled || WatchBridge.shared.isPaired else { return true }
+        do {
+            guard let fresh = try await model.checkAlerts() else { return false }
+            WatchBridge.shared.send(model.lastAlerts, checked: model.lastAlertCheck)
+            LiveActivities.shared.refresh(with: model.lastAlerts)
+            if model.alertsEnabled { await post(fresh) }
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    /// Up to 3 alerts: one notification each; beyond, a single summary (the first check can find many at once).
+    static func post(_ alerts: [BuyAlert]) async {
+        let center = UNUserNotificationCenter.current()
+        guard await center.notificationSettings().authorizationStatus == .authorized else { return }
+        if alerts.count > 3 {
+            let strong = alerts.filter(\.strong).map(\.symbol)
+            let others = alerts.filter { !$0.strong }.map(\.symbol)
+            var body = strong.isEmpty ? "" : "Achat conseillé : \(strong.joined(separator: ", ")). "
+            if !others.isEmpty { body += "Achat possible : \(others.joined(separator: ", ")). " }
+            await add(id: "altim.summary", title: "\(alerts.count) actifs achetables", body: body + "Ouvrez Altim pour le détail de chacun.", asset: nil)
+        } else {
+            for a in alerts { await add(id: "altim.\(a.id)", title: a.title, body: a.body, asset: a.id) }
+        }
+    }
+
+    private static func add(id: String, title: String, body: String, asset: String?) async {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body + " Conseil indicatif : Altim ne passe aucun ordre."
+        content.sound = .default
+        content.threadIdentifier = "achats"
+        content.interruptionLevel = .timeSensitive
+        if let asset { content.userInfo = ["asset": asset] }
+        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+    }
+}
+
+/// Tapped notification → opens the asset; notifications also shown while the app is open.
+final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
+    var open: (@MainActor (String) -> Void)?
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
+        [.banner, .list, .sound]
+    }
+
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        guard let id = response.notification.request.content.userInfo["asset"] as? String else { return }
+        await MainActor.run { open?(id) }
+    }
+}

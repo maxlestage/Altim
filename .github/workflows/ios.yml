@@ -7,6 +7,10 @@ on:
     paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   kit-linux:
     name: Tests du noyau AltimKit (Linux)

@@ -1,10 +1,31 @@
 import SwiftUI
+import UserNotifications
 import AltimKit
+
+/// Launch-time registrations: background check of the alerts, notification taps, Watch link.
+@MainActor
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    let model = AppModel()
+    private let notifications = NotificationDelegate()
+
+    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        let model = model
+        BuyNotifications.register { model }
+        BuyNotifications.schedule(enabled: model.alertsEnabled)
+        notifications.open = { model.open(assetID: $0) }
+        UNUserNotificationCenter.current().delegate = notifications
+        WatchBridge.shared.refresh = { await BuyNotifications.run(model) }
+        WatchBridge.shared.activate()
+        model.activityAsset = LiveActivities.shared.current
+        return true
+    }
+}
 
 @main
 struct AltimApp: App {
-    @State private var model = AppModel()
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var delegate
     @Environment(\.scenePhase) private var scenePhase
+    private var model: AppModel { delegate.model }
 
     var body: some Scene {
         WindowGroup {
@@ -16,7 +37,9 @@ struct AltimApp: App {
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .background: model.didEnterBackground()
-            case .active: model.willEnterForeground()
+            case .active:
+                model.willEnterForeground()
+                Task { await BuyNotifications.foregroundCheck(model) }
             default: break
             }
         }
@@ -39,17 +62,27 @@ struct RootView: View {
                 }
             }
         }
+        // App switcher snapshot: the holdings are hidden as soon as the app is not in the foreground.
+        .overlay {
+            if scenePhase != .active && model.phase == .ready {
+                ZStack {
+                    AppBackground()
+                    Image(systemName: "lock.shield").font(.system(size: 48)).foregroundStyle(Theme.cyan)
+                }
+                .ignoresSafeArea()
+            }
+        }
         // Live prices of everything visible: watch list, holdings and the open asset.
         .task(id: followKey) {
             guard model.phase == .ready, scenePhase == .active else { return model.live.stop() }
-            model.live.follow(followed, client: model.client) {
+            model.live.follow(followed, client: model.client, onRenewed: { model.persistSession() }) {
                 model.sessionLost()
             }
         }
     }
 
     private var followed: [Asset] {
-        model.watchlist + model.holdings.map(\.asset) + model.selectionAssets + (model.focus.map { [$0] } ?? [])
+        model.watchlist + model.holdings.map(\.asset) + model.selectionAssets + [model.focus, model.activityAsset].compactMap { $0 }
     }
 
     private var followKey: String {
@@ -58,7 +91,10 @@ struct RootView: View {
 }
 
 struct MainTabs: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
+        @Bindable var model = model
         TabView {
             NavigationStack { RadarView() }
                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
@@ -68,6 +104,14 @@ struct MainTabs: View {
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }
             NavigationStack { SettingsView() }
                 .tabItem { Label("Réglages", systemImage: "gearshape") }
+        }
+        // Tapped notification: the asset opens above the tabs.
+        .sheet(item: $model.pendingOpen) { asset in
+            NavigationStack {
+                AssetDetailView(asset: asset)
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { model.pendingOpen = nil } } }
+            }
+            .environment(model)
         }
     }
 }

@@ -16,8 +16,20 @@ final class AppModel {
 
     var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
     var faceIDLock: Bool { didSet { defaults.set(faceIDLock, forKey: "faceIDLock") } }
-    var watchlist: [Asset] { didSet { save(watchlist, "watchlist") } }
-    var holdings: [Holding] { didSet { save(holdings, "holdings") } }
+    var watchlist: [Asset] { didSet { LocalStore.save(watchlist, "watchlist") } }
+    var holdings: [Holding] { didSet { LocalStore.save(holdings, "holdings") } }
+    /// Buy notifications (Réglages) and "strong only" (signal and zone together).
+    var alertsEnabled: Bool { didSet { defaults.set(alertsEnabled, forKey: "alertsEnabled") } }
+    var alertsStrongOnly: Bool { didSet { defaults.set(alertsStrongOnly, forKey: "alertsStrongOnly") } }
+    /// Live Activity (lock screen + Dynamic Island) offered on the asset pages.
+    var liveActivityEnabled: Bool { didSet { defaults.set(liveActivityEnabled, forKey: "liveActivityEnabled") } }
+    /// Last alerts computed (Watch, Réglages) and when.
+    var lastAlerts: [BuyAlert] = []
+    var lastAlertCheck: Date? = nil
+    /// Asset to open, from a tapped notification.
+    var pendingOpen: Asset? = nil
+    /// Asset of the running Live Activity (its live price is followed to update it).
+    var activityAsset: Asset? = nil
     /// Budget in dollars for the Sélection tab (0 = not set).
     var budget: Double { didSet { defaults.set(budget, forKey: "budget") } }
     var selectionMarket: Kind { didSet { defaults.set(selectionMarket.rawValue, forKey: "selectionMarket") } }
@@ -34,8 +46,14 @@ final class AppModel {
     init() {
         acceptedDisclaimer = defaults.bool(forKey: "acceptedDisclaimer")
         faceIDLock = defaults.object(forKey: "faceIDLock") as? Bool ?? true
-        watchlist = Self.load([Asset].self, "watchlist") ?? Asset.defaults
-        holdings = Self.load([Holding].self, "holdings") ?? []
+        // Former versions kept the lists in UserDefaults (backed up): moved once to the protected local store.
+        watchlist = LocalStore.load([Asset].self, "watchlist") ?? Self.migrate([Asset].self, "watchlist") ?? Asset.defaults
+        holdings = LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []
+        alertsEnabled = defaults.bool(forKey: "alertsEnabled")
+        alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
+        liveActivityEnabled = defaults.object(forKey: "liveActivityEnabled") as? Bool ?? true
+        lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
+        lastAlertCheck = defaults.object(forKey: "lastAlertCheck") as? Date
         budget = defaults.double(forKey: "budget")
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
         selectionHorizon = Horizon(rawValue: defaults.string(forKey: "selectionHorizon") ?? "") ?? .mo1
@@ -48,13 +66,15 @@ final class AppModel {
     private func restore() {
         guard let s = defaults.string(forKey: "server"), let url = AltimClient.normalize(s) else { return }
         let creds = KeychainStore.get(.credentials).flatMap { try? JSONDecoder().decode(Credentials.self, from: $0) }
+        let cookie = KeychainStore.string(.session)
         let open = defaults.bool(forKey: "openServer")
-        guard creds != nil || open else { return }
+        // Launched in the background while the iPhone is locked: the password is unreadable, the session is enough.
+        guard creds != nil || cookie != nil || open else { return }
         serverURL = url
-        user = creds?.user
+        user = creds?.user ?? defaults.string(forKey: "user")
         // Empty password = 2FA account: no silent re-login (a wrong attempt would count towards the lockout).
         let usable = creds.flatMap { $0.password.isEmpty ? nil : $0 }
-        client = AltimClient(baseURL: url, credentials: usable, sessionCookie: KeychainStore.string(.session))
+        client = AltimClient(baseURL: url, credentials: usable, sessionCookie: cookie)
         phase = faceIDLock ? .locked : .ready
     }
 
@@ -85,6 +105,7 @@ final class AppModel {
         }
         defaults.set(url.absoluteString, forKey: "server")
         defaults.set(mode == .open, forKey: "openServer")
+        defaults.set(creds?.user, forKey: "user")
         serverURL = url
         self.user = creds?.user
         phase = .ready
@@ -92,6 +113,9 @@ final class AppModel {
 
     func logout() async {
         live.stop()
+        LocalStore.remove("alertTracker")
+        LocalStore.remove("lastAlerts")
+        lastAlerts = []
         await client?.logout()
         KeychainStore.clear()
         defaults.removeObject(forKey: "openServer")
@@ -109,6 +133,8 @@ final class AppModel {
     /// The session expired and could not be renewed (2FA on, or password changed): back to the login screen.
     func sessionLost() {
         live.stop()
+        // The dead cookie is dropped: the next launch asks to log in instead of failing silently again.
+        KeychainStore.setString(nil, for: .session)
         client = nil
         phase = .setup
     }
@@ -118,9 +144,10 @@ final class AppModel {
     func unlock() async {
         let context = LAContext()
         var error: NSError?
-        // No Face ID nor passcode on this iPhone: nothing to check against.
         guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) else {
-            phase = .ready
+            // Opens without asking only when the iPhone has no passcode at all (nothing to check against); any other
+            // unavailability (Face ID locked out, busy…) keeps the app locked.
+            if (error as? LAError)?.code == .passcodeNotSet { phase = .ready }
             return
         }
         if (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: "Déverrouiller Altim")) == true {
@@ -150,11 +177,38 @@ final class AppModel {
     func unwatch(_ a: Asset) { watchlist.removeAll { $0.id == a.id } }
     func isWatched(_ a: Asset) -> Bool { watchlist.contains { $0.id == a.id } }
 
-    private func save<T: Encodable>(_ value: T, _ key: String) {
-        defaults.set(try? JSONEncoder().encode(value), forKey: key)
+    private static func migrate<T: Codable>(_ type: T.Type, _ key: String) -> T? {
+        guard let value = UserDefaults.standard.data(forKey: key).flatMap({ try? JSONDecoder().decode(T.self, from: $0) }) else { return nil }
+        LocalStore.save(value, key)
+        UserDefaults.standard.removeObject(forKey: key)
+        return value
     }
 
-    private static func load<T: Decodable>(_ type: T.Type, _ key: String) -> T? {
-        UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) }
+    // MARK: Buy alerts
+
+    /// One check of the buy alerts (background refresh, app opening): the server's rule applied to the watch list and
+    /// the holdings; returns the alerts to notify (new or changed situation only), nil without access.
+    func checkAlerts() async throws -> [BuyAlert]? {
+        guard let client else { return nil }
+        // The asset followed in the Live Activity is checked too, even if it is neither on the radar nor held.
+        let all = watchlist + holdings.map(\.asset) + [activityAsset].compactMap { $0 }
+        let assets = Array(Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }).values)
+        let items = try await client.alerts(assets)
+        var tracker = LocalStore.load(AlertTracker.self, "alertTracker") ?? AlertTracker()
+        let fresh = tracker.newAlerts(items, onlyStrong: alertsStrongOnly)
+        LocalStore.save(tracker, "alertTracker")
+        lastAlerts = items.sorted { ($0.buy ? 0 : 1, $0.symbol) < ($1.buy ? 0 : 1, $1.symbol) }
+        LocalStore.save(lastAlerts, "lastAlerts")
+        lastAlertCheck = Date()
+        defaults.set(lastAlertCheck, forKey: "lastAlertCheck")
+        persistSession()
+        return fresh
+    }
+
+    /// From a tapped notification: "crypto:BTC" → the asset to open.
+    func open(assetID: String) {
+        let parts = assetID.split(separator: ":").map(String.init)
+        guard parts.count == 2, let kind = Kind(rawValue: parts[0]) else { return }
+        pendingOpen = (watchlist + holdings.map(\.asset)).first { $0.id == assetID } ?? Asset(symbol: parts[1], kind: kind, name: parts[1])
     }
 }

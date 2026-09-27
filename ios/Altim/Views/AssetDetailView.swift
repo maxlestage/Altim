@@ -33,6 +33,14 @@ struct AssetDetailView: View {
         .navigationTitle(asset.symbol)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            if model.liveActivityEnabled && LiveActivities.shared.available {
+                Button {
+                    Task { await toggleLiveActivity() }
+                } label: {
+                    Image(systemName: model.activityAsset?.id == asset.id ? "livephoto.slash" : "livephoto")
+                }
+                .accessibilityLabel(model.activityAsset?.id == asset.id ? "Arrêter le suivi en direct" : "Suivre sur l'écran verrouillé et la Dynamic Island")
+            }
             Button {
                 model.isWatched(asset) ? model.unwatch(asset) : model.watch(asset)
             } label: {
@@ -166,6 +174,21 @@ struct AssetDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: Live Activity
+
+    private func toggleLiveActivity() async {
+        if model.activityAsset?.id == asset.id {
+            await LiveActivities.shared.stopAll()
+            model.activityAsset = nil
+            return
+        }
+        let tick = model.live.price(asset)
+        guard let price = tick?.price ?? signal?.price ?? zones.value?.price else { return }
+        let alert = model.lastAlerts.first { $0.id == asset.id }
+        await LiveActivities.shared.start(asset, price: price, change: tick?.change ?? signal?.change, alert: alert)
+        model.activityAsset = LiveActivities.shared.current
     }
 
     // MARK: Loading
