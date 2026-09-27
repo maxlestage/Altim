@@ -1,0 +1,28 @@
+name: Web
+
+on:
+  push:
+    paths: ["web/**", "package.json", "bun.lock", ".github/workflows/web.yml"]
+  pull_request:
+    paths: ["web/**", "package.json", "bun.lock", ".github/workflows/web.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - run: cd web && bun run typecheck
+      - run: cd web && bun test
+      - run: bun run build
+      - name: Test du serveur de production
+        run: |
+          PORT=3000 bun run start &
+          sleep 2
+          curl -fsS localhost:3000/health
+          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
+          curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
+          curl -sS "localhost:3000/api/candles?base=../x&interval=1h" -o /dev/null -w "%{http_code}" | grep -q 400
