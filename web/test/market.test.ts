@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import samples from "./samples.json";
-import { aggregate, consensus, deviations, parse } from "../server/market";
+import { aggregate, blend, consensus, deviations, parse } from "../server/market";
 import type { Candle } from "../src/engine/signal";
 
 // Real responses captured on 27/09/2026.
@@ -54,4 +54,28 @@ test("agrégation 1 h → 4 h", () => {
   const a = aggregate(h, 3_600_000, 14_400_000);
   expect(a.length).toBe(2);
   expect(a[0]).toEqual({ time: 0, open: 0, high: 4, low: -1, close: 3.5, volume: 4 });
+});
+
+test("bougies de consensus : médiane des sources concordantes, une mèche isolée est ignorée", () => {
+  const a = series(1), b = series(1.0002), c = series(0.9998);
+  // Bad tick on one exchange: absurd wick on candle 50.
+  const spiked = b.map((x, i) => (i === 50 ? { ...x, high: x.high * 1.3, close: x.close * 1.02 } : x));
+  const out = blend(a, [spiked, c]);
+  expect(out.length).toBe(a.length);
+  expect(out[50]!.high).toBeCloseTo(102, 6); // median of 102, 132.6, 101.98
+  expect(out[50]!.close).toBeCloseTo(a[50]!.close, 6);
+  expect(out[10]!.close).toBeCloseTo(a[10]!.close, 6); // median of (x, x*1.0002, x*0.9998) = x
+  expect(out.every((k) => k.high >= Math.max(k.open, k.close) && k.low <= Math.min(k.open, k.close))).toBe(true);
+  expect(out[0]!.volume).toBe(a[0]!.volume);
+  // A candle only the primary has keeps its values; no other source: unchanged.
+  expect(blend(a, [b.slice(10)])[5]).toEqual(a[5]!);
+  expect(blend(a, [])).toBe(a);
+});
+
+test("consensus : les bougies servies sont la médiane des sources concordantes", async () => {
+  const src = (name: string, f: number) => ({ name, fetch: async () => series(f) });
+  const r = await consensus("BTC", "1h", [src("A", 1.0004), src("B", 1), src("C", 0.9999), src("Faux", 1.05)]);
+  expect(r.source).toBe("A");
+  const last = r.candles[r.candles.length - 1]!;
+  expect(last.close).toBeCloseTo(series(1)[99]!.close, 6); // median of A, B, C = B, the divergent one excluded
 });

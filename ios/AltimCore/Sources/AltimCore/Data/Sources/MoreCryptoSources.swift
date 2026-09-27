@@ -195,3 +195,164 @@ public struct HTXMarketData: MarketSource {
         }.reversed()
     }
 }
+
+// MARK: - Poloniex, HitBTC, WhiteBIT, CoinEx, XT, WOO X, BingX, LBank
+
+/// Generic public exchange: URL builder + parser (same sources and formats as web/server/market.ts).
+public struct SimpleExchangeSource: MarketSource {
+    public let name: String
+    public let assetClass = AssetClass.crypto
+    let transport: HTTPTransport
+    let intraday: Bool
+    let makeURL: @Sendable (_ base: String, _ timeframe: Timeframe, _ limit: Int) -> URL?
+    let parser: @Sendable (Data) throws -> [Candle]
+
+    public func supports(_ timeframe: Timeframe) -> Bool { !(intraday && timeframe == .d1) }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        guard supports(timeframe), let url = makeURL(asset.base, timeframe, min(max(limit, 1), 500)) else {
+            throw APIError.decoding("\(name) : unité de temps non prise en charge")
+        }
+        let now = Date()
+        return try parser(try await SourceHTTP.get(transport, url))
+            .map { Candle(time: $0.time, open: $0.open, high: $0.high, low: $0.low, close: $0.close, volume: $0.volume,
+                          isClosed: $0.time.addingTimeInterval(timeframe.seconds) <= now) }
+            .sorted { $0.time < $1.time }
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote { try await quoteFromCandles(self, asset) }
+}
+
+enum MoreExchanges {
+    static func row(_ data: Data, key: String? = nil) throws -> [Any] {
+        if let key { return (try JSON.object(data))[key] as? [Any] ?? [] }
+        return try JSON.array(data)
+    }
+
+    static func c(_ t: Double?, _ o: Any?, _ h: Any?, _ l: Any?, _ cl: Any?, _ v: Any?, _ source: String) throws -> Candle {
+        guard let t, let o = JSON.double(o), let h = JSON.double(h), let l = JSON.double(l), let cl = JSON.double(cl) else {
+            throw APIError.decoding("bougie \(source)")
+        }
+        return Candle(time: Date(timeIntervalSince1970: t), open: o, high: h, low: l, close: cl, volume: JSON.double(v) ?? 0)
+    }
+
+    /// [low, high, open, close, amount, quantity, …, startTime (index 12), closeTime]
+    static func poloniex(_ data: Data) throws -> [Candle] {
+        try row(data).map { r in
+            guard let r = r as? [Any], r.count >= 13 else { throw APIError.decoding("bougie Poloniex") }
+            return try c(JSON.double(r[12]).map { $0 / 1000 }, r[2], r[1], r[0], r[3], r[5], "Poloniex")
+        }
+    }
+
+    /// {timestamp ISO, open, close, min, max, volume}, most recent first.
+    static func hitbtc(_ data: Data) throws -> [Candle] {
+        let iso = ISO8601DateFormatter()
+        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return try row(data).map { r in
+            guard let r = r as? [String: Any], let ts = r["timestamp"] as? String, let d = iso.date(from: ts) else {
+                throw APIError.decoding("bougie HitBTC")
+            }
+            return try c(d.timeIntervalSince1970, r["open"], r["max"], r["min"], r["close"], r["volume"], "HitBTC")
+        }
+    }
+
+    /// {"success": true, "result": [[time (s), open, close, high, low, base volume, quote volume]]}
+    static func whitebit(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard (obj["success"] as? Bool) == true else { throw APIError.decoding("WhiteBIT") }
+        return try (obj["result"] as? [[Any]] ?? []).map { r in
+            guard r.count >= 6 else { throw APIError.decoding("bougie WhiteBIT") }
+            return try c(JSON.double(r[0]), r[1], r[3], r[4], r[2], r[5], "WhiteBIT")
+        }
+    }
+
+    /// {"code": 0, "data": [{created_at (ms), open, close, high, low, volume}]}
+    static func coinex(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard JSON.double(obj["code"]) == 0 else { throw APIError.decoding("CoinEx") }
+        return try (obj["data"] as? [[String: Any]] ?? []).map { r in
+            try c(JSON.double(r["created_at"]).map { $0 / 1000 }, r["open"], r["high"], r["low"], r["close"], r["volume"], "CoinEx")
+        }
+    }
+
+    /// {"rc": 0, "result": [{t (ms), o, c, h, l, q (base volume), v (quote volume)}]}, most recent first.
+    static func xt(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard JSON.double(obj["rc"]) == 0 else { throw APIError.decoding("XT") }
+        return try (obj["result"] as? [[String: Any]] ?? []).map { r in
+            try c(JSON.double(r["t"]).map { $0 / 1000 }, r["o"], r["h"], r["l"], r["c"], r["q"], "XT")
+        }
+    }
+
+    /// {"success": true, "rows": [{open, close, low, high, volume, start_timestamp (ms)}]}, most recent first.
+    static func woox(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard (obj["success"] as? Bool) == true else { throw APIError.decoding("WOO X") }
+        return try (obj["rows"] as? [[String: Any]] ?? []).map { r in
+            try c(JSON.double(r["start_timestamp"]).map { $0 / 1000 }, r["open"], r["high"], r["low"], r["close"], r["volume"], "WOO X")
+        }
+    }
+
+    /// {"code": 0, "data": [[time (ms), open, high, low, close, volume, …]]}, most recent first.
+    static func bingx(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard JSON.double(obj["code"]) == 0 else { throw APIError.decoding("BingX") }
+        return try (obj["data"] as? [[Any]] ?? []).map { r in
+            guard r.count >= 6 else { throw APIError.decoding("bougie BingX") }
+            return try c(JSON.double(r[0]).map { $0 / 1000 }, r[1], r[2], r[3], r[4], r[5], "BingX")
+        }
+    }
+
+    /// {"result": "true", "data": [[time (s), open, high, low, close, volume]]}
+    static func lbank(_ data: Data) throws -> [Candle] {
+        let obj = try JSON.object(data)
+        guard "\(obj["result"] ?? "")" == "true" || (obj["result"] as? Bool) == true else { throw APIError.decoding("LBank") }
+        return try (obj["data"] as? [[Any]] ?? []).map { r in
+            guard r.count >= 6 else { throw APIError.decoding("bougie LBank") }
+            return try c(JSON.double(r[0]), r[1], r[2], r[3], r[4], r[5], "LBank")
+        }
+    }
+
+    static func tf(_ t: Timeframe, _ values: [String]) -> String? {
+        // values: 15m, 1h, 4h, 1d
+        switch t {
+        case .m15: return values[0]
+        case .h1: return values[1]
+        case .h4: return values[2]
+        case .d1: return values[3]
+        }
+    }
+
+    static func sources(transport: HTTPTransport) -> [SimpleExchangeSource] {
+        [
+            SimpleExchangeSource(name: "Poloniex", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["MINUTE_15", "HOUR_1", "HOUR_4", "DAY_1"]).flatMap { URL(string: "https://api.poloniex.com/markets/\(b)_USDT/candles?interval=\($0)&limit=\(n)") }
+            }, parser: poloniex),
+            SimpleExchangeSource(name: "HitBTC", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["M15", "H1", "H4", "D1"]).flatMap { URL(string: "https://api.hitbtc.com/api/3/public/candles/\(b)USDT?period=\($0)&limit=\(n)") }
+            }, parser: hitbtc),
+            SimpleExchangeSource(name: "WhiteBIT", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["15m", "1h", "4h", "1d"]).flatMap { URL(string: "https://whitebit.com/api/v1/public/kline?market=\(b)_USDT&interval=\($0)&limit=\(n)") }
+            }, parser: whitebit),
+            SimpleExchangeSource(name: "CoinEx", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["15min", "1hour", "4hour", "1day"]).flatMap { URL(string: "https://api.coinex.com/v2/spot/kline?market=\(b)USDT&period=\($0)&limit=\(n)") }
+            }, parser: coinex),
+            SimpleExchangeSource(name: "XT", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["15m", "1h", "4h", "1d"]).flatMap { URL(string: "https://sapi.xt.com/v4/public/kline?symbol=\(b.lowercased())_usdt&interval=\($0)&limit=\(n)") }
+            }, parser: xt),
+            SimpleExchangeSource(name: "WOO X", transport: transport, intraday: false, makeURL: { b, t, n in
+                tf(t, ["15m", "1h", "4h", "1d"]).flatMap { URL(string: "https://api.woox.io/v1/public/kline?symbol=SPOT_\(b)_USDT&type=\($0)&limit=\(n)") }
+            }, parser: woox),
+            // BingX and LBank daily candles start at 16:00 UTC (UTC+8): intraday timeframes only.
+            SimpleExchangeSource(name: "BingX", transport: transport, intraday: true, makeURL: { b, t, n in
+                tf(t, ["15m", "1h", "4h", "1d"]).flatMap { URL(string: "https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=\(b)-USDT&interval=\($0)&limit=\(n)") }
+            }, parser: bingx),
+            SimpleExchangeSource(name: "LBank", transport: transport, intraday: true, makeURL: { b, t, n in
+                let since = Int(Date().timeIntervalSince1970 - Double(n) * t.seconds)
+                return tf(t, ["minute15", "hour1", "hour4", "day1"]).flatMap {
+                    URL(string: "https://api.lbkex.com/v2/kline.do?symbol=\(b.lowercased())_usdt&size=\(n)&type=\($0)&time=\(since)")
+                }
+            }, parser: lbank),
+        ]
+    }
+}

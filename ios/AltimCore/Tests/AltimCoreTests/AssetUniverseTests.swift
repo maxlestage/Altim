@@ -119,6 +119,21 @@ final class AssetUniverseTests: XCTestCase {
         XCTAssertEqual(ids("  "), [])
     }
 
+    func testGeckoNamesAndObscureTokensHiddenFromCombinedSearch() {
+        let names = AssetUniverse.geckoNames(json([
+            ["id": "solv-protocol", "symbol": "solv", "name": "Solv Protocol"],
+            ["id": "bitcoin", "symbol": "btc", "name": "Bitcoin"],
+            ["id": "big-tom-coin", "symbol": "btc", "name": "Big Tom Coin"],
+        ]))
+        XCTAssertEqual(names.map(\.0), ["SOLV"])
+        XCTAssertEqual(names.map(\.1), ["Solv Protocol"])
+        let crypto = AssetUniverse.buildCrypto([["SOLV", "ZZQ"], ["SOLV"]], gecko: [], names: names)
+        XCTAssertEqual(crypto.first { $0.symbol == "SOLV" }?.name, "Solv Protocol")
+        XCTAssertEqual(AssetUniverse.searchAll(crypto: crypto, stocks: [], "zz").map(\.symbol), [])
+        XCTAssertEqual(AssetUniverse.searchAll(crypto: crypto, stocks: [], "zzq").map(\.symbol), ["ZZQ"])
+        XCTAssertEqual(AssetUniverse.searchAll(crypto: crypto, stocks: [], "solv").map(\.symbol), ["SOLV"])
+    }
+
     /// Real download of both lists (ALTIM_LIVE=1).
     func testLiveUniverse() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["ALTIM_LIVE"] == "1")

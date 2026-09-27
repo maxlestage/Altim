@@ -52,6 +52,15 @@ export const parseUniverse = {
     (Array.isArray(d) ? d : []).map((x: any) => [String(x.id).toUpperCase(), String(x.name ?? "")]),
   kucoinNames: (d: any): [string, string][] =>
     (d?.data ?? []).map((x: any) => [String(x.currency).toUpperCase(), String(x.fullName ?? "")]),
+  /** CoinGecko full coin list: a name only when the ticker belongs to a single coin (BTC is shared by 12). */
+  geckoNames: (d: any): [string, string][] => {
+    const bySymbol = new Map<string, string[]>();
+    for (const x of Array.isArray(d) ? d : []) {
+      const sym = String(x.symbol ?? "").toUpperCase();
+      if (sym) bySymbol.set(sym, [...(bySymbol.get(sym) ?? []), String(x.name ?? "")]);
+    }
+    return [...bySymbol.entries()].filter(([, names]) => names.length === 1 && names[0]).map(([sym, names]) => [sym, names[0]!]);
+  },
   /** CoinGecko markets page: names and market cap rank. */
   gecko: (d: any): { symbol: string; name: string; rank: number }[] =>
     (Array.isArray(d) ? d : [])
@@ -201,7 +210,9 @@ export function cryptoUniverse(): Promise<UniverseEntry[]> {
       settled(getJSON("https://api.kucoin.com/api/v3/currencies").then(parseUniverse.kucoinNames), []),
       geckoRanks(),
     ]);
-    const list = buildCrypto([okx, coinbase, kraken, kucoin, gate], gecko, [...cbNames, ...kcNames]);
+    // After the ranked pages (CoinGecko limits bursts): full names of the other coins.
+    const geckoNames = await settled(getJSON("https://api.coingecko.com/api/v3/coins/list").then(parseUniverse.geckoNames), []);
+    const list = buildCrypto([okx, coinbase, kraken, kucoin, gate], gecko, [...cbNames, ...kcNames, ...geckoNames]);
     if (list.length < 50) throw new Error("Liste des cryptos indisponible");
     return list;
   });
@@ -240,8 +251,11 @@ export function searchUniverse(list: UniverseEntry[], query: string, limit = 50)
 
 /** Cryptos and stocks searched together: exact symbol, then symbol prefix, then the largest (same order on iOS). */
 export function searchAll(crypto: UniverseEntry[], stock: UniverseEntry[], query: string, limit = 20): { e: UniverseEntry; kind: Kind }[] {
+  const Qx = norm(query.trim());
+  // Obscure tokens (no name, no rank, a single exchange) only when their exact symbol is typed.
+  const known = (e: UniverseEntry) => e[0] === Qx || e[2] > 0 || e[3] > 1 || e[1] !== e[0];
   const hits = [
-    ...searchUniverse(crypto, query, limit).map((e, i) => ({ e, i, kind: "crypto" as Kind })),
+    ...searchUniverse(crypto, query, limit * 3).filter(known).slice(0, limit).map((e, i) => ({ e, i, kind: "crypto" as Kind })),
     ...searchUniverse(stock, query, limit).map((e, i) => ({ e, i, kind: "stock" as Kind })),
   ];
   const Q = norm(query.trim());

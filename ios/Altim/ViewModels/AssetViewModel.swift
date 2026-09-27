@@ -81,6 +81,7 @@ final class AssetViewModel {
         guard let analysis else { advice = nil; return }
         advice = Advisor.advise(signal: analysis.signal, reliability: analysis.snapshot.reliability,
                                 price: analysis.price, line: line,
-                                capital: portfolio.total > 0 ? portfolio.total : nil, risk: risk)
+                                capital: portfolio.total > 0 ? portfolio.total : nil, risk: risk,
+                                track: backtest.map(Advisor.TrackRecord.init), symbol: asset.base, kind: asset.assetClass)
     }
 }

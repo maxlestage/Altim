@@ -482,3 +482,150 @@ public struct TradingViewQuotes: MarketSource {
         return Quote(price: price, changePercent24h: JSON.double(d[3]) ?? 0, time: Date())
     }
 }
+
+// MARK: - StockAnalysis (daily history, no key)
+
+public struct StockAnalysisMarketData: MarketSource {
+    public let name = "StockAnalysis"
+    public let assetClass = AssetClass.stock
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func supports(_ timeframe: Timeframe) -> Bool { timeframe == .d1 }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        guard timeframe == .d1 else { throw APIError.decoding("StockAnalysis : journalier uniquement") }
+        let url = SourceHTTP.url("https://stockanalysis.com/api/symbol/s/\(dottedSymbol(asset.symbol).lowercased())/history",
+                                 [("range", "5Y"), ("period", "daily")])
+        return Array(try Self.parse(try await SourceHTTP.get(transport, url), now: Date()).suffix(limit))
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        let c = try await candles(for: asset, timeframe: .d1, limit: 2)
+        guard let last = c.last else { throw APIError.decoding("StockAnalysis") }
+        let prev = c.count > 1 ? c[c.count - 2].close : last.close
+        return Quote(price: last.close, changePercent24h: (last.close / prev - 1) * 100, time: last.time)
+    }
+
+    /// {"data": [{"t": "2026-09-25", "o": 336.04, "h": …, "l": …, "c": …, "v": …}]}, most recent first.
+    static func parse(_ data: Data, now: Date) throws -> [Candle] {
+        let rows = (try JSON.object(data))["data"] as? [[String: Any]] ?? []
+        return try rows.reversed().map { r in
+            try sessionCandle(r["t"] as? String ?? "", JSON.double(r["o"]), JSON.double(r["h"]), JSON.double(r["l"]),
+                              JSON.double(r["c"]), JSON.double(r["v"]), now: now, source: "StockAnalysis")
+        }
+    }
+}
+
+// MARK: - Webull (daily history and live price, no key)
+
+/// Webull identifies securities by a numeric id, looked up by symbol (class shares written "BRK B").
+enum WebullIds {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var cache: [String: Int] = [:]
+
+    static func parse(_ data: Data, symbol: String) -> Int? {
+        let rows = ((try? JSON.object(data))?["data"] as? [[String: Any]]) ?? []
+        let hit = rows.first { r in
+            (r["regionCode"] as? String) == "US"
+                && ((r["disSymbol"] as? String) ?? "").replacingOccurrences(of: " ", with: "-").replacingOccurrences(of: ".", with: "-") == symbol
+        }
+        return hit.flatMap { JSON.double($0["tickerId"]).map { Int($0) } }
+    }
+
+    static func id(for symbol: String, transport: HTTPTransport) async throws -> Int {
+        if let known = lock.withLock({ cache[symbol] }) { return known }
+        let url = SourceHTTP.url("https://quotes-gw.webullfintech.com/api/search/pc/tickers",
+                                 [("keyword", symbol.replacingOccurrences(of: "-", with: " ")), ("pageIndex", "1"), ("pageSize", "10")])
+        guard let id = parse(try await SourceHTTP.get(transport, url), symbol: symbol) else {
+            throw APIError.decoding("Webull : symbole inconnu")
+        }
+        lock.withLock { cache[symbol] = id }
+        return id
+    }
+}
+
+public struct WebullMarketData: MarketSource {
+    public let name = "Webull"
+    public let assetClass = AssetClass.stock
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func supports(_ timeframe: Timeframe) -> Bool { timeframe == .d1 }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        guard timeframe == .d1 else { throw APIError.decoding("Webull : journalier uniquement") }
+        let id = try await WebullIds.id(for: asset.symbol, transport: transport)
+        let url = SourceHTTP.url("https://quotes-gw.webullfintech.com/api/quote/charts/query",
+                                 [("tickerIds", String(id)), ("type", "d1"), ("count", "800")])
+        return Array(try Self.parse(try await SourceHTTP.get(transport, url), now: Date()).suffix(limit))
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote { try await WebullQuotes(transport: transport).quote(for: asset) }
+
+    /// [{"data": ["time (s, midnight New York),open,close,high,low,previousClose,volume,vwap", …]}], most recent first.
+    static func parse(_ data: Data, now: Date) throws -> [Candle] {
+        let rows = ((try JSON.array(data)).first as? [String: Any])?["data"] as? [String] ?? []
+        let utc = ISO8601DateFormatter()
+        return try rows.reversed().map { row in
+            let f = row.split(separator: ",").map { Double($0) }
+            guard f.count >= 7, let t = f[0] else { throw APIError.decoding("bougie Webull") }
+            let day = String(utc.string(from: Date(timeIntervalSince1970: t)).prefix(10))
+            return try sessionCandle(day, f[1], f[3], f[4], f[2], f[6], now: now, source: "Webull")
+        }
+    }
+}
+
+/// Webull live price (quote-only: cross-checks the intraday candles).
+public struct WebullQuotes: MarketSource {
+    public let name = "Webull (cours)"
+    public let assetClass = AssetClass.stock
+    public var providesCandles: Bool { false }
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        throw APIError.decoding("Webull : cours uniquement")
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        let id = try await WebullIds.id(for: asset.symbol, transport: transport)
+        let url = SourceHTTP.url("https://quotes-gw.webullfintech.com/api/stock/tickerRealTime/getQuote",
+                                 [("tickerId", String(id)), ("includeSecu", "1")])
+        return try Self.parse(try await SourceHTTP.get(transport, url))
+    }
+
+    /// {"close": "341.07", "changeRatio": "0.0153", …}
+    static func parse(_ data: Data) throws -> Quote {
+        let obj = try JSON.object(data)
+        guard let price = JSON.double(obj["close"]), price > 0 else { throw APIError.decoding("Webull : cours absent") }
+        return Quote(price: price, changePercent24h: (JSON.double(obj["changeRatio"]) ?? 0) * 100, time: Date())
+    }
+}
+
+// MARK: - Zacks (quote feed, no key)
+
+public struct ZacksQuotes: MarketSource {
+    public let name = "Zacks"
+    public let assetClass = AssetClass.stock
+    public var providesCandles: Bool { false }
+    let transport: HTTPTransport
+    public init(transport: HTTPTransport = URLSessionTransport()) { self.transport = transport }
+
+    public func candles(for asset: Asset, timeframe: Timeframe, limit: Int) async throws -> [Candle] {
+        throw APIError.decoding("Zacks : cours uniquement")
+    }
+
+    public func quote(for asset: Asset) async throws -> Quote {
+        let url = SourceHTTP.url("https://quote-feed.zacks.com/index", [("t", dottedSymbol(asset.symbol))])
+        return try Self.parse(try await SourceHTTP.get(transport, url))
+    }
+
+    /// {"AAPL": {"last": "341.07", "percent_net_change": "1.53…"}}
+    static func parse(_ data: Data) throws -> Quote {
+        guard let x = (try JSON.object(data)).values.first as? [String: Any], let price = JSON.double(x["last"]), price > 0 else {
+            throw APIError.decoding("Zacks : symbole inconnu")
+        }
+        return Quote(price: price, changePercent24h: JSON.double(x["percent_net_change"]) ?? 0, time: Date())
+    }
+}
