@@ -10,7 +10,7 @@
  *
  * Nothing predicts a true surprise. This measures the conditions under which large or counter-trend moves are
  * more likely, and every technical score is calibrated on the asset's own history (how often it was followed by
- * an adverse move). Same rules as Guard.swift.
+ * an adverse move).
  */
 import { adx, atr, ema, rsi, sanitize, type Candle } from "./signal";
 import type { Kind } from "./reliability";
@@ -79,7 +79,7 @@ export interface GuardResult {
   policy: { scalping: "ok" | "reduce" | "pause"; sizeMultiplier: number; stopMultiplier: number; notes: string[] };
 }
 
-// ---------- Thresholds (identical in Guard.swift) ----------
+// ---------- Thresholds ----------
 
 export const GUARD = {
   shockAgitated: 35,
@@ -173,7 +173,7 @@ export function newsTone(items: NewsItem[]): { negative: number; positive: numbe
 
 // ---------- Evidence (self-validation on the asset's own history) ----------
 
-/** Weight of a factor from its evidence (same rule in Guard.swift). */
+/** Weight of a factor from its evidence. */
 export function weigh(e: Evidence | null | undefined, historical: boolean): { weight: number; status: FactorStatus } {
   if (!historical) return { weight: GUARD.unverifiableWeight, status: "unverifiable" };
   if (!e || e.samples < GUARD.minSamples) return { weight: 0.5, status: "unproven" };

@@ -26,7 +26,7 @@ const cases = fixture as unknown as Case[];
 const toCandles = (rows: number[][]): Candle[] =>
   rows.map(([time, open, high, low, close, volume]) => ({ time: time!, open: open!, high: high!, low: low!, close: close!, volume: volume! }));
 
-describe("moteur TypeScript = moteur Swift (17 scénarios)", () => {
+describe("moteur de signaux : 17 scénarios de référence", () => {
   cases.forEach((c, i) => {
     test(`cas ${i} : ${c.action}${c.higher ? " + UT supérieure" : ""}`, () => {
       const s = analyze(toCandles(c.candles), { higher: c.higher ? toCandles(c.higher) : undefined })!;
