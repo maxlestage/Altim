@@ -111,6 +111,17 @@ export const parseQuotes = {
     }
     return m;
   },
+  /** Webull real-time quote: regular-session price and change ratio. */
+  webull: (d: any): SourceQuote => ({ price: n(d.close)!, change: d.changeRatio != null ? Number(d.changeRatio) * 100 : undefined }),
+  /** Zacks quote feed: {"AAPL": {"last": "341.07", "percent_net_change": "1.53…"}}. */
+  zacks: (d: any): Map<string, SourceQuote> =>
+    new Map(Object.entries(d ?? {}).flatMap(([sym, x]: [string, any]) =>
+      n(x?.last) ? [[sym.replace(/\./g, "-"), { price: n(x.last)!, change: n(x.percent_net_change) }] as [string, SourceQuote]] : [])),
+  /** Webull search: the US listing whose symbol is exactly the one asked (class shares written "BRK B"). */
+  webullTicker: (d: any, symbol: string): number | null => {
+    const hit = ((d?.data ?? []) as any[]).find((x) => x.regionCode === "US" && String(x.disSymbol).replace(/[ .]/g, "-") === symbol);
+    return hit ? Number(hit.tickerId) : null;
+  },
   yahoo: (d: any): SourceQuote => {
     const r = d.chart.result[0];
     const closes: number[] = (r.indicators.quote[0].close as (number | null)[]).filter((x): x is number => x != null);
@@ -121,6 +132,22 @@ export const parseQuotes = {
 };
 
 const cryptos = (a: Asset[]) => a.filter((x) => x.kind === "crypto");
+
+/** Webull identifies securities by a numeric id: looked up once per symbol, then kept. */
+const webullIds = new Map<string, Promise<number | null>>();
+export function webullTickerId(symbol: string): Promise<number | null> {
+  if (!webullIds.has(symbol)) {
+    const keyword = symbol.replace(/-/g, " ");
+    const p = getJSON(`https://quotes-gw.webullfintech.com/api/search/pc/tickers?keyword=${encodeURIComponent(keyword)}&pageIndex=1&pageSize=10`)
+      .then((d) => parseQuotes.webullTicker(d, symbol))
+      .catch(() => {
+        webullIds.delete(symbol); // network error: retried next time
+        return null;
+      });
+    webullIds.set(symbol, p);
+  }
+  return webullIds.get(symbol)!;
+}
 const stocks = (a: Asset[]) => a.filter((x) => x.kind === "stock");
 const dotted = (a: Asset[]) => stocks(a).map((x) => x.symbol.replace(/-/g, "."));
 
@@ -193,6 +220,21 @@ export const QUOTE_SOURCES: QuoteSource[] = [
     fetch: async (a) => {
       if (!stocks(a).length) return new Map();
       return parseQuotes.robinhood(await getJSON(`https://api.robinhood.com/quotes/?symbols=${dotted(a).map(encodeURIComponent).join(",")}`));
+    },
+  },
+  {
+    name: "Webull", kind: "stock",
+    fetch: (a) => each(stocks(a), async (x) => {
+      const id = await webullTickerId(x.symbol);
+      if (!id) throw new Error("non coté");
+      return parseQuotes.webull(await getJSON(`https://quotes-gw.webullfintech.com/api/stock/tickerRealTime/getQuote?tickerId=${id}&includeSecu=1`));
+    }),
+  },
+  {
+    name: "Zacks", kind: "stock",
+    fetch: async (a) => {
+      if (!stocks(a).length) return new Map();
+      return parseQuotes.zacks(await getJSON(`https://quote-feed.zacks.com/index?t=${dotted(a).map(encodeURIComponent).join(",")}`));
     },
   },
   {

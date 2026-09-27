@@ -4,7 +4,7 @@
  */
 import type { Candle } from "../src/engine/signal";
 import { assessQuality, reliability, type Kind, type QualityReport, type Reliability } from "../src/engine/reliability";
-import { consensusQuotes, makeAsset, type QuoteSourceStatus } from "./quotes";
+import { consensusQuotes, makeAsset, webullTickerId, type QuoteSourceStatus } from "./quotes";
 
 export type Interval = "1h" | "4h" | "1d";
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
@@ -94,6 +94,49 @@ export const parse = {
     if (o.status !== "ok") throw new Error("HTX");
     return o.data.map((r) => ({ time: r.id! * 1000, open: r.open!, high: r.high!, low: r.low!, close: r.close!, volume: r.amount! })).reverse();
   },
+  /** Poloniex: [low, high, open, close, amount, quantity, …, startTime (index 12), closeTime]. */
+  poloniex: (d: unknown): Candle[] =>
+    (d as unknown[][]).map((r) => ({ time: num(r[12]), open: num(r[2]), high: num(r[1]), low: num(r[0]), close: num(r[3]), volume: num(r[5]) })),
+  /** HitBTC: {timestamp ISO, open, close, min, max, volume}, most recent first. */
+  hitbtc: (d: unknown): Candle[] =>
+    (d as Record<string, string>[]).map((r) => ({
+      time: Date.parse(r.timestamp!), open: num(r.open), high: num(r.max), low: num(r.min), close: num(r.close), volume: num(r.volume),
+    })).sort((a, b) => a.time - b.time),
+  /** WhiteBIT: [time (s), open, close, high, low, base volume, quote volume]. */
+  whitebit: (d: unknown): Candle[] => {
+    const o = d as { success: boolean; result: unknown[][] };
+    if (!o.success) throw new Error("WhiteBIT");
+    return o.result.map((r) => ({ time: num(r[0]) * 1000, open: num(r[1]), close: num(r[2]), high: num(r[3]), low: num(r[4]), volume: num(r[5]) }));
+  },
+  coinex: (d: unknown): Candle[] => {
+    const o = d as { code: number; data: Record<string, string | number>[] };
+    if (o.code !== 0) throw new Error("CoinEx");
+    return o.data.map((r) => ({ time: num(r.created_at), open: num(r.open), high: num(r.high), low: num(r.low), close: num(r.close), volume: num(r.volume) }));
+  },
+  /** XT: {t (ms), o, c, h, l, q (base volume), v (quote volume)}, most recent first. */
+  xt: (d: unknown): Candle[] => {
+    const o = d as { rc: number; result: Record<string, string | number>[] };
+    if (o.rc !== 0) throw new Error("XT");
+    return o.result.map((r) => ({ time: num(r.t), open: num(r.o), high: num(r.h), low: num(r.l), close: num(r.c), volume: num(r.q) })).reverse();
+  },
+  /** WOO X: {open, close, low, high, volume, start_timestamp}, most recent first. */
+  woox: (d: unknown): Candle[] => {
+    const o = d as { success: boolean; rows: Record<string, number>[] };
+    if (!o.success) throw new Error("WOO X");
+    return o.rows.map((r) => ({ time: r.start_timestamp!, open: r.open!, high: r.high!, low: r.low!, close: r.close!, volume: r.volume! })).reverse();
+  },
+  /** BingX: [time (ms), open, high, low, close, volume, closeTime, quote volume], most recent first. */
+  bingx: (d: unknown): Candle[] => {
+    const o = d as { code: number; data: number[][] };
+    if (o.code !== 0) throw new Error("BingX");
+    return o.data.map((r) => ({ time: r[0]!, open: r[1]!, high: r[2]!, low: r[3]!, close: r[4]!, volume: r[5]! })).reverse();
+  },
+  /** LBank: [time (s), open, high, low, close, volume]. */
+  lbank: (d: unknown): Candle[] => {
+    const o = d as { result: string | boolean; data: number[][] };
+    if (String(o.result) !== "true") throw new Error("LBank");
+    return o.data.map((r) => ({ time: r[0]! * 1000, open: r[1]!, high: r[2]!, low: r[3]!, close: r[4]!, volume: r[5]! }));
+  },
 };
 
 type Source = { name: string; fetch: (base: string, interval: Interval) => Promise<Candle[]>; supports?: (i: Interval) => boolean };
@@ -145,6 +188,27 @@ export const SOURCES: Source[] = [
     fetch: async (b, i) => parse.htx(await getJSON(`https://api.huobi.pro/market/history/kline?symbol=${b.toLowerCase()}usdt&period=${i === "1h" ? "60min" : "4hour"}&size=500`)),
   },
   { name: "Binance.US", fetch: async (b, i) => parse.binance(await getJSON(`https://api.binance.us/api/v3/klines?symbol=${b}USDT&interval=${i}&limit=500`)) },
+  { name: "Poloniex", fetch: async (b, i) => parse.poloniex(await getJSON(`https://api.poloniex.com/markets/${b}_USDT/candles?interval=${{ "1h": "HOUR_1", "4h": "HOUR_4", "1d": "DAY_1" }[i]}&limit=500`)) },
+  { name: "HitBTC", fetch: async (b, i) => parse.hitbtc(await getJSON(`https://api.hitbtc.com/api/3/public/candles/${b}USDT?period=${{ "1h": "H1", "4h": "H4", "1d": "D1" }[i]}&limit=500`)) },
+  { name: "WhiteBIT", fetch: async (b, i) => parse.whitebit(await getJSON(`https://whitebit.com/api/v1/public/kline?market=${b}_USDT&interval=${i}&limit=500`)) },
+  { name: "CoinEx", fetch: async (b, i) => parse.coinex(await getJSON(`https://api.coinex.com/v2/spot/kline?market=${b}USDT&period=${{ "1h": "1hour", "4h": "4hour", "1d": "1day" }[i]}&limit=500`)) },
+  { name: "XT", fetch: async (b, i) => parse.xt(await getJSON(`https://sapi.xt.com/v4/public/kline?symbol=${b.toLowerCase()}_usdt&interval=${i}&limit=500`)) },
+  { name: "WOO X", fetch: async (b, i) => parse.woox(await getJSON(`https://api.woox.io/v1/public/kline?symbol=SPOT_${b}_USDT&type=${i}&limit=500`)) },
+  {
+    // BingX daily candles start at 16:00 UTC (UTC+8): intraday timeframes only.
+    name: "BingX",
+    supports: (i) => i !== "1d",
+    fetch: async (b, i) => parse.bingx(await getJSON(`https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol=${b}-USDT&interval=${i}&limit=500`)),
+  },
+  {
+    // LBank daily candles start at 16:00 UTC (UTC+8): intraday timeframes only.
+    name: "LBank",
+    supports: (i) => i !== "1d",
+    fetch: async (b, i) => {
+      const since = Math.floor((Date.now() - 500 * STEP[i]) / 1000);
+      return parse.lbank(await getJSON(`https://api.lbkex.com/v2/kline.do?symbol=${b.toLowerCase()}_usdt&size=500&type=${i === "1h" ? "hour1" : "hour4"}&time=${since}`));
+    },
+  },
 ];
 
 const median = (v: number[]) => {
@@ -159,6 +223,25 @@ export function deviations(series: Candle[][]): number[] {
     const shared = [...m.keys()].filter((t) => maps.some((o, j) => j !== i && o.has(t))).sort((a, b) => a - b).slice(-20);
     if (!shared.length) return Infinity;
     return median(shared.map((t) => { const ref = median(maps.filter((o) => o.has(t)).map((o) => o.get(t)!)); return (Math.abs(m.get(t)! / ref - 1) * 100); }));
+  });
+}
+
+/**
+ * Consensus candles: for each candle of the primary source, the median open / high / low / close of every
+ * agreeing source that has that timestamp (the primary's own values when it is alone). The volume stays the
+ * primary's (volumes differ by exchange and only their variations matter). Same logic as Consensus.swift.
+ */
+export function blend(primary: Candle[], others: Candle[][]): Candle[] {
+  if (!others.length) return primary;
+  const maps = others.map((o) => new Map(o.map((c) => [c.time, c])));
+  return primary.map((c) => {
+    const same = [c, ...maps.flatMap((m) => (m.has(c.time) ? [m.get(c.time)!] : []))];
+    if (same.length < 2) return c;
+    const open = median(same.map((x) => x.open));
+    const close = median(same.map((x) => x.close));
+    const high = Math.max(median(same.map((x) => x.high)), open, close);
+    const low = Math.min(median(same.map((x) => x.low)), open, close);
+    return { time: c.time, open, high, low, close, volume: c.volume };
   });
 }
 
@@ -190,13 +273,23 @@ export async function consensus(
       )),
     );
   }
+  // A source whose last candle lags behind the others (inactive market, delisted pair) is discarded:
+  // its old candles could still "agree" on the timestamps it shares with the others.
+  const latest = Math.max(...results.filter((r) => r.candles).map((r) => r.candles![r.candles!.length - 1]!.time));
+  for (const r of results) {
+    if (r.candles && r.candles[r.candles.length - 1]!.time < latest - 2 * STEP[interval]) {
+      r.error = `en retard (dernière bougie du ${new Date(r.candles[r.candles.length - 1]!.time).toISOString().slice(0, 10)})`;
+      r.candles = undefined;
+    }
+  }
   const ok = results.filter((r) => r.candles);
   if (!ok.length) throw new Error("Toutes les sources ont échoué");
   const devs = ok.length > 1 ? deviations(ok.map((r) => r.candles!)) : [0];
   const agreeing = ok.map((r, i) => ({ r, d: devs[i]! })).filter((x) => x.d <= tolerance);
   const primary = agreeing.find((x) => x.r.candles!.length >= 60) ?? agreeing[0] ?? { r: ok[0]!, d: devs[0]! };
   return {
-    candles: primary.r.candles!,
+    // Consensus candles: median of the agreeing sources, so no single exchange's wick or bad tick drives the signal.
+    candles: blend(primary.r.candles!, agreeing.filter((x) => x !== primary).map((x) => x.r.candles!)),
     source: primary.r.name,
     agreeing: agreeing.length,
     // Fewer than half of the responding sources agree: impossible to know which ones are right.
@@ -250,6 +343,19 @@ export const parseStock = {
         const [y, m, day] = String(r.begins_at).slice(0, 10).split("-").map(Number);
         return { time: nyOpen(y!, m!, day!), open: Number(r.open_price), high: Number(r.high_price), low: Number(r.low_price), close: Number(r.close_price), volume: Number(r.volume) || 0 };
       }),
+  /** StockAnalysis daily history: {"data": [{"t": "2026-09-25", "o", "h", "l", "c", "v"}]}, most recent first. */
+  stockanalysis: (d: any): Candle[] =>
+    ((d?.data ?? []) as any[]).map((r) => {
+      const [y, m, day] = String(r.t).split("-").map(Number);
+      return { time: nyOpen(y!, m!, day!), open: Number(r.o), high: Number(r.h), low: Number(r.l), close: Number(r.c), volume: Number(r.v) || 0 };
+    }).reverse(),
+  /** Webull daily chart: "time (s, midnight New York),open,close,high,low,previousClose,volume,vwap", most recent first. */
+  webull: (d: any): Candle[] =>
+    ((d?.[0]?.data ?? []) as string[]).map((row) => {
+      const f = row.split(",").map(Number);
+      const [y, m, day] = new Date(f[0]! * 1000).toISOString().slice(0, 10).split("-").map(Number);
+      return { time: nyOpen(y!, m!, day!), open: f[1]!, close: f[2]!, high: f[3]!, low: f[4]!, volume: f[6] || 0 };
+    }).reverse(),
   /** Cboe daily history (since 2004): the last 800 sessions are enough. */
   cboe: (d: any): Candle[] =>
     ((d?.data ?? []) as any[]).slice(-800).map((r) => {
@@ -309,6 +415,21 @@ export const STOCK_SOURCES: Source[] = [
     supports: (i) => i === "1d",
     fetch: async (symbol) =>
       parseStock.robinhood(await getJSON(`https://api.robinhood.com/marketdata/historicals/${encodeURIComponent(symbol.replace(/-/g, "."))}/?interval=day&span=5year&bounds=regular`)),
+  },
+  {
+    name: "StockAnalysis",
+    supports: (i) => i === "1d",
+    fetch: async (symbol) =>
+      parseStock.stockanalysis(await getJSON(`https://stockanalysis.com/api/symbol/s/${encodeURIComponent(symbol.replace(/-/g, ".").toLowerCase())}/history?range=5Y&period=daily`)),
+  },
+  {
+    name: "Webull",
+    supports: (i) => i === "1d",
+    fetch: async (symbol) => {
+      const id = await webullTickerId(symbol);
+      if (!id) throw new Error("non coté");
+      return parseStock.webull(await getJSON(`https://quotes-gw.webullfintech.com/api/quote/charts/query?tickerIds=${id}&type=d1&count=800`));
+    },
   },
   {
     name: "Cboe",

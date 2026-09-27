@@ -103,3 +103,15 @@ export function backtest(raw: Candle[], feeRate = 0.001, lookback = 250, rewardR
     exposurePercent: tested > 0 ? (barsInMarket / tested) * 100 : 0,
   };
 }
+
+/** Track record of the buy signals on one asset (trades closed in the backtest, fees included). */
+export interface TrackRecord { trades: number; winRate: number; avgReturn: number }
+
+export function trackRecord(r: BacktestResult): TrackRecord {
+  const n = r.trades.length;
+  return {
+    trades: n,
+    winRate: n ? (r.trades.filter((t) => t.returnPercent > 0).length / n) * 100 : 0,
+    avgReturn: n ? r.trades.reduce((a, t) => a + t.returnPercent, 0) / n : 0,
+  };
+}

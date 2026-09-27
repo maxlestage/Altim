@@ -104,6 +104,17 @@ public enum AssetUniverse {
         }
     }
 
+    /// CoinGecko full coin list: a name only when the ticker belongs to a single coin (BTC is shared by 12).
+    static func geckoNames(_ data: Data) -> [(String, String)] {
+        var bySymbol: [String: [String]] = [:]
+        for x in rows(data) {
+            guard let sym = (x["symbol"] as? String)?.uppercased(), !sym.isEmpty else { continue }
+            bySymbol[sym, default: []].append(x["name"] as? String ?? "")
+        }
+        return bySymbol.compactMap { sym, names in names.count == 1 && !names[0].isEmpty ? (sym, names[0]) : nil }
+            .sorted { $0.0 < $1.0 }
+    }
+
     /// nasdaqlisted.txt / otherlisted.txt (pipe separated, last line = file date).
     static func nasdaqDirectory(_ text: String) -> [Listed] {
         let lines = text.split(whereSeparator: \.isNewline).map(String.init)
@@ -227,7 +238,9 @@ public enum AssetUniverse {
     public static func searchAll(crypto: [UniverseEntry], stocks: [UniverseEntry], _ query: String, limit: Int = 20) -> [UniverseEntry] {
         let q = normalized(query.trimmingCharacters(in: .whitespaces))
         guard !q.isEmpty else { return [] }
-        let hits = search(crypto, query, limit: limit).enumerated().map { ($0.element, $0.offset) }
+        // Obscure tokens (no name, no rank, a single exchange) only when their exact symbol is typed.
+        let known = { (e: UniverseEntry) in e.symbol == q || e.rank != nil || e.flag > 1 || e.name != e.symbol }
+        let hits = Array(search(crypto, query, limit: limit * 3).filter(known).prefix(limit)).enumerated().map { ($0.element, $0.offset) }
             + search(stocks, query, limit: limit).enumerated().map { ($0.element, $0.offset) }
         func score(_ e: UniverseEntry) -> Int { e.symbol == q ? 0 : e.symbol.hasPrefix(q) ? 1 : 2 }
         return hits.sorted { a, b in
@@ -262,8 +275,11 @@ public enum AssetUniverse {
             }
             let exchanges = [okx(await okxD ?? Data()), coinbase(await cbD ?? Data()), kraken(await krD ?? Data()),
                              kucoin(await kcD ?? Data()), gate(await gtD ?? Data())]
+            // After the ranked pages (CoinGecko limits bursts): full names of the other coins.
+            let geckoList = await get("https://api.coingecko.com/api/v3/coins/list")
             let fullNames = names(await cbN ?? Data(), key: nil, symbol: "id", name: "name")
                 + names(await kcN ?? Data(), key: "data", symbol: "currency", name: "fullName")
+                + geckoNames(geckoList ?? Data())
             let list = buildCrypto(exchanges, gecko: ranked, names: fullNames)
             guard list.count >= 50 else { throw APIError.decoding("Liste des cryptos indisponible") }
             return list

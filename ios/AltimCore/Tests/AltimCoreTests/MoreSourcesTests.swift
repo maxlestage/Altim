@@ -99,10 +99,117 @@ final class MoreSourcesTests: XCTestCase {
         let c = ConsensusMarketData.standard(transport: URLSessionTransport())
         let btc = Asset.defaults[0], aapl = Asset(symbol: "AAPL", name: "Apple", assetClass: .stock, quote: "USD")
         XCTAssertEqual(c.targetSources, .max)
-        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(btc) && $0.providesCandles && $0.supports(.h1) }.count, 13)
-        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(aapl) && $0.providesCandles && $0.supports(.d1) }.count, 5)
-        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(aapl) && !$0.providesCandles }.count, 3)
+        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(btc) && $0.providesCandles && $0.supports(.h1) }.count, 21)
+        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(aapl) && $0.providesCandles && $0.supports(.d1) }.count, 7)
+        XCTAssertGreaterThanOrEqual(c.sources.filter { $0.supports(aapl) && !$0.providesCandles }.count, 5)
         // Distinct names: a SwiftUI list uses them as identifiers.
+        XCTAssertEqual(Set(c.sources.map(\.name)).count, c.sources.count)
+    }
+}
+
+// MARK: - 8 more exchanges, StockAnalysis, Webull, Zacks (same samples as web/test/sources.test.ts)
+
+final class EvenMoreSourcesTests: XCTestCase {
+    func data(_ s: String) -> Data { Data(s.utf8) }
+    let poloniex = #"""
+[["84613.15","85142.85","84792.69","85022.91","18080857.16","213.12316","9299681.9","109.620007",13568,1790514000000,"84837.77","HOUR_1",1790514000000,1790517599999],["84637.88","85059.57","85020.91","84748.61","7709537.27","90.873482","3915747.99","46.158834",6379,1790517600000,"84838.3","HOUR_1",1790517600000,1790521199999]]
+"""#
+    let hitbtc = #"""
+[{"timestamp":"2026-09-27T14:00:00.000Z","open":"85037.17","close":"84784.83","min":"84675.11","max":"85037.17","volume":"8.82692","volume_quote":"748673.9565532"},{"timestamp":"2026-09-27T13:00:00.000Z","open":"84760.80","close":"84981.72","min":"84661.02","max":"85080.12","volume":"20.86364","volume_quote":"1771753.1072592"}]
+"""#
+    let whitebit = #"""
+{"success":true,"message":null,"result":[[1790510400,"84892.49","84804.13","85034.95","84800","7.470855","634848.86257627"],[1790514000,"84804.13","85026.13","85145.5","84636.72","23.682812","2009009.15098621"]]}
+"""#
+    let coinex = #"""
+{"code":0,"data":[{"close":"84899","created_at":1790514000000,"high":"85120","low":"84630","market":"BTCUSDT","open":"84770","value":"118935.71389611","volume":"1.40216354"},{"close":"84713","created_at":1790517600000,"high":"84900","low":"84703","market":"BTCUSDT","open":"84899","value":"7723.23455732","volume":"0.09116916"}],"message":"OK"}
+"""#
+    let xt = #"""
+{"rc":0,"mc":"SUCCESS","ma":[],"result":[{"t":1790517600000,"o":"85030.41","c":"84762.00","h":"85048.14","l":"84674.00","q":"97.46926","v":"8268632.5688551"},{"t":1790514000000,"o":"84802.01","c":"85030.41","h":"85159.02","l":"84637.73","q":"163.52720","v":"13876531.0387037"}]}
+"""#
+    let woox = #"""
+{"success":true,"rows":[{"open":85034.01,"close":84764.17,"low":84674.00,"high":85048.14,"volume":390.685282,"amount":33157857.12302202,"symbol":"SPOT_BTC_USDT","type":"1h","start_timestamp":1790517600000,"end_timestamp":1790521200000},{"open":84802.02,"close":85030.42,"low":84637.73,"high":85154.01,"volume":533.718607,"amount":45287344.72708746,"symbol":"SPOT_BTC_USDT","type":"1h","start_timestamp":1790514000000,"end_timestamp":1790517600000}]}
+"""#
+    let bingx = #"""
+{"code":0,"timestamp":1790520282511,"data":[[1790517600000,85030.44,85048.13,84682.42,84765.97,52.282931,1790521199999,4436187.75],[1790514000000,84802.02,85150.83,84644.26,85030.43,82.368202,1790517599999,6989644.06]]}
+"""#
+    let lbank = #"""
+{"msg":"Success","result":"true","data":[[1790506800,84874.41,84942.35,84836.42,84891.72,65.15268],[1790510400,84891.72,85031.12,84796.32,84796.62,81.55706]],"error_code":0,"ts":1790520283501}
+"""#
+    let sa = #"""
+{"status": 200, "data": [{"t": "2026-09-25", "o": 336.04, "h": 341.67, "l": 334.53, "c": 341.07, "a": 341.07, "v": 29407559, "ch": 1.53}, {"t": "2026-09-24", "o": 336.72, "h": 338.91, "l": 334.3, "c": 335.92, "a": 335.92, "v": 24236309, "ch": -0.33}]}
+"""#
+    let wbchart = #"""
+[{"tickerId": 913256135, "data": ["1790308800,336.04,341.07,341.67,334.53,335.92,30002507,339.30", "1790222400,336.72,335.92,338.91,334.30,337.02,24733098,336.74"]}]
+"""#
+    let wbquote = #"""
+{"tickerId": 913256135, "symbol": "AAPL", "close": "341.07", "preClose": "335.92", "changeRatio": "0.0153"}
+"""#
+    let wbsearch = #"""
+{"data": [{"tickerId": 916040668, "symbol": "BRK B", "disSymbol": "BRK-B", "regionCode": "US"}]}
+"""#
+    let zacks = #"""
+{"AAPL": {"last": "341.07", "percent_net_change": "1.53310311979042629197427959037866158609", "previous_close": "341.07"}}
+"""#
+
+    let t0 = Date(timeIntervalSince1970: 1_790_514_000), t1 = Date(timeIntervalSince1970: 1_790_517_600)
+
+    func close(_ c: [Candle], _ t: Date) -> Double? { c.first { $0.time == t }?.close }
+
+    func testCryptoExchanges() throws {
+        let p = try MoreExchanges.poloniex(data(poloniex))
+        XCTAssertEqual(p.map(\.time), [t0, t1])
+        XCTAssertEqual(p[0].open, 84792.69); XCTAssertEqual(p[0].high, 85142.85); XCTAssertEqual(p[0].low, 84613.15); XCTAssertEqual(p[0].close, 85022.91)
+        let h = try MoreExchanges.hitbtc(data(hitbtc))
+        XCTAssertEqual(Set(h.map(\.time)), [t0, t1])
+        XCTAssertEqual(close(h, t1), 84784.83)
+        XCTAssertEqual(h.first { $0.time == t1 }?.high, 85037.17)
+        XCTAssertEqual(close(try MoreExchanges.whitebit(data(whitebit)), t0), 85026.13)
+        let cx = try MoreExchanges.coinex(data(coinex))
+        XCTAssertEqual(cx[0].time, t0); XCTAssertEqual(cx[0].open, 84770); XCTAssertEqual(cx[0].close, 84899)
+        let x = try MoreExchanges.xt(data(xt))
+        XCTAssertEqual(close(x, t0), 85030.41); XCTAssertEqual(x.first { $0.time == t0 }?.high, 85159.02)
+        XCTAssertEqual(close(try MoreExchanges.woox(data(woox)), t0), 85030.42)
+        let b = try MoreExchanges.bingx(data(bingx))
+        XCTAssertEqual(close(b, t1), 84765.97); XCTAssertEqual(b.first { $0.time == t1 }?.low, 84682.42)
+        XCTAssertEqual(try MoreExchanges.lbank(data(lbank)).map(\.close), [84891.72, 84796.62])
+        let closes = try [p, cx, x, MoreExchanges.woox(data(woox)), b, MoreExchanges.whitebit(data(whitebit))].compactMap { close($0, t0) }
+        XCTAssertEqual(closes.count, 6)
+        XCTAssertLessThan(closes.max()! / closes.min()! - 1, 0.002)
+        XCTAssertThrowsError(try MoreExchanges.coinex(data(#"{"code":3008,"data":[]}"#)))
+        XCTAssertThrowsError(try MoreExchanges.xt(data(#"{"rc":1,"result":[]}"#)))
+        let all = MoreExchanges.sources(transport: URLSessionTransport())
+        XCTAssertEqual(all.map(\.name), ["Poloniex", "HitBTC", "WhiteBIT", "CoinEx", "XT", "WOO X", "BingX", "LBank"])
+        XCTAssertEqual(all.filter { !$0.supports(.d1) }.map(\.name), ["BingX", "LBank"])
+    }
+
+    func testStockSources() throws {
+        let now = Date(timeIntervalSince1970: 1_790_600_000)
+        let sep24 = newYorkOpen(year: 2026, month: 9, day: 24)!, sep25 = newYorkOpen(year: 2026, month: 9, day: 25)!
+        let sa = try StockAnalysisMarketData.parse(data(self.sa), now: now)
+        let wb = try WebullMarketData.parse(data(wbchart), now: now)
+        XCTAssertEqual(sa.map(\.time), [sep24, sep25])
+        XCTAssertEqual(wb.map(\.time), [sep24, sep25])
+        for c in [sa[1], wb[1]] {
+            XCTAssertEqual(c.open, 336.04); XCTAssertEqual(c.high, 341.67); XCTAssertEqual(c.low, 334.53); XCTAssertEqual(c.close, 341.07)
+        }
+        let q = try WebullQuotes.parse(data(wbquote))
+        XCTAssertEqual(q.price, 341.07)
+        XCTAssertEqual(q.changePercent24h, 1.53, accuracy: 1e-9)
+        XCTAssertEqual(WebullIds.parse(data(wbsearch), symbol: "BRK-B"), 916040668)
+        XCTAssertNil(WebullIds.parse(data(wbsearch), symbol: "BRK-A"))
+        XCTAssertEqual(try ZacksQuotes.parse(data(zacks)).price, 341.07)
+    }
+
+    func testTwentyTwoCryptoSourcesAndEightStockProviders() {
+        let c = ConsensusMarketData.standard(transport: URLSessionTransport())
+        let btc = Asset.defaults[0], aapl = Asset(symbol: "AAPL", name: "Apple", assetClass: .stock, quote: "USD")
+        // 22 exchanges + Yahoo Finance (two servers of the same provider, counted once).
+        let crypto = c.sources.filter { $0.supports(btc) && $0.providesCandles }
+        XCTAssertEqual(crypto.filter { !$0.name.hasPrefix("Yahoo") }.count, 22)
+        XCTAssertEqual(Set(crypto.map { $0.name.components(separatedBy: " (")[0] }).count, 23)
+        let stock = c.sources.filter { $0.supports(aapl) }
+        XCTAssertEqual(Set(stock.map { $0.name.components(separatedBy: " (")[0] }),
+                       ["Yahoo Finance", "Nasdaq", "Robinhood", "Cboe", "StockAnalysis", "Webull", "TradingView", "Zacks"])
         XCTAssertEqual(Set(c.sources.map(\.name)).count, c.sources.count)
     }
 }

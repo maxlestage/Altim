@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { analyze, type Signal } from "../engine/signal";
 import { gate } from "../engine/reliability";
-import { backtest, type BacktestResult } from "../engine/backtest";
+import { backtest, trackRecord, type BacktestResult } from "../engine/backtest";
 import { formatPrice } from "../market";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type Quote, type Sentiment, type Snapshot } from "./api";
 import { onLink } from "./router";
@@ -90,7 +90,12 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
   if (held && heldMarket) valuation[`${kind}:${symbol}`] = heldMarket;
   const portfolio = analyzePortfolio(holdingsState.holdings, holdingsState.cash, valuation);
   const line = held ? portfolio.lines.find((l) => l.id === held.id) ?? null : null;
-  const advice = data ? adviseAsset({ signal, reliability: rel?.level ?? null, price, line: held && heldMarket ? line : null, capital: portfolio.total, risk }) : null;
+  const advice = data
+    ? adviseAsset({
+        signal, reliability: rel?.level ?? null, price, line: held && heldMarket ? line : null, capital: portfolio.total, risk,
+        track: bt ? trackRecord(bt) : null, symbol, kind,
+      })
+    : null;
 
   return (
     <section className="app-screen asset-screen">
