@@ -6,7 +6,7 @@ export function Hero({ ticks }: { ticks: Tick[] }) {
     <section className="hero">
       <div className="hero-text">
         <p className="chip">
-          <span className="dot" /> Conseiller crypto & actions · iOS et web
+          <span className="dot" /> Conseiller crypto & actions · web et mobile
         </p>
         <h1>
           Le marché,

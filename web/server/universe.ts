@@ -249,7 +249,7 @@ export function searchUniverse(list: UniverseEntry[], query: string, limit = 50)
   return scored.sort((a, b) => a.s - b.s || a.i - b.i).slice(0, limit).map((x) => x.e);
 }
 
-/** Cryptos and stocks searched together: exact symbol, then symbol prefix, then the largest (same order on iOS). */
+/** Cryptos and stocks searched together: exact symbol, then symbol prefix, then the largest */
 export function searchAll(crypto: UniverseEntry[], stock: UniverseEntry[], query: string, limit = 20): { e: UniverseEntry; kind: Kind }[] {
   const Qx = norm(query.trim());
   // Obscure tokens (no name, no rank, a single exchange) only when their exact symbol is typed.

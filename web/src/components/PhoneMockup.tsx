@@ -14,7 +14,7 @@ const BADGES = [
   ["VENTE", "sell"],
 ] as const;
 
-/** Maquette d'iPhone reproduisant l'écran Radar de l'app. */
+/** Maquette de téléphone reproduisant l'écran Radar de l'app web. */
 export function PhoneMockup({ ticks }: { ticks: Tick[] }) {
   const rows = (ticks.length ? ticks.filter((t) => t.kind === "crypto") : FALLBACK).slice(0, 4);
   return (

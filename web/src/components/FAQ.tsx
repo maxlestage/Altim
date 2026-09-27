@@ -31,7 +31,7 @@ const QA = [
   ],
   [
     "Où sont stockés mes avoirs ?",
-    "Dans votre navigateur (localStorage) sur le web, et dans une base SQLite sur votre iPhone. Jamais sur nos serveurs. Un export permet de les transférer d'un appareil à l'autre.",
+    "Dans votre navigateur (localStorage). Jamais sur nos serveurs. Un export permet de les transférer d'un appareil à l'autre.",
   ],
 ];
 

@@ -56,8 +56,8 @@ export const LEGAL_PAGES: Record<string, { title: string; body: ReactNode }> = {
         </p>
         <h2>Vos avoirs</h2>
         <p>
-          Les avoirs que vous renseignez sont enregistrés uniquement sur votre appareil : dans le navigateur
-          (localStorage) pour l'application web, dans une base SQLite sur votre iPhone pour l'application iOS. Altim ne
+          Les avoirs que vous renseignez sont enregistrés uniquement sur votre appareil, dans le navigateur
+          (localStorage). Altim ne
           passe aucun ordre et ne demande aucun accès à vos comptes. Seuls les symboles des actifs sont envoyés au
           serveur pour obtenir leurs cours, sans les quantités.
         </p>

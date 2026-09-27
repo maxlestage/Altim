@@ -1,4 +1,4 @@
-/** Port of RiskManager.swift: position sizing and pre-trade checks. */
+/** Position sizing and pre-trade checks. */
 export interface RiskSettings {
   riskPerTradePercent: number;
   maxPositionPercent: number;

@@ -1,6 +1,6 @@
 /**
- * Portage TypeScript du moteur de signaux Altim (ios/AltimCore/Sources/AltimCore/Signals/SignalEngine.swift).
- * Mêmes formules, mêmes pondérations : `signal.test.ts` vérifie l'égalité avec la version Swift.
+ * Moteur de signaux Altim. `signal.test.ts` le vérifie sur 17 scénarios de référence (score, confiance,
+ * facteurs, avertissements, backtest trade par trade).
  */
 
 export interface Candle {
@@ -47,7 +47,7 @@ const isValid = (c: Candle) =>
   [c.open, c.high, c.low, c.close, c.volume].every(Number.isFinite) &&
   c.low > 0 && c.high >= c.low && c.high >= Math.max(c.open, c.close) && c.low <= Math.min(c.open, c.close) && c.volume >= 0;
 
-/** Valid candles, sorted, without duplicates (same as `sanitized()` in Swift). */
+/** Valid candles, sorted, without duplicates. */
 export function sanitize(candles: Candle[]): Candle[] {
   const seen = new Set<number>();
   return candles
