@@ -1,0 +1,98 @@
+import { useEffect, useState } from "react";
+import { onLink, usePath } from "./router";
+import { setState, useAppState } from "./store";
+import { Radar } from "./Radar";
+import { AssetScreen } from "./AssetScreen";
+import { Portfolio } from "./Portfolio";
+import { Settings } from "./Settings";
+
+const TABS = [
+  { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
+  { href: "/app/portefeuille", label: "Portefeuille", icon: "M3 7h18v13H3zM16 13h2M3 7l2-3h14l2 3" },
+  { href: "/app/reglages", label: "Réglages", icon: "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4" },
+];
+
+function Icon({ d }: { d: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}
+
+export function WebApp() {
+  const path = usePath();
+  const state = useAppState();
+
+  useEffect(() => {
+    document.title = "Altim — Application web";
+  }, []);
+
+  if (!state.acceptedDisclaimer) return <Disclaimer />;
+
+  const asset = path.match(/^\/app\/actif\/(crypto|stock)\/([A-Za-z0-9.\-]{1,10})$/);
+  let screen;
+  if (asset) screen = <AssetScreen key={path} kind={asset[1] as "crypto" | "stock"} symbol={asset[2]!.toUpperCase()} />;
+  else if (path === "/app/portefeuille") screen = <Portfolio />;
+  else if (path === "/app/reglages") screen = <Settings />;
+  else screen = <Radar />;
+
+  const active = asset ? "/app" : TABS.find((t) => t.href === path)?.href ?? "/app";
+
+  return (
+    <div className="webapp">
+      <header className="app-bar">
+        <a href="/app" onClick={onLink} className="brand" aria-label="Altim, radar">
+          <img src="/logo.svg" alt="" width={30} height={30} />
+          <span>ALTIM</span>
+        </a>
+        <span className="app-env">DÉMO</span>
+        <nav className="app-tabs-top" aria-label="Sections">
+          {TABS.map((t) => (
+            <a key={t.href} href={t.href} onClick={onLink} className={t.href === active ? "on" : ""} aria-current={t.href === active ? "page" : undefined}>
+              {t.label}
+            </a>
+          ))}
+        </nav>
+        <a href="/" className="app-site">Site</a>
+      </header>
+      <main className="app-main">{screen}</main>
+      <nav className="app-tabs" aria-label="Sections">
+        {TABS.map((t) => (
+          <a key={t.href} href={t.href} onClick={onLink} className={t.href === active ? "on" : ""} aria-current={t.href === active ? "page" : undefined}>
+            <Icon d={t.icon} />
+            <span>{t.label}</span>
+          </a>
+        ))}
+      </nav>
+    </div>
+  );
+}
+
+function Disclaimer() {
+  const [ok, setOk] = useState(false);
+  return (
+    <main className="app-disclaimer">
+      <img src="/logo.svg" alt="" width={72} height={72} />
+      <h1>
+        Bienvenue sur <span className="gradient">Altim</span>
+      </h1>
+      <ul>
+        <li>Les signaux sont des probabilités calculées sur l'historique, jamais des certitudes. Aucun outil ne garantit un gain.</li>
+        <li>Chaque cours est recoupé sur plusieurs sources indépendantes ; si les données ne sont pas fiables, le signal est suspendu.</li>
+        <li>La version web fonctionne en <b>mode démo</b> (10 000 USDT fictifs, conservés dans ce navigateur). Le trading réel se fait dans l'app iOS (clés dans le trousseau, Face ID).</li>
+        <li>Le trading comporte un risque de perte totale du capital investi.</li>
+      </ul>
+      <label className="check-row">
+        <input type="checkbox" checked={ok} onChange={(e) => setOk(e.target.checked)} />
+        <span>J'ai compris que je reste seul responsable de mes décisions d'investissement.</span>
+      </label>
+      <button className="btn" disabled={!ok} onClick={() => setState({ acceptedDisclaimer: true })}>
+        Entrer dans l'app
+      </button>
+      <a href="/" className="muted back-site">
+        ← Retour au site
+      </a>
+    </main>
+  );
+}

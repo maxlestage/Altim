@@ -5,6 +5,7 @@ const COLUMNS = [
   {
     title: "Produit",
     links: [
+      ["/app", "Application web"],
       ["/#live", "Signal en direct"],
       ["/#features", "Fonctionnalités"],
       ["/#sources", "Sources de données"],

@@ -119,7 +119,7 @@ export function LiveSignal() {
                   </li>
                 ))}
               </ul>
-              {signal.action !== "hold" && (
+              {signal.action !== "hold" && signal.hasPlan && (
                 <div className="plan">
                   <div>
                     <small>STOP</small>

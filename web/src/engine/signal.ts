@@ -26,9 +26,34 @@ export interface Signal {
   score: number;
   confidence: number;
   price: number;
+  time: number;
   factors: Factor[];
   stopLoss: number;
   takeProfit: number;
+  /** false if the ATR is unavailable (no stop/target plan). */
+  hasPlan: boolean;
+  warnings: string[];
+}
+
+export interface AnalyzeOptions {
+  /** Higher-timeframe candles, to confirm the underlying trend. */
+  higher?: Candle[];
+  /** Candle duration (ms) and current time, to detect stale data. */
+  intervalMs?: number;
+  now?: number;
+}
+
+const isValid = (c: Candle) =>
+  [c.open, c.high, c.low, c.close, c.volume].every(Number.isFinite) &&
+  c.low > 0 && c.high >= c.low && c.high >= Math.max(c.open, c.close) && c.low <= Math.min(c.open, c.close) && c.volume >= 0;
+
+/** Valid candles, sorted, without duplicates (same as `sanitized()` in Swift). */
+export function sanitize(candles: Candle[]): Candle[] {
+  const seen = new Set<number>();
+  return candles
+    .filter(isValid)
+    .sort((a, b) => a.time - b.time)
+    .filter((c) => (seen.has(c.time) ? false : (seen.add(c.time), true)));
 }
 
 type Series = (number | null)[];
@@ -211,34 +236,38 @@ function rawSlope(values: number[]): number | null {
   return den > 0 ? num / den : null;
 }
 
-const W = { trend: 2, macd: 1.5, rsi: 1.5, stoch: 1, boll: 0.75, volume: 1 };
+const W = { trend: 2, macd: 1.5, rsi: 1.5, stoch: 1, boll: 0.75, volume: 1, higher: 1.5 };
 
-export function analyze(candles: Candle[]): Signal | null {
+export function analyze(raw: Candle[], options: AnalyzeOptions = {}): Signal | null {
+  const candles = sanitize(raw);
   if (candles.length < 60) return null;
   const closes = candles.map((c) => c.close);
   const last = candles.length - 1;
   const price = closes[last]!;
   const factors: Factor[] = [];
+  const warnings: string[] = [];
 
   const adxNow = adx(candles)[last] ?? null;
   const atrNow = atr(candles)[last] ?? 0;
 
-  // 1. Tendance
+  // 1. Trend
   const e20 = ema(closes, 20)[last] ?? null;
   const e50 = ema(closes, 50)[last] ?? null;
   const e200 = ema(closes, 200)[last] ?? null;
   const [fast, slow, label] = e200 !== null ? [e50, e200, "EMA 50/200"] : [e20, e50, "EMA 20/50"];
+  if (e200 === null) warnings.push("Moins de 200 bougies : tendance de long terme estimée sur EMA 20/50.");
   if (fast !== null && slow !== null) {
-    const raw = 0.5 * sign(fast - slow) + 0.5 * sign(price - slow);
+    const rawTrend = 0.5 * sign(fast - slow) + 0.5 * sign(price - slow);
     const strength = adxNow !== null ? clamp((adxNow - 15) / 20, 0.3, 1) : 0.6;
-    const dir = raw > 0 ? "haussière" : raw < 0 ? "baissière" : "neutre";
+    const dir = rawTrend > 0 ? "haussière" : rawTrend < 0 ? "baissière" : "neutre";
     factors.push({
       name: "Tendance",
-      score: clamp(raw * strength, -1, 1),
+      score: clamp(rawTrend * strength, -1, 1),
       weight: W.trend,
       detail: `${label} ${dir}${adxNow !== null ? ` · ADX ${adxNow.toFixed(0)}` : ""}`,
     });
   }
+  if (adxNow !== null && adxNow < 18) warnings.push("Marché sans tendance (ADX < 18) : signaux moins fiables.");
 
   // 2. MACD
   const f12 = ema(closes, 12);
@@ -285,7 +314,7 @@ export function analyze(candles: Candle[]): Signal | null {
     factors.push({ name: "RSI", score: clamp(score, -1, 1), weight: W.rsi, detail: `RSI ${rv.toFixed(1)} (${zone})` });
   }
 
-  // 4. Stochastique
+  // 4. Stochastic
   const st = stochastic(candles);
   const k = st.k[last];
   const d = st.d[last];
@@ -332,6 +361,28 @@ export function analyze(candles: Candle[]): Signal | null {
       weight: W.volume,
       detail: perBar >= 0 ? "Accumulation" : "Distribution",
     });
+  } else {
+    warnings.push("Volume indisponible : facteur volume ignoré.");
+  }
+
+  // 7. Higher-timeframe confirmation
+  let higherScore: number | null = null;
+  const higher = options.higher ? sanitize(options.higher) : [];
+  if (higher.length >= 50) {
+    const hc = higher.map((c) => c.close);
+    const hl = hc.length - 1;
+    const hf = ema(hc, 20)[hl];
+    const hs = ema(hc, 50)[hl];
+    if (hf != null && hs != null) {
+      const sc = 0.5 * sign(hf - hs) + 0.5 * sign(hc[hl]! - hs);
+      higherScore = sc;
+      factors.push({
+        name: "UT supérieure",
+        score: sc,
+        weight: W.higher,
+        detail: sc > 0 ? "Tendance de fond haussière" : sc < 0 ? "Tendance de fond baissière" : "Neutre",
+      });
+    }
   }
 
   const tw = factors.reduce((a, f) => a + f.weight, 0);
@@ -342,8 +393,27 @@ export function analyze(candles: Candle[]): Signal | null {
   const agreement = dw > 0 ? aw / dw : 0;
   const confidence = clamp(Math.abs(score) * 1.25, 0, 100) * (0.5 + 0.5 * agreement);
 
-  const action: Action =
+  let action: Action =
     score >= 50 ? "strongBuy" : score >= 25 ? "buy" : score <= -50 ? "strongSell" : score <= -25 ? "sell" : "hold";
+
+  // Never buy against the underlying trend: the signal is downgraded.
+  if (higherScore !== null) {
+    if ((action === "buy" || action === "strongBuy") && higherScore < 0) {
+      action = action === "strongBuy" ? "buy" : "hold";
+      warnings.push("Achat contre la tendance de l'unité supérieure : signal rétrogradé.");
+    } else if ((action === "sell" || action === "strongSell") && higherScore > 0) {
+      action = action === "strongSell" ? "sell" : "hold";
+      warnings.push("Vente contre la tendance de l'unité supérieure : signal rétrogradé.");
+    }
+  }
+
+  if (atrNow > 0 && atrNow / price > 0.08) {
+    warnings.push(`Volatilité extrême (ATR ${((atrNow / price) * 100).toFixed(1)} % du prix) : réduisez la taille.`);
+  }
+  const lastTime = candles[last]!.time;
+  if (options.intervalMs && (options.now ?? Date.now()) - lastTime > options.intervalMs * 3) {
+    warnings.push("Données possiblement périmées (dernière bougie ancienne).");
+  }
 
   const dist = 2 * atrNow;
   const isSell = action === "sell" || action === "strongSell";
@@ -352,11 +422,17 @@ export function analyze(candles: Candle[]): Signal | null {
     score,
     confidence,
     price,
+    time: lastTime,
     factors,
+    hasPlan: atrNow > 0,
     stopLoss: isSell ? price + dist : Math.max(price - dist, price * 0.01),
     takeProfit: isSell ? Math.max(price - dist * 2, price * 0.01) : price + dist * 2,
+    warnings,
   };
 }
+
+export const isBuy = (a: Action) => a === "buy" || a === "strongBuy";
+export const isSell = (a: Action) => a === "sell" || a === "strongSell";
 
 export const ACTION_LABEL: Record<Action, string> = {
   strongBuy: "ACHAT FORT",

@@ -21,11 +21,11 @@ export function Hero({ ticks }: { ticks: Tick[] }) {
           <em className="sell">vendre</em> — et surtout quand <em className="hold">attendre</em>.
         </p>
         <div className="cta">
-          <a className="btn" href="#live">
-            Voir le signal en direct
+          <a className="btn" href="/app">
+            Ouvrir l'app web
           </a>
-          <a className="btn btn-ghost" href="#features">
-            Découvrir l'app
+          <a className="btn btn-ghost" href="#live">
+            Voir le signal en direct
           </a>
         </div>
         <dl className="stats">

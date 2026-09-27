@@ -10,10 +10,34 @@ Application iOS (Swift / SwiftUI) de **signaux d'achat et de vente** pour la cry
 |---|---|
 | `ios/AltimCore` | Moteur en Swift pur, testé : indicateurs, moteur de signaux, gestion du risque, backtest, données de marché, courtiers |
 | `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, passage d'ordre, portefeuille, réglages |
-| `web` | Site vitrine React + TS + Bun, mobile first, **multi-source** : panneau des marchés (consensus de 8 sources crypto et 3 sources actions, `/api/tickers`) et démo live du moteur (consensus de 6 sources, `/api/candles`) |
+| `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source** |
 | `.github/workflows` | CI iOS (build + tests sur macOS), CI web, déploiement Heroku, envoi TestFlight |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
+
+## Application web (`/app`)
+
+Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
+
+- **Radar** : signaux validés de vos actifs (crypto et actions), fiabilité des données, Fear & Greed, opportunités détectées ; actualisation automatique toutes les 60 s.
+- **Analyse** : graphique (EMA 20/50, stop/objectif, entrées du backtest), jauge et détail des 7 facteurs, fiabilité avec la liste des sources et leurs écarts, backtest, sentiment.
+- **Ordres de démonstration** : taille calculée par le gestionnaire de risque, mêmes contrôles que l'app iOS, prix d'exécution revérifié sur plusieurs sources juste avant l'ordre.
+- **Portefeuille** démo (10 000 USDT fictifs, valorisé au prix de consensus) et **réglages** (radar, gestion du risque).
+
+Le trading réel reste réservé à l'app iOS (clés dans le trousseau, Face ID) : aucune clé n'est demandée sur le web. Les données de l'app web restent dans le navigateur (localStorage).
+
+Le moteur TypeScript (signal, confirmation par l'unité supérieure, avertissements, garde-fou de fiabilité, backtest, gestion du risque) est **vérifié contre le moteur Swift** sur 17 scénarios, backtest compris trade par trade.
+
+### Serveur (Express sur Bun)
+
+| Route | Rôle |
+|---|---|
+| `GET /api/radar?symbols=BTC:crypto,AAPL:stock&interval=4h` | Signaux validés du radar (calculés côté serveur avec le même moteur) |
+| `GET /api/candles?symbol=BTC&kind=crypto&interval=1h` | Bougies par consensus + qualité + score de fiabilité |
+| `GET /api/tickers?symbols=…` | Cours par consensus (8 sources crypto, 3 actions) |
+| `GET /api/search?q=…` · `GET /api/sentiment?symbol=…` | Recherche d'actifs · Fear & Greed et StockTwits |
+
+Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire avec déduplication des requêtes et dernières données valides en cas de panne d'une source.
 
 ## Le moteur de signaux
 
