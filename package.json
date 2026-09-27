@@ -1,0 +1,10 @@
+{
+  "name": "altim",
+  "private": true,
+  "workspaces": ["web"],
+  "scripts": {
+    "build": "cd web && bun run build",
+    "start": "cd web && bun run start",
+    "test": "cd web && bun test"
+  }
+}
