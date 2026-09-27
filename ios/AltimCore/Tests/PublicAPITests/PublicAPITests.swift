@@ -107,5 +107,16 @@ final class PublicAPITests: XCTestCase {
         }
         for i in analysis.insights { _ = (i.level, i.code, HoldingsAnalyzer.text(i)) }
         _ = HoldingsAnalyzer.Recommendation.allCasesForUI
+
+        // Full catalogue (asset picker) and advice.
+        let entry = UniverseEntry(symbol: "BTC", name: "Bitcoin", kind: .crypto, rank: 1, flag: 5)
+        _ = (entry.id, entry.symbol, entry.name, entry.kind, entry.rank, entry.flag, entry.isETF, entry.asset.symbol)
+        _ = AssetUniverse.search([entry], "bit", limit: 10)
+        _ = AssetUniverse.cleanStockName("Apple Inc. - Common Stock")
+        _ = AssetUniverse.popularETFs
+        let loader: (AssetClass, HTTPTransport) async throws -> [UniverseEntry] = { try await AssetUniverse.load($0, transport: $1) }
+        _ = loader
+        let advice = Advisor.advise(signal: nil, reliability: nil, price: nil, line: nil, capital: nil, risk: RiskSettings())
+        _ = (advice.tone, advice.title, advice.points, advice.entry, advice.stop, advice.target, advice.amount)
     }
 }

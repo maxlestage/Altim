@@ -13,6 +13,8 @@ final class AppServices {
     /// Holdings entered by the user: SQLite database on the device.
     let holdingsDB: HoldingsDatabase?
     let holdingsDBError: String?
+    /// Full catalogue: every crypto, every US-listed stock / ETF.
+    let universe = UniverseStore()
 
     /// Multi-source market data with cross-validation (rebuilt with the keys currently entered).
     var market: ConsensusMarketData { Self.makeMarket(transport: transport) }

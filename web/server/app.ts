@@ -11,6 +11,7 @@ import { gate, type Kind } from "../src/engine/reliability";
 import { HIGHER, STEP, snapshot, type Interval } from "./market";
 import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
+import { cryptoUniverse, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
 const ROOT = join(import.meta.dir, "..");
 const DIST = join(ROOT, "dist");
@@ -29,7 +30,7 @@ function parseKind(v: unknown): Kind {
 
 function parseSymbol(v: unknown, kind: Kind): string {
   const s = String(v ?? "").toUpperCase().trim();
-  const ok = kind === "crypto" ? /^[A-Z0-9]{2,10}$/.test(s) : /^[A-Z][A-Z0-9.\-]{0,9}$/.test(s);
+  const ok = kind === "crypto" ? /^[A-Z0-9]{1,12}$/.test(s) : /^[A-Z][A-Z0-9.\-]{0,9}$/.test(s);
   if (!ok) throw new BadRequest("symbole invalide");
   return s;
 }
@@ -101,36 +102,25 @@ async function radarItem(asset: Asset, interval: Interval) {
   }
 }
 
+/** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first. */
 async function searchAssets(q: string) {
-  const query = q.toUpperCase().replace(/[^A-Z0-9.\- ]/g, "").trim();
-  if (query.length < 1) return [];
-  const results: { symbol: string; name: string; kind: Kind }[] = [];
-  // Crypto: pairs actually listed in USDT on OKX (list cached for 1 h).
-  try {
-    const okx = await cached("okx:bases", 3_600_000, async () => {
-      const r = await fetch("https://www.okx.com/api/v5/market/tickers?instType=SPOT", { signal: AbortSignal.timeout(8000) });
-      const d = (await r.json()) as { data: { instId: string }[] };
-      return d.data.filter((x) => x.instId.endsWith("-USDT")).map((x) => x.instId.replace("-USDT", ""));
-    });
-    for (const b of okx.filter((b) => b.startsWith(query.replace(/USDT$/, ""))).slice(0, 5)) {
-      results.push({ symbol: b, name: makeAsset(b, "crypto").name, kind: "crypto" });
-    }
-  } catch {}
-  // Stocks / ETF: Yahoo Finance search.
-  try {
-    const r = await fetch(`https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=8&newsCount=0`, {
-      headers: { "User-Agent": "Mozilla/5.0 Altim/1.0" },
-      signal: AbortSignal.timeout(8000),
-    });
-    const d = (await r.json()) as { quotes?: { symbol: string; shortname?: string; longname?: string; quoteType?: string }[] };
-    for (const x of d.quotes ?? []) {
-      if (["EQUITY", "ETF"].includes(x.quoteType ?? "") && /^[A-Z][A-Z0-9.\-]{0,9}$/.test(x.symbol)) {
-        results.push({ symbol: x.symbol, name: x.shortname ?? x.longname ?? x.symbol, kind: "stock" });
-      }
-    }
-  } catch {}
-  return results.slice(0, 12);
+  const [crypto, stock] = await Promise.all([cryptoUniverse().catch(() => []), stockUniverse().catch(() => [])]);
+  const hits = [
+    ...searchUniverse(crypto, q, 12).map((e) => ({ e, kind: "crypto" as Kind })),
+    ...searchUniverse(stock, q, 12).map((e) => ({ e, kind: "stock" as Kind })),
+  ];
+  const Q = q.toUpperCase().trim();
+  const score = (e: UniverseEntry) => (e[0] === Q ? 0 : e[0].startsWith(Q) ? 1 : 2);
+  return hits
+    .sort((a, b) => score(a.e) - score(b.e) || (a.e[2] || 1e9) - (b.e[2] || 1e9))
+    .slice(0, 16)
+    .map(({ e, kind }) => toItem(e, kind));
 }
+
+const toItem = (e: UniverseEntry, kind: Kind) => ({
+  symbol: e[0], name: e[1], kind, rank: e[2] || null,
+  ...(kind === "crypto" ? { exchanges: e[3] } : { etf: e[3] === 1 }),
+});
 
 async function sentiment(symbol: string, kind: Kind) {
   const out: { fearGreed?: { value: number; label: string }; social?: { bullishPercent: number | null; sample: number } } = {};
@@ -245,6 +235,18 @@ export function createApp() {
   api.get("/search", wrap(async (req, res) => {
     const q = String(req.query.q ?? "").slice(0, 30);
     res.json(q.length < 1 ? [] : await cached(`search:${q.toUpperCase()}`, 600_000, () => searchAssets(q)));
+  }));
+
+  // Full catalogue, paginated: /api/universe?kind=crypto|stock&q=&offset=0&limit=50
+  api.get("/universe", wrap(async (req, res) => {
+    const kind = parseKind(req.query.kind);
+    const q = String(req.query.q ?? "").slice(0, 30);
+    const offset = Math.max(0, Math.floor(Number(req.query.offset) || 0));
+    const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
+    const list = await universe(kind);
+    const matches = q.trim() ? searchUniverse(list, q, list.length) : list;
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.json({ total: matches.length, offset, items: matches.slice(offset, offset + limit).map((e) => toItem(e, kind)) });
   }));
 
   api.get("/sentiment", wrap(async (req, res) => {

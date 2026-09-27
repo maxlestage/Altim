@@ -160,11 +160,19 @@ export const QUOTE_SOURCES: QuoteSource[] = [
   },
   {
     name: "Nasdaq", kind: "stock",
-    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${x.symbol}/info?assetclass=stocks`))),
+    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => {
+      // Class shares: BRK-B (Yahoo) = BRK.B (Nasdaq). ETFs live in another asset class.
+      const sym = x.symbol.replace(/-/g, ".");
+      try {
+        return parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${sym}/info?assetclass=stocks`));
+      } catch {
+        return parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${sym}/info?assetclass=etf`));
+      }
+    }),
   },
   {
     name: "Cboe", kind: "stock",
-    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.cboe(await getJSON(`https://www.cboe.com/education/tools/trade-optimizer/symbol-info/?symbol=${x.symbol}`))),
+    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.cboe(await getJSON(`https://www.cboe.com/education/tools/trade-optimizer/symbol-info/?symbol=${x.symbol.replace(/-/g, ".")}`))),
   },
 ];
 

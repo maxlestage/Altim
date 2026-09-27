@@ -216,7 +216,9 @@ public struct NasdaqMarketData: MarketSource {
         let from = isoDate(Date().addingTimeInterval(-lookbackDays(.d1) * 86_400 * 1.5))
         // Symbol unknown as a stock: retry as an ETF.
         for assetClass in ["stocks", "etf"] {
-            let url = SourceHTTP.url("https://api.nasdaq.com/api/quote/\(asset.symbol)/historical",
+            // Class shares: BRK-B (Yahoo) = BRK.B (Nasdaq).
+            let symbol = asset.symbol.replacingOccurrences(of: "-", with: ".")
+            let url = SourceHTTP.url("https://api.nasdaq.com/api/quote/\(symbol)/historical",
                                      [("assetclass", assetClass), ("fromdate", from), ("todate", isoDate(Date())), ("limit", "9999")])
             let data = try await SourceHTTP.get(transport, url, headers: ["Accept-Language": "en-US,en;q=0.9"])
             let candles = try Self.parse(data, now: Date())
@@ -268,7 +270,7 @@ public struct CboeQuotes: MarketSource {
     }
 
     public func quote(for asset: Asset) async throws -> Quote {
-        let url = SourceHTTP.url("https://www.cboe.com/education/tools/trade-optimizer/symbol-info/", [("symbol", asset.symbol)])
+        let url = SourceHTTP.url("https://www.cboe.com/education/tools/trade-optimizer/symbol-info/", [("symbol", asset.symbol.replacingOccurrences(of: "-", with: "."))])
         return try Self.parse(try await SourceHTTP.get(transport, url))
     }
 

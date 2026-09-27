@@ -228,7 +228,7 @@ export const STOCK_SOURCES: Source[] = [
     fetch: async (symbol) => {
       const from = isoDate(Date.now() - 800 * 86_400_000);
       for (const cls of ["stocks", "etf"]) {
-        const c = parseStock.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol)}/historical?assetclass=${cls}&fromdate=${from}&todate=${isoDate(Date.now())}&limit=9999`));
+        const c = parseStock.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${encodeURIComponent(symbol.replace(/-/g, "."))}/historical?assetclass=${cls}&fromdate=${from}&todate=${isoDate(Date.now())}&limit=9999`));
         if (c.length) return c;
       }
       throw new Error("symbole inconnu");

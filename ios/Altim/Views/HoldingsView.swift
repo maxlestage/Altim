@@ -7,14 +7,15 @@ struct HoldingsView: View {
     @Environment(AppServices.self) private var services
     @State private var model = HoldingsViewModel()
     @State private var editing: EditTarget?
+    @State private var adding = false
     @State private var cashText = ""
     @State private var exportURL: URL?
     @State private var importing = false
     @FocusState private var cashFocused: Bool
 
     struct EditTarget: Identifiable {
-        let holding: Holding?
-        var id: String { holding?.id ?? "new" }
+        let holding: Holding
+        var id: String { holding.id }
     }
 
     var body: some View {
@@ -33,8 +34,18 @@ struct HoldingsView: View {
                         if let a = model.analysis, !model.holdings.isEmpty {
                             summaryCard(a)
                             insightsCard(a)
-                            SectionTitle(text: "Ligne par ligne")
-                            ForEach(a.lines) { line in lineCard(line) }
+                            ForEach([AssetClass.crypto, .stock], id: \.self) { kind in
+                                let lines = a.lines.filter { $0.kind == kind }
+                                if !lines.isEmpty {
+                                    HStack {
+                                        SectionTitle(text: "\(kind == .crypto ? "Crypto" : "Actions & ETF") · \(lines.count)")
+                                        Text(usd(lines.reduce(0) { $0 + $1.value }))
+                                            .font(Theme.mono(12, weight: .regular)).foregroundStyle(Theme.textSecondary)
+                                            .fixedSize()
+                                    }
+                                    ForEach(lines) { line in lineCard(line) }
+                                }
+                            }
                             riskCard(a)
                         }
                         backupCard
@@ -46,13 +57,18 @@ struct HoldingsView: View {
             .navigationTitle("Mes avoirs")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { editing = EditTarget(holding: nil) } label: { Image(systemName: "plus.circle.fill") }
-                        .accessibilityLabel("Ajouter un avoir")
+                    Button { adding = true } label: { Image(systemName: "plus.circle.fill") }
+                        .accessibilityLabel("Ajouter des avoirs")
                 }
             }
             .sheet(item: $editing) { target in
-                HoldingEditSheet(initial: target.holding, existing: model.holdings) { holding, merge in
-                    Task { await model.save(holding, merge: merge, services: services) }
+                HoldingEditSheet(initial: target.holding) { holding in
+                    Task { await model.save(holding, merge: false, services: services) }
+                }
+            }
+            .sheet(isPresented: $adding) {
+                AddHoldingsSheet(existing: model.holdings) { items in
+                    Task { await model.saveMany(items, services: services) }
                 }
             }
             .fileImporter(isPresented: $importing, allowedContentTypes: [.json]) { result in
@@ -71,9 +87,9 @@ struct HoldingsView: View {
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Renseignez ce que vous possédez déjà").font(.headline)
-            Text("Ajoutez chaque actif avec sa quantité et votre prix d'achat moyen. Altim calcule votre patrimoine, vos gains, vos risques et vous dit, ligne par ligne, quoi faire. Tout est enregistré sur cet iPhone (base SQLite).")
+            Text("Ajoutez en une fois toutes vos cryptos et toutes vos actions, avec leur quantité et votre prix d'achat moyen. Altim calcule votre patrimoine, vos gains, vos risques et vous dit, ligne par ligne, quoi faire. Tout est enregistré sur cet iPhone (base SQLite).")
                 .font(.subheadline).foregroundStyle(Theme.textSecondary)
-            Button("AJOUTER MON PREMIER ACTIF") { editing = EditTarget(holding: nil) }
+            Button("AJOUTER MES CRYPTOS ET ACTIONS") { adding = true }
                 .buttonStyle(NeonButtonStyle())
         }
         .glassCard()
@@ -176,7 +192,9 @@ struct HoldingsView: View {
                 }
             }
             HStack(spacing: 20) {
-                Button("Modifier") { editing = EditTarget(holding: model.holdings.first { $0.id == l.id }) }
+                Button("Modifier") {
+                    if let h = model.holdings.first(where: { $0.id == l.id }) { editing = EditTarget(holding: h) }
+                }
                 Button("Supprimer", role: .destructive) { Task { await model.delete(l.id, services: services) } }
             }
             .font(.subheadline)
@@ -313,68 +331,30 @@ struct AllocationBar: View {
 }
 
 /// Add / edit a holding.
+/// Editing one existing line (new lines are added with AddHoldingsSheet).
 struct HoldingEditSheet: View {
-    let initial: Holding?
-    let existing: [Holding]
-    let onSave: (Holding, Bool) -> Void
+    let initial: Holding
+    let onSave: (Holding) -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var asset: Asset?
-    @State private var query = ""
-    @State private var results: [Asset] = []
     @State private var quantity = ""
     @State private var averagePrice = ""
-    @State private var merge = true
 
     var body: some View {
         NavigationStack {
             Form {
-                if let asset {
-                    Section("Actif") {
-                        LabeledContent(asset.name, value: asset.base)
-                        if initial == nil { Button("Changer d'actif") { self.asset = nil } }
-                    }
-                    Section {
-                        TextField("Quantité détenue", text: $quantity).keyboardType(.decimalPad)
-                        TextField("Prix d'achat moyen (USD)", text: $averagePrice).keyboardType(.decimalPad)
-                        if isDuplicate {
-                            Toggle("Ajouter à la ligne existante (PRU recalculé)", isOn: $merge)
-                        }
-                    } footer: {
-                        if let q = number(quantity), let p = number(averagePrice), q > 0 {
-                            Text("Montant investi : \((q * p).formatted(.number.precision(.fractionLength(2)))) $")
-                        }
-                    }
-                } else {
-                    Section("Crypto") {
-                        TextField("Symbole (BTC, ETH, SOL…)", text: $query)
-                            .textInputAutocapitalization(.characters)
-                            .autocorrectionDisabled()
-                        if !query.isEmpty {
-                            let base = query.uppercased().filter { $0.isLetter || $0.isNumber }
-                            Button("Crypto \(base)") {
-                                asset = Asset(symbol: base + "USDT", name: base, assetClass: .crypto, quote: "USDT")
-                            }
-                            .disabled(base.count < 2)
-                        }
-                    }
-                    Section("Actions / ETF") {
-                        ForEach(results) { r in
-                            Button { asset = r } label: {
-                                VStack(alignment: .leading) {
-                                    Text(r.name)
-                                    Text(r.symbol).font(.caption).foregroundStyle(.secondary)
-                                }
-                            }
-                        }
+                Section("Actif") {
+                    LabeledContent(initial.name, value: initial.symbol)
+                }
+                Section {
+                    TextField("Quantité détenue", text: $quantity).keyboardType(.decimalPad)
+                    TextField("Prix d'achat moyen (USD)", text: $averagePrice).keyboardType(.decimalPad)
+                } footer: {
+                    if let q = number(quantity), let p = number(averagePrice), q > 0 {
+                        Text("Montant investi : \((q * p).formatted(.number.precision(.fractionLength(2)))) $")
                     }
                 }
             }
-            .task(id: query) {
-                guard query.count >= 2, asset == nil else { results = []; return }
-                try? await Task.sleep(for: .milliseconds(350))
-                results = (try? await YahooMarketData().search(query)) ?? []
-            }
-            .navigationTitle(initial == nil ? "Ajouter un avoir" : "Modifier")
+            .navigationTitle("Modifier")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Annuler") { dismiss() } }
@@ -383,23 +363,14 @@ struct HoldingEditSheet: View {
                 }
             }
             .onAppear {
-                if let h = initial {
-                    asset = Asset(symbol: h.kind == .crypto ? "\(h.symbol)USDT" : h.symbol, name: h.name, assetClass: h.kind,
-                                  quote: h.kind == .crypto ? "USDT" : "USD")
-                    quantity = String(h.quantity)
-                    averagePrice = String(h.averagePrice)
-                }
+                quantity = String(initial.quantity)
+                averagePrice = String(initial.averagePrice)
             }
         }
     }
 
-    private var isDuplicate: Bool {
-        guard initial == nil, let asset else { return false }
-        return existing.contains { $0.kind == asset.assetClass && $0.symbol == asset.base }
-    }
-
     private var isValid: Bool {
-        guard asset != nil, let q = number(quantity), let p = number(averagePrice) else { return false }
+        guard let q = number(quantity), let p = number(averagePrice) else { return false }
         return q > 0 && p >= 0
     }
 
@@ -408,10 +379,11 @@ struct HoldingEditSheet: View {
     }
 
     private func save() {
-        guard let asset, let q = number(quantity), let p = number(averagePrice) else { return }
-        let holding = Holding(id: initial?.id ?? UUID().uuidString, symbol: asset.base, kind: asset.assetClass,
-                              name: asset.name, quantity: q, averagePrice: p)
-        onSave(holding, isDuplicate && merge)
+        guard let q = number(quantity), let p = number(averagePrice) else { return }
+        var h = initial
+        h.quantity = q
+        h.averagePrice = p
+        onSave(h)
         dismiss()
     }
 }
