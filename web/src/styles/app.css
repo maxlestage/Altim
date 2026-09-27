@@ -323,3 +323,34 @@
 @media (prefers-reduced-motion: reduce) {
   .live-badge.live i, .live-price.flash-up, .live-price.flash-down { animation: none; }
 }
+
+/* ---------- Buy zones (Fibonacci) and macro context ---------- */
+.notice.danger { background: rgba(255, 59, 92, 0.08); border-color: rgba(255, 59, 92, 0.4); }
+.notice ul { margin: 6px 0; padding-left: 18px; }
+.badge.unknown { color: var(--muted); }
+.zones { display: grid; gap: 10px; }
+.zone-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.zone-row { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; min-width: 0; }
+.zone-row.mine { border-color: rgba(0, 240, 255, 0.45); box-shadow: 0 0 14px rgba(0, 240, 255, 0.12); }
+.zone-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 12px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.zone-head > span:first-child { min-width: 0; }
+.zone-head .badge { flex: none; white-space: nowrap; }
+.fib-detail { display: grid; gap: 10px; padding: 0 12px 12px; min-width: 0; }
+.fib-detail p { margin: 0; }
+.fib-ladder { display: grid; gap: 4px; }
+.fib-track { position: relative; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, 0.06); }
+.fib-track i { position: absolute; top: 0; bottom: 0; }
+.fib-zone { background: rgba(57, 255, 136, 0.22); border-radius: 4px; }
+.fib-golden { background: rgba(255, 199, 51, 0.55); border-radius: 4px; }
+.fib-price { width: 3px; margin-left: -1px; top: -4px !important; bottom: -4px !important; background: #fff; border-radius: 2px; box-shadow: 0 0 8px rgba(0, 240, 255, 0.9); }
+.fib-ends { display: flex; justify-content: space-between; color: var(--muted); }
+.fib-levels { display: grid; gap: 6px; margin: 0; }
+.fib-levels div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fib-levels dt { color: var(--muted); font-size: 13px; }
+.fib-levels dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.macro { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.macro p { margin: 0; }
+.macro-tense .kv b { color: #ffc733; }
+.macro-high .kv b { color: #ff3b5c; }
+.macro details ul { padding-left: 18px; margin: 6px 0 0; }
+.macro summary { cursor: pointer; color: var(--muted); }

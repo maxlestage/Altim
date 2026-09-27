@@ -5,7 +5,8 @@
  */
 import type { Candle } from "../src/engine/signal";
 import type { Kind } from "../src/engine/reliability";
-import { guard, newsTone, type GuardResult, type NewsItem, type Positioning, type SentimentInput } from "../src/engine/guard";
+import { guard, newsTone, type Evidence, type GuardResult, type NewsItem, type Positioning, type SentimentInput } from "../src/engine/guard";
+import type { MacroReport } from "../src/engine/macro";
 import { cached } from "./cache";
 
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Safari/605.1.15 Altim/1.0" };
@@ -112,6 +113,8 @@ export interface GuardReport extends GuardResult {
     headlines: { title: string; time: number; source?: string }[];
     vix: number | null;
   };
+  /** Macro / geopolitical context and what its stress announced on this asset. */
+  macro: (MacroReport & { evidence: Evidence | null }) | null;
 }
 
 /** Full guard for one asset; candles come from the multi-source consensus (injected, already cached). */
@@ -121,8 +124,9 @@ export async function guardReport(
   name: string,
   candles: (interval: "1h" | "4h" | "1d") => Promise<Candle[]>,
   now = Date.now(),
+  macroContext: () => Promise<{ report: MacroReport; evidence: Evidence | null } | null> = async () => null,
 ): Promise<GuardReport> {
-  const [daily, h4, h1, pos, sent, items, v] = await Promise.all([
+  const [daily, h4, h1, pos, sent, items, v, mac] = await Promise.all([
     candles("1d"),
     candles("4h"),
     candles("1h").catch(() => [] as Candle[]),
@@ -130,8 +134,9 @@ export async function guardReport(
     sentimentInput(symbol, kind),
     news(symbol, kind, name),
     kind === "stock" ? vix() : Promise.resolve([] as number[]),
+    macroContext().catch(() => null),
   ]);
-  const result = guard({ kind, daily, h4, h1, positioning: pos, sentiment: sent, news: items, vix: v, now });
+  const result = guard({ kind, daily, h4, h1, positioning: pos, sentiment: sent, news: items, vix: v, macro: mac, now });
   const day = items.filter((n) => n.time >= now - 86_400_000 && n.time <= now);
   const last = <T>(a: T[] | undefined) => (a?.length ? a[a.length - 1]! : null);
   return {
@@ -152,5 +157,6 @@ export async function guardReport(
       headlines: [...day].sort((a, b) => b.time - a.time).slice(0, 5),
       vix: last(v),
     },
+    macro: mac ? { ...mac.report, evidence: mac.evidence } : null,
   };
 }

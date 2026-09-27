@@ -438,6 +438,25 @@ export const STOCK_SOURCES: Source[] = [
   },
 ];
 
+/**
+ * Long daily history (≈ 3 years) for the long-term horizon, turned into weekly candles by the Fibonacci engine.
+ * Only sources that serve 700–1 000 days (crypto) or 5 years (stocks); the first long enough one is the reference.
+ */
+export const LONG_SOURCES: Source[] = [
+  { name: "Bitstamp", fetch: async (b) => parse.bitstamp(await getJSON(`https://www.bitstamp.net/api/v2/ohlc/${b.toLowerCase()}usd/?step=86400&limit=1000`)) },
+  { name: "Binance", fetch: async (b) => parse.binance(await getJSON(`https://api.binance.com/api/v3/klines?symbol=${b}USDT&interval=1d&limit=1000`)) },
+  { name: "Gate.io", fetch: async (b) => parse.gate(await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${b}_USDT&interval=1d&limit=1000`)) },
+  { name: "MEXC", fetch: async (b) => parse.binance(await getJSON(`https://api.mexc.com/api/v3/klines?symbol=${b}USDT&interval=1d&limit=1000`)) },
+  { name: "Kraken", fetch: async (b) => parse.kraken(await getJSON(`https://api.kraken.com/0/public/OHLC?pair=${b === "BTC" ? "XBT" : b}USD&interval=1440`)) },
+];
+
+export async function longDaily(symbol: string, kind: Kind): Promise<Consensus> {
+  if (kind === "crypto") return consensus(symbol, "1d", LONG_SOURCES);
+  const order = ["Robinhood", "StockAnalysis", "Nasdaq", "Webull", "Cboe"];
+  const sources = order.map((n) => STOCK_SOURCES.find((s) => s.name === n)!).filter(Boolean);
+  return consensus(symbol, "1d", sources, Infinity, 1, (candles, i) => stockClosed(candles, i));
+}
+
 /** Stock candle closed: the daily session lasts 6h30, not 24h. */
 const stockClosed = (candles: Candle[], interval: Interval, now = Date.now()) => {
   const duration = interval === "1d" ? 6.5 * 3_600_000 : STEP[interval];

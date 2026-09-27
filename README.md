@@ -37,6 +37,8 @@ Le moteur (signal, confirmation par l'unité supérieure, avertissements, garde-
 | `GET /api/tickers?symbols=…` | Cours par consensus (8 sources crypto, 3 actions) |
 | `GET /api/search?q=…` · `GET /api/sentiment?symbol=…` | Recherche d'actifs · Fear & Greed et StockTwits |
 | `GET /api/live?symbols=BTC:crypto,AAPL:stock` | **Prix en direct** (Server-Sent Events) : dernier prix tout de suite, puis chaque changement |
+| `GET /api/zones?symbol=BTC&kind=crypto` | **Zones d'achat** court / moyen / long terme (Fibonacci), vérifiées sur l'historique, avec le contexte macro |
+| `GET /api/macro` | **Contexte macro et géopolitique** : VIX, S&P 500, pétrole, or, dollar, taux, actualités d'escalade |
 
 Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire avec déduplication des requêtes et dernières données valides en cas de panne d'une source.
 
@@ -107,6 +109,53 @@ Les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avo
 - **Web** : Server-Sent Events non compressés, avec un battement toutes les 15 s pour traverser le routeur Heroku. Le flux se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
 
 Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et les tests les rejouent.
+
+## Zones d'achat par horizon (Fibonacci) et contexte macro
+
+On n'achète pas au même endroit selon qu'on investit pour quelques jours ou pour des années. Chaque fiche d'actif montre trois horizons ; celui choisi dans **Réglages → Mon horizon d'investissement** est mis en avant et repris dans le conseil.
+
+| Horizon | Bougies | Mouvement analysé | Détention |
+|---|---|---|---|
+| Court terme | 4 h | ≈ 2 dernières semaines | quelques jours à 2 semaines |
+| Moyen terme | 1 j | ≈ 4 derniers mois | quelques semaines à quelques mois |
+| Long terme | 1 semaine (≈ 3 ans d'historique) | ≈ 2 dernières années | plusieurs mois à plusieurs années |
+
+- **Retracements de Fibonacci** du dernier mouvement haussier (du plus bas au plus haut) :
+  - zone d'achat : 38,2 % – 61,8 % ;
+  - « zone d'or » : 61,8 % – 65 % ;
+  - invalidation : sous le plus bas ;
+  - objectifs : le plus haut, puis les extensions 127,2 % et 161,8 %.
+- **Rebond** : après une baisse, si le prix est remonté d'au moins 38,2 %, le rebond devient le mouvement en cours.
+- **Mouvement baissier** : pas de zone d'achat.
+- Le statut suit le **prix en direct** : attendre le repli (à −x %), dans la zone, zone d'or, repli profond ou zone invalidée.
+- **Vérifié sur chaque actif** : à chaque entrée passée dans la zone (sans regarder le futur), Altim regarde si le prix est revenu au plus haut avant de casser le plus bas, et compare avec une entrée au hasard aux mêmes distances.
+
+  Mesuré en septembre 2026 sur 12 actifs (BTC, ETH, SOL, XRP, BNB, DOGE, AAPL, NVDA, MSFT, SPY, QQQ, TSLA) :
+
+  | Horizon | Cas | Zone | Hasard | Verdict |
+  |---|---|---|---|---|
+  | Court terme | 95 | 44 % | 39 % | un peu mieux, surtout sur les indices (SPY 62 % contre 33 %) |
+  | Moyen terme | 128 | 29 % | 39 % | **moins bien que le hasard** |
+  | Long terme | 33 | 55 % | 45 % | trop peu de cas pour conclure |
+
+  Fibonacci est une convention suivie par beaucoup de traders, pas une loi : la fiche le dit, actif par actif.
+
+**Contexte macro et géopolitique** (`/api/macro`, commun à tous les actifs) : une zone d'achat ne protège pas d'une guerre ou d'une crise. Personne ne peut prévoir ces événements, mais leur effet sur les marchés se mesure dès qu'il commence :
+
+- **Marchés** (Yahoo, 5 ans de données) :
+  - VIX au-delà de 25 / 30, ou bond inhabituel ;
+  - S&P 500 en recul de 4 % / 7 % sur son plus haut du mois ;
+  - mouvement inhabituel sur 5 séances, comparé à l'année écoulée : pétrole (choc d'offre, guerres), or (refuge), dollar (fuite vers la sécurité), taux à 10 ans (banques centrales).
+- **Actualités** (Google News) : sujets du jour et événements d'escalade des 12 dernières heures (déclaration de guerre, invasion, menace nucléaire, blocage d'un détroit, panique bancaire…). Les titres en forme de question sont ignorés.
+- **Vérifié sur chaque actif** : les jours de stress (score ≥ 25) sont-ils suivis d'une forte baisse dans les 5 jours plus souvent que d'habitude ?
+  - SPY : 49 % contre 24 % ; QQQ : 43 % contre 23 % ; NVDA : 34 % contre 20 % ; AAPL : 33 % contre 21 %.
+  - Aucun effet sur BTC, ETH ni SOL (16 % contre 16 %).
+  - Le facteur « macro » du garde-fou compte donc pleinement sur les actions et n'est pas compté sur ces cryptos.
+- **Effet sur les zones** :
+  - court terme : éviter d'entrer ;
+  - moyen terme : entrer en plusieurs fois ;
+  - long terme : achats échelonnés.
+  - Un bandeau apparaît sur le radar quand le contexte est tendu.
 
 ## Garde-fou marché (et API pour vos bots)
 
