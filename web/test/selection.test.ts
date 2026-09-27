@@ -74,3 +74,19 @@ test("univers : plus grandes sociétés, une seule classe d'actions par sociét�
   expect(l.map((x) => x.symbol)).toEqual(["AAPL", "GOOGL", "BRK-B"]);
   expect(l[0]!.name).toBe("Apple Inc.");
 });
+
+test("cryptos : classées par le signal technique, durées de détention propres, comparaison au Bitcoin", async () => {
+  const { RANK_BY, ROLES, HOLDS } = await import("../src/engine/screener");
+  expect(RANK_BY).toEqual({ stock: "momentum", crypto: "signal" });
+  expect(ROLES.crypto.signal).toBe("classe les cryptos");
+  expect(HOLDS.crypto).toEqual({ short: 10, medium: 30, long: 90 });
+  const list = [trendSeries(600, 0.004, 100, 1), trendSeries(600, -0.004, 100, 2)].map((c) => factorsAt(c, 599, "medium"));
+  const sc = scoreUniverse(list, "medium", "crypto");
+  expect(sc[0]!.total).toBe(list[0]!.signal);
+  expect(sc[1]!.total).toBe(list[1]!.signal);
+  expect(sc[0]!.total).toBeGreaterThan(sc[1]!.total);
+  const series = alignSeries(Array.from({ length: 12 }, (_, k) => trendSeries(700, -0.002 + k * 0.0006, 100, k + 1)));
+  const v = validate(series, "medium", 3, 15, undefined, "crypto", 0)!;
+  expect(v.hold).toBe(30);
+  expect(v.benchmark).not.toBeNull();
+});

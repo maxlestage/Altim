@@ -108,18 +108,18 @@ async function guardFor(symbol: string, kind: Kind) {
     }));
 }
 
-/** Stock selection of a horizon (screener.ts), finalists checked with the consensus and the guard. Cached 30 min. */
-const selection = (h: ScreenHorizon) =>
-  cached(`selection:${h}`, 30 * 60_000, () =>
+/** Selection of a market and horizon (screener.ts), finalists checked with the consensus and the guard. Cached 30 min. */
+const selection = (h: ScreenHorizon, market: Kind = "stock") =>
+  cached(`selection:${market}:${h}`, 30 * 60_000, () =>
     screen(h, async (symbol) => {
-      const [d, g] = await Promise.all([snap(symbol, "stock", "1d"), guardFor(symbol, "stock").catch(() => null)]);
+      const [d, g] = await Promise.all([snap(symbol, market, "1d"), guardFor(symbol, market).catch(() => null)]);
       return {
         reliability: d.reliability.level,
         shock: g?.shock.level ?? "calm",
         reversalDown: !!g && g.reversal.direction === "down" && g.reversal.score >= 50,
         daily: d.candles,
       };
-    }));
+    }, 150, 10, market));
 
 /** Buy zones by horizon (Fibonacci) with the macro context. */
 async function zones(symbol: string, kind: Kind) {
@@ -216,7 +216,8 @@ async function sentiment(symbol: string, kind: Kind) {
 
 /** Production: the three selections are computed at start-up and every 25 minutes, so nobody waits. */
 export function warmSelections() {
-  const run = () => (["medium", "long", "short"] as ScreenHorizon[]).reduce((p, h) => p.then(() => selection(h).then(() => {}, () => {})), Promise.resolve());
+  const jobs = (["stock", "crypto"] as Kind[]).flatMap((m) => (["medium", "long", "short"] as ScreenHorizon[]).map((h) => () => selection(h, m)));
+  const run = () => jobs.reduce((p, job) => p.then(() => job().then(() => {}, () => {})), Promise.resolve());
   setTimeout(run, 5_000);
   setInterval(run, 25 * 60_000).unref?.();
 }
@@ -375,14 +376,15 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     res.json(z);
   }));
 
-  // Which stocks to buy: ranking by relative strength over the largest US companies, checked finalists.
+  // Which stocks or cryptos to buy: ranked (relative strength for stocks, technical signal for cryptos), checked finalists.
   api.get("/selection", wrap(async (req, res) => {
     const h = String(req.query.horizon ?? "medium");
     if (!["short", "medium", "long"].includes(h)) throw new BadRequest("horizon invalide (short | medium | long)");
+    const market = parseKind(req.query.kind ?? "stock");
     res.setHeader("Access-Control-Allow-Origin", "*");
     // The first computation scans 150 stocks (≈ 30 s): the Heroku router cuts at 30 s, so after 20 s the client is
     // told to come back; the computation keeps going and lands in the cache.
-    const result = await Promise.race([selection(h as ScreenHorizon), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
+    const result = await Promise.race([selection(h as ScreenHorizon, market), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
     if (!result) return res.status(202).json({ pending: true });
     res.setHeader("Cache-Control", "private, max-age=300");
     res.json(result);

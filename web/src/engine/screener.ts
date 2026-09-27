@@ -25,14 +25,23 @@ export const CRITERIA: Record<Criterion, string> = {
   risk: "Risque",
 };
 
+export type Market = "stock" | "crypto";
+
+/**
+ * What ranks, per market (measured, see README):
+ * - stocks : relative strength (6 months, last month excluded);
+ * - cryptos: Altim's technical signal, the only criterion ahead of the average over 10 days, 1 and 3 months, in both
+ *   halves of 2024–2026 (relative strength was irregular there, and the most traded coins did worse).
+ */
+export const RANK_BY: Record<Market, Criterion> = { stock: "momentum", crypto: "signal" };
+
 /** What each criterion is used for (shown next to its score). */
-export const ROLE: Record<Criterion, string> = {
-  momentum: "classe les actions",
-  zone: "fixe le prix d'entrée",
-  trend: "alerte si baissière",
-  signal: "information",
-  risk: "règle le stop et le montant",
+export const ROLES: Record<Market, Record<Criterion, string>> = {
+  stock: { momentum: "classe les actions", zone: "fixe le prix d'entrée", trend: "alerte si baissière", signal: "information", risk: "règle le stop et le montant" },
+  crypto: { signal: "classe les cryptos", zone: "fixe le prix d'entrée", trend: "alerte si baissière", momentum: "information", risk: "règle le stop et le montant" },
 };
+/** Stock roles (kept for existing callers). */
+export const ROLE = ROLES.stock;
 
 /** 6-month momentum, last month excluded (the most regular variant measured, see README). */
 const MOMENTUM = { length: 126, skip: 21 };
@@ -43,6 +52,8 @@ export const SECTOR_CAP = 3;
 
 /** Forward window used to judge a selection on the past (sessions). */
 export const HOLD: Record<ScreenHorizon, number> = { short: 10, medium: 63, long: 126 };
+/** Cryptos trade every day and move faster: 10 days, 1 month, 3 months. */
+export const HOLDS: Record<Market, Record<ScreenHorizon, number>> = { stock: HOLD, crypto: { short: 10, medium: 30, long: 90 } };
 
 export interface RawFactors {
   signal: number;
@@ -117,15 +128,15 @@ export interface Scored {
 
 /** Scores of a whole universe at the same date: momentum and risk are ranked against each other; the ranking
  * score (`total`) is the momentum rank. */
-export function scoreUniverse(list: (RawFactors | null)[], _h: ScreenHorizon): (Scored | null)[] {
+export function scoreUniverse(list: (RawFactors | null)[], _h: ScreenHorizon, market: Market = "stock"): (Scored | null)[] {
   const mom = ranks(list.map((f) => f?.momentum ?? null), true);
   const vol = ranks(list.map((f) => f?.volatility ?? null), false);
   const dd = ranks(list.map((f) => f?.drawdown ?? null), false);
   return list.map((f, i) => {
-    if (!f || mom[i] == null) return null;
+    if (!f || (market === "stock" && mom[i] == null)) return null;
     const risk = vol[i] != null && dd[i] != null ? (vol[i]! + dd[i]!) / 2 : 50;
-    const scores = { signal: f.signal, trend: f.trend, momentum: mom[i]!, zone: f.zone, risk };
-    return { scores, total: mom[i]! };
+    const scores = { signal: f.signal, trend: f.trend, momentum: mom[i] ?? 50, zone: f.zone, risk };
+    return { scores, total: scores[RANK_BY[market]] };
   });
 }
 
@@ -180,6 +191,8 @@ export interface Validation {
   beatRate: number;
   topN: number;
   hold: number;
+  /** Return of the reference (Bitcoin for cryptos) over the same periods. */
+  benchmark?: number | null;
   from: number | null;
   to: number | null;
 }
@@ -189,14 +202,14 @@ export interface Validation {
  * take the top N, and compare their return over the next `HOLD[h]` sessions with the universe average.
  * Series must be aligned on the same dates (see alignSeries).
  */
-export function validate(series: Candle[][], h: ScreenHorizon, topN = 10, every = 21, sectors?: string[]): Validation | null {
+export function validate(series: Candle[][], h: ScreenHorizon, topN = 10, every = 21, sectors?: string[], market: Market = "stock", benchmark?: number): Validation | null {
   const n = Math.min(...series.map((s) => s.length));
-  const hold = HOLD[h];
-  const tops: number[] = [], alls: number[] = [];
+  const hold = HOLDS[market][h];
+  const tops: number[] = [], alls: number[] = [], bench: number[] = [];
   let beat = 0, from: number | null = null, to: number | null = null;
   for (let i = 280; i + hold < n; i += every) {
     const f = series.map((s) => factorsAt(s, s.length - n + i, h));
-    const sc = scoreUniverse(f, h);
+    const sc = scoreUniverse(f, h, market);
     const fwd = series.map((s) => {
       const j = s.length - n + i;
       return s[j + hold]!.close / s[j]!.close - 1;
@@ -207,13 +220,14 @@ export function validate(series: Candle[][], h: ScreenHorizon, topN = 10, every 
     const all = fwd.reduce((a, b) => a + b, 0) / fwd.length;
     tops.push(top);
     alls.push(all);
+    if (benchmark != null) bench.push(fwd[benchmark]!);
     if (top > all) beat++;
     from ??= series[0]![series[0]!.length - n + i]!.time;
     to = series[0]![series[0]!.length - n + i]!.time;
   }
   if (!tops.length) return null;
   const avg = (v: number[]) => (v.reduce((a, b) => a + b, 0) / v.length) * 100;
-  return { horizon: h, periods: tops.length, top: avg(tops), universe: avg(alls), beatRate: (beat / tops.length) * 100, topN, hold, from, to };
+  return { horizon: h, periods: tops.length, top: avg(tops), universe: avg(alls), beatRate: (beat / tops.length) * 100, topN, hold, from, to, benchmark: bench.length ? avg(bench) : null };
 }
 
 /** Keeps the dates present in every series (same sessions for everyone). */

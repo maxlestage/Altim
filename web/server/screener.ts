@@ -6,9 +6,10 @@
  */
 import type { Candle } from "../src/engine/signal";
 import { backtest, trackRecord } from "../src/engine/backtest";
-import { alignSeries, explain, factorsAt, pick, scoreUniverse, validate, CRITERIA, HOLD, ROLE, STOP_ATR, type Criterion, type RawFactors, type ScreenHorizon, type Validation } from "../src/engine/screener";
+import { alignSeries, explain, factorsAt, pick, scoreUniverse, validate, CRITERIA, HOLDS, ROLES, STOP_ATR, type Criterion, type Market, type RawFactors, type ScreenHorizon, type Validation } from "../src/engine/screener";
 import { cached } from "./cache";
-import { parseStock } from "./market";
+import { parse, parseStock } from "./market";
+import { cryptoUniverse } from "./universe";
 import { parseExtra } from "./stocks-extra";
 
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15", Accept: "application/json" };
@@ -60,6 +61,38 @@ export function dailyFor(symbol: string): Promise<Candle[]> {
   });
 }
 
+// ---------- Cryptos ----------
+
+/** Pegged or wrapped tokens: they follow a currency, gold or another coin, there is nothing to choose there. */
+const STABLE = new Set("USDT USDC DAI FDUSD TUSD USDE USDS PYUSD USDD BUSD FRAX USD1 RLUSD EURC USDP GUSD LUSD SUSD USDX USDG USD0 BFUSD USDTB EUROC AEUR XUSD USDQ USDF".split(" "));
+const WRAPPED = /^(W(BTC|ETH|BNB|SOL|STETH|EETH|TRX|AVAX)|STETH|WSTETH|WEETH|CBBTC|CBETH|RETH|METH|EZETH|RSETH|SOLVBTC|LBTC|BTCB|TBTC|PAXG|XAUT|JITOSOL|MSOL|BNSOL|SUSDE|SAVAX|STSOL|OSETH|SWETH|ETHX|CMETH|LSETH|FBTC|UNIBTC|PUMPBTC|ENZOBTC|CLBTC|BBTC)$/;
+
+export const cryptoListed = () =>
+  cached("screener:crypto:listed", 6 * 3_600_000, async () =>
+    (await cryptoUniverse())
+      .filter((e) => e[2] > 0 && !STABLE.has(e[0]) && !WRAPPED.test(e[0]))
+      .sort((a, b) => a[2] - b[2])
+      .map((e): Listed => ({ symbol: e[0], name: e[1], sector: "Crypto", marketCap: 0 })));
+
+/** Daily crypto candles (≈ 1 000 days): Gate, then MEXC, then Kraken. */
+export function cryptoDailyFor(base: string): Promise<Candle[]> {
+  return cached(`screener:cdaily:${base}`, 3 * 3_600_000, async () => {
+    const sources = [
+      async () => parse.gate(await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${base}_USDT&interval=1d&limit=1000`)),
+      async () => parse.binance(await getJSON(`https://api.mexc.com/api/v3/klines?symbol=${base}USDT&interval=1d&limit=1000`)),
+      async () => parse.kraken(await getJSON(`https://api.kraken.com/0/public/OHLC?pair=${base === "BTC" ? "XBT" : base}USD&interval=1440`)),
+    ];
+    for (const src of sources) {
+      try {
+        // The current day is still forming: only closed days.
+        const c = (await src()).filter((x) => x.close > 0 && x.time + 86_400_000 <= Date.now()).sort((a, b) => a.time - b.time);
+        if (c.length > 300) return c;
+      } catch {}
+    }
+    throw new Error("historique indisponible");
+  });
+}
+
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
@@ -90,6 +123,7 @@ export interface Candidate {
 }
 
 export interface ScreenResult {
+  market: Market;
   horizon: ScreenHorizon;
   asOf: number;
   scanned: number;
@@ -105,14 +139,15 @@ export interface ScreenResult {
 type Verify = (symbol: string) => Promise<{ reliability: "high" | "medium" | "low"; shock: string; reversalDown: boolean; daily: Candle[] }>;
 
 /** Stage 1 on the whole universe (ranking), stage 2 on the best candidates (checks), then the final lists. */
-export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN = 10): Promise<ScreenResult> {
-  const universe = (await listed()).slice(0, size);
-  const candles = await mapLimit(universe, 10, (s) => dailyFor(s.symbol).catch(() => [] as Candle[]));
+export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN = 10, market: Market = "stock"): Promise<ScreenResult> {
+  const crypto = market === "crypto";
+  const universe = (await (crypto ? cryptoListed() : listed())).slice(0, crypto ? 120 : size);
+  const candles = await mapLimit(universe, 10, (s) => (crypto ? cryptoDailyFor(s.symbol) : dailyFor(s.symbol)).catch(() => [] as Candle[]));
   const factors: (RawFactors | null)[] = candles.map((c) => (c.length > 300 ? factorsAt(c, c.length - 1, h) : null));
-  const scored = scoreUniverse(factors, h);
+  const scored = scoreUniverse(factors, h, market);
   const rows = universe.map((s, i) => ({ s, f: factors[i], sc: scored[i], c: candles[i]! })).filter((x) => x.f && x.sc);
   // A few more than needed: some will fail the checks.
-  const finalists = pick(rows, (x) => x.sc!.total, (x) => x.s.sector, topN + 6);
+  const finalists = pick(rows, (x) => x.sc!.total, (x) => (crypto ? undefined : x.s.sector), topN + 6);
 
   const checked = await mapLimit(finalists, 4, async ({ s, f, sc, c }) => {
     let v: Awaited<ReturnType<Verify>> | null = null;
@@ -133,7 +168,7 @@ export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN 
     const stop = atrAbs ? base - STOP_ATR[h] * atrAbs : null;
     return {
       s, v, cand: {
-        rank: 0, symbol: s.symbol, name: s.name, sector: SECTOR_FR[s.sector] ?? s.sector, marketCap: s.marketCap, price: f!.price,
+        rank: 0, symbol: s.symbol, name: s.name, sector: crypto ? "Crypto" : SECTOR_FR[s.sector] ?? s.sector, marketCap: s.marketCap, price: f!.price,
         scores: sc!.scores, why: explain(f!, sc!, h), action: f!.action, zoneStatus: f!.zoneStatus,
         plan: stop && f!.atrPct != null ? { entry, limit: zoneTop, stop, target: base + 2 * (base - stop), atrPct: f!.atrPct } : null,
         track: bt.trades ? bt : null, checks,
@@ -148,10 +183,11 @@ export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN 
     else if (!guard.ok || !trend.ok) watch.push({ ...cand, reason: !guard.ok ? `${guard.label} : ${guard.detail}` : `${trend.label} ${trend.detail}` });
     else if (buy.length < topN) buy.push({ ...cand, rank: buy.length + 1 });
   }
-  const validation = await cached(`screener:validation:${h}:${size}:${topN}`, 12 * 3_600_000, async () => {
-    // Stocks with ≈ 6 years of history: the replay then covers 2020 onwards, not only the last months.
-    const usable = universe.map((s, i) => ({ s, c: candles[i]! })).filter((x) => x.c.length > 1500);
-    return validate(alignSeries(usable.map((x) => x.c)), h, topN, 21, usable.map((x) => x.s.sector));
+  const validation = await cached(`screener:validation:${market}:${h}:${size}:${topN}`, 12 * 3_600_000, async () => {
+    // Stocks with ≈ 6 years of history (replay from 2020); cryptos with ≈ 2.5 years (the exchanges keep 1 000 days).
+    const usable = universe.map((s, i) => ({ s, c: candles[i]! })).filter((x) => x.c.length > (crypto ? 900 : 1500));
+    const btc = crypto ? usable.findIndex((x) => x.s.symbol === "BTC") : -1;
+    return validate(alignSeries(usable.map((x) => x.c)), h, topN, crypto ? 15 : 21, crypto ? undefined : usable.map((x) => x.s.sector), market, btc >= 0 ? btc : undefined);
   }).catch(() => null);
-  return { horizon: h, asOf: Date.now(), scanned: rows.length, criteria: CRITERIA, roles: ROLE, holdDays: HOLD[h], buy, watch, setAside, validation };
+  return { market, horizon: h, asOf: Date.now(), scanned: rows.length, criteria: CRITERIA, roles: ROLES[market], holdDays: HOLDS[market][h], buy, watch, setAside, validation };
 }

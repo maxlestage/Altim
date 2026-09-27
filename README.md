@@ -148,7 +148,36 @@ La première version pondérait les cinq critères. Rejouée sur le passé, elle
 - **Montant** : le budget saisi est réparti pour que chaque ligne risque la même somme au stop (une action volatile reçoit moins), plafonné par ligne (Réglages). Le nombre d'actions et la perte maximale sont affichés.
 - **Historique des signaux d'Altim** sur ce titre, et **prix en direct**.
 
-API : `GET /api/selection?horizon=short|medium|long`. La sélection est calculée au démarrage puis toutes les 25 minutes ; le premier calcul prend environ 30 s.
+### Et pour les cryptos ?
+
+Même page, onglet **Cryptos**. L'univers : les **120 plus grandes cryptos** (classement CoinGecko), sans stablecoins ni jetons adossés (WBTC, stETH, jetons d'or…), soit environ 110 avec un historique. Les données journalières viennent de Gate, MEXC ou Kraken (≈ 1 000 jours).
+
+Sur les cryptos, les mêmes critères ne donnent **pas** les mêmes résultats. Mesure sur 80 cryptos, d'avril 2024 à septembre 2026 :
+
+| Critère | 10 jours | 1 mois | 3 mois | Verdict |
+|---|---|---|---|---|
+| **Signal technique d'Altim** | +1,2 % vs −0,3 % | +2,3 % vs −1,9 % | +2,0 % vs −6,4 % | **classe les cryptos** : positif dans les deux moitiés de la période |
+| Faible volatilité | ≈ moyenne | +0,6 % vs −1,9 % | +2,3 % vs −6,4 % | règle le stop et le montant |
+| Force relative | irrégulière selon la fenêtre | irrégulière | irrégulière | information |
+| Les plus échangées (volume) | moins bien | moins bien | −9,7 % vs −6,4 % | écartée |
+| Zone d'achat (acheter les replis) | moins bien | moins bien | moins bien | prix d'entrée seulement |
+
+Rejeu de la sélection publiée (10 cryptos classées par le signal) sur 36 à 42 périodes depuis janvier 2025 :
+
+| Horizon | Détention | Sélection | Moyenne des cryptos | Bitcoin | Fait mieux |
+|---|---|---|---|---|---|
+| Court terme | 10 jours | +1,2 % | +0,5 % | +0,05 % | 60 % |
+| Moyen terme | 1 mois | +1,3 % | −2,3 % | −0,5 % | 60 % |
+| Long terme | 3 mois | −1,0 % | −6,8 % | −3,9 % | 58 % |
+
+**En clair :** la sélection a perdu moins que les autres cryptos et fait mieux que le Bitcoin, mais sur 3 mois elle a quand même perdu. Sur cette période, presque toutes les cryptos ont baissé.
+
+**Limites :**
+- L'historique ne couvre qu'environ 2 ans et demi.
+- La liste ne contient que les cryptos qui existent encore aujourd'hui, ce qui embellit les chiffres.
+- Les quantités sont fractionnées.
+
+API : `GET /api/selection?kind=stock|crypto&horizon=short|medium|long`. Les six sélections sont calculées au démarrage puis toutes les 25 minutes ; le premier calcul prend environ 30 s.
 
 ## Zones d'achat par horizon (Fibonacci) et contexte macro
 
