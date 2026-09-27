@@ -11,6 +11,16 @@ const ORDER = ["momentum", "zone", "trend", "risk", "signal"] as const;
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: v >= 100 ? 0 : 2 })} $`;
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const BUDGET_KEY = "altim.selection.budget";
+const MARKET_KEY = "altim.selection.market";
+type Market = "stock" | "crypto";
+
+function readMarket(): Market {
+  try {
+    return localStorage.getItem(MARKET_KEY) === "crypto" ? "crypto" : "stock";
+  } catch {
+    return "stock";
+  }
+}
 
 function readBudget(): number | null {
   try {
@@ -41,23 +51,26 @@ function Bar({ value }: { value: number }) {
 function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: SelectionReport; live?: import("./live").LiveTick; amount?: number }) {
   const [open, setOpen] = useState(c.rank <= 3);
   const { watchlist } = useAppState();
-  const inRadar = watchlist.some((w) => assetKey(w) === `stock:${c.symbol}`);
+  const kind = report.market;
+  const inRadar = watchlist.some((w) => assetKey(w) === `${kind}:${c.symbol}`);
+  const rankBy = kind === "crypto" ? "signal" : "momentum";
   const price = live?.price ?? c.price;
   const plan = c.plan;
   const buyAt = plan?.limit ?? price;
-  const qty = amount && buyAt > 0 ? Math.floor(amount / buyAt) : 0;
+  // Whole shares for a stock; cryptos are divisible.
+  const qty = amount && buyAt > 0 ? (kind === "stock" ? Math.floor(amount / buyAt) : Number((amount / buyAt).toPrecision(6))) : 0;
   const loss = plan && qty ? qty * (buyAt - plan.stop) : null;
   return (
     <li className="card pick">
       <div className="pick-head">
         <span className="pick-rank" aria-label={`Rang ${c.rank}`}>{c.rank}</span>
         <div className="pick-id">
-          <a href={`/app/actif/stock/${c.symbol}`} onClick={onLink}><b>{c.name}</b></a>
+          <a href={`/app/actif/${kind}/${c.symbol}`} onClick={onLink}><b>{c.name}</b></a>
           <small className="muted">{c.symbol} · {c.sector}</small>
         </div>
         <div className="pick-price mono">
           <b><LivePrice tick={live} fallback={c.price} format={(v) => `${formatPrice(v)} $`} /></b>
-          <small className="muted">force {Math.round(c.scores.momentum)}/100</small>
+          <small className="muted">{kind === "crypto" ? "signal" : "force"} {Math.round(c.scores[rankBy])}/100</small>
         </div>
       </div>
 
@@ -70,7 +83,11 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
             <div className="pick-amount">
               <small>Montant suggéré</small>
               <b>{usd(amount)}</b>
-              <small className="muted">{qty > 0 ? `${qty} action${qty > 1 ? "s" : ""}${loss ? ` · perte max ≈ ${usd(loss)} au stop` : ""}` : "moins d'une action : fractionnée chez votre courtier"}</small>
+              <small className="muted">
+                {qty > 0
+                  ? `${kind === "stock" ? `${qty} action${qty > 1 ? "s" : ""}` : `${qty.toLocaleString("fr-FR", { maximumSignificantDigits: 6 })} ${c.symbol}`}${loss ? ` · perte max ≈ ${usd(loss)} au stop` : ""}`
+                  : "moins d'une action : fractionnée chez votre courtier"}
+              </small>
             </div>
           )}
         </div>
@@ -81,7 +98,7 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
         <div className="pick-detail">
           <ul className="crit-list">
             {ORDER.map((k) => (
-              <li key={k} className={k === "momentum" ? "main" : ""}>
+              <li key={k} className={k === rankBy ? "main" : ""}>
                 <div className="crit-head">
                   <span>{report.criteria[k]}</span>
                   <small className="crit-role">{report.roles[k]}</small>
@@ -99,8 +116,8 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
             )}
           </ul>
           <div className="pick-actions">
-            <a className="btn btn-small" href={`/app/actif/stock/${c.symbol}`} onClick={onLink}>Voir la fiche complète</a>
-            {!inRadar && <button className="link-btn" onClick={() => setState((s) => ({ watchlist: [...s.watchlist, { symbol: c.symbol, kind: "stock", name: c.name }] }))}>+ Ajouter au radar</button>}
+            <a className="btn btn-small" href={`/app/actif/${kind}/${c.symbol}`} onClick={onLink}>Voir la fiche complète</a>
+            {!inRadar && <button className="link-btn" onClick={() => setState((s) => ({ watchlist: [...s.watchlist, { symbol: c.symbol, kind, name: c.name }] }))}>+ Ajouter au radar</button>}
           </div>
         </div>
       )}
@@ -108,9 +125,10 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
   );
 }
 
-/** Which stocks to buy: ranked by relative strength, checked, with an entry plan and an amount. */
+/** Which stocks or cryptos to buy: ranked by what was measured to work, checked, with an entry plan and an amount. */
 export function Selection() {
   const { horizon, risk } = useAppState();
+  const [market, setMarket] = useState<Market>(readMarket);
   const { holdings, cash } = useHoldings();
   const [report, setReport] = useState<SelectionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +143,7 @@ export function Selection() {
     setReport(null);
     setError(null);
     const load = () =>
-      api.selection(horizon)
+      api.selection(horizon, market)
         .then((r) => {
           if (!alive) return;
           if ("pending" in r) {
@@ -142,7 +160,13 @@ export function Selection() {
       alive = false;
       clearTimeout(timer);
     };
-  }, [horizon]);
+  }, [horizon, market]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(MARKET_KEY, market);
+    } catch {}
+  }, [market]);
 
   useEffect(() => {
     try {
@@ -150,7 +174,7 @@ export function Selection() {
     } catch {}
   }, [budget]);
 
-  const live = useLive(useMemo(() => [...(report?.buy ?? []), ...(report?.watch ?? [])].map((c) => ({ symbol: c.symbol, kind: "stock" as const })), [report]));
+  const live = useLive(useMemo(() => [...(report?.buy ?? []), ...(report?.watch ?? [])].map((c) => ({ symbol: c.symbol, kind: report!.market })), [report]));
   const amounts = useMemo(() => (report && budget > 0 ? allocate(report.buy, budget, risk.maxPositionPercent) : new Map<string, number>()), [report, budget, risk.maxPositionPercent]);
   const v = report?.validation;
 
@@ -158,11 +182,18 @@ export function Selection() {
     <section className="app-screen selection">
       <div className="screen-top">
         <div>
-          <h1>Quelles actions acheter</h1>
-          <p className="muted small">Les plus grandes sociétés américaines, classées et vérifiées pour votre horizon.</p>
+          <h1>{market === "crypto" ? "Quelles cryptos acheter" : "Quelles actions acheter"}</h1>
+          <p className="muted small">{market === "crypto" ? "Les 120 plus grandes cryptos (hors stablecoins et jetons adossés)" : "Les plus grandes sociétés américaines"}, classées et vérifiées pour votre horizon.</p>
         </div>
         <LiveBadge status={live.status} last={live.last} />
       </div>
+
+      <Segmented<Market>
+        label="Marché"
+        value={market}
+        onChange={setMarket}
+        options={[["stock", "Actions"], ["crypto", "Cryptos"]]}
+      />
 
       <Segmented<HorizonPref>
         label="Horizon"
@@ -174,11 +205,21 @@ export function Selection() {
       <div className="card method">
         <h2 className="card-title">Comment Altim choisit</h2>
         <ol>
-          <li><b>{report?.scanned ?? 150} grandes actions</b> analysées chaque jour (capitalisation, secteur : Nasdaq).</li>
-          <li><b>Classement par force relative</b> : la hausse des 6 derniers mois (hors dernier mois) comparée aux autres. C'est le seul critère qui a réellement fait mieux que la moyenne sur l'historique ; les autres ont été mesurés et ne classent pas.</li>
-          <li><b>Au plus 3 actions par secteur</b>, pour ne pas tout miser sur un seul thème.</li>
+          {market === "crypto" ? (
+            <>
+              <li><b>{report?.scanned ?? 110} cryptos</b> parmi les 120 plus grandes (classement CoinGecko), sans stablecoins ni jetons adossés (WBTC, stETH, or…).</li>
+              <li><b>Classement par le signal technique d'Altim</b> (7 familles d'indicateurs, bougies journalières). Sur les cryptos, c'est le critère qui a fait mieux que la moyenne à 10 jours, 1 mois et 3 mois ; la force relative y a été irrégulière et les cryptos les plus échangées ont fait moins bien.</li>
+              <li><b>Pas de limite par secteur</b>, mais les cryptos bougent souvent ensemble : le montant par ligne reste plafonné.</li>
+            </>
+          ) : (
+            <>
+              <li><b>{report?.scanned ?? 150} grandes actions</b> analysées chaque jour (capitalisation, secteur : Nasdaq).</li>
+              <li><b>Classement par force relative</b> : la hausse des 6 derniers mois (hors dernier mois) comparée aux autres. C'est le seul critère qui a réellement fait mieux que la moyenne sur l'historique ; les autres ont été mesurés et ne classent pas.</li>
+              <li><b>Au plus 3 actions par secteur</b>, pour ne pas tout miser sur un seul thème.</li>
+            </>
+          )}
           <li><b>Vérifications</b> de chaque finaliste : prix recoupés sur plusieurs sources, garde-fou marché, tendance de fond. Un titre qui échoue passe « à surveiller ».</li>
-          <li><b>Plan</b> pour votre horizon ({HORIZONS[horizon].holding}) : prix d'entrée (zone d'achat Fibonacci), stop selon la volatilité, objectif à 2 fois le risque, montant.</li>
+          <li><b>Plan</b> pour votre horizon ({report ? `gardé ${report.holdDays} ${market === "crypto" ? "jours" : "séances"} dans le rejeu` : HORIZONS[horizon].holding}) : prix d'entrée (zone d'achat Fibonacci), stop selon la volatilité, objectif à 2 fois le risque, montant.</li>
         </ol>
       </div>
 
@@ -186,12 +227,16 @@ export function Selection() {
         <div className={`card validation ${v.top > v.universe && v.beatRate >= 60 ? "good" : "weak"}`}>
           <h2 className="card-title">Ce que cette méthode aurait donné</h2>
           <p>
-            Rejouée <b>{v.periods} fois</b> depuis {new Date(v.from!).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} (sélection de 10 actions, gardées {v.hold} séances) :
-            <b> {pct(v.top)}</b> en moyenne pour la sélection contre <b>{pct(v.universe)}</b> pour l'ensemble des {report?.scanned} actions ; la sélection a fait mieux <b>{Math.round(v.beatRate)} % du temps</b>.
+            Rejouée <b>{v.periods} fois</b> depuis {new Date(v.from!).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} (sélection de 10, gardées {v.hold} {market === "crypto" ? "jours" : "séances"}) :
+            <b> {pct(v.top)}</b> en moyenne pour la sélection contre <b>{pct(v.universe)}</b> pour l'ensemble des {report?.scanned} {market === "crypto" ? "cryptos" : "actions"}
+            {v.benchmark != null && <> et <b>{pct(v.benchmark)}</b> pour le simple achat de Bitcoin</>} ; la sélection a fait mieux que l'ensemble <b>{Math.round(v.beatRate)} % du temps</b>.
           </p>
-          {horizon === "short" && <p className="notice warn small">À court terme, l'avance est quasi nulle : le classement ne prédit pas les mouvements de quelques jours. Préférez le moyen ou le long terme pour choisir des actions.</p>}
+          {market === "stock" && horizon === "short" && <p className="notice warn small">À court terme, l'avance est quasi nulle : le classement ne prédit pas les mouvements de quelques jours. Préférez le moyen ou le long terme pour choisir des actions.</p>}
+          {market === "crypto" && v.top < 0 && <p className="notice warn small">Sur cette période, la sélection a perdu moins que les autres cryptos, mais elle a quand même perdu : quand presque toutes les cryptos baissent, bien choisir limite la casse sans l'éviter.</p>}
           <p className="muted small">
-            Limite honnête : la liste est celle des plus grandes sociétés d'aujourd'hui, qui ont par définition réussi, ce qui gonfle ces chiffres. Entre fin 2021 et 2023, la force relative n'a presque rien apporté ; l'essentiel de l'avance vient de 2023–2026. Ce n'est pas une garantie.
+            {market === "crypto"
+              ? "Limites honnêtes : l'historique ne couvre qu'environ 2 ans et demi (les plateformes gardent 1 000 jours), et la liste est celle des cryptos qui existent encore aujourd'hui, ce qui embellit les chiffres. Les cryptos restent très risquées. Ce n'est pas une garantie."
+              : "Limite honnête : la liste est celle des plus grandes sociétés d'aujourd'hui, qui ont par définition réussi, ce qui gonfle ces chiffres. Entre fin 2021 et 2023, la force relative n'a presque rien apporté ; l'essentiel de l'avance vient de 2023–2026. Ce n'est pas une garantie."}
           </p>
         </div>
       )}
@@ -209,7 +254,7 @@ export function Selection() {
       {error && <p className="notice warn">⚠ {error}</p>}
       {!report && !error && (
         <div className="card">
-          <p className="muted">{pending ? "Analyse des 150 actions en cours (environ 30 secondes la première fois)…" : "Chargement de la sélection…"}</p>
+          <p className="muted">{pending ? `Analyse des ${market === "crypto" ? "120 cryptos" : "150 actions"} en cours (environ 30 secondes la première fois)…` : "Chargement de la sélection…"}</p>
           <div className="skeleton" />
         </div>
       )}
@@ -227,7 +272,7 @@ export function Selection() {
               <ul className="watch-list">
                 {report.watch.map((c) => (
                   <li key={c.symbol} className="card">
-                    <a href={`/app/actif/stock/${c.symbol}`} onClick={onLink}><b>{c.name}</b></a> <small className="muted">{c.symbol} · force {Math.round(c.scores.momentum)}/100</small>
+                    <a href={`/app/actif/${report.market}/${c.symbol}`} onClick={onLink}><b>{c.name}</b></a> <small className="muted">{c.symbol}</small>
                     <p className="small">⚠ {c.reason}</p>
                   </li>
                 ))}
