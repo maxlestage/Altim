@@ -1,6 +1,6 @@
 # Altim
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku, et une **application iPhone native** (SwiftUI) qui se connecte à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku, et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -11,6 +11,8 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 | `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source**, **API garde-fou pour bots** |
 | `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
 | `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |
+| `android` | **Application Android native** (Kotlin, Jetpack Compose, Android 11+), à parité avec l'iPhone |
+| `android/kit` | Noyau Kotlin testé sur la JVM, équivalent d'AltimKit (mêmes réponses réelles du serveur en tests) |
 | `.github/workflows` | CI web, CI iOS (build + tests), envoi TestFlight, déploiement Heroku, santé quotidienne des sources |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
@@ -42,6 +44,14 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 - **Mes avoirs** : lignes gardées sur l'iPhone, valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne.
 
 Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`) ; avec `ALTIM_SERVER`, `ALTIM_USER` et `ALTIM_PASSWORD`, le test de bout en bout se connecte à un serveur réel (mauvais mot de passe refusé, API fermée sans session, reconnexion automatique, flux en direct). La CI compile l'app en Debug et en Release sur macOS ; l'envoi sur TestFlight se lance depuis l'onglet Actions (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
+
+## Application Android native (`android`)
+
+Même application que sur iPhone, écran par écran : connexion privée, Radar en direct, fiche d'un actif (graphique avec la zone d'achat, zones de Fibonacci, garde-fou, macro, actualités), Sélection sur 8 durées avec budget, Mes avoirs, Réglages. Les chiffres viennent du même serveur, avec les mêmes textes et les mêmes seuils de preuve.
+
+- **Sécurité** : mot de passe et session chiffrés en AES-256-GCM par une clé du **Keystore Android** propre au téléphone (non exportable) ; sauvegardes cloud et transferts d'appareil désactivés ; HTTPS obligatoire (HTTP seulement pour un serveur local ou l'émulateur). Empreinte, visage ou code de l'écran à l'ouverture et après 2 minutes en arrière-plan.
+- **Tests** : `./gradlew :kit:test` (15 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir, Réglages, avec une capture de chaque écran dans `android/app/build/screens`.
+- **CI** : tests du noyau, lint, build Debug (APK de test téléchargeable dans l'onglet Actions) et Release minifié ; le workflow « Android APK signé » produit l'APK à installer (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ### Serveur (Express sur Bun)
 
