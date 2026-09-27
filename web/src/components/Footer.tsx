@@ -48,13 +48,13 @@ export function Footer() {
           </a>
           <p className="footer-tagline">Le marché, décodé.</p>
           <p className="muted">
-            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 16 sources de prix. Application
+            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 31 sources de prix. Application
             iOS native.
           </p>
           <ul className="footer-badges" aria-label="Caractéristiques">
             <li>iOS 17+</li>
             <li>Swift natif</li>
-            <li>16 sources</li>
+            <li>31 sources</li>
           </ul>
         </div>
 

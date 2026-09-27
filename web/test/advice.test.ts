@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import fixture from "./swift-fixture.json";
-import { adviseAsset } from "../src/engine/advice";
+import { adviceQuantity, adviseAsset, px, quantityText } from "../src/engine/advice";
 import { analyze, type Candle, type Signal } from "../src/engine/signal";
 import { DEFAULT_RISK } from "../src/engine/risk";
 import type { LineAnalysis } from "../src/engine/holdings";
@@ -42,4 +42,44 @@ test("actif détenu : le conseil vient de l'analyse de vos avoirs", () => {
   expect(a.title).toBe("Alléger");
   expect(a.points.join(" ")).toContain("Vous en détenez");
   expect(a.points.join(" ")).toContain("Montant à alléger");
+});
+
+test("un signal d'achat qui a surtout échoué sur cet actif devient « Attendre »", () => {
+  const poor = adviseAsset({ signal: sig("strongBuy"), reliability: "high", price: base.price, capital: 20_000, risk: DEFAULT_RISK, track: { trades: 12, winRate: 25, avgReturn: -0.8 } });
+  expect(poor.tone).toBe("hold");
+  expect(poor.title).toContain("peu fiable");
+  expect(poor.amount).toBeUndefined();
+  expect(poor.points[0]).toContain("25 %");
+  // Negative average even with a decent win rate.
+  expect(adviseAsset({ signal: sig("buy"), reliability: "high", price: base.price, risk: DEFAULT_RISK, track: { trades: 8, winRate: 55, avgReturn: -0.1 } }).tone).toBe("hold");
+  // Good track record: the buy stays, with its figures.
+  const good = adviseAsset({ signal: sig("buy"), reliability: "high", price: base.price, risk: DEFAULT_RISK, track: { trades: 9, winRate: 56, avgReturn: 1.4 } });
+  expect(good.tone).toBe("buy");
+  expect(good.points.join(" ")).toContain("9 signaux d'achat, 56 % gagnants, +1,4 %");
+  // Too few trades: the buy stays but prudence is stated.
+  const few = adviseAsset({ signal: sig("buy"), reliability: "high", price: base.price, risk: DEFAULT_RISK, track: { trades: 2, winRate: 0, avgReturn: -2 } });
+  expect(few.tone).toBe("buy");
+  expect(few.points.join(" ")).toContain("pas assez pour juger");
+});
+
+test("montants précis : quantité exacte à acheter, actions entières, petits prix lisibles", () => {
+  expect(adviceQuantity(1000, 84_871.45, "crypto")).toBeCloseTo(0.0117825, 7);
+  expect(adviceQuantity(1000, 84_871.45, "crypto") * 84_871.45).toBeLessThanOrEqual(1000);
+  expect(adviceQuantity(1000, 341.07, "stock")).toBe(2);
+  expect(adviceQuantity(100, 341.07, "stock")).toBe(0);
+  expect(adviceQuantity(50, 0.000009312, "crypto")).toBe(5_369_410);
+  expect(quantityText(2, "stock", "AAPL")).toBe("2 actions AAPL");
+  expect(quantityText(0.0117825, "crypto", "BTC")).toBe("0,0117825 BTC");
+  expect(px(0.000009312)).toBe("0,000009312 $");
+  expect(px(84_871.456)).toBe("84\u202f871,46 $");
+  const a = adviseAsset({ signal: sig("buy"), reliability: "high", price: base.price, capital: 20_000, risk: DEFAULT_RISK, symbol: "BTC", kind: "crypto" });
+  expect(a.quantity! * base.price).toBeLessThanOrEqual(a.amount! + 1e-9);
+  expect(a.points.join(" ")).toContain(" BTC :");
+});
+
+test("actions entières : le montant et la perte au stop sont ceux de la quantité arrondie", () => {
+  const a = adviseAsset({ signal: sig("buy"), reliability: "high", price: 341.07, capital: 20_000, risk: DEFAULT_RISK, symbol: "AAPL", kind: "stock" });
+  expect(Number.isInteger(a.quantity!)).toBe(true);
+  expect(a.amount!).toBeCloseTo(a.quantity! * 341.07, 6);
+  expect(a.points.join(" ")).toContain(`soit ${a.quantity} actions AAPL`);
 });
