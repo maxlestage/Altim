@@ -124,6 +124,18 @@ final class HoldingsViewModel {
         }
     }
 
+    /// Live prices: value, gains and suggested amounts follow the market (candles and signals stay those of the last load).
+    func applyLive(_ ticks: [String: LiveTick]) {
+        var changed = false
+        for h in holdings {
+            guard let t = ticks[h.asset.id], var m = market[h.marketKey], m.price != t.price else { continue }
+            m.price = t.price
+            market[h.marketKey] = m
+            changed = true
+        }
+        if changed { recompute() }
+    }
+
     private func recompute() {
         analysis = HoldingsAnalyzer.analyze(holdings: holdings, cash: cash, market: market)
     }

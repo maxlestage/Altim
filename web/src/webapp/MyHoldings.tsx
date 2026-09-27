@@ -7,6 +7,7 @@ import { AddHoldings } from "./AddHoldings";
 import { KIND_LABEL } from "./AssetPicker";
 import { exportHoldings, importHoldings, setHoldings, upsertHolding, useHoldings } from "./store";
 import { Change } from "./ui";
+import { LiveBadge, LivePrice, useLive } from "./live";
 
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 const REC_CLASS: Record<Recommendation, string> = { sell: "sell", protect: "sell", lighten: "hold", strengthen: "buy", hold: "hold", unknown: "unknown" };
@@ -68,7 +69,14 @@ export function MyHoldings() {
     };
   }, [symbolsKey]);
 
-  const analysis = useMemo<PortfolioAnalysis>(() => analyzePortfolio(holdings, cash, market), [holdings, cash, market]);
+  // Live prices: the value, gains and suggested amounts follow the market tick by tick.
+  const live = useLive(holdings);
+  const liveMarket = useMemo(() => {
+    const m: Record<string, MarketInput> = {};
+    for (const [k, v] of Object.entries(market)) m[k] = live.ticks[k] ? { ...v, price: live.ticks[k]!.price } : v;
+    return m;
+  }, [market, live.ticks]);
+  const analysis = useMemo<PortfolioAnalysis>(() => analyzePortfolio(holdings, cash, liveMarket), [holdings, cash, liveMarket]);
   const ready = holdings.length === 0 || Object.keys(market).length > 0;
 
   const saveCash = () => {
@@ -119,7 +127,10 @@ export function MyHoldings() {
       {holdings.length > 0 && (
         <>
           <div className="card summary-card">
-            <small className="muted">Patrimoine total</small>
+            <div className="summary-top">
+              <small className="muted">Patrimoine total</small>
+              <LiveBadge status={live.status} last={live.last} />
+            </div>
             <b className="mono big">{ready ? usd(analysis.total) : "…"}</b>
             {ready && (
               <p className="kv"><span>Plus-value latente</span><b className={analysis.pnl >= 0 ? "up" : "down"}>{analysis.pnl >= 0 ? "+" : "−"}{usd(Math.abs(analysis.pnl))} (<Change value={analysis.pnlPercent} />)</b></p>
@@ -166,7 +177,7 @@ export function MyHoldings() {
                       <div className="holding-figures">
                         <div><small>Valeur</small><b>{usd(l.value)}</b></div>
                         <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>
-                        <div><small>Cours</small><b>{l.price ? `${formatPrice(l.price)} $` : "—"}</b></div>
+                        <div><small>Cours{live.ticks[`${l.kind}:${l.symbol}`]?.market === "closed" ? " (fermé)" : ""}</small><b><LivePrice tick={live.ticks[`${l.kind}:${l.symbol}`]} fallback={l.price || null} format={(v) => `${formatPrice(v)} $`} /></b></div>
                       </div>
                       <div className="weight" role="img" aria-label={`Poids ${l.weight.toFixed(1)} % du patrimoine`}>
                         <div className="weight-track"><i style={{ width: `${Math.min(100, l.weight)}%` }} /></div>
