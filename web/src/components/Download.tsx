@@ -10,10 +10,13 @@ export function Download() {
           Prêt à voir le <span className="gradient">signal</span> ?
         </h2>
         <p className="muted">
-          Utilisez Altim tout de suite dans votre navigateur, sur téléphone comme sur ordinateur. Sur iPhone : Partager → « Sur l'écran d'accueil » pour l'ouvrir comme une app.
+          Sur iPhone et Apple Watch, sur Android, ou tout de suite dans votre navigateur : les mêmes conseils partout, et une notification quand vous pouvez acheter.
         </p>
         <div className="download-actions">
-          <a className="btn" href="/app">
+          <a className="btn" href="/#apps">
+            Voir les applications
+          </a>
+          <a className="btn btn-ghost" href="/app">
             Ouvrir l'app web
           </a>
         </div>

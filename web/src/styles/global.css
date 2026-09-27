@@ -237,7 +237,11 @@ main { position: relative; }
 .disclaimer { margin-top: 16px; font-size: 13px; color: var(--muted); }
 
 /* ---------- Features, steps, sources ---------- */
-.features, .steps, .sources-grid, .security, .faq { display: grid; gap: 14px; }
+.features, .steps, .sources-grid, .security, .faq, .apps { display: grid; gap: 14px; }
+.apps-intro { margin: 0 0 18px; max-width: 760px; }
+.apps-note { margin: 16px 0 0; }
+.app-tag { margin: -2px 0 10px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--cyan) !important; }
+.app-card ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--muted); font-size: 15px; }
 .feature-icon { display: grid; place-items: center; width: 50px; height: 50px; border-radius: 15px; margin-bottom: 14px; color: var(--cyan); background: linear-gradient(135deg, rgba(0, 240, 255, 0.15), rgba(255, 43, 214, 0.15)); border: 1px solid var(--line); box-shadow: 0 0 20px rgba(0, 240, 255, 0.25); }
 .feature h3, .step h3 { font-size: 17px; margin-bottom: 8px; }
 .feature p, .step p { margin: 0; color: var(--muted); font-size: 15px; }
@@ -331,6 +335,7 @@ main { position: relative; }
    Tablet ≥ 720px
    ========================================================================== */
 @media (min-width: 720px) {
+  .apps { grid-template-columns: repeat(2, 1fr); }
   :root { --gutter: 32px; --nav-h: 68px; }
   body { font-size: 17px; }
   .cta { display: flex; flex-wrap: wrap; gap: 14px; }
@@ -366,6 +371,7 @@ main { position: relative; }
    Desktop ≥ 1024px
    ========================================================================== */
 @media (min-width: 1024px) {
+  .apps { grid-template-columns: repeat(4, 1fr); }
   .burger { display: none; }
   .links { position: static; flex-direction: row; align-items: center; gap: 26px; padding: 0; background: none; border: 0; transform: none; opacity: 1; pointer-events: auto; font-size: 15px; }
   .links a:not(.btn) { padding: 0; font-size: 15px; border: 0; transition: color 0.2s; }

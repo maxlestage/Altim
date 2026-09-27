@@ -17,7 +17,7 @@ final class LivePrices {
     func price(_ a: Asset) -> LiveTick? { ticks[a.id] }
 
     /// Follows these assets (restarts the stream only when the list changes).
-    func follow(_ assets: [Asset], client: AltimClient?, onExpired: @escaping @MainActor () -> Void) {
+    func follow(_ assets: [Asset], client: AltimClient?, onRenewed: @escaping @MainActor () -> Void = {}, onExpired: @escaping @MainActor () -> Void) {
         let wanted = Array(Set(assets.map(\.id))).sorted()
         guard let client, !wanted.isEmpty else { return stop() }
         if wanted == keys, task != nil { return }
@@ -38,6 +38,10 @@ final class LivePrices {
                         onExpired()
                         return
                     }
+                    onRenewed()
+                    // A pause even after a successful login: a stream refused again must not loop on logins.
+                    try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
+                    delay = min(30, delay * 2)
                     continue
                 } catch {}
                 self?.connected = false
@@ -62,6 +66,7 @@ final class LivePrices {
             self.flush = nil
             guard !Task.isCancelled, !self.pending.isEmpty else { return }
             self.ticks.merge(self.pending) { _, new in new }
+            for tick in self.pending.values { LiveActivities.shared.update(tick: tick) }
             self.pending.removeAll()
             self.lastTick = Date()
             self.connected = true

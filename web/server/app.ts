@@ -19,6 +19,7 @@ import { screen, TTL } from "./screener";
 import { toHorizon, HORIZON_LIST, SPECS, type Horizon } from "../src/engine/screener";
 import { usMarketOpen } from "./live";
 import { fibZones } from "../src/engine/fibonacci";
+import { buyAlert } from "../src/engine/alerts";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
@@ -225,7 +226,7 @@ export function warmSelections() {
   setInterval(run, 25 * 60_000).unref?.();
 }
 
-export function createApp({ live, auth = { cfg: authConfig(), production: process.env.NODE_ENV === "production" } }: { live?: LiveHub; auth?: { cfg: AuthConfig | null; production: boolean } } = {}) {
+export function createApp({ live, auth = { cfg: authConfig(), production: process.env.NODE_ENV === "production" || !!process.env.DYNO } }: { live?: LiveHub; auth?: { cfg: AuthConfig | null; production: boolean } } = {}) {
   const app = express();
   const access = createAuth(auth.cfg, auth.production);
   let hub = live ?? null;
@@ -273,15 +274,18 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
   // ----- Private access (auth.ts): everything below requires a session, or the bot token on /api -----
   app.get("/robots.txt", (_req, res) => res.type("text").send("User-agent: *\nDisallow: /\n"));
   app.get("/login", access.loginForm);
-  app.post("/login", express.urlencoded({ extended: false, limit: "2kb" }), (req, res, next) => access.login(req, res).catch(next));
+  app.post("/login", rateLimit(10, 60_000), express.urlencoded({ extended: false, limit: "2kb" }), (req, res, next) => access.login(req, res).catch(next));
   app.post("/logout", access.logout);
   app.use(access.guard);
 
   // ----- API -----
   const api = express.Router();
+  const liveStreams = new Map<string, number>();
+  const MAX_LIVE_STREAMS = 8;
   api.use(rateLimit(240, 60_000));
   api.use((_req, res, next) => {
-    res.setHeader("Cache-Control", "private, max-age=15");
+    // Private data: never written to the browser's disk cache.
+    res.setHeader("Cache-Control", "private, no-store");
     next();
   });
 
@@ -327,7 +331,6 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     const limit = Math.min(200, Math.max(1, Math.floor(Number(req.query.limit) || 50)));
     const list = await universe(kind);
     const matches = q.trim() ? searchUniverse(list, q, list.length) : list;
-    res.setHeader("Cache-Control", "private, max-age=3600");
     res.json({ total: matches.length, offset, items: matches.slice(offset, offset + limit).map((e) => toItem(e, kind)) });
   }));
 
@@ -336,8 +339,6 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     const kind = parseKind(req.query.kind);
     const symbol = parseSymbol(req.query.symbol, kind);
     const report = await guardFor(symbol, kind);
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", "private, max-age=30");
     res.json(report);
   }));
 
@@ -349,12 +350,27 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     } catch (e) {
       return next(e);
     }
+    // A few streams per address (phone, watch, browser tabs): a leaked token cannot open thousands.
+    const who = req.ip ?? "?";
+    const open = liveStreams.get(who) ?? 0;
+    if (open >= MAX_LIVE_STREAMS) {
+      res.setHeader("Retry-After", "10");
+      return res.status(429).json({ error: "Trop de flux en direct ouverts." });
+    }
+    liveStreams.set(who, open + 1);
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      const n = (liveStreams.get(who) ?? 1) - 1;
+      if (n <= 0) liveStreams.delete(who);
+      else liveStreams.set(who, n);
+    };
     res.status(200).set({
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
       "X-Accel-Buffering": "no",
-      "Access-Control-Allow-Origin": "*",
     });
     res.flushHeaders();
     const send = (t: unknown) => res.write(`data: ${JSON.stringify(t)}\n\n`);
@@ -368,6 +384,7 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     req.on("close", () => {
       clearInterval(beat);
       unsubscribe();
+      release();
     });
   });
 
@@ -375,7 +392,6 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
   api.get("/zones", wrap(async (req, res) => {
     const kind = parseKind(req.query.kind);
     const z = await zones(parseSymbol(req.query.symbol, kind), kind);
-    res.setHeader("Access-Control-Allow-Origin", "*");
     res.json(z);
   }));
 
@@ -384,19 +400,42 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     const market = parseKind(req.query.kind ?? "stock");
     const h = toHorizon(String(req.query.horizon ?? "1m"), market);
     if (!h) throw new BadRequest(`horizon invalide (${HORIZON_LIST.join(" | ")})`);
-    res.setHeader("Access-Control-Allow-Origin", "*");
     // The first computation scans 150 stocks (≈ 30 s): the Heroku router cuts at 30 s, so after 20 s the client is
     // told to come back; the computation keeps going and lands in the cache.
     const result = await Promise.race([selection(h, market), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
     if (!result) return res.status(202).json({ pending: true });
-    res.setHeader("Cache-Control", "private, max-age=300");
     res.json(result);
+  }));
+
+  // "Can I buy now?" for the notifications of the apps (iPhone, Apple Watch, Android): same rule everywhere.
+  api.get("/alerts", wrap(async (req, res) => {
+    const assets = parseAssets(req.query.symbols);
+    const items = await Promise.all(assets.map(async (a) => {
+      const [r, z, g] = await Promise.all([
+        radarItem(a, "4h"),
+        zones(a.symbol, a.kind).catch(() => null),
+        guardFor(a.symbol, a.kind).catch(() => null),
+      ]);
+      if ("error" in r && !z) return { symbol: a.symbol, kind: a.kind, name: a.name, error: r.error };
+      const price = z?.price ?? ("lastClose" in r ? r.lastClose : null) ?? null;
+      const alert = buyAlert({
+        symbol: a.symbol,
+        name: a.name,
+        price,
+        signal: "signal" in r && r.signal ? { action: r.signal.action, confidence: r.signal.confidence } : null,
+        reliability: "reliability" in r && r.reliability ? r.reliability.level : null,
+        zones: z?.zones ?? [],
+        shock: g?.shock.level ?? null,
+        trend: g?.regime.trend ?? null,
+        macro: z?.macro?.level ?? null,
+      });
+      return { symbol: a.symbol, kind: a.kind, name: a.name, price, asOf: Date.now(), ...alert };
+    }));
+    res.json(items);
   }));
 
   // Macro / geopolitical context (market-wide), readable by bots.
   api.get("/macro", wrap(async (_req, res) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
-    res.setHeader("Cache-Control", "private, max-age=60");
     res.json(await macroNow());
   }));
 
@@ -431,7 +470,12 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
 
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     if (err instanceof BadRequest) return res.status(400).json({ error: err.message });
-    const message = err instanceof Error ? err.message : "erreur";
+    // Errors of the HTTP layer (body too large, malformed request…): their own status, a generic text.
+    const status = (err as { status?: unknown; statusCode?: unknown })?.status ?? (err as { statusCode?: unknown })?.statusCode;
+    if (typeof status === "number" && status >= 400 && status < 500) return res.status(status).json({ error: "requête invalide" });
+    // Upstream failures: the reason is useful to the user, but never the addresses (they can carry source tokens).
+    const message = err instanceof Error ? err.message.replace(/https?:\/\/\S+/g, "[source]").slice(0, 200) : "erreur";
+    if (!(err instanceof Error)) console.error(err);
     res.status(502).json({ error: message });
   });
 

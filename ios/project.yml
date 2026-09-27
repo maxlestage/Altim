@@ -4,6 +4,7 @@ options:
   bundleIdPrefix: com.maxlestage
   deploymentTarget:
     iOS: "17.0"
+    watchOS: "10.0"
   developmentLanguage: fr
 settings:
   base:
@@ -19,8 +20,17 @@ targets:
     platform: iOS
     sources:
       - path: Altim
+      - path: Shared
     dependencies:
       - package: AltimKit
+      # Live Activity + Dynamic Island (embedded in PlugIns).
+      - target: AltimWidgets
+      # Apple Watch app (embedded in the Watch folder of the iPhone app).
+      - target: AltimWatch
+        link: false
+        copy:
+          destination: productsDirectory
+          subpath: $(CONTENTS_FOLDER_PATH)/Watch
     info:
       path: Altim/Info.plist
       properties:
@@ -35,6 +45,9 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         ITSAppUsesNonExemptEncryption: false
         NSFaceIDUsageDescription: Face ID protège l'accès à Altim et à vos avoirs.
+        NSSupportsLiveActivities: true
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [com.maxlestage.altim.alerts]
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
     settings:
@@ -45,6 +58,53 @@ targets:
         TARGETED_DEVICE_FAMILY: "1"
         CODE_SIGN_STYLE: Automatic
         ENABLE_PREVIEWS: YES
+  AltimWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: AltimWidgets
+      - path: Shared
+    dependencies:
+      - package: AltimKit
+    info:
+      path: AltimWidgets/Info.plist
+      properties:
+        CFBundleDisplayName: Altim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maxlestage.altim.widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
+  AltimWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: AltimWatch
+    dependencies:
+      - package: AltimKit
+    info:
+      path: AltimWatch/Info.plist
+      properties:
+        CFBundleDisplayName: Altim
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleDevelopmentRegion: fr
+        WKApplication: true
+        WKCompanionAppBundleIdentifier: com.maxlestage.altim
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.maxlestage.altim.watchkitapp
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "4"
+        CODE_SIGN_STYLE: Automatic
+        SKIP_INSTALL: YES
 schemes:
   Altim:
     build:

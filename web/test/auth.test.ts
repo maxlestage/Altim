@@ -163,3 +163,47 @@ test("production sans configuration : rien n'est servi (échec fermé)", async (
     s.close();
   }
 });
+
+test("connexions en parallèle : une seule vérification à la fois par adresse (pas de contournement ni d'épuisement mémoire)", async () => {
+  const ip = "203.0.113.40";
+  const all = await Promise.all(Array.from({ length: 20 }, () => form({ user: "max", password: "faux", code: "111111", ip })));
+  const statuses = all.map((r) => r.status);
+  // Only one attempt was checked; the other 19 were turned away before hashing anything.
+  expect(statuses.filter((s) => s === 401).length).toBe(1);
+  expect(statuses.filter((s) => s === 429).length).toBe(19);
+}, 20_000);
+
+test("déconnexion : le cookie est révoqué côté serveur (une copie ne marche plus)", async () => {
+  // Own server without 2FA (the codes of this 30-second window are already used by the tests above).
+  const s = createApp({ auth: { cfg: { ...cfg, totpSecret: null }, production: true } }).listen(0);
+  await new Promise((r) => s.once("listening", r));
+  const addr = s.address();
+  const b = `http://127.0.0.1:${typeof addr === "object" && addr ? addr.port : 0}`;
+  try {
+    const r = await fetch(`${b}/login`, {
+      method: "POST",
+      redirect: "manual",
+      headers: { "Content-Type": "application/x-www-form-urlencoded", Origin: b },
+      body: new URLSearchParams({ user: "max", password: PASSWORD, next: "/health" }).toString(),
+    });
+    expect(r.status).toBe(303);
+    const cookie = r.headers.get("set-cookie")!.split(";")[0]!;
+    const api = (c: string) => fetch(`${b}/api/universe?kind=crypto&limit=1`, { headers: { Cookie: c } });
+    expect((await api(cookie)).status).not.toBe(401);
+    expect((await api(cookie)).headers.get("cache-control")).toBe("private, no-store");
+    await fetch(`${b}/logout`, { method: "POST", headers: { Cookie: cookie, Origin: b }, redirect: "manual" });
+    expect((await api(cookie)).status).toBe(401);
+  } finally {
+    s.close();
+  }
+});
+
+test("cookie malformé : simplement refusé, sans erreur serveur", async () => {
+  const r = await fetch(`${base}/api/tickers`, { headers: { Cookie: `${SESSION_COOKIE}=%E0%A4%A` } });
+  expect(r.status).toBe(401);
+});
+
+test("pas d'en-tête CORS ouvert sur l'API", async () => {
+  const r = await fetch(`${base}/api/universe?kind=crypto&limit=1`, { headers: { Authorization: `Bearer ${API}` } });
+  expect(r.headers.get("access-control-allow-origin")).toBeNull();
+});

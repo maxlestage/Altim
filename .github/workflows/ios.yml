@@ -7,6 +7,10 @@ on:
     paths: ["ios/**", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   kit-linux:
     name: Tests du noyau AltimKit (Linux)
@@ -37,7 +41,18 @@ jobs:
       - name: Compilation Release (celle de TestFlight, sans signature)
         run: |
           cd ios
-          xcodebuild -project Altim.xcodeproj -scheme Altim -configuration Release \
+          xcodebuild -project Altim.xcodeproj -scheme Altim -configuration Release -derivedDataPath build \
             -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build > release.log 2>&1 \
             || { grep -E "error:" release.log | head -80; tail -30 release.log; exit 1; }
           grep "BUILD SUCCEEDED" release.log
+      - name: L'app contient bien la Live Activity et l'app Apple Watch
+        run: |
+          APP=ios/build/Build/Products/Release-iphoneos/Altim.app
+          test -d "$APP/PlugIns/AltimWidgets.appex" || { echo "::error::Extension Live Activity absente"; exit 1; }
+          test -d "$APP/Watch/AltimWatch.app" || { echo "::error::App Apple Watch absente"; exit 1; }
+          /usr/libexec/PlistBuddy -c "Print :NSSupportsLiveActivities" "$APP/Info.plist" | grep -q true
+          /usr/libexec/PlistBuddy -c "Print :BGTaskSchedulerPermittedIdentifiers:0" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :NSExtension:NSExtensionPointIdentifier" "$APP/PlugIns/AltimWidgets.appex/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :WKCompanionAppBundleIdentifier" "$APP/Watch/AltimWatch.app/Info.plist"
+          lipo -info "$APP/Watch/AltimWatch.app/AltimWatch"
+          echo "### ✅ Altim.app : extension Live Activity + app Apple Watch intégrées" >> "$GITHUB_STEP_SUMMARY"

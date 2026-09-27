@@ -67,6 +67,32 @@ final class DecodingTests: XCTestCase {
     }
 }
 
+final class AlertTests: XCTestCase {
+    func testDecodeRealAlerts() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "alerts", withExtension: "json", subdirectory: "Fixtures"))
+        let items = try JSONDecoder().decode([BuyAlert].self, from: Data(contentsOf: url))
+        XCTAssertEqual(items.map(\.symbol), ["BTC", "ETH", "AAPL", "ZZZZ"])
+        XCTAssertTrue(items[0].buy)
+        XCTAssertFalse(items[3].buy, "an unavailable asset is never buyable")
+        XCTAssertFalse(items[0].title.isEmpty)
+    }
+
+    func testTrackerNotifiesOnlyOnChange() {
+        func a(_ s: String, buy: Bool, strong: Bool = false, key: String) -> BuyAlert {
+            BuyAlert(symbol: s, kind: .crypto, name: s, price: 1, buy: buy, strong: strong, key: key, title: s, body: "")
+        }
+        var t = AlertTracker()
+        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, key: "signal"), a("ETH", buy: false, key: "")], onlyStrong: false).map(\.symbol), ["BTC"])
+        XCTAssertTrue(t.newAlerts([a("BTC", buy: true, key: "signal")], onlyStrong: false).isEmpty, "same situation: no repeat")
+        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, strong: true, key: "signal+zone:medium")], onlyStrong: false).count, 1, "the zone is reached: new reason")
+        XCTAssertTrue(t.newAlerts([a("BTC", buy: false, key: "")], onlyStrong: false).isEmpty)
+        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, key: "signal")], onlyStrong: false).count, 1, "buyable again after a pause")
+        var strongOnly = AlertTracker()
+        XCTAssertTrue(strongOnly.newAlerts([a("SOL", buy: true, key: "signal")], onlyStrong: true).isEmpty)
+        XCTAssertEqual(strongOnly.newAlerts([a("SOL", buy: true, strong: true, key: "signal+zone:long")], onlyStrong: true).count, 1)
+    }
+}
+
 final class SSETests: XCTestCase {
     func testRealStreamCutAnywhere() throws {
         let url = try XCTUnwrap(Bundle.module.url(forResource: "live", withExtension: "txt", subdirectory: "Fixtures"))
@@ -88,6 +114,18 @@ final class SSETests: XCTestCase {
         var p = SSEParser()
         let events = p.feed(Data(": ok\r\n\r\ndata: a\r\ndata: b\r\n\r\ndata:c\n\n".utf8))
         XCTAssertEqual(events, ["a\nb", "c"])
+    }
+
+    func testHostileStreamStaysBounded() {
+        var p = SSEParser()
+        // 1 MB without a newline, then a normal event: the garbage is dropped, the stream goes on.
+        _ = p.feed(Data(repeating: 0x41, count: 1_000_000))
+        XCTAssertEqual(p.feed(Data("\ndata: ok\n\n".utf8)), ["ok"])
+        // 10 000 data lines without a blank line: no event of 10 000 lines.
+        var q = SSEParser()
+        let spam = String(repeating: "data: x\n", count: 10_000) + "\n"
+        let out = q.feed(Data(spam.utf8))
+        XCTAssertTrue(out.allSatisfy { $0.split(separator: "\n").count <= 64 })
     }
 
     func testUTF8SplitInsideCharacter() {
@@ -116,6 +154,7 @@ final class FormatAndClientTests: XCTestCase {
         XCTAssertEqual(AltimClient.normalize("http://localhost:4410")?.absoluteString, "http://localhost:4410")
         XCTAssertNil(AltimClient.normalize("http://x.herokuapp.com"), "no plain http on the Internet: the password would travel in clear")
         XCTAssertNil(AltimClient.normalize("https://x.herokuapp.com/app"))
+        XCTAssertNil(AltimClient.normalize("http://192.168.1.10"), "plain http on the local network: password readable on the Wi-Fi")
         XCTAssertNil(AltimClient.normalize(""))
     }
 

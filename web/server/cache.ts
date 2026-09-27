@@ -5,6 +5,8 @@
 type Entry<T> = { at: number; value?: T; pending?: Promise<T> };
 const store = new Map<string, Entry<unknown>>();
 const STALE_MAX = 10 * 60_000;
+/** Bound on the number of keys (every symbol asked creates some): the oldest ones are dropped beyond it. */
+const MAX_KEYS = 5_000;
 
 export async function cached<T>(key: string, ttlMs: number, load: () => Promise<T>): Promise<T> {
   const entry = (store.get(key) ?? { at: 0 }) as Entry<T>;
@@ -17,6 +19,16 @@ export async function cached<T>(key: string, ttlMs: number, load: () => Promise<
         return value;
       })
       .finally(() => (entry.pending = undefined));
+    if (!store.has(key) && store.size >= MAX_KEYS) {
+      let drop = MAX_KEYS / 10;
+      for (const [k, e] of store) {
+        if (drop <= 0) break;
+        if (!e.pending) {
+          store.delete(k);
+          drop--;
+        }
+      }
+    }
     store.set(key, entry);
   }
   try {
