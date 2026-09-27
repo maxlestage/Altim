@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildCrypto, buildStocks, cleanStockName, parseUniverse, searchUniverse } from "../server/universe";
+import { buildCrypto, buildStocks, cleanStockName, parseUniverse, searchAll, searchUniverse } from "../server/universe";
 
 // Extracts of real responses (formats checked on 27/09/2026).
 const NASDAQ_LISTED = `Symbol|Security Name|Market Category|Test Issue|Financial Status|Round Lot Size|ETF|NextShares
@@ -86,7 +86,7 @@ describe("crypto universe", () => {
       { symbol: "pepe", name: "Pepe", market_cap_rank: 30 },
       { symbol: "pepe", name: "Pepe copycat", market_cap_rank: 900 },
     ]);
-    const list = buildCrypto([okx, coinbase, kraken, gate], gecko, [["NEWCOIN", "New Coin"]]);
+    const list = buildCrypto([okx, coinbase, kraken, gate, ["NVDAX", "SPYON"]], gecko, [["NEWCOIN", "New Coin"], ["NVDAX", "NVIDIA xStock"], ["SPYON", "SPDR S&P 500 ETF (Ondo Tokenized ETF)"]]);
     expect(list.map((e) => e[0])).toEqual(["BTC", "ETH", "DOGE", "PEPE", "NEWCOIN"]);
     expect(list[0]).toEqual(["BTC", "Bitcoin", 1, 3]);
     expect(list.find((e) => e[0] === "PEPE")![1]).toBe("Pepe");
@@ -113,4 +113,17 @@ describe("search", () => {
     expect(searchUniverse(list, "S&P (500")).toEqual([]);
     expect(searchUniverse(list, "S&P 500")[0]![0]).toBe("SPY");
   });
+});
+
+test("cryptos and stocks searched together: exact symbols first, then the largest", () => {
+  const crypto = buildCrypto([["BTC", "SOL", "SPYX"]], parseUniverse.gecko([
+    { symbol: "btc", name: "Bitcoin", market_cap_rank: 1 },
+    { symbol: "sol", name: "Solana", market_cap_rank: 7 },
+  ]), [["SPYX", "Spy Token"]]);
+  const stock = buildStocks([parseUniverse.nasdaqDirectory(NASDAQ_LISTED), parseUniverse.nasdaqDirectory(OTHER_LISTED)], new Map([["AAPL", 3e12]]));
+  const ids = (q: string) => searchAll(crypto, stock, q, 5).map(({ e, kind }) => `${kind}:${e[0]}`);
+  expect(ids("spy")).toEqual(["stock:SPY", "crypto:SPYX"]);
+  expect(ids("apple")).toEqual(["stock:AAPL"]);
+  expect(ids("sol")[0]).toBe("crypto:SOL");
+  expect(ids("bitcoin")).toEqual(["crypto:BTC"]);
 });

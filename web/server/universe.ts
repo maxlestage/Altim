@@ -101,6 +101,8 @@ export function cleanStockName(name: string): string {
 
 // ---------- Building ----------
 
+/** Tokens that replicate a stock or an ETF are not cryptos: the stock itself is offered instead. */
+const TOKENIZED_STOCK = /\b(xStocks?|tokeni[sz]ed)\b/i;
 /** Leveraged tokens (BTC3L, ETH5S…) are derivatives, not coins you hold. */
 const LEVERAGED = /^[A-Z0-9]{2,}[2-9][LS]$/;
 const STABLE_OR_FIAT = new Set(["USDT", "USD", "USDC", "DAI", "FDUSD", "TUSD", "BUSD", "USDE", "PYUSD", "USDP", "EUR", "GBP", "EURC", "EURT"]);
@@ -127,6 +129,8 @@ export function buildCrypto(
   }
   return [...count.entries()]
     .map(([s, n]): UniverseEntry => [s, info.get(s)?.name ?? s, info.get(s)?.rank ?? 0, n])
+    // Tokenized stocks (NVDAX "xStock", SPYON "Ondo Tokenized"): the real stock is in the stock list.
+    .filter((e) => !TOKENIZED_STOCK.test(e[1]))
     .sort(byRank);
 }
 
@@ -232,4 +236,18 @@ export function searchUniverse(list: UniverseEntry[], query: string, limit = 50)
     if (s >= 0) scored.push({ e, s, i });
   });
   return scored.sort((a, b) => a.s - b.s || a.i - b.i).slice(0, limit).map((x) => x.e);
+}
+
+/** Cryptos and stocks searched together: exact symbol, then symbol prefix, then the largest (same order on iOS). */
+export function searchAll(crypto: UniverseEntry[], stock: UniverseEntry[], query: string, limit = 20): { e: UniverseEntry; kind: Kind }[] {
+  const hits = [
+    ...searchUniverse(crypto, query, limit).map((e, i) => ({ e, i, kind: "crypto" as Kind })),
+    ...searchUniverse(stock, query, limit).map((e, i) => ({ e, i, kind: "stock" as Kind })),
+  ];
+  const Q = norm(query.trim());
+  const score = (e: UniverseEntry) => (e[0] === Q ? 0 : e[0].startsWith(Q) ? 1 : 2);
+  return hits
+    .sort((a, b) => score(a.e) - score(b.e) || (a.e[2] || 1e9) - (b.e[2] || 1e9) || a.i - b.i)
+    .slice(0, limit)
+    .map(({ e, kind }) => ({ e, kind }));
 }
