@@ -80,3 +80,7 @@ cd web && bun test && bun run typecheck                # moteur TS = moteur Swif
 ```
 
 Références vérifiées : RSI de Wilder (exemple StockCharts), vecteur de signature HMAC officiel de la documentation Binance, corps d'ordres Binance/Alpaca et OCO sur quantité nette de frais, parseurs construits à partir de réponses réelles de chaque source.
+
+## Crédits
+
+Conception, design et développement : **Maxime Nathan Lestage**.

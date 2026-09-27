@@ -3,7 +3,7 @@ import { PhoneMockup } from "./PhoneMockup";
 
 export function Hero({ ticks }: { ticks: Tick[] }) {
   return (
-    <section className="hero" id="top">
+    <section className="hero">
       <div className="hero-text">
         <p className="chip">
           <span className="dot" /> iOS · Crypto & Actions · Swift natif

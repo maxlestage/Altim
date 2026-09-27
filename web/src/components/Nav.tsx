@@ -1,19 +1,19 @@
 import { useState } from "react";
 
 const LINKS = [
-  ["#live", "Signal live"],
-  ["#features", "Fonctionnalités"],
-  ["#sources", "Sources"],
-  ["#how", "Moteur"],
-  ["#security", "Sécurité"],
-  ["#faq", "FAQ"],
+  ["/#live", "Signal live"],
+  ["/#features", "Fonctionnalités"],
+  ["/#sources", "Sources"],
+  ["/#how", "Moteur"],
+  ["/#security", "Sécurité"],
+  ["/#faq", "FAQ"],
 ] as const;
 
 export function Nav() {
   const [open, setOpen] = useState(false);
   return (
-    <header className="nav">
-      <a href="#top" className="brand" aria-label="Altim, accueil">
+    <header className="nav" id="top">
+      <a href="/" className="brand" aria-label="Altim, accueil">
         <img src="/logo.svg" alt="" width={34} height={34} />
         <span>ALTIM</span>
       </a>
@@ -23,7 +23,7 @@ export function Nav() {
             {label}
           </a>
         ))}
-        <a href="#download" className="btn btn-small">
+        <a href="/#download" className="btn btn-small">
           Télécharger
         </a>
       </nav>
