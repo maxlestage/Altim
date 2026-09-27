@@ -3,6 +3,7 @@ import type { Kind } from "../engine/reliability";
 import { formatPrice } from "../market";
 import { api, type UniverseItem } from "./api";
 import { AssetPicker, KIND_LABEL } from "./AssetPicker";
+import { AssetSearch } from "./AssetSearch";
 import { addHoldings, assetKey, useHoldings } from "./store";
 
 type Line = { asset: UniverseItem; qty: string; pru: string };
@@ -79,7 +80,7 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
           );
         })}
         <button className="btn btn-ghost" onClick={() => setPicking(kind)}>
-          + {kind === "crypto" ? "Ajouter des cryptos" : "Ajouter des actions / ETF"}
+          {kind === "crypto" ? "Parcourir toutes les cryptos" : "Parcourir toutes les actions / ETF"}
         </button>
       </fieldset>
     );
@@ -91,9 +92,10 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
         <div className="sheet" role="dialog" aria-modal="true" aria-label="Ajouter des avoirs" onClick={(e) => e.stopPropagation()}>
           <div className="sheet-handle" />
           <div className="sheet-head"><h2>Ajouter des avoirs</h2></div>
+          <AssetSearch selected={new Set(keys)} onToggle={toggle} autoFocus clearOnPick />
           <p className="muted small">
-            Choisissez autant de cryptos et d'actions que vous voulez, puis indiquez pour chacune la quantité et le prix d'achat moyen
-            (laissé vide = cours actuel).
+            Cherchez chaque crypto ou action et touchez-la pour l'ajouter, puis indiquez la quantité et le prix d'achat moyen
+            (laissé vide = cours actuel). Vous pouvez aussi parcourir tout le catalogue.
           </p>
           {section("crypto")}
           {section("stock")}

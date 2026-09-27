@@ -11,7 +11,7 @@ import { gate, type Kind } from "../src/engine/reliability";
 import { HIGHER, STEP, snapshot, type Interval } from "./market";
 import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
-import { cryptoUniverse, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
+import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
 const ROOT = join(import.meta.dir, "..");
 const DIST = join(ROOT, "dist");
@@ -108,18 +108,10 @@ async function radarItem(asset: Asset, interval: Interval) {
 
 /** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first. */
 /** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first, then the largest. */
+/** Search across the full universe (every crypto, every US-listed stock / ETF). */
 async function searchAssets(q: string, limit = 20) {
   const [crypto, stock] = await Promise.all([cryptoUniverse().catch(() => []), stockUniverse().catch(() => [])]);
-  const hits = [
-    ...searchUniverse(crypto, q, limit).map((e, i) => ({ e, i, kind: "crypto" as Kind })),
-    ...searchUniverse(stock, q, limit).map((e, i) => ({ e, i, kind: "stock" as Kind })),
-  ];
-  const Q = q.toUpperCase().trim();
-  const score = (e: UniverseEntry) => (e[0] === Q ? 0 : e[0].startsWith(Q) ? 1 : 2);
-  return hits
-    .sort((a, b) => score(a.e) - score(b.e) || (a.e[2] || 1e9) - (b.e[2] || 1e9) || a.i - b.i)
-    .slice(0, limit)
-    .map(({ e, kind }) => toItem(e, kind));
+  return searchAll(crypto, stock, q, limit).map(({ e, kind }) => toItem(e, kind));
 }
 
 const toItem = (e: UniverseEntry, kind: Kind) => ({

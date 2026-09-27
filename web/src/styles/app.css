@@ -285,3 +285,6 @@
 .entry-fields .field input { font-size: 16px; padding: 0 10px; }
 .holding-group { display: grid; gap: 10px; }
 .group-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+/* A long asset name must never widen a sheet (grid items default to min-width: auto). */
+.sheet { overflow-x: hidden; }
+.sheet > *, .asset-search, .asset-search .search-results, .asset-search li { min-width: 0; }
