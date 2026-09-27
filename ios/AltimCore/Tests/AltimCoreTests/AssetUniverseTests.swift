@@ -81,7 +81,9 @@ final class AssetUniverseTests: XCTestCase {
             ["symbol": "pepe", "name": "Pepe", "market_cap_rank": 30],
             ["symbol": "pepe", "name": "Pepe copycat", "market_cap_rank": 900],
         ]))
-        let list = AssetUniverse.buildCrypto([okx, coinbase, kraken, gate], gecko: gecko, names: [("NEWCOIN", "New Coin")])
+        let list = AssetUniverse.buildCrypto([okx, coinbase, kraken, gate, ["NVDAX", "SPYON"]], gecko: gecko,
+                                             names: [("NEWCOIN", "New Coin"), ("NVDAX", "NVIDIA xStock"),
+                                                     ("SPYON", "SPDR S&P 500 ETF (Ondo Tokenized ETF)")])
         XCTAssertEqual(list.map(\.symbol), ["BTC", "ETH", "DOGE", "PEPE", "NEWCOIN"])
         XCTAssertEqual(list[0], UniverseEntry(symbol: "BTC", name: "Bitcoin", kind: .crypto, rank: 1, flag: 3))
         XCTAssertEqual(list.first { $0.symbol == "PEPE" }!.name, "Pepe")
@@ -100,6 +102,21 @@ final class AssetUniverseTests: XCTestCase {
         XCTAssertEqual(AssetUniverse.search(list, "", limit: 100).count, list.count)
         XCTAssertEqual(AssetUniverse.search(list, "S&P (500"), [])
         XCTAssertEqual(AssetUniverse.search(list, "S&P 500").first?.symbol, "SPY")
+    }
+
+    func testSearchAllMixesCryptosAndStocks() {
+        let crypto = AssetUniverse.buildCrypto([["BTC", "SOL", "SPYX"]],
+                                               gecko: AssetUniverse.gecko(json([["symbol": "btc", "name": "Bitcoin", "market_cap_rank": 1],
+                                                                                ["symbol": "sol", "name": "Solana", "market_cap_rank": 7]])),
+                                               names: [("SPYX", "Spy Token")])
+        let stocks = AssetUniverse.buildStocks([AssetUniverse.nasdaqDirectory(nasdaqListed), AssetUniverse.nasdaqDirectory(otherListed)],
+                                               caps: ["AAPL": 3e12])
+        let ids = { (q: String) in AssetUniverse.searchAll(crypto: crypto, stocks: stocks, q, limit: 5).map(\.id) }
+        XCTAssertEqual(ids("spy"), ["stock:SPY", "crypto:SPYX"])
+        XCTAssertEqual(ids("apple"), ["stock:AAPL"])
+        XCTAssertEqual(ids("sol").first, "crypto:SOL")
+        XCTAssertEqual(ids("bitcoin"), ["crypto:BTC"])
+        XCTAssertEqual(ids("  "), [])
     }
 
     /// Real download of both lists (ALTIM_LIVE=1).

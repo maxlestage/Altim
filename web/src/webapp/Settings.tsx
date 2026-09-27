@@ -28,7 +28,7 @@ export function Settings() {
       <div className="card">
         <h2 className="card-title">Radar</h2>
         <p className="muted small">Suivez autant d'actifs que vous voulez, parmi toutes les cryptos et toutes les actions et ETF cotés aux États-Unis.</p>
-        <button className="btn btn-ghost" onClick={() => setPicking(true)}>+ Parcourir toutes les cryptos et actions</button>
+        <button className="btn btn-ghost" onClick={() => setPicking(true)}>+ Ajouter : rechercher une crypto ou une action</button>
         <ul className="watch-edit">
           {watchlist.map((w) => (
             <li key={assetKey(w)}>

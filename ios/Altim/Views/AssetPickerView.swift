@@ -11,7 +11,8 @@ struct AssetPickerView: View {
 
     @Environment(AppServices.self) private var services
     @Environment(\.dismiss) private var dismiss
-    @State private var kind: AssetClass = .crypto
+    /// nil = combined search (default without a fixed category); otherwise browsing one category.
+    @State private var browsing: AssetClass?
     @State private var query = ""
     @State private var limit = 100
 
@@ -20,9 +21,10 @@ struct AssetPickerView: View {
         self.title = title
         self.selected = selected
         self.onToggle = onToggle
-        _kind = State(initialValue: fixedKind ?? .crypto)
+        _browsing = State(initialValue: fixedKind)
     }
 
+    private var kind: AssetClass { browsing ?? .crypto }
     private var list: [UniverseEntry] { services.universe.lists[kind] ?? [] }
     private var results: [UniverseEntry] {
         query.trimmingCharacters(in: .whitespaces).isEmpty ? list : AssetUniverse.search(list, query, limit: list.count)
@@ -33,39 +35,50 @@ struct AssetPickerView: View {
         NavigationStack {
             List {
                 if fixedKind == nil {
-                    Picker("Catégorie", selection: $kind) {
-                        Text("Crypto").tag(AssetClass.crypto)
-                        Text("Actions & ETF").tag(AssetClass.stock)
+                    Picker("Mode", selection: $browsing) {
+                        Text("Recherche").tag(AssetClass?.none)
+                        Text("Cryptos").tag(AssetClass?.some(.crypto))
+                        Text("Actions").tag(AssetClass?.some(.stock))
                     }
                     .pickerStyle(.segmented)
                     .listRowBackground(Color.clear)
                 }
-                Section {
-                    if list.isEmpty {
-                        if let error = services.universe.errors[kind] {
-                            Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(Theme.warning)
-                        } else {
-                            HStack { ProgressView(); Text("Chargement du catalogue…").foregroundStyle(.secondary) }
+                if browsing == nil {
+                    AssetSearchSection(selected: selected, onToggle: onToggle)
+                    Section {
+                        Text("Tapez un symbole ou un nom : cryptos et actions sont cherchées ensemble. Les onglets permettent aussi de parcourir tout le catalogue.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                } else {
+                    Section {
+                        TextField(kind == .crypto ? "Filtrer : BTC, Solana, PEPE…" : "Filtrer : Apple, NVDA, S&P 500…", text: $query)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        if list.isEmpty {
+                            if let error = services.universe.errors[kind] {
+                                Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(Theme.warning)
+                            } else {
+                                HStack { ProgressView(); Text("Chargement du catalogue…").foregroundStyle(.secondary) }
+                            }
                         }
-                    }
-                    ForEach(results.prefix(limit)) { entry in row(entry) }
-                    if results.count > limit {
-                        Button("Afficher plus (\((results.count - limit).formatted()) restants)") { limit += 200 }
-                    }
-                } header: {
-                    Text(header(count: results.count))
-                } footer: {
-                    if kind == .stock {
-                        Text("Actions et ETF cotés aux États-Unis. Les actions cotées en euros ne sont pas encore prises en charge.")
+                        ForEach(results.prefix(limit)) { entry in row(entry) }
+                        if results.count > limit {
+                            Button("Afficher plus (\((results.count - limit).formatted()) restants)") { limit += 200 }
+                        }
+                    } header: {
+                        Text(header(count: results.count))
+                    } footer: {
+                        if kind == .stock {
+                            Text("Actions et ETF cotés aux États-Unis. Les actions cotées en euros ne sont pas encore prises en charge.")
+                        }
                     }
                 }
             }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always),
-                        prompt: kind == .crypto ? "Filtrer : BTC, Solana, PEPE…" : "Filtrer : Apple, NVDA, S&P 500…")
-            .autocorrectionDisabled()
             .onChange(of: query) { limit = 100 }
-            .onChange(of: kind) { limit = 100 }
-            .task(id: kind) { await services.universe.ensure(kind, transport: services.transport) }
+            .onChange(of: browsing) { limit = 100; query = "" }
+            .task(id: browsing) {
+                if let browsing { await services.universe.ensure(browsing, transport: services.transport) }
+            }
             .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

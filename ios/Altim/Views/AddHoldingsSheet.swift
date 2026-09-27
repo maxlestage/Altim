@@ -42,8 +42,9 @@ struct AddHoldingsSheet: View {
         let ready = ready
         NavigationStack {
             Form {
+                AssetSearchSection(selected: Set(lines.map(\.id)), onToggle: toggle, clearOnPick: true)
                 Section {
-                    Text("Choisissez autant de cryptos et d'actions que vous voulez, puis indiquez pour chacune la quantité et le prix moyen payé (vide = cours actuel).")
+                    Text("Cherchez chaque crypto ou action et touchez-la pour l'ajouter, puis indiquez la quantité et le prix moyen payé (vide = cours actuel). Vous pouvez aussi parcourir tout le catalogue.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 section(.crypto)
@@ -116,7 +117,7 @@ struct AddHoldingsSheet: View {
             Button {
                 picking = PickTarget(kind: kind)
             } label: {
-                Label(kind == .crypto ? "Ajouter des cryptos" : "Ajouter des actions / ETF", systemImage: "plus.circle.fill")
+                Label(kind == .crypto ? "Parcourir toutes les cryptos" : "Parcourir toutes les actions / ETF", systemImage: "list.bullet")
             }
         } header: {
             Text(kind == .crypto ? "Crypto\(rows.isEmpty ? "" : " · \(rows.count)")" : "Actions & ETF\(rows.isEmpty ? "" : " · \(rows.count)")")

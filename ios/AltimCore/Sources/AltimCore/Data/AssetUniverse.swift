@@ -34,6 +34,8 @@ public enum AssetUniverse {
     struct Ranked: Hashable { let symbol: String; let name: String; let rank: Int }
 
     static let cryptoSymbol = try! NSRegularExpression(pattern: "^[A-Z0-9]{1,12}$")
+    /// Tokens that replicate a stock or an ETF are not cryptos: the stock itself is offered instead.
+    static let tokenizedStock = try! NSRegularExpression(pattern: "\\b(xStocks?|tokeni[sz]ed)\\b", options: .caseInsensitive)
     /// Leveraged tokens (BTC3L, ETH5S…) are derivatives, not coins you hold.
     static let leveraged = try! NSRegularExpression(pattern: "^[A-Z0-9]{2,}[2-9][LS]$")
     static let stockSymbol = try! NSRegularExpression(pattern: "^[A-Z][A-Z0-9\\-]{0,9}$")
@@ -165,6 +167,8 @@ public enum AssetUniverse {
             if !clean.isEmpty, clean.uppercased() != s, info[s] == nil { info[s] = (clean, nil) }
         }
         return count.map { s, n in UniverseEntry(symbol: s, name: info[s]?.name ?? s, kind: .crypto, rank: info[s]?.rank, flag: n) }
+            // Tokenized stocks (NVDAX "xStock", SPYON "Ondo Tokenized"): the real stock is in the stock list.
+            .filter { !matches(tokenizedStock, $0.name) }
             .sorted(by: byRank)
     }
 
@@ -217,6 +221,21 @@ public enum AssetUniverse {
             scored.append((e, s, i))
         }
         return scored.sorted { $0.s != $1.s ? $0.s < $1.s : $0.i < $1.i }.prefix(limit).map(\.e)
+    }
+
+    /// Cryptos and stocks searched together: exact symbol, then symbol prefix, then the largest (same order as the web).
+    public static func searchAll(crypto: [UniverseEntry], stocks: [UniverseEntry], _ query: String, limit: Int = 20) -> [UniverseEntry] {
+        let q = normalized(query.trimmingCharacters(in: .whitespaces))
+        guard !q.isEmpty else { return [] }
+        let hits = search(crypto, query, limit: limit).enumerated().map { ($0.element, $0.offset) }
+            + search(stocks, query, limit: limit).enumerated().map { ($0.element, $0.offset) }
+        func score(_ e: UniverseEntry) -> Int { e.symbol == q ? 0 : e.symbol.hasPrefix(q) ? 1 : 2 }
+        return hits.sorted { a, b in
+            let (sa, sb) = (score(a.0), score(b.0))
+            if sa != sb { return sa < sb }
+            let (ra, rb) = (a.0.rank ?? Int.max, b.0.rank ?? Int.max)
+            return ra != rb ? ra < rb : a.1 < b.1
+        }.prefix(limit).map(\.0)
     }
 
     // MARK: Loading

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Kind } from "../engine/reliability";
 import { api, type UniverseItem } from "./api";
+import { AssetSearch } from "./AssetSearch";
 import { assetKey } from "./store";
 import { Segmented } from "./ui";
 
@@ -24,7 +25,9 @@ export function AssetPicker({
   onClose: () => void;
   title?: string;
 }) {
-  const [kind, setKind] = useState<Kind>(fixedKind ?? "crypto");
+  // Without a fixed category, the picker opens on the combined search (no list to scroll).
+  const [mode, setMode] = useState<Kind | "all">(fixedKind ?? "all");
+  const kind: Kind = mode === "all" ? "crypto" : mode;
   const [q, setQ] = useState("");
   const [items, setItems] = useState<UniverseItem[]>([]);
   const [total, setTotal] = useState<number | null>(null);
@@ -47,13 +50,14 @@ export function AssetPicker({
   };
 
   useEffect(() => {
+    if (mode === "all") return;
     let alive = true;
     const t = setTimeout(() => load(0, () => alive), q ? 250 : 0);
     return () => {
       alive = false;
       clearTimeout(t);
     };
-  }, [kind, q]);
+  }, [mode, q]);
 
   const count = [...selected].filter((k) => k.startsWith(`${kind}:`)).length;
 
@@ -66,8 +70,20 @@ export function AssetPicker({
           <button className="btn btn-small" onClick={onClose}>Terminé{selected.size ? ` (${selected.size})` : ""}</button>
         </div>
         {!fixedKind && (
-          <Segmented label="Catégorie" value={kind} onChange={(k) => { setKind(k); setItems([]); setTotal(null); }} options={[["crypto", "Crypto"], ["stock", "Actions & ETF"]]} />
+          <Segmented
+            label="Catégorie"
+            value={mode}
+            onChange={(k) => { setMode(k); setItems([]); setTotal(null); setQ(""); }}
+            options={[["all", "Recherche"], ["crypto", "Cryptos"], ["stock", "Actions"]]}
+          />
         )}
+        {mode === "all" ? (
+          <>
+            <AssetSearch selected={selected} onToggle={onToggle} autoFocus />
+            <p className="muted small">Tapez un symbole ou un nom : cryptos et actions sont cherchées ensemble. Les onglets permettent aussi de parcourir tout le catalogue.</p>
+          </>
+        ) : (
+        <>
         <label className="field">
           <span>
             {total === null ? "Chargement du catalogue…" : q.trim()
@@ -99,6 +115,8 @@ export function AssetPicker({
           </button>
         )}
         {total === 0 && <p className="muted small">Aucun actif trouvé. Les actions cotées hors des États-Unis (en euros) ne sont pas encore prises en charge.</p>}
+        </>
+        )}
       </div>
     </div>
   );
