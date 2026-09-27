@@ -271,7 +271,7 @@ class ExchangeConnection {
 }
 
 /** Stock quote sources fast enough to poll every few seconds. */
-const FAST_STOCK = ["Robinhood", "TradingView", "Zacks", "Webull"];
+const FAST_STOCK = ["Robinhood", "TradingView", "Zacks", "Webull", "Fidelity"];
 
 export class LiveHub {
   private listeners = new Map<string, Set<Listener>>();

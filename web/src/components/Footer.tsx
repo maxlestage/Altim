@@ -32,7 +32,7 @@ const COLUMNS = [
   },
 ] as const;
 
-const DATA = "Binance · OKX · Coinbase · Kraken · KuCoin · Gate.io · Bitfinex · CoinGecko · Yahoo Finance · Nasdaq · Cboe · alternative.me · StockTwits";
+const DATA = "Binance · OKX · Coinbase · Kraken · KuCoin · Gate.io · Bitfinex · CoinGecko · Yahoo Finance · Nasdaq · Cboe · WSJ / MarketWatch · Financial Times · Fidelity · Robinhood · alternative.me · StockTwits";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -48,13 +48,13 @@ export function Footer() {
           </a>
           <p className="footer-tagline">Le marché, décodé.</p>
           <p className="muted">
-            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 31 sources de prix. Application web,
+            Signaux d'achat et de vente pour la crypto et les actions, vérifiés sur 40 sources de prix. Application web,
             sur mobile comme sur ordinateur.
           </p>
           <ul className="footer-badges" aria-label="Caractéristiques">
             <li>Web</li>
             <li>Prix en direct</li>
-            <li>31 sources</li>
+            <li>40 sources</li>
           </ul>
         </div>
 
