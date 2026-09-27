@@ -2,9 +2,15 @@
   "name": "altim",
   "private": true,
   "workspaces": ["web"],
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "bun": "1.3.11"
+  },
   "scripts": {
     "build": "cd web && bun run build",
-    "start": "cd web && bun run start",
+    "start": "cd web && bun ./server.ts",
     "test": "cd web && bun test"
   }
 }
