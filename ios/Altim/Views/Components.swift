@@ -91,3 +91,49 @@ struct SectionTitle: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+/// "EN DIRECT" pill: pulsing dot while ticks arrive, time of the last one.
+struct LiveBadge: View {
+    let lastTick: Date?
+    @State private var pulse = false
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            let live = lastTick.map { context.date.timeIntervalSince($0) < 60 } ?? false
+            HStack(spacing: 5) {
+                Circle().fill(live ? Theme.buy : Theme.warning).frame(width: 7, height: 7)
+                    .opacity(live && pulse ? 0.35 : 1)
+                    .shadow(color: live ? Theme.buy : .clear, radius: 4)
+                Text(live ? "EN DIRECT" : "CONNEXION…").font(.system(size: 10, weight: .bold, design: .monospaced))
+                if live, let lastTick {
+                    Text(lastTick.formatted(date: .omitted, time: .standard)).font(Theme.mono(10, weight: .regular))
+                }
+            }
+            .foregroundStyle(live ? Theme.buy : Theme.textSecondary)
+        }
+        .onAppear { withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { pulse = true } }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Price that flashes green / red on each move.
+struct LivePriceText: View {
+    let price: Double
+    var size: CGFloat = 15
+    var weight: Font.Weight = .regular
+    @State private var flash: Color = .clear
+
+    var body: some View {
+        Text(Format.price(price))
+            .font(Theme.mono(size, weight: weight))
+            .contentTransition(.numericText(value: price))
+            .padding(.horizontal, 3)
+            .background(RoundedRectangle(cornerRadius: 4).fill(flash))
+            .onChange(of: price) { old, new in
+                guard old != new else { return }
+                flash = (new > old ? Theme.buy : Theme.sell).opacity(0.35)
+                withAnimation(.easeOut(duration: 0.9)) { flash = .clear }
+            }
+            .animation(.snappy, value: price)
+    }
+}

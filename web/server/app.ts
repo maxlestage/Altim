@@ -12,6 +12,7 @@ import { HIGHER, STEP, snapshot, type Interval } from "./market";
 import { ASSETS, consensusQuotes, makeAsset, type Asset } from "./quotes";
 import { cached } from "./cache";
 import { guardReport } from "./guard";
+import { LiveHub } from "./live";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
 const ROOT = join(import.meta.dir, "..");
@@ -107,9 +108,7 @@ async function radarItem(asset: Asset, interval: Interval) {
   }
 }
 
-/** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first. */
 /** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first, then the largest. */
-/** Search across the full universe (every crypto, every US-listed stock / ETF). */
 async function searchAssets(q: string, limit = 20) {
   const [crypto, stock] = await Promise.all([cryptoUniverse().catch(() => []), stockUniverse().catch(() => [])]);
   return searchAll(crypto, stock, q, limit).map(({ e, kind }) => toItem(e, kind));
@@ -153,8 +152,10 @@ async function sentiment(symbol: string, kind: Kind) {
 
 // ---------- Application ----------
 
-export function createApp() {
+export function createApp({ live }: { live?: LiveHub } = {}) {
   const app = express();
+  let hub = live ?? null;
+  const liveHub = () => (hub ??= new LiveHub());
   app.disable("x-powered-by");
   app.set("trust proxy", 1); // Heroku router
 
@@ -190,7 +191,8 @@ export function createApp() {
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
     next();
   });
-  app.use(compression());
+  // Event streams are never compressed: compression buffers and would freeze the live prices.
+  app.use(compression({ filter: (req, res) => !String(res.getHeader("Content-Type") ?? "").includes("text/event-stream") && compression.filter(req, res) }));
 
   app.get("/health", (_req, res) => res.type("text").send("ok"));
 
@@ -260,6 +262,36 @@ export function createApp() {
     res.setHeader("Cache-Control", "public, max-age=30");
     res.json(report);
   }));
+
+  // Live prices (Server-Sent Events): last known price right away, then every change, several times per second.
+  api.get("/live", (req, res, next) => {
+    let assets: Asset[];
+    try {
+      assets = parseAssets(req.query.symbols);
+    } catch (e) {
+      return next(e);
+    }
+    res.status(200).set({
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+      "Access-Control-Allow-Origin": "*",
+    });
+    res.flushHeaders();
+    const send = (t: unknown) => res.write(`data: ${JSON.stringify(t)}\n\n`);
+    res.write("retry: 3000\n\n");
+    const h = liveHub();
+    const keys = assets.map((a) => `${a.kind}:${a.symbol}`);
+    const unsubscribe = h.subscribe(keys, send);
+    h.snapshot(keys).forEach(send);
+    // Comment every 15 s: keeps the connection open through the Heroku router (55 s idle limit) and proxies.
+    const beat = setInterval(() => res.write(": ok\n\n"), 15_000);
+    req.on("close", () => {
+      clearInterval(beat);
+      unsubscribe();
+    });
+  });
 
   api.get("/sentiment", wrap(async (req, res) => {
     const kind = parseKind(req.query.kind);

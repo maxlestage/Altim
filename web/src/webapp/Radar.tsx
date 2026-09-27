@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, INTERVAL_LABEL, type RadarRow, type Sentiment } from "./api";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval } from "./store";
-import { ActionBadge, Change, Price, ReliabilityBadge, Segmented, Sparkline } from "./ui";
+import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
+import { LiveBadge, LivePrice, useLive } from "./live";
+import { formatPrice } from "../market";
 
 export function Radar() {
   const { watchlist, interval } = useAppState();
@@ -12,6 +14,7 @@ export function Radar() {
   const [error, setError] = useState<string | null>(null);
   const [fg, setFg] = useState<Sentiment["fearGreed"]>();
   const busy = useRef(false);
+  const live = useLive(watchlist);
 
   const refresh = useCallback(async () => {
     if (busy.current || !watchlist.length) return;
@@ -60,8 +63,9 @@ export function Radar() {
       <div className="screen-top">
         <div>
           <h1>Radar</h1>
+          <LiveBadge status={live.status} last={live.last} />
           <p className="muted small">
-            {updated ? `Mis à jour à ${updated.toLocaleTimeString("fr-FR")}` : "Interrogation des sources…"}
+            {updated ? `Signaux recalculés à ${updated.toLocaleTimeString("fr-FR")}` : "Interrogation des sources…"}
             {loading && updated ? " · actualisation…" : ""}
           </p>
         </div>
@@ -98,6 +102,9 @@ export function Radar() {
       <ul className="asset-list">
         {watchlist.map((w) => {
           const r = rows[assetKey(w)];
+          const t = live.ticks[assetKey(w)];
+          // The sparkline ends on the live price: the chart moves with the market.
+          const spark = r?.sparkline?.length && t ? [...r.sparkline, t.price] : (r?.sparkline ?? []);
           return (
             <li key={assetKey(w)}>
               <a href={`/app/actif/${w.kind}/${w.symbol}`} onClick={onLink} className={`asset-card ${r?.signal ? r.signal.action : ""}`}>
@@ -105,15 +112,16 @@ export function Radar() {
                   <b>{w.name}</b>
                   <small>{w.symbol} · {w.kind === "crypto" ? "Crypto" : "Action"}</small>
                 </div>
-                <Sparkline values={r?.sparkline ?? []} />
+                <Sparkline values={spark} />
                 <div className="asset-price">
-                  <b><Price value={r?.price} /></b>
-                  <Change value={r?.change} />
+                  <b><LivePrice tick={t} fallback={r?.price} format={(v) => `${formatPrice(v)} $`} /></b>
+                  <Change value={t?.change ?? r?.change} />
+                  {t?.market === "closed" && <small className="market-closed" title="Bourse de New York fermée : dernier cours connu">Bourse fermée</small>}
                 </div>
                 <div className="asset-meta">
                   {r?.signal ? <ActionBadge action={r.signal.action} /> : r?.error ? <span className="badge hold">INDISPONIBLE</span> : <span className="skeleton-line" />}
                   {r?.reliability && <ReliabilityBadge rel={r.reliability} />}
-                  {r?.priceSources && <small className="muted">prix {r.priceSources} sources</small>}
+                  {t ? <small className="muted">prix {t.agreeing}/{t.total} sources</small> : r?.priceSources && <small className="muted">prix {r.priceSources} sources</small>}
                 </div>
               </a>
             </li>
