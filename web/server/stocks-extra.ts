@@ -18,12 +18,23 @@ async function fetchText(url: string, init: RequestInit = {}): Promise<string> {
 }
 const fetchJSON = async (url: string, init: RequestInit = {}): Promise<any> => JSON.parse(await fetchText(url, init));
 
+// Formatters are costly to build: created once (thousands of candles per history).
+const NY_TIME = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const NY_DATE = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" });
+const openCache = new Map<string, number>();
+
 /** 9:30 New York of a calendar date (same convention as the other stock sources). */
 function open(y: number, m: number, d: number): number {
-  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const key = `${y}-${m}-${d}`;
+  const hit = openCache.get(key);
+  if (hit !== undefined) return hit;
+  const fmt = NY_TIME;
   for (const h of [13, 14]) {
     const t = Date.UTC(y, m - 1, d, h, 30);
-    if (fmt.format(t) === "09:30") return t;
+    if (fmt.format(t) === "09:30") {
+      openCache.set(key, t);
+      return t;
+    }
   }
   return Date.UTC(y, m - 1, d, 13, 30);
 }
@@ -33,7 +44,7 @@ const fromIso = (s: string) => {
   return open(y!, m!, d!);
 };
 /** Timestamp (ms) → its calendar date in New York → 9:30 that day. */
-const fromNy = (ms: number) => fromIso(new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(ms));
+const fromNy = (ms: number) => fromIso(NY_DATE.format(ms));
 const n = (v: unknown) => {
   const x = typeof v === "string" ? Number(v.replace(/[$,]/g, "")) : Number(v);
   return Number.isFinite(x) ? x : null;
