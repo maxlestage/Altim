@@ -81,5 +81,31 @@ final class PublicAPITests: XCTestCase {
         }
         _ = use
         _ = ReliabilityLevel.high.label
+
+        // Holdings (SQLite) and analysis, as used by the "Mes avoirs" screen.
+        let hdb = try HoldingsDatabase(path: ":memory:")
+        _ = try? HoldingsDatabase.defaultURL()
+        let saved = try await hdb.upsert(Holding(symbol: "BTC", kind: .crypto, name: "Bitcoin", quantity: 1, averagePrice: 100), merge: true)
+        _ = (saved.id, saved.symbol, saved.kind, saved.name, saved.quantity, saved.averagePrice, saved.isValid)
+        let stored = try await hdb.all()
+        try await hdb.setCash(10)
+        _ = try await hdb.cash()
+        let json = try await hdb.exportJSON()
+        try await hdb.importJSON(json)
+        try await hdb.delete(id: saved.id)
+        let input = HoldingsAnalyzer.MarketInput(price: 110, daily: candles, daySignal: .init(action: .buy, score: 30),
+                                                 shortSignal: nil, reliability: .high)
+        let analysis = HoldingsAnalyzer.analyze(holdings: stored, cash: 10, market: ["crypto:BTC": input])
+        _ = (analysis.total, analysis.cash, analysis.invested, analysis.pnl, analysis.pnlPercent,
+             analysis.allocation.crypto, analysis.allocation.stock, analysis.allocation.cash,
+             analysis.risk.volatilityAnnual, analysis.risk.var95Day, analysis.risk.var95DayPercent,
+             analysis.risk.averageCorrelation, analysis.risk.lossAtStops, analysis.risk.maxWeight, analysis.risk.effectiveAssets)
+        for l in analysis.lines {
+            _ = (l.id, l.symbol, l.kind, l.name, l.quantity, l.averagePrice, l.price, l.value, l.pnl, l.pnlPercent,
+                 l.weight, l.stop, l.lossAtStop, l.recommendation.label, l.reasons, l.trimValue)
+            _ = l.reasons.map { HoldingsAnalyzer.reasonText[$0] }
+        }
+        for i in analysis.insights { _ = (i.level, i.code, HoldingsAnalyzer.text(i)) }
+        _ = HoldingsAnalyzer.Recommendation.allCasesForUI
     }
 }

@@ -26,7 +26,7 @@ public struct SourceCheck: Sendable, Hashable, Identifiable {
     public var isHealthy: Bool { status == .primary || status == .agrees }
 }
 
-public enum ReliabilityLevel: String, Sendable, Hashable {
+public enum ReliabilityLevel: String, Codable, Sendable, Hashable {
     case high, medium, low
 
     public var label: String {

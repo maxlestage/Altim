@@ -33,7 +33,6 @@ targets:
           UIColorName: AccentColor
         UIUserInterfaceStyle: Dark
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
-        NSFaceIDUsageDescription: Altim utilise Face ID pour confirmer chaque ordre d'achat ou de vente.
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:

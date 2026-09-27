@@ -91,17 +91,3 @@ struct SectionTitle: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-
-struct EnvironmentBadge: View {
-    let isLive: Bool
-    let demo: Bool
-
-    var body: some View {
-        let color = demo ? Theme.violet : (isLive ? Theme.sell : Theme.warning)
-        Text(demo ? "DÉMO" : (isLive ? "ARGENT RÉEL" : "TESTNET"))
-            .font(.system(size: 11, weight: .heavy, design: .monospaced))
-            .padding(.horizontal, 8).padding(.vertical, 4)
-            .foregroundStyle(color)
-            .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(color, lineWidth: 1))
-    }
-}

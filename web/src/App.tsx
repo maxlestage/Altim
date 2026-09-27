@@ -14,9 +14,11 @@ import { Footer } from "./components/Footer";
 import { MobileCTA } from "./components/MobileCTA";
 import { LEGAL_PAGES, LegalPage } from "./components/Legal";
 import { useTicks } from "./hooks";
+import { WebApp } from "./webapp/WebApp";
 
 export function App() {
   const path = window.location.pathname.replace(/\/$/, "") || "/";
+  if (path === "/app" || path.startsWith("/app/")) return <WebApp />;
   if (LEGAL_PAGES[path]) {
     document.title = `${LEGAL_PAGES[path]!.title} — Altim`;
     return (

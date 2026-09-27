@@ -4,91 +4,33 @@ import AltimCore
 struct SettingsView: View {
     @Environment(AppSettings.self) private var settings
     @Environment(AppServices.self) private var services
-    @State private var binanceKey = ""
-    @State private var binanceSecret = ""
     @State private var alpacaKey = ""
     @State private var alpacaSecret = ""
     @State private var twelveDataKey = ""
     @State private var polygonKey = ""
     @State private var finnhubKey = ""
-    @State private var showSourcesTest = false
     @State private var saved = false
-    @State private var confirmLive: LiveTarget?
-
-    enum LiveTarget: String, Identifiable {
-        case crypto, stock
-        var id: String { rawValue }
-    }
+    @State private var showSourcesTest = false
 
     var body: some View {
         @Bindable var settings = settings
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Mode démo (argent fictif)", isOn: $settings.demoMode)
-                } footer: {
-                    Text("En mode démo, les ordres sont simulés localement avec 10 000 USDT fictifs. Désactivez-le pour utiliser vos comptes Binance / Alpaca.")
-                }
-
-                Section("Binance · crypto") {
-                    SecureField("Clé API", text: $binanceKey)
-                    SecureField("Clé secrète", text: $binanceSecret)
-                    environmentPicker(value: settings.cryptoEnvironment, target: .crypto)
-                }
-
-                Section {
-                    SecureField("Key ID", text: $alpacaKey)
-                    SecureField("Secret key", text: $alpacaSecret)
-                    environmentPicker(value: settings.stockEnvironment, target: .stock)
-                } header: {
-                    Text("Alpaca · actions US")
-                } footer: {
-                    Text("Clés stockées chiffrées dans le trousseau de cet iPhone uniquement. Créez des clés SANS permission de retrait et, si possible, restreintes à une IP.")
-                }
-
-                Section {
-                    SecureField("Twelve Data (gratuit)", text: $twelveDataKey)
-                    SecureField("Polygon.io (gratuit)", text: $polygonKey)
-                    SecureField("Finnhub (gratuit)", text: $finnhubKey)
-                    Button("Tester toutes les sources") {
-                        saveKeys()
-                        showSourcesTest = true
-                    }
-                } header: {
-                    Text("Sources de données supplémentaires")
-                } footer: {
-                    Text("Sans clé, Altim recoupe déjà Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, CoinGecko, Yahoo Finance, Nasdaq et Cboe. Ces clés gratuites ajoutent des sources indépendantes pour les actions.")
-                }
-
-                Section {
-                    Button(saved ? "Clés enregistrées ✓" : "Enregistrer les clés") { saveKeys() }
-                    Button("Effacer toutes les clés", role: .destructive) {
-                        KeychainStore.Key.allCases.forEach { KeychainStore.set("", for: $0) }
-                        loadKeys()
-                    }
-                }
-
-                Section {
                     Stepper(value: $settings.risk.riskPerTradePercent, in: 0.25...5, step: 0.25) {
-                        LabeledContent("Risque par trade", value: String(format: "%.2f %%", settings.risk.riskPerTradePercent))
+                        LabeledContent("Risque accepté par idée", value: String(format: "%.2f %%", settings.risk.riskPerTradePercent))
                     }
                     Stepper(value: $settings.risk.maxPositionPercent, in: 5...100, step: 5) {
-                        LabeledContent("Position max", value: String(format: "%.0f %%", settings.risk.maxPositionPercent))
-                    }
-                    Stepper(value: $settings.risk.dailyLossLimitPercent, in: 1...20, step: 0.5) {
-                        LabeledContent("Perte max / jour", value: String(format: "%.1f %%", settings.risk.dailyLossLimitPercent))
-                    }
-                    Stepper(value: $settings.risk.minRiskReward, in: 1...5, step: 0.25) {
-                        LabeledContent("Gain/risque min", value: String(format: "%.2f", settings.risk.minRiskReward))
+                        LabeledContent("Taille max d'une ligne", value: String(format: "%.0f %%", settings.risk.maxPositionPercent))
                     }
                 } header: {
-                    Text("Gestion du risque")
+                    Text("Prudence des conseils")
                 } footer: {
-                    Text("Règle professionnelle : ne jamais risquer plus de 1 à 2 % du capital par position.")
+                    Text("Ces réglages déterminent les montants conseillés : la part de votre patrimoine qu'un conseil d'achat accepte de risquer si le stop est touché, et la taille maximale d'une ligne. Règle professionnelle : 1 à 2 % par idée.")
                 }
 
                 Section("Alertes") {
-                    Toggle("Notifier les changements de signal", isOn: Binding(
+                    Toggle("Me prévenir quand un conseil change", isOn: Binding(
                         get: { settings.notificationsEnabled },
                         set: { newValue in
                             if newValue {
@@ -99,11 +41,31 @@ struct SettingsView: View {
                         }))
                 }
 
+                Section {
+                    SecureField("Twelve Data (gratuit)", text: $twelveDataKey)
+                    SecureField("Polygon.io (gratuit)", text: $polygonKey)
+                    SecureField("Finnhub (gratuit)", text: $finnhubKey)
+                    SecureField("Alpaca Key ID (données IEX)", text: $alpacaKey)
+                    SecureField("Alpaca Secret (données IEX)", text: $alpacaSecret)
+                    Button(saved ? "Clés enregistrées ✓" : "Enregistrer les clés") { saveKeys() }
+                    Button("Tester toutes les sources") {
+                        saveKeys()
+                        showSourcesTest = true
+                    }
+                } header: {
+                    Text("Sources de données supplémentaires")
+                } footer: {
+                    Text("Facultatif. Sans clé, Altim recoupe déjà Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, CoinGecko, Yahoo Finance, Nasdaq et Cboe. Ces clés gratuites (lecture de cours uniquement) ajoutent des sources indépendantes pour les actions. Elles restent chiffrées dans le trousseau de cet iPhone.")
+                }
+
                 Section("À propos") {
                     LabeledContent("Données crypto", value: "9 sources recoupées")
                     LabeledContent("Données actions", value: "3 à 6 sources recoupées")
+                    LabeledContent("Vos avoirs", value: "Base SQLite sur l'iPhone")
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
-                    Text("Altim est un outil d'aide à la décision. Il ne constitue pas un conseil en investissement.")
+                    Text("Altim est un conseiller : il ne passe aucun ordre et n'accède à aucun compte. Ses conseils sont indicatifs et ne constituent pas une recommandation d'investissement personnalisée.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("Conception & développement : Maxime Nathan Lestage")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -112,40 +74,10 @@ struct SettingsView: View {
             .navigationTitle("Réglages")
             .onAppear(perform: loadKeys)
             .sheet(isPresented: $showSourcesTest) { SourcesTestView() }
-            .alert(item: $confirmLive) { target in
-                Alert(
-                    title: Text("Passer en argent réel ?"),
-                    message: Text("Les ordres seront exécutés sur votre compte réel. Vous pouvez perdre de l'argent. Vérifiez d'abord votre stratégie en test."),
-                    primaryButton: .destructive(Text("Activer le réel")) {
-                        if target == .crypto { settings.cryptoEnvironment = .live } else { settings.stockEnvironment = .live }
-                    },
-                    secondaryButton: .cancel(Text("Rester en test"))
-                )
-            }
         }
-    }
-
-    private func environmentPicker(value: BrokerEnvironment, target: LiveTarget) -> some View {
-        Picker("Environnement", selection: Binding(
-            get: { value },
-            set: { newValue in
-                if newValue == .live {
-                    confirmLive = target
-                } else if target == .crypto {
-                    settings.cryptoEnvironment = .test
-                } else {
-                    settings.stockEnvironment = .test
-                }
-            })) {
-            Text("Test").tag(BrokerEnvironment.test)
-            Text("Réel").tag(BrokerEnvironment.live)
-        }
-        .pickerStyle(.segmented)
     }
 
     private func loadKeys() {
-        binanceKey = KeychainStore.get(.binanceKey)
-        binanceSecret = KeychainStore.get(.binanceSecret)
         alpacaKey = KeychainStore.get(.alpacaKey)
         alpacaSecret = KeychainStore.get(.alpacaSecret)
         twelveDataKey = KeychainStore.get(.twelveDataKey)
@@ -155,8 +87,6 @@ struct SettingsView: View {
     }
 
     private func saveKeys() {
-        KeychainStore.set(binanceKey, for: .binanceKey)
-        KeychainStore.set(binanceSecret, for: .binanceSecret)
         KeychainStore.set(alpacaKey, for: .alpacaKey)
         KeychainStore.set(alpacaSecret, for: .alpacaSecret)
         KeychainStore.set(twelveDataKey, for: .twelveDataKey)

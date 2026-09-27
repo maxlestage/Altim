@@ -25,6 +25,9 @@ jobs:
           curl -fsS localhost:3000/health
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
+          curl -fsS localhost:3000/app | grep -q "<div id=\"root\">"
+          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/index-'
+          curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w "%{http_code}" | grep -q 404
           curl -sS "localhost:3000/api/candles?base=../x&interval=1h" -o /dev/null -w "%{http_code}" | grep -q 400
 
   heroku:
@@ -50,3 +53,4 @@ jobs:
           sleep 3
           curl -fsS localhost:3000/health
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
+          curl -fsS localhost:3000/app/reglages | grep -q "<div id=\"root\">"

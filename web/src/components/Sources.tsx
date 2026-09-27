@@ -35,7 +35,7 @@ export function Sources() {
         <li><b>Consensus</b> médiane bougie par bougie, écart toléré 0,5 % (crypto) / 1 % (actions)</li>
         <li><b>Contrôle qualité</b> trous, pics aberrants, données périmées, volume absent</li>
         <li><b>Réseau résilient</b> nouvelles tentatives, disjoncteur par source, bascule automatique</li>
-        <li><b>Garde-fou d'ordre</b> prix du courtier comparé au consensus, jamais de double ordre</li>
+        <li><b>Garde-fou</b> données douteuses ou sources en désaccord : aucun conseil plutôt qu'un mauvais conseil</li>
       </ol>
     </Section>
   );

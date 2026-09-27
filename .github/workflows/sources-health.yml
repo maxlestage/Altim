@@ -13,5 +13,7 @@ jobs:
     container: swift:6.1
     steps:
       - uses: actions/checkout@v4
+      - name: SQLite (en-têtes pour la base des avoirs)
+        run: apt-get update -qq && apt-get install -y -qq libsqlite3-dev pkg-config > /dev/null
       - name: Toutes les sources, toutes les unités de temps (données réelles)
         run: cd ios/AltimCore && ALTIM_LIVE=1 swift test --filter "LiveSourcesTests"
