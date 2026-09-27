@@ -77,6 +77,14 @@ export function Settings() {
       </div>
 
       <div className="card">
+        <h2 className="card-title">Accès privé</h2>
+        <p className="muted small">Votre session reste ouverte 7 jours sur cet appareil. Déconnectez-vous sur un appareil partagé.</p>
+        <form method="post" action="/logout">
+          <button type="submit" className="btn btn-ghost">Se déconnecter</button>
+        </form>
+      </div>
+
+      <div className="card">
         <h2 className="card-title">À propos</h2>
         <p className="kv small"><span>Sources crypto</span><b>8 recoupées</b></p>
         <p className="kv small"><span>Sources actions</span><b>Yahoo, Nasdaq, Cboe</b></p>

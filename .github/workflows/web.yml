@@ -52,5 +52,7 @@ jobs:
           PORT=3000 NODE_ENV=production npm start &
           sleep 3
           curl -fsS localhost:3000/health
-          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/app/reglages | grep -q "<div id=\"root\">"
+          # Private access, fail closed: without the ALTIM_* variables nothing is served, everything leads to the login page.
+          test "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' localhost:3000/app/reglages)" = "302 http://localhost:3000/login?next=%2Fapp%2Freglages"
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/tickers)" = "401"
+          curl -fsS localhost:3000/login | grep -q "Accès privé non configuré"
