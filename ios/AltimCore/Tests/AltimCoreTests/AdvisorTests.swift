@@ -97,4 +97,21 @@ final class AdvisorTests: XCTestCase {
         XCTAssertEqual(a.amount!, a.quantity! * 341.07, accuracy: 1e-6)
         XCTAssertTrue(a.points.joined(separator: " ").contains("soit \(Int(a.quantity!)) actions AAPL"))
     }
+
+    func testMarketGuardBlocksBuysInShockAndOnLikelyReversal() throws {
+        let s = try signal(.strongBuy)
+        let args = { (g: Advisor.GuardContext?) in
+            Advisor.advise(signal: s, reliability: .high, price: s.price, line: nil, capital: 20_000, risk: RiskSettings(),
+                           symbol: "BTC", kind: .crypto, guard: g)
+        }
+        XCTAssertTrue(args(.init(shock: .shock, reversalScore: 0, reversalDirection: nil)).title.contains("choc"))
+        XCTAssertTrue(args(.init(shock: .calm, reversalScore: 60, reversalDirection: .down)).title.contains("retournement"))
+        XCTAssertEqual(args(.init(shock: .calm, reversalScore: 80, reversalDirection: .up)).tone, .buy)
+        let calm = args(.init(shock: .calm, reversalScore: 0, reversalDirection: nil))
+        let agitated = args(.init(shock: .agitated, reversalScore: 0, reversalDirection: nil))
+        XCTAssertEqual(agitated.tone, .buy)
+        XCTAssertEqual(agitated.amount!, calm.amount! / 2, accuracy: 1)
+        XCTAssertLessThanOrEqual(agitated.quantity! * s.price, agitated.amount! + 1e-9)
+        XCTAssertTrue(agitated.points.joined(separator: " ").contains("divisé par deux"))
+    }
 }

@@ -10,7 +10,7 @@ Application iOS (Swift / SwiftUI) de **conseil** pour la crypto et les actions :
 |---|---|
 | `ios/AltimCore` | Moteur en Swift pur, testé : indicateurs, moteur de signaux, gestion du risque, backtest, données de marché, analyse des avoirs, conseiller |
 | `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, **conseil adapté à vos avoirs**, **Mes avoirs (base SQLite)**, réglages |
-| `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source** |
+| `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source**, **API garde-fou pour bots** |
 | `.github/workflows` | CI iOS (build + tests sur macOS), CI web, déploiement Heroku, envoi TestFlight |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
@@ -102,6 +102,89 @@ HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commenc
 6. **Surveillance** : le workflow *Santé des sources* interroge chaque jour toutes les sources sur toutes les unités de temps et alerte par e-mail si un format d'API change.
 
 Mesuré en direct le 27/09/2026 : sur BTC, ETH, SOL, BNB et DOGE, OKX, Coinbase, Kraken et CoinGecko concordent à **0,02–0,15 %** près. Sur AAPL, Nasdaq et Yahoo donnent les mêmes clôtures sur 500 séances, date par date.
+
+## Garde-fou marché (et API pour vos bots)
+
+Un bot court terme voit les petites variations mais pas ce qui l'entoure. Le garde-fou ajoute trois couches, pour chaque actif (web, iOS et API) :
+
+| Couche | Ce qu'elle mesure | À quoi elle sert |
+|---|---|---|
+| **Régime** | Tendance de fond : moyennes 50 / 200 jours, pente, ADX, confirmation en 4 h | Bot long terme : dans quel sens travailler |
+| **Risque de choc** (0–100) | Volatilité des 24 h vs normale, sauts de prix en écarts-types, pic de volume, compression des bandes de Bollinger, rafale d'actualités, VIX (actions) | Bot court terme : continuer, réduire la taille, ou suspendre |
+| **Risque de retournement** (0–100) | Mouvement **contre** la tendance : RSI extrême, divergences, surextension, bougie de rejet ; positionnement de la foule (financement des perpétuels, ratio acheteurs/vendeurs et positions ouvertes chez OKX) ; sentiment (Fear & Greed, StockTwits) ; ton des actualités (Google News) | Anticiper les retournements que l'analyse de tendance ne voit pas |
+
+**Auto-validation.** Aucun outil ne prévoit une vraie surprise. Chaque signal calculable sur les bougies est donc vérifié sur l'historique de l'actif lui-même, sans regarder le futur. On mesure la part de ses apparitions suivies de l'événement annoncé (grand mouvement dans les 6 h ou les 24 h, ou mouvement contraire de 3 ATR dans les 3 jours), puis on la compare à la normale. Le poids du signal en découle :
+
+| Statut | Condition | Poids |
+|---|---|---|
+| Vérifié | S'est avéré utile sur cet actif (≥ 1,1 fois la normale) | 0,2 à 1 (plein poids à 1,5 fois la normale) |
+| Peu d'historique | Moins de 20 cas passés | Moitié |
+| Rejeté | Jamais prédictif sur cet actif | 0, affiché mais ignoré |
+| Non vérifiable | Aucun historique gratuit (financement, sentiment, actualités) | 0,75 |
+
+Mesuré le 27/09/2026 sur 10 actifs (BTC, ETH, SOL, DOGE, LINK, XRP, AAPL, NVDA, SPY, TSLA), sur les bougies 1 h et 4 h disponibles :
+
+| Signal | Événement suivant | Fréquence de l'événement vs normale | Cas |
+|---|---|---|---|
+| Saut horaire ≥ 3 écarts-types | Nouveau grand mouvement dans les 6 h | ×1,49 | 577 |
+| Volatilité 24 h ≥ 1,5 × normale | Nouveau grand mouvement dans les 6 h | ×1,20 | 399 |
+| RSI 4 h extrême | Mouvement contraire de 3 ATR en 3 jours | ×1,62 | 57 |
+| Divergence RSI 4 h | Mouvement contraire de 3 ATR en 3 jours | ×0,96 | 616 |
+| Surextension 4 h | Mouvement contraire de 3 ATR en 3 jours | ×0,89 | 197 |
+| Compression des bandes 4 h | Grand mouvement dans les 24 h | ×0,93 | 578 |
+
+C'est pourquoi le poids de chaque signal est recalculé pour chaque actif au lieu d'être fixé une fois pour toutes. En tendance, l'essoufflement apparent annonce souvent… la suite de la tendance.
+
+**Politique pour les bots.**
+
+| Situation | Court terme | Taille | Stop |
+|---|---|---|---|
+| Choc (≥ 65) | Suspendu | × 0 | × 2 |
+| Marché agité (≥ 35) | Taille réduite | × 0,5 | × 1,5 |
+| Retournement ≥ 50 | Pas de nouvelle position dans le sens de la tendance, stops resserrés | × 0,5 | — |
+
+Les conseils d'Altim appliquent les mêmes règles : pas d'« Achat envisageable » en plein choc ou sur un retournement probable, et montant divisé par deux en marché agité.
+
+### API
+
+```
+GET /api/guard?symbol=BTC&kind=crypto      (kind = crypto | stock)
+```
+
+Réponse JSON (mise en cache 60 s, CORS ouvert) :
+
+```json
+{
+  "symbol": "BTC", "kind": "crypto", "asOf": 1790520000000, "price": 84871.45,
+  "regime":   { "trend": "up", "strength": 100, "text": "…" },
+  "shock":    { "score": 8, "level": "calm", "factors": [ { "code": "squeeze", "points": 8, "basePoints": 15, "status": "unproven",
+                "evidence": { "samples": 11, "rate": 45.5, "base": 22.4, "lift": 2.03 }, "text": "…" } ] },
+  "reversal": { "score": 0, "direction": "down", "factors": [] },
+  "policy":   { "scalping": "ok", "sizeMultiplier": 1, "stopMultiplier": 1, "notes": ["…"] },
+  "inputs":   { "fundingRate": -0.0000096, "longShortRatio": 1.27, "openInterestUsd": 3151244635, "fearGreed": 70,
+                "socialBullish": 47.4, "socialSample": 19, "news24h": 13, "newsTone": { "negative": 0, "positive": 3 },
+                "headlines": [ { "title": "…", "time": 1790519100000 } ], "vix": null }
+}
+```
+
+Exemple côté bot : la boucle rapide du bot (millisecondes, secondes) reste la sienne. Il interroge le garde-fou toutes les 30 à 60 s, car ses données changent à l'échelle de la minute, et il applique la politique :
+
+```python
+import requests, time
+guard = {}
+while True:
+    guard = requests.get("https://VOTRE-APP.herokuapp.com/api/guard", params={"symbol": "BTC", "kind": "crypto"}, timeout=10).json()
+    time.sleep(45)
+# dans la boucle de trading :
+# if guard["policy"]["scalping"] == "pause": ne rien ouvrir
+# taille *= guard["policy"]["sizeMultiplier"]; stop_distance *= guard["policy"]["stopMultiplier"]
+# if guard["reversal"]["score"] >= 50 and guard["reversal"]["direction"] == "down": pas de nouvel achat, resserrer les stops
+```
+
+Limites :
+- X / Twitter (API payante) et Reddit (bloque les robots) ne sont pas accessibles gratuitement. StockTwits tient lieu de source sociale.
+- Le financement et le ratio acheteurs/vendeurs viennent d'OKX, uniquement pour les cryptos qui y ont un contrat perpétuel.
+- Les actualités sont notées par mots-clés (anglais et français), pas par une IA.
 
 ## Un conseiller, pas un courtier
 

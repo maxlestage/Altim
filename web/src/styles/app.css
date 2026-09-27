@@ -288,3 +288,16 @@
 /* A long asset name must never widen a sheet (grid items default to min-width: auto). */
 .sheet { overflow-x: hidden; }
 .sheet > *, .asset-search, .asset-search .search-results, .asset-search li { min-width: 0; }
+
+/* ---------- Market guard ---------- */
+.guard { display: grid; gap: 10px; }
+.guard-meter { display: grid; gap: 6px; }
+.guard-meter-head { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.guard-meter .weight-track i.guard-ok { background: var(--buy); }
+.guard-meter .weight-track i.guard-warn { background: var(--warn, #ffb800); }
+.guard-meter .weight-track i.guard-bad { background: var(--sell); }
+.guard-factors, .guard-news { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; font-size: 13px; }
+.guard-factors li { overflow-wrap: anywhere; }
+.guard-policy { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 4px; }
+.guard-policy ul { margin: 0; padding-left: 18px; font-size: 13px; }
+.guard code { font-size: 11px; overflow-wrap: anywhere; }

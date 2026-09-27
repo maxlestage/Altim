@@ -23,6 +23,8 @@ export interface Advice {
 
 /** Below this track record on the asset itself, a buy signal is not advised (same rule in Advisor.swift). */
 export const MIN_TRACK_TRADES = 5;
+/** Same threshold as GUARD.reversalHigh (guard.ts). */
+export const REVERSAL_HIGH = 50;
 export const MIN_WIN_RATE = 40;
 
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: v >= 100 ? 0 : 2 })} $`;
@@ -56,8 +58,11 @@ export function adviseAsset(input: {
   track?: TrackRecord | null;
   symbol?: string;
   kind?: "crypto" | "stock";
+  /** Market guard (guard.ts): shock level and counter-trend reversal risk. */
+  guard?: { shock: "calm" | "agitated" | "shock"; reversalScore: number; reversalDirection: "down" | "up" | null } | null;
 }): Advice {
-  const { signal, reliability, price, line, capital, risk, track, symbol = "", kind = "crypto" } = input;
+  const { signal, reliability, price, line, capital, risk, track, symbol = "", kind = "crypto", guard } = input;
+  const reversalDown = !!guard && guard.reversalDirection === "down" && guard.reversalScore >= REVERSAL_HIGH;
 
   // Asset already held: the portfolio analysis takes precedence.
   if (line) {
@@ -72,7 +77,9 @@ export function adviseAsset(input: {
       points.push(`Montant à alléger conseillé : environ ${usd(line.trimValue)}${q > 0 ? `, soit ${quantityText(q, line.kind, line.symbol)}` : ""}.`);
     }
     if (line.stop) points.push(`Stop de protection conseillé : ${px(line.stop)} (si le cours passe dessous, sortir limite la perte à ≈ ${usd(line.lossAtStop ?? 0)}).`);
-    return { tone, title: RECOMMENDATION_LABEL[line.recommendation], points };
+    if (guard?.shock === "shock") points.push("Marché en choc (mouvements anormaux) : ne renforcez pas maintenant, vérifiez que votre stop est bien en place.");
+    if (reversalDown) points.push(`Risque de retournement à la baisse élevé (${guard!.reversalScore}/100) : resserrez votre stop ou prenez une partie de vos gains.`);
+    return { tone: tone === "buy" && (guard?.shock === "shock" || reversalDown) ? "hold" : tone, title: RECOMMENDATION_LABEL[line.recommendation], points };
   }
 
   if (!signal || !price) {
@@ -88,6 +95,21 @@ export function adviseAsset(input: {
 
   const caution = reliability === "medium" ? ["Fiabilité des données moyenne (peu de sources indépendantes) : restez prudent."] : [];
   const a = signal.action;
+  // Market guard: no buy in a shock or when a reversal against the rise is likely.
+  if ((a === "buy" || a === "strongBuy") && guard?.shock === "shock") {
+    return {
+      tone: "hold",
+      title: "Attendre : marché en choc",
+      points: ["Les indicateurs sont à l'achat, mais le marché fait des mouvements anormaux (volatilité, sauts de prix) : attendez que la tempête passe.", ...caution],
+    };
+  }
+  if ((a === "buy" || a === "strongBuy") && reversalDown) {
+    return {
+      tone: "hold",
+      title: "Attendre : risque de retournement",
+      points: [`Les indicateurs sont à l'achat, mais un retournement à la baisse est probable (${guard!.reversalScore}/100 : excès, foule trop optimiste ou actualités défavorables). Attendez qu'il se produise ou soit écarté.`, ...caution],
+    };
+  }
   // A buy signal must have worked on this very asset: otherwise, wait.
   if ((a === "buy" || a === "strongBuy") && track && track.trades >= MIN_TRACK_TRADES && (track.winRate < MIN_WIN_RATE || track.avgReturn <= 0)) {
     return {
@@ -110,8 +132,10 @@ export function adviseAsset(input: {
       const size = capital && capital > 0 ? positionSize(risk, capital, { entry: plan.entry, stopLoss: plan.stop, takeProfit: plan.target }) : null;
       if (size) {
         quantity = adviceQuantity(size.notional, plan.entry, kind);
+        // Agitated market: half the amount (same rule as the guard's policy for bots).
+        if (guard?.shock === "agitated") quantity = adviceQuantity(size.notional * 0.5, plan.entry, kind);
         // Whole shares: the amount and the loss at the stop are those of the rounded quantity.
-        const scale = kind === "stock" && quantity > 0 ? (quantity * plan.entry) / size.notional : 1;
+        const scale = quantity > 0 && (kind === "stock" || guard?.shock === "agitated") ? (quantity * plan.entry) / size.notional : guard?.shock === "agitated" ? 0.5 : 1;
         amount = size.notional * scale;
         const qty = quantity > 0 && symbol ? `, soit ${quantityText(quantity, kind, symbol)}` : kind === "stock" && symbol ? " (moins d'une action entière : il faudrait des fractions d'action)" : "";
         points.push(`Avec votre patrimoine (${usd(capital!)}), n'y consacrez pas plus d'environ ${usd(amount)}${qty} : si le stop est touché, la perte resterait limitée à ≈ ${usd(size.riskAmount * scale)} (${(risk.riskPerTradePercent * scale).toLocaleString("fr-FR", { maximumFractionDigits: 2 })} % du patrimoine, frais inclus).`);
@@ -119,6 +143,7 @@ export function adviseAsset(input: {
         points.push("Renseignez vos avoirs dans « Mes avoirs » pour obtenir un montant adapté à votre patrimoine.");
       }
     }
+    if (guard?.shock === "agitated") points.push("Marché agité : le montant conseillé est divisé par deux, et un stop plus large évite d'être sorti par le bruit.");
     points.push(`Confiance du signal : ${Math.round(signal.confidence)} %. ${a === "strongBuy" ? "Les indicateurs sont largement d'accord." : "Signal modéré : entrez progressivement."}`);
     if (track && track.trades >= MIN_TRACK_TRADES) {
       points.push(`Sur l'historique de cet actif : ${track.trades} signaux d'achat, ${Math.round(track.winRate)} % gagnants, ${pct(track.avgReturn)} en moyenne par signal (frais inclus). Les performances passées ne préjugent pas des performances futures.`);

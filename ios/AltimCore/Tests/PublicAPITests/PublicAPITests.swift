@@ -126,5 +126,26 @@ final class PublicAPITests: XCTestCase {
         _ = Advisor.quantity(amount: 100, price: 10, kind: .stock)
         _ = Advisor.quantityText(1, kind: .crypto, symbol: "BTC")
         _ = ConsensusMarketData.blend(candles, [candles])
+
+        // Market guard (asset screen and API for bots).
+        let gi = MarketGuard.Input(kind: .crypto, daily: candles, h4: candles, h1: candles,
+                                   positioning: .init(fundingRate: 0.0001, longShortRatio: [1], openInterest: [1]),
+                                   sentiment: .init(fearGreed: [50], socialBullish: 50, socialSample: 10),
+                                   news: [.init(title: "t", time: Date(), source: nil)], vix: [15], now: Date())
+        let gr = MarketGuard.evaluate(gi)
+        _ = (gr.regime.trend, gr.regime.strength, gr.regime.text, gr.shock.score, gr.shock.level, gr.reversal.score, gr.reversal.direction)
+        _ = (gr.policy.scalping, gr.policy.sizeMultiplier, gr.policy.stopMultiplier, gr.policy.notes)
+        for f in gr.shock.factors + gr.reversal.factors {
+            _ = (f.id, f.code, f.points, f.basePoints, f.text, f.status, f.evidence?.samples, f.evidence?.rate, f.evidence?.base, f.evidence?.lift)
+        }
+        _ = (MarketGuard.shockAgitated, MarketGuard.shockLevel, MarketGuard.reversalHigh)
+        let provider = GuardDataProvider(transport: URLSessionTransport())
+        let fetch: (Asset) async -> Void = { a in
+            let i = await provider.inputs(for: a)
+            _ = (i.positioning, i.sentiment, i.news.map(\.title), i.vix)
+        }
+        _ = fetch
+        _ = Advisor.advise(signal: nil, reliability: .high, price: 1, line: nil, capital: nil, risk: RiskSettings(),
+                           guard: Advisor.GuardContext(gr))
     }
 }
