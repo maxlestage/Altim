@@ -1,10 +1,10 @@
 import { formatPercent, formatPrice, type Tick } from "../market";
 
 const FALLBACK: Tick[] = [
-  { symbol: "BTCUSDT", name: "Bitcoin", price: 0, change: 0 },
-  { symbol: "ETHUSDT", name: "Ethereum", price: 0, change: 0 },
-  { symbol: "SOLUSDT", name: "Solana", price: 0, change: 0 },
-  { symbol: "BNBUSDT", name: "BNB", price: 0, change: 0 },
+  { symbol: "BTC", name: "Bitcoin", kind: "crypto", price: 0, change: 0, agreeing: 0, total: 0 },
+  { symbol: "ETH", name: "Ethereum", kind: "crypto", price: 0, change: 0, agreeing: 0, total: 0 },
+  { symbol: "SOL", name: "Solana", kind: "crypto", price: 0, change: 0, agreeing: 0, total: 0 },
+  { symbol: "BNB", name: "BNB", kind: "crypto", price: 0, change: 0, agreeing: 0, total: 0 },
 ];
 
 const BADGES = [
@@ -16,7 +16,7 @@ const BADGES = [
 
 /** Maquette d'iPhone reproduisant l'écran Radar de l'app. */
 export function PhoneMockup({ ticks }: { ticks: Tick[] }) {
-  const rows = (ticks.length ? ticks : FALLBACK).slice(0, 4);
+  const rows = (ticks.length ? ticks.filter((t) => t.kind === "crypto") : FALLBACK).slice(0, 4);
   return (
     <div className="phone-wrap" aria-label="Aperçu de l'application Altim">
       <div className="phone">
@@ -62,7 +62,7 @@ export function PhoneMockup({ ticks }: { ticks: Tick[] }) {
                 </div>
                 <div className="num">
                   <b>{t.price ? formatPrice(t.price) : "—"}</b>
-                  <small className={t.change >= 0 ? "up" : "down"}>{t.price ? formatPercent(t.change) : ""}</small>
+                  <small className={(t.change ?? 0) >= 0 ? "up" : "down"}>{t.price && t.change !== null ? formatPercent(t.change) : ""}</small>
                 </div>
               </div>
             );

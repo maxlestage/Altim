@@ -4,6 +4,7 @@
  */
 import { join, normalize } from "node:path";
 import { consensus, type Consensus, type Interval } from "./server/market";
+import { consensusQuotes, type ConsensusQuote } from "./server/quotes";
 
 const port = Number(process.env.PORT ?? 3000);
 const root = import.meta.dir;
@@ -12,6 +13,26 @@ const compressible = /\.(html|js|css|svg|json|txt)$/;
 const gzipCache = new Map<string, Uint8Array>();
 const marketCache = new Map<string, { at: number; data: Consensus }>();
 const BASES = new Set(["BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE"]);
+
+let quotesCache: { at: number; data: ConsensusQuote[] } | null = null;
+let quotesPending: Promise<ConsensusQuote[]> | null = null;
+
+async function tickersAPI(): Promise<Response> {
+  if (quotesCache && Date.now() - quotesCache.at < 15_000) {
+    return Response.json(quotesCache.data, { headers: { "Cache-Control": "max-age=15" } });
+  }
+  try {
+    // A single request to the sources even if many visitors arrive at the same time.
+    quotesPending ??= consensusQuotes().finally(() => (quotesPending = null));
+    const data = await quotesPending;
+    if (!data.length) throw new Error("aucune source");
+    quotesCache = { at: Date.now(), data };
+    return Response.json(data, { headers: { "Cache-Control": "max-age=15" } });
+  } catch (e) {
+    if (quotesCache) return Response.json(quotesCache.data, { headers: { "X-Altim-Stale": "1" } });
+    return Response.json({ error: e instanceof Error ? e.message : "indisponible" }, { status: 502 });
+  }
+}
 
 async function candlesAPI(url: URL): Promise<Response> {
   const base = (url.searchParams.get("base") ?? "").toUpperCase();
@@ -66,6 +87,7 @@ const server = Bun.serve({
     const url = new URL(req.url);
     if (url.pathname === "/health") return new Response("ok");
     if (url.pathname === "/api/candles") return candlesAPI(url);
+    if (url.pathname === "/api/tickers") return tickersAPI();
 
     // Redirection HTTPS derrière le routeur Heroku.
     if (req.headers.get("x-forwarded-proto") === "http") {

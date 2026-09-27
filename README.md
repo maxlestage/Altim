@@ -10,7 +10,7 @@ Application iOS (Swift / SwiftUI) de **signaux d'achat et de vente** pour la cry
 |---|---|
 | `ios/AltimCore` | Moteur en Swift pur, testé : indicateurs, moteur de signaux, gestion du risque, backtest, données de marché, courtiers |
 | `ios/Altim` | App SwiftUI (style néon/holographique) : Radar, analyse détaillée, passage d'ordre, portefeuille, réglages |
-| `web` | Site vitrine React + TS + Bun, avec **démo live** du moteur (portage TypeScript vérifié contre le Swift) |
+| `web` | Site vitrine React + TS + Bun, mobile first, **multi-source** : panneau des marchés (consensus de 8 sources crypto et 3 sources actions, `/api/tickers`) et démo live du moteur (consensus de 6 sources, `/api/candles`) |
 | `.github/workflows` | CI iOS (build + tests sur macOS), CI web, déploiement Heroku, envoi TestFlight |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**

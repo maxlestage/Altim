@@ -11,7 +11,16 @@ export const COINS: Coin[] = [
   { symbol: "ADAUSDT", name: "Cardano", gecko: "cardano" },
 ];
 
-export type Tick = { symbol: string; name: string; price: number; change: number };
+export type Tick = {
+  symbol: string;
+  name: string;
+  kind: "crypto" | "stock";
+  price: number;
+  change: number | null;
+  /** Sources that agree on the price / sources queried. */
+  agreeing: number;
+  total: number;
+};
 
 async function json<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -19,28 +28,40 @@ async function json<T>(url: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Cours en direct : Binance, avec repli CoinGecko. */
+/** Consolidated prices (server consensus of up to 8 crypto sources and 3 stock sources). */
 export async function fetchTicks(): Promise<Tick[]> {
   try {
-    const symbols = encodeURIComponent(JSON.stringify(COINS.map((c) => c.symbol)));
-    const rows = await json<{ symbol: string; lastPrice: string; priceChangePercent: string }[]>(
-      `https://api.binance.com/api/v3/ticker/24hr?symbols=${symbols}`,
-    );
-    return COINS.map((c) => {
-      const r = rows.find((x) => x.symbol === c.symbol);
-      return { symbol: c.symbol, name: c.name, price: Number(r?.lastPrice ?? 0), change: Number(r?.priceChangePercent ?? 0) };
-    });
+    const rows = await json<Tick[]>("/api/tickers");
+    if (!Array.isArray(rows) || !rows.length) throw new Error("vide");
+    return rows;
   } catch {
-    const ids = COINS.map((c) => c.gecko).join(",");
-    const data = await json<Record<string, { usd: number; usd_24h_change: number }>>(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true`,
-    );
-    return COINS.map((c) => ({
-      symbol: c.symbol,
-      name: c.name,
-      price: data[c.gecko]?.usd ?? 0,
-      change: data[c.gecko]?.usd_24h_change ?? 0,
-    }));
+    // Fallback if the Altim server is unreachable: two public sources queried directly.
+    const [binance, gecko] = await Promise.allSettled([
+      json<{ symbol: string; lastPrice: string; priceChangePercent: string }[]>(
+        `https://api.binance.com/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(COINS.map((c) => c.symbol)))}`,
+      ),
+      json<Record<string, { usd: number; usd_24h_change: number }>>(
+        `https://api.coingecko.com/api/v3/simple/price?ids=${COINS.map((c) => c.gecko).join(",")}&vs_currencies=usd&include_24hr_change=true`,
+      ),
+    ]);
+    return COINS.flatMap((c) => {
+      const prices: number[] = [];
+      const changes: number[] = [];
+      if (binance.status === "fulfilled") {
+        const r = binance.value.find((x) => x.symbol === c.symbol);
+        if (r) { prices.push(Number(r.lastPrice)); changes.push(Number(r.priceChangePercent)); }
+      }
+      if (gecko.status === "fulfilled" && gecko.value[c.gecko]) {
+        prices.push(gecko.value[c.gecko]!.usd);
+        changes.push(gecko.value[c.gecko]!.usd_24h_change);
+      }
+      if (!prices.length) return [];
+      const agree = prices.length === 2 && Math.abs(prices[0]! / prices[1]! - 1) < 0.005 ? 2 : 1;
+      return [{
+        symbol: c.symbol.replace("USDT", ""), name: c.name, kind: "crypto" as const,
+        price: prices[0]!, change: changes[0] ?? null, agreeing: agree, total: 2,
+      }];
+    });
   }
 }
 

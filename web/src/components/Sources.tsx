@@ -14,7 +14,7 @@ export function Sources() {
           <span className="gradient">16 sources de prix</span> recoupées en permanence
         </>
       }
-      intro="Chaque prix est vérifié auprès de plusieurs places de marché indépendantes. Une source qui diverge est écartée ; si les données ne sont pas fiables, Altim suspend le signal au lieu de deviner."
+      intro="Chaque prix est vérifié auprès de plusieurs places de marché indépendantes. Une source qui diverge est écartée ; si les données ne sont pas fiables, Altim suspend le signal au lieu de deviner. Ce site applique le même consensus à chaque cours affiché."
     >
       <div className="sources-grid">
         <div className="card">
