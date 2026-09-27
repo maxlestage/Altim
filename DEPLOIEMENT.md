@@ -23,7 +23,9 @@ Ouvrez `https://www.heroku.com/deploy?template=https://github.com/maxlestage/alt
 
 **Option C : intégration GitHub de Heroku**
 
-Heroku → **New** → **Create new app** → onglet **Settings** → **Add buildpack** → `https://github.com/jakeg/heroku-buildpack-bun` → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → **Enable Automatic Deploys**.
+Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
+
+Aucun buildpack à configurer : Heroku détecte une app Node.js et Bun est installé automatiquement comme dépendance npm.
 
 ## 2. App iOS
 

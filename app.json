@@ -3,8 +3,22 @@
   "description": "Site de présentation de l'application iOS Altim (React + TypeScript + Bun).",
   "repository": "https://github.com/maxlestage/altim",
   "logo": "https://raw.githubusercontent.com/maxlestage/altim/master/web/public/icon-192.png",
-  "keywords": ["bun", "react", "typescript", "trading"],
+  "keywords": [
+    "bun",
+    "react",
+    "typescript",
+    "trading"
+  ],
   "stack": "heroku-24",
-  "buildpacks": [{ "url": "https://github.com/jakeg/heroku-buildpack-bun" }],
-  "formation": { "web": { "quantity": 1, "size": "basic" } }
+  "buildpacks": [
+    {
+      "url": "heroku/nodejs"
+    }
+  ],
+  "formation": {
+    "web": {
+      "quantity": 1,
+      "size": "basic"
+    }
+  }
 }
