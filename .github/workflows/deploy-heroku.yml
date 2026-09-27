@@ -6,7 +6,7 @@ name: Déploiement Heroku
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths: ["web/**", "package.json", "bun.lock", ".bun-version", "Procfile", ".github/workflows/deploy-heroku.yml"]
   workflow_dispatch:
 

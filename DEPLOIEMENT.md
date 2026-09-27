@@ -15,7 +15,7 @@ Tout se fait dans Safari (ou l'app GitHub) : aucun ordinateur n'est nécessaire.
 3. Onglet **Actions** → **Déploiement Heroku** → **Run workflow**.
 4. À la fin, le résumé du workflow affiche l'adresse du site (`https://altim-web-xxxx.herokuapp.com`).
 
-Ensuite, chaque fusion sur `main` qui touche au site redéploie automatiquement.
+Ensuite, chaque fusion sur `master` qui touche au site redéploie automatiquement.
 
 **Option B : bouton Heroku**
 
