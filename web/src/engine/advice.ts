@@ -47,7 +47,23 @@ export function quantityText(q: number, kind: "crypto" | "stock", symbol: string
   return `${q.toLocaleString("fr-FR", { maximumSignificantDigits: 6 })} ${symbol}`;
 }
 
-export function adviseAsset(input: {
+/** Buy zone of the user's horizon (fibonacci.ts) and what the macro context changes for it. */
+export interface ZoneContext { label: string; status: string; text: string; macroNote?: string | null }
+
+/**
+ * Advice on an asset. The buy zone of the user's horizon, when known, is added as the last points: it says where
+ * to buy (or to wait for), whatever the signal says about when.
+ */
+export function adviseAsset(input: Parameters<typeof adviseCore>[0] & { zone?: ZoneContext | null }): Advice {
+  const advice = adviseCore(input);
+  const z = input.zone;
+  if (!z || z.status === "none") return advice;
+  const points = [...advice.points, `${z.label} (votre horizon) : ${z.text}`];
+  if (z.macroNote) points.push(z.macroNote);
+  return { ...advice, points };
+}
+
+function adviseCore(input: {
   signal: Signal | null;
   reliability: ReliabilityLevel | null;
   price: number | null;

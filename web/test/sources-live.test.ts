@@ -69,3 +69,15 @@ test.skipIf(!live)("temps réel : chaque bourse WebSocket envoie un prix BTC", a
     };
   })))));
 }, T);
+
+test.skipIf(!live)("macro : VIX, S&P 500, pétrole, or, dollar et taux (5 ans de clôtures)", async () => {
+  const { MACRO_SYMBOLS } = await import("../server/macro");
+  const { parseStock } = await import("../server/market");
+  report(await Promise.all(Object.entries(MACRO_SYMBOLS).map(([k, s]) => probe(`${k} (${s})`, async () => {
+    const r = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(s)}?interval=1d&range=5y`, { headers: { "User-Agent": "Mozilla/5.0" } });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const c = parseStock.yahoo(await r.json());
+    if (c.length < 500) throw new Error(`${c.length} séances seulement`);
+    return c.length;
+  }))));
+}, T);

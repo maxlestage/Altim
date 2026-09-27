@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import { AssetPicker } from "./AssetPicker";
-import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type WatchItem } from "./store";
+import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type HorizonPref, type WatchItem } from "./store";
+import { Segmented } from "./ui";
+import { HORIZONS } from "../engine/fibonacci";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
   { key: "riskPerTradePercent", label: "Risque accepté par idée", min: 0.25, max: 5, step: 0.25, unit: " %" },
@@ -10,7 +12,7 @@ const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: n
 ];
 
 export function Settings() {
-  const { risk, watchlist } = useAppState();
+  const { risk, watchlist, horizon } = useAppState();
   const [picking, setPicking] = useState(false);
 
   const setRisk = (key: keyof RiskSettings, value: number) => setState((s) => ({ risk: { ...s.risk, [key]: value } }));
@@ -42,6 +44,20 @@ export function Settings() {
       {picking && (
         <AssetPicker title="Actifs du radar" selected={new Set(watchlist.map(assetKey))} onToggle={toggle} onClose={() => setPicking(false)} />
       )}
+
+      <div className="card">
+        <h2 className="card-title">Mon horizon d'investissement</h2>
+        <p className="muted small">
+          Les zones d'achat ne sont pas les mêmes selon la durée pendant laquelle vous comptez garder l'actif. Votre horizon est mis en avant sur chaque fiche ; les autres restent consultables.
+        </p>
+        <Segmented<HorizonPref>
+          label="Horizon d'investissement"
+          value={horizon}
+          onChange={(v) => setState({ horizon: v })}
+          options={(["short", "medium", "long"] as HorizonPref[]).map((h) => [h, HORIZONS[h].label])}
+        />
+        <p className="muted small">{HORIZONS[horizon].label} : bougies {HORIZONS[horizon].unit}, détention de {HORIZONS[horizon].holding}.</p>
+      </div>
 
       <div className="card">
         <h2 className="card-title">Prudence des conseils</h2>
