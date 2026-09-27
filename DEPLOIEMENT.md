@@ -43,9 +43,28 @@ Aucun buildpack à configurer : Heroku détecte une app Node.js et Bun est insta
 
 La source Dow Jones (WSJ / MarketWatch) a besoin du jeton public de ses graphiques. Il n'est pas écrit dans le code : ajoutez-le dans Heroku → **Settings** → **Config Vars** → `WSJ_TOKEN`. Sans lui, cette source est simplement ignorée et les 16 autres sources d'actions fonctionnent.
 
-## 2. Utiliser l'app sur iPhone
+## 2. Application iPhone native
 
-Ouvrez le site dans Safari → **Ouvrir l'app** → bouton **Partager** → **Sur l'écran d'accueil**. Altim s'ouvre alors comme une app, en plein écran.
+L'app se connecte à **votre serveur Heroku** (étape 1) : déployez-le et réglez l'accès privé (étape 0) avant de l'ouvrir.
+
+### Vérifier que l'app compile
+À chaque modification de `ios/`, le workflow **iOS** compile l'app (Debug et Release) sur un Mac de GitHub et lance les tests. Rien à faire.
+
+### Installer l'app sur votre iPhone via TestFlight
+Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depuis l'app *Apple Developer* sur iPhone.
+
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → **Apps** → **+** → **Nouvelle app** : plateforme iOS, nom « Altim », identifiant de lot `com.maxlestage.altim` (s'il n'apparaît pas, lancez une première fois le workflow TestFlight : il enregistre l'identifiant).
+2. **Utilisateurs et accès** → **Intégrations** → **Clés App Store Connect** → **+** → rôle **Admin** → téléchargez le fichier `.p8` (ouvrez-le dans l'app Fichiers et copiez son contenu).
+3. Notez l'**Issuer ID**, le **Key ID** et votre **Team ID** (developer.apple.com → Account → Membership).
+4. Ajoutez sur GitHub (**Settings** → **Secrets and variables** → **Actions**) les secrets `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (contenu complet du .p8, lignes BEGIN/END comprises).
+5. Onglet **Actions** → **TestFlight** → **Run workflow**. Environ 15 min plus tard, le build apparaît dans l'app **TestFlight** : installez-le.
+
+### Premier lancement
+1. Acceptez l'avertissement, puis saisissez l'adresse du serveur (par exemple `mon-app.herokuapp.com`, sans `https://`) → **Continuer**.
+2. Identifiant (`ALTIM_USER`) et mot de passe → **Se connecter**. Aucun code n'est demandé si `ALTIM_TOTP_SECRET` n'est pas défini sur Heroku.
+3. C'est tout : le mot de passe est chiffré dans le trousseau de l'iPhone, l'app se reconnecte seule quand la session de 7 jours expire, et Face ID protège l'ouverture (désactivable dans Réglages).
+
+Sans compte Apple Developer, le site reste utilisable comme une app : Safari → **Ouvrir l'app** → **Partager** → **Sur l'écran d'accueil**.
 
 ## 3. Renseigner vos avoirs
 

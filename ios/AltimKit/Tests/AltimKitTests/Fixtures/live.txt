@@ -1,0 +1,10 @@
+retry: 3000
+
+data: {"symbol":"BTC","kind":"crypto","price":84508.48,"change":0.44077785894109933,"agreeing":1,"total":1,"sources":["Coinbase"],"time":1790545305060}
+
+data: {"symbol":"BTC","kind":"crypto","price":84508.47,"change":0.44076597365128034,"agreeing":1,"total":1,"sources":["Coinbase"],"time":1790545305306}
+
+data: {"symbol":"AAPL","kind":"stock","price":341.07,"change":1.53,"agreeing":5,"total":5,"sources":["Robinhood","Webull","Zacks","TradingView","Fidelity"],"time":1790545305555,"market":"closed"}
+
+data: {"symbol":"BTC","kind":"crypto","price":84520.005,"change":0.42,"agreeing":6,"total":6,"sources":["Coinbase","Bitfinex","OKX","Kraken","KuCoin","Gate.io"],"time":1790545305555}
+
