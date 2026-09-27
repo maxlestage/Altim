@@ -7,7 +7,8 @@ import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, typ
 import { GuardCard } from "./GuardCard";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
-import { ActionBadge, Change, Gauge, Price, PriceChart, ReliabilityBadge, Segmented } from "./ui";
+import { ActionBadge, Change, Gauge, PriceChart, ReliabilityBadge, Segmented } from "./ui";
+import { LiveBadge, LivePrice, useLive } from "./live";
 import { adviseAsset } from "../engine/advice";
 import { analyzePortfolio, type MarketInput } from "../engine/holdings";
 
@@ -94,14 +95,22 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
     };
   }, [symbol, kind, interval, !!held]);
 
+  // Live prices of this asset and of every held line: amounts and advice follow the market.
+  const live = useLive([{ symbol, kind }, ...holdingsState.holdings]);
+  const tick = live.ticks[`${kind}:${symbol}`];
   const signal = data?.signal ?? null;
-  const price = data?.quote?.price ?? signal?.price ?? null;
+  const price = tick?.price ?? data?.quote?.price ?? signal?.price ?? null;
   const rel = data?.snap.reliability;
-  // Wealth (other lines valued at their purchase price) and line of this asset if held.
   const valuation: Record<string, MarketInput> = Object.fromEntries(
-    Object.entries(holdingPrices).map(([k, price]) => [k, { price, daily: [], daySignal: null, shortSignal: null, reliability: null }]),
+    Object.entries(holdingPrices).map(([k, p]) => [k, { price: live.ticks[k]?.price ?? p, daily: [], daySignal: null, shortSignal: null, reliability: null }]),
   );
-  if (held && heldMarket) valuation[`${kind}:${symbol}`] = heldMarket;
+  if (held && heldMarket) valuation[`${kind}:${symbol}`] = tick ? { ...heldMarket, price: tick.price } : heldMarket;
+  // The chart ends on the live price (candle being formed; the signal itself only uses closed candles).
+  const candles = data?.snap.candles ?? [];
+  const lastC = candles[candles.length - 1];
+  const chartCandles = lastC && tick && tick.time > lastC.time
+    ? [...candles, { time: lastC.time + STEP_MS[interval], open: lastC.close, high: Math.max(lastC.close, tick.price), low: Math.min(lastC.close, tick.price), close: tick.price, volume: 0 }]
+    : candles;
   const portfolio = analyzePortfolio(holdingsState.holdings, holdingsState.cash, valuation);
   const line = held ? portfolio.lines.find((l) => l.id === held.id) ?? null : null;
   const advice = data
@@ -121,9 +130,12 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
           <small className="muted mono">{symbol} · {kind === "crypto" ? "Crypto" : "Action"}</small>
         </div>
         <div className="asset-head-price">
-          <b className="mono"><Price value={price} /></b>
-          <Change value={data?.quote?.change} />
-          {data?.quote && <small className="muted">prix : {data.quote.agreeing}/{data.quote.total} sources</small>}
+          <b className="mono"><LivePrice tick={tick} fallback={price} format={(v) => `${formatPrice(v)} $`} /></b>
+          <Change value={tick?.change ?? data?.quote?.change} />
+          <LiveBadge status={live.status} last={live.last} />
+          {tick?.market === "closed" && <small className="market-closed">Bourse fermée · dernier cours</small>}
+          {tick ? <small className="muted">prix : {tick.agreeing}/{tick.total} sources en direct</small>
+            : data?.quote && <small className="muted">prix : {data.quote.agreeing}/{data.quote.total} sources</small>}
         </div>
       </div>
 
@@ -158,7 +170,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {data && (
         <div className="asset-grid">
           <div className="card chart-box">
-            <PriceChart candles={data.snap.candles} stop={signal && signal.action !== "hold" && signal.hasPlan ? signal.stopLoss : undefined} target={signal && signal.action !== "hold" && signal.hasPlan ? signal.takeProfit : undefined} trades={bt?.trades} />
+            <PriceChart candles={chartCandles} stop={signal && signal.action !== "hold" && signal.hasPlan ? signal.stopLoss : undefined} target={signal && signal.action !== "hold" && signal.hasPlan ? signal.takeProfit : undefined} trades={bt?.trades} />
             <div className="legend">
               <span><i className="l-price" /> Prix</span>
               <span><i className="l-e20" /> EMA 20</span>

@@ -15,6 +15,8 @@ final class AppServices {
     let holdingsDBError: String?
     /// Full catalogue: every crypto, every US-listed stock / ETF.
     let universe = UniverseStore()
+    /// Live prices (exchange WebSockets for cryptos, 5 s polling for stocks).
+    let live: LivePrices
 
     /// Multi-source market data with cross-validation (rebuilt with the keys currently entered).
     var market: ConsensusMarketData { Self.makeMarket(transport: transport) }
@@ -22,6 +24,7 @@ final class AppServices {
 
     init() {
         transport = ResilientTransport()
+        live = LivePrices(hub: .standard(transport: transport, market: Self.makeMarket(transport: transport)))
         do {
             holdingsDB = try HoldingsDatabase(path: HoldingsDatabase.defaultURL().path)
             holdingsDBError = nil

@@ -148,4 +148,18 @@ final class PublicAPITests: XCTestCase {
         _ = Advisor.advise(signal: nil, reliability: .high, price: 1, line: nil, capital: nil, risk: RiskSettings(),
                            guard: Advisor.GuardContext(gr))
     }
+
+    /// Live prices used by the app (LivePrices service, Radar, asset and holdings screens).
+    func testLivePricesAPI() async {
+        let transport = URLSessionTransport()
+        let hub = LivePriceHub.standard(transport: transport, market: .standard(transport: transport))
+        let asset = Asset(symbol: "BTCUSDT", name: "Bitcoin", assetClass: .crypto, quote: "USDT")
+        let stream: AsyncStream<LiveTick> = await hub.stream([asset])
+        _ = stream
+        let t = LiveTick(assetID: asset.id, price: 1, change: nil, agreeing: 1, total: 1, sources: ["OKX"], time: Date(), marketOpen: nil)
+        _ = (t.assetID, t.price, t.change, t.agreeing, t.total, t.sources, t.time, t.marketOpen)
+        _ = (LiveFeeds.all.map(\.name), USMarket.isOpen(Date()))
+        _ = LiveConsensus.combine(["OKX": .init(price: 1, change: nil, time: Date())], assetID: asset.id, now: Date())
+        await hub.close()
+    }
 }

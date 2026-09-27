@@ -38,6 +38,7 @@ Le moteur TypeScript (signal, confirmation par l'unité supérieure, avertisseme
 | `GET /api/candles?symbol=BTC&kind=crypto&interval=1h` | Bougies par consensus + qualité + score de fiabilité |
 | `GET /api/tickers?symbols=…` | Cours par consensus (8 sources crypto, 3 actions) |
 | `GET /api/search?q=…` · `GET /api/sentiment?symbol=…` | Recherche d'actifs · Fear & Greed et StockTwits |
+| `GET /api/live?symbols=BTC:crypto,AAPL:stock` | **Prix en direct** (Server-Sent Events) : dernier prix tout de suite, puis chaque changement |
 
 Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire avec déduplication des requêtes et dernières données valides en cas de panne d'une source.
 
@@ -102,6 +103,19 @@ HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commenc
 6. **Surveillance** : le workflow *Santé des sources* interroge chaque jour toutes les sources sur toutes les unités de temps et alerte par e-mail si un format d'API change.
 
 Mesuré en direct le 27/09/2026 : sur BTC, ETH, SOL, BNB et DOGE, OKX, Coinbase, Kraken et CoinGecko concordent à **0,02–0,15 %** près. Sur AAPL, Nasdaq et Yahoo donnent les mêmes clôtures sur 500 séances, date par date.
+
+## Prix en direct : rien de figé
+
+Sur le web comme sur iPhone, les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avoirs ».
+
+- **Cryptos** : flux WebSocket temps réel de **7 bourses** (OKX, Coinbase, Kraken, Bitfinex, Bitget, Gate.io, Crypto.com). Il y a une seule connexion par bourse, partagée par tous les visiteurs, et les abonnements suivent ce qui est affiché. Le prix affiché est la **médiane des bourses d'accord** : une bourse à plus de 1 % des autres est écartée. Une crypto qu'aucune de ces bourses ne cote, ou dont les flux se taisent, est relayée par les sources REST.
+- **Actions** : il n'existe pas de flux temps réel gratuit. Robinhood, TradingView, Zacks et Webull sont interrogés **toutes les 5 s** tant que l'écran est ouvert. Hors séance (9 h 30 – 16 h à New York), le badge « Bourse fermée » signale que c'est le dernier cours.
+- **Affichage** : 4 mises à jour par seconde au plus par actif, et rien n'est envoyé si le prix n'a pas changé. Le prix clignote en vert ou en rouge à chaque mouvement. Le badge « EN DIRECT » donne l'heure du dernier tick. La courbe du radar et le graphique se terminent sur le prix en direct.
+- **Montants** : la zone d'entrée, la valeur du patrimoine, les gains et les quantités suggérées suivent le prix en direct. Les signaux, eux, ne changent qu'à la clôture d'une bougie, pour ne jamais être décidés sur une bougie inachevée.
+- **Web** : Server-Sent Events non compressés, avec un battement toutes les 15 s pour traverser le routeur Heroku. Le flux se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
+- **iOS** : WebSocket natif (`URLSessionWebSocketTask`) vers les mêmes bourses, avec les mêmes règles.
+
+Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et TypeScript comme Swift sont testés dessus.
 
 ## Garde-fou marché (et API pour vos bots)
 
