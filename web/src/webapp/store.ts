@@ -142,6 +142,24 @@ export function upsertHolding(h: Omit<Holding, "id"> & { id?: string }, merge = 
   });
 }
 
+/** Adds several lines at once; an asset already held is merged (quantities added, weighted average cost). */
+export function addHoldings(items: Omit<Holding, "id">[]) {
+  setHoldings((s) => {
+    const holdings = [...s.holdings];
+    for (const h of items) {
+      const i = holdings.findIndex((x) => x.symbol === h.symbol && x.kind === h.kind);
+      if (i < 0) {
+        holdings.push({ ...h, id: crypto.randomUUID() });
+        continue;
+      }
+      const x = holdings[i]!;
+      const qty = x.quantity + h.quantity;
+      holdings[i] = { ...x, quantity: qty, averagePrice: (x.quantity * x.averagePrice + h.quantity * h.averagePrice) / qty };
+    }
+    return { holdings };
+  });
+}
+
 export function exportHoldings(): string {
   return JSON.stringify({ app: "altim", ...holdingsState }, null, 2);
 }

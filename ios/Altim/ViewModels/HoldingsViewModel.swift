@@ -35,16 +35,9 @@ final class HoldingsViewModel {
         isLoading = true
         defer { isLoading = false }
         let consensus = services.market
-        let results = await withTaskGroup(of: (String, HoldingsAnalyzer.MarketInput?).self) { group in
-            for (key, h) in assets {
-                group.addTask {
-                    (key, await Self.marketInput(for: h.asset, market: consensus))
-                }
-            }
-            var out: [String: HoldingsAnalyzer.MarketInput] = [:]
-            for await (k, v) in group { if let v { out[k] = v } }
-            return out
-        }
+        let pairs = await concurrentMap(Array(assets)) { key, h in (key, await Self.marketInput(for: h.asset, market: consensus)) }
+        var results: [String: HoldingsAnalyzer.MarketInput] = [:]
+        for (k, v) in pairs { if let v { results[k] = v } }
         market = results
         error = results.count < assets.count ? "Certains cours sont indisponibles : analyse partielle." : nil
         recompute()
@@ -69,6 +62,19 @@ final class HoldingsViewModel {
         guard let db = services.holdingsDB else { return }
         do {
             _ = try await db.upsert(holding, merge: merge)
+            holdings = try await db.all()
+            recompute()
+            await refreshMarket(services: services)
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    /// Several lines at once; an asset already held is merged (quantities added, weighted average price).
+    func saveMany(_ items: [Holding], services: AppServices) async {
+        guard let db = services.holdingsDB else { return }
+        do {
+            for h in items { _ = try await db.upsert(h, merge: true) }
             holdings = try await db.all()
             recompute()
             await refreshMarket(services: services)

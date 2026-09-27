@@ -61,13 +61,16 @@ public struct MarketSnapshot: Sendable {
         checks.filter(\.isHealthy).compactMap(\.deviationPercent).max() ?? 0
     }
 
+    /// Sources that returned usable data (candles or live price).
+    public var respondingSources: Int { checks.filter { $0.isHealthy || $0.status == .diverges }.count }
+
     /// Overall score 0–100: data quality, capped by the number of agreeing sources.
+    /// Score cap by number of independent agreeing sources: a decision needs several confirmations
+    /// (1 source = no advice, 3 minimum for "high"). Same table as web/src/engine/reliability.ts.
+    public static let reliabilityCap: [Double] = [40, 40, 60, 75, 90, 100]
+
     public var reliabilityScore: Double {
-        let cap: Double = switch independentSources {
-        case ...1: 50
-        case 2: 80
-        default: 100
-        }
+        let cap = Self.reliabilityCap[min(independentSources, 5)]
         return conflict ? min(quality.score, 30) : min(quality.score, cap)
     }
 
@@ -82,7 +85,7 @@ public struct MarketSnapshot: Sendable {
     public var summary: String {
         let divergent = checks.filter { $0.status == .diverges }.count
         if conflict { return "Sources en désaccord : données non vérifiables" }
-        var text = "\(agreeingSources) source(s) concordante(s)"
+        var text = "\(agreeingSources)/\(respondingSources) sources concordantes"
         if agreeingSources > 1 { text += String(format: ", écart max %.2f %%", maxDeviationPercent) }
         if divergent > 0 { text += " · \(divergent) écartée(s)" }
         return text
@@ -108,8 +111,8 @@ public enum ConsensusError: Error, LocalizedError {
 
 /// Multi-source market data with cross-validation.
 ///
-/// 1. Candles are fetched from several sources in parallel (priority order), until
-///    `targetSources` have responded.
+/// 1. Candles are fetched from every eligible source in parallel (or, if `targetSources` is set,
+///    in priority order until that many have responded).
 /// 2. For each timestamp, the reference value is the median of the closes. Each source
 ///    is compared with that median; beyond `tolerance` it is discarded.
 /// 3. The first agreeing source (by priority) with enough history feeds the analysis.
@@ -121,7 +124,7 @@ public struct ConsensusMarketData: MarketDataProvider {
     public var stockTolerancePercent: Double
     public var minimumCandles: Int
 
-    public init(sources: [MarketSource], targetSources: Int = 3, cryptoTolerancePercent: Double = 0.5,
+    public init(sources: [MarketSource], targetSources: Int = .max, cryptoTolerancePercent: Double = 0.5,
                 stockTolerancePercent: Double = 1.0, minimumCandles: Int = 60) {
         self.sources = sources
         self.targetSources = targetSources
@@ -143,8 +146,16 @@ public struct ConsensusMarketData: MarketDataProvider {
             GateMarketData(transport: transport),
             BitfinexMarketData(transport: transport),
             BinanceSource.us(transport: transport),
+            BitstampMarketData(transport: transport),
+            GeminiMarketData(transport: transport),
+            CryptoComMarketData(transport: transport),
+            BitgetMarketData(transport: transport),
+            MEXCMarketData(transport: transport),
+            HTXMarketData(transport: transport),
             YahooMarketData(server: 1, transport: transport),
             NasdaqMarketData(transport: transport),
+            RobinhoodMarketData(transport: transport),
+            CboeMarketData(transport: transport),
         ]
         // Keyed sources (independent) go ahead of Yahoo's second server, which shares the same backend.
         if let a = alpaca, !a.key.isEmpty, !a.secret.isEmpty {
@@ -155,6 +166,8 @@ public struct ConsensusMarketData: MarketDataProvider {
         list.append(YahooMarketData(server: 2, transport: transport))
         list.append(CoinGeckoQuotes(transport: transport))
         list.append(CboeQuotes(transport: transport))
+        list.append(RobinhoodQuotes(transport: transport))
+        list.append(TradingViewQuotes(transport: transport))
         if let k = finnhubKey, !k.isEmpty { list.append(FinnhubQuotes(apiKey: k, transport: transport)) }
         return ConsensusMarketData(sources: list)
     }
@@ -169,7 +182,7 @@ public struct ConsensusMarketData: MarketDataProvider {
         let eligible = sources.filter { $0.supports(asset) }
         guard !eligible.isEmpty else { throw ConsensusError.noSource }
         let quotes = await withTaskGroup(of: Quote?.self) { group in
-            for s in eligible.prefix(targetSources + 2) { group.addTask { try? await s.quote(for: asset) } }
+            for s in eligible.prefix(targetSources >= eligible.count ? eligible.count : targetSources + 2) { group.addTask { try? await s.quote(for: asset) } }
             var out: [Quote] = []
             for await q in group { if let q, q.price > 0 { out.append(q) } }
             return out
@@ -204,7 +217,7 @@ public struct ConsensusMarketData: MarketDataProvider {
             let succeeded = fetched.filter { $0.candles != nil }.count
             let needed = targetSources - succeeded
             if needed <= 0 { break }
-            let wave = candleSources[cursor..<min(candleSources.count, cursor + needed)]
+            let wave = candleSources[cursor..<(cursor + min(needed, candleSources.count - cursor))]
             cursor += wave.count
             let results = await withTaskGroup(of: Fetched.self) { group in
                 for (index, source) in wave {
@@ -283,7 +296,9 @@ public struct ConsensusMarketData: MarketDataProvider {
             checks.append(SourceCheck(name: f.name, status: status, deviationPercent: dev, lastPrice: rawLast, latency: f.latency))
         }
         // No agreeing source with enough history: take the longest agreeing one (the engine will reject it if too short).
-        let conflict = primary == nil && !checks.contains { $0.status == .agrees }
+        // Fewer than half of the responding sources agree: impossible to know which ones are right.
+        let agreeingCount = checks.filter { $0.status == .agrees || $0.status == .primary }.count
+        let conflict = series.count > 1 && agreeingCount * 2 < series.count
         if primary == nil {
             let fallbackIndex = checks.indices.filter { checks[$0].status == .agrees }
                 .max { series[$0].1.count < series[$1].1.count } ?? 0

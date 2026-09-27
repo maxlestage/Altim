@@ -195,7 +195,7 @@ final class ConsensusTests: XCTestCase {
         XCTAssertEqual(s.candles.last?.close, base.last?.close)
     }
 
-    func testFailoverToNextSources() async throws {
+    func testEverySourceIsQueried() async throws {
         let c = ConsensusMarketData(sources: [
             FakeSource(name: "Panne", candlesResult: .failure(.unavailableInRegion)),
             FakeSource(name: "Vide", candlesResult: .success([])),
@@ -206,16 +206,58 @@ final class ConsensusTests: XCTestCase {
         ])
         let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
         XCTAssertEqual(s.primarySource, "B")
+        XCTAssertEqual(s.agreeingSources, 4)
+        XCTAssertFalse(s.checks.contains { $0.status == .skipped })
+        XCTAssertEqual(s.reliabilityScore, 90)
+        XCTAssertEqual(s.summary.prefix(24), "4/4 sources concordantes")
+        if case .failed = s.checks.first(where: { $0.name == "Panne" })?.status {} else { XCTFail("Panne should be failed") }
+    }
+
+    func testTargetStillLimitsWaves() async throws {
+        let c = ConsensusMarketData(sources: [
+            FakeSource(name: "Panne", candlesResult: .failure(.unavailableInRegion)),
+            FakeSource(name: "B", candlesResult: .success(base)),
+            FakeSource(name: "C", candlesResult: .success(scaled(1.0001))),
+            FakeSource(name: "D", candlesResult: .success(scaled(0.9999))),
+            FakeSource(name: "E", candlesResult: .success(base)),
+        ], targetSources: 3)
+        let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
         XCTAssertEqual(s.agreeingSources, 3)
         XCTAssertEqual(s.checks.first { $0.name == "E" }?.status, .skipped)
-        if case .failed = s.checks.first(where: { $0.name == "Panne" })?.status {} else { XCTFail("Panne should be failed") }
+    }
+
+    func testMinorityAgreementIsConflict() async throws {
+        // 2 sources agree, 3 others are all far apart: fewer than half agree.
+        let c = ConsensusMarketData(sources: [
+            FakeSource(name: "A", candlesResult: .success(base)),
+            FakeSource(name: "B", candlesResult: .success(scaled(1.0002))),
+            FakeSource(name: "C", candlesResult: .success(scaled(1.08))),
+            FakeSource(name: "D", candlesResult: .success(scaled(0.9))),
+            FakeSource(name: "E", candlesResult: .success(scaled(1.2))),
+        ])
+        let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
+        XCTAssertTrue(s.conflict)
+        XCTAssertEqual(s.reliability, .low)
+    }
+
+    func testMajorityAgreementIsNotConflict() async throws {
+        let c = ConsensusMarketData(sources: [
+            FakeSource(name: "A", candlesResult: .success(base)),
+            FakeSource(name: "B", candlesResult: .success(scaled(1.0002))),
+            FakeSource(name: "C", candlesResult: .success(scaled(0.9998))),
+            FakeSource(name: "Faux", candlesResult: .success(scaled(1.08))),
+        ])
+        let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
+        XCTAssertFalse(s.conflict)
+        XCTAssertEqual(s.reliabilityScore, 75)
+        XCTAssertEqual(s.checks.first { $0.name == "Faux" }?.status, .diverges)
     }
 
     func testSingleSourceIsCapped() async throws {
         let c = ConsensusMarketData(sources: [FakeSource(name: "Seule", candlesResult: .success(base))])
         let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
-        XCTAssertEqual(s.reliabilityScore, 50)
-        XCTAssertEqual(s.reliability, .medium)
+        XCTAssertEqual(s.reliabilityScore, 40)
+        XCTAssertEqual(s.reliability, .low)
     }
 
     func testSameProviderCountsOnce() async throws {
@@ -226,7 +268,7 @@ final class ConsensusTests: XCTestCase {
         let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
         XCTAssertEqual(s.agreeingSources, 2)
         XCTAssertEqual(s.independentSources, 1)
-        XCTAssertEqual(s.reliabilityScore, 50)
+        XCTAssertEqual(s.reliabilityScore, 40)
     }
 
     func testConflictGivesLowReliability() async throws {

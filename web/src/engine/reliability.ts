@@ -76,8 +76,12 @@ export function assessQuality(raw: Candle[], intervalMs: number, kind: Kind, now
   return { score: Math.max(0, score), issues, gaps, badTicks, stale };
 }
 
+/** Score cap by number of independent agreeing sources (index = sources, 5 and more = 100). */
+export const RELIABILITY_CAP = [40, 40, 60, 75, 90, 100];
+
 export function reliability(quality: number, independentSources: number, conflict: boolean): Reliability {
-  const cap = independentSources <= 1 ? 50 : independentSources === 2 ? 80 : 100;
+  // A decision needs several independent confirmations: 1 source = no advice, 3 minimum for "high".
+  const cap = RELIABILITY_CAP[Math.min(independentSources, 5)]!;
   const score = conflict ? Math.min(quality, 30) : Math.min(quality, cap);
   return { score, level: score >= 75 ? "high" : score >= 50 ? "medium" : "low", independent: independentSources, conflict };
 }

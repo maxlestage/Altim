@@ -30,27 +30,20 @@ final class RadarViewModel {
         let sentiment = services.sentiment
 
         async let fg = try? await sentiment.cryptoFearGreed()
-        let results = await withTaskGroup(of: (Asset, Row).self) { group in
-            for asset in assets {
-                group.addTask {
-                    var row = Row()
-                    do {
-                        let a = try await MarketAnalysis.run(asset: asset, timeframe: timeframe, market: market, limit: 400)
-                        row.price = a.price
-                        row.change24h = a.change24h
-                        row.signal = a.signal
-                        row.reliability = a.snapshot.reliability
-                        row.sourcesSummary = a.snapshot.summary
-                        row.sparkline = a.snapshot.candles.suffix(48).map(\.close)
-                    } catch {
-                        row.error = error.localizedDescription
-                    }
-                    return (asset, row)
-                }
+        let results = await concurrentMap(assets) { asset -> (Asset, Row) in
+            var row = Row()
+            do {
+                let a = try await MarketAnalysis.run(asset: asset, timeframe: timeframe, market: market, limit: 400)
+                row.price = a.price
+                row.change24h = a.change24h
+                row.signal = a.signal
+                row.reliability = a.snapshot.reliability
+                row.sourcesSummary = a.snapshot.summary
+                row.sparkline = a.snapshot.candles.suffix(48).map(\.close)
+            } catch {
+                row.error = error.localizedDescription
             }
-            var collected: [(Asset, Row)] = []
-            for await item in group { collected.append(item) }
-            return collected
+            return (asset, row)
         }
         if let value = await fg { fearGreed = value }
 

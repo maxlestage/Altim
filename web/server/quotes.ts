@@ -95,6 +95,22 @@ export const parseQuotes = {
     new Map(assets.filter((a) => d[a.gecko!]).map((a) => [a.symbol, { price: n(d[a.gecko!].usd)!, change: n(d[a.gecko!].usd_24h_change) }])),
   nasdaq: (d: any): SourceQuote => ({ price: n(d.data.primaryData.lastSalePrice)!, change: n(d.data.primaryData.percentageChange) }),
   cboe: (d: any): SourceQuote => ({ price: n(d.details.current_price)!, change: n(d.details.price_change_percent) }),
+  /** Robinhood batch quotes (class shares written BRK.B); unknown symbols come back as null. */
+  robinhood: (d: any): Map<string, SourceQuote> =>
+    new Map(((d?.results ?? []) as any[]).filter(Boolean).map((r) => {
+      const price = n(r.last_trade_price)!;
+      const prev = n(r.adjusted_previous_close) ?? n(r.previous_close);
+      return [String(r.symbol).replace(/\./g, "-"), { price, change: prev ? (price / prev - 1) * 100 : undefined }];
+    })),
+  /** TradingView scanner: one row per listing; the main US listing is kept. */
+  tradingview: (d: any): Map<string, SourceQuote> => {
+    const m = new Map<string, SourceQuote>();
+    for (const r of (d?.data ?? []) as { s: string; d: [string, string, number, number] }[]) {
+      const sym = String(r.d[0]).replace(/\./g, "-");
+      if (!m.has(sym) && r.d[2] > 0) m.set(sym, { price: r.d[2], change: r.d[3] });
+    }
+    return m;
+  },
   yahoo: (d: any): SourceQuote => {
     const r = d.chart.result[0];
     const closes: number[] = (r.indicators.quote[0].close as (number | null)[]).filter((x): x is number => x != null);
@@ -105,6 +121,8 @@ export const parseQuotes = {
 };
 
 const cryptos = (a: Asset[]) => a.filter((x) => x.kind === "crypto");
+const stocks = (a: Asset[]) => a.filter((x) => x.kind === "stock");
+const dotted = (a: Asset[]) => stocks(a).map((x) => x.symbol.replace(/-/g, "."));
 
 export const QUOTE_SOURCES: QuoteSource[] = [
   {
@@ -160,11 +178,47 @@ export const QUOTE_SOURCES: QuoteSource[] = [
   },
   {
     name: "Nasdaq", kind: "stock",
-    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${x.symbol}/info?assetclass=stocks`))),
+    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => {
+      // Class shares: BRK-B (Yahoo) = BRK.B (Nasdaq). ETFs live in another asset class.
+      const sym = x.symbol.replace(/-/g, ".");
+      try {
+        return parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${sym}/info?assetclass=stocks`));
+      } catch {
+        return parseQuotes.nasdaq(await getJSON(`https://api.nasdaq.com/api/quote/${sym}/info?assetclass=etf`));
+      }
+    }),
+  },
+  {
+    name: "Robinhood", kind: "stock",
+    fetch: async (a) => {
+      if (!stocks(a).length) return new Map();
+      return parseQuotes.robinhood(await getJSON(`https://api.robinhood.com/quotes/?symbols=${dotted(a).map(encodeURIComponent).join(",")}`));
+    },
+  },
+  {
+    name: "TradingView", kind: "stock",
+    fetch: async (a) => {
+      if (!stocks(a).length) return new Map();
+      const res = await fetch("https://scanner.tradingview.com/america/scan", {
+        method: "POST",
+        headers: { ...UA, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filter: [
+            { left: "name", operation: "in_range", right: dotted(a) },
+            { left: "exchange", operation: "in_range", right: ["NASDAQ", "NYSE", "AMEX", "CBOE"] },
+          ],
+          columns: ["name", "exchange", "close", "change"],
+          range: [0, 100],
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return parseQuotes.tradingview(await res.json());
+    },
   },
   {
     name: "Cboe", kind: "stock",
-    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.cboe(await getJSON(`https://www.cboe.com/education/tools/trade-optimizer/symbol-info/?symbol=${x.symbol}`))),
+    fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.cboe(await getJSON(`https://www.cboe.com/education/tools/trade-optimizer/symbol-info/?symbol=${x.symbol.replace(/-/g, ".")}`))),
   },
 ];
 
