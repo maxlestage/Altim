@@ -21,7 +21,7 @@ export interface Advice {
   quantity?: number;
 }
 
-/** Below this track record on the asset itself, a buy signal is not advised (same rule in Advisor.swift). */
+/** Below this track record on the asset itself, a buy signal is not advised */
 export const MIN_TRACK_TRADES = 5;
 /** Same threshold as GUARD.reversalHigh (guard.ts). */
 export const REVERSAL_HIGH = 50;

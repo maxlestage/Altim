@@ -1,7 +1,6 @@
 /**
  * Analysis of the portfolio the user actually holds.
- * Pure, deterministic functions: same results in the browser and in the iOS app (Swift port,
- * checked by a shared fixture file).
+ * Pure, deterministic functions (same inputs, same results).
  */
 import { atr, type Action, type Candle } from "./signal";
 import type { Kind, ReliabilityLevel } from "./reliability";
@@ -121,7 +120,7 @@ export function correlation(a: number[], b: number[]): number | null {
   }
   return sxx > 0 && syy > 0 ? sxy / Math.sqrt(sxx * syy) : null;
 }
-/** 5th percentile (linear interpolation, same definition in Swift). */
+/** 5th percentile (linear interpolation). */
 export function percentile(v: number[], p: number): number {
   const s = [...v].sort((a, b) => a - b);
   if (!s.length) return 0;

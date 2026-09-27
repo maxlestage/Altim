@@ -10,10 +10,11 @@ on:
 jobs:
   live:
     runs-on: ubuntu-latest
-    container: swift:6.1
     steps:
       - uses: actions/checkout@v4
-      - name: SQLite (en-têtes pour la base des avoirs)
-        run: apt-get update -qq && apt-get install -y -qq libsqlite3-dev pkg-config > /dev/null
-      - name: Toutes les sources, toutes les unités de temps (données réelles)
-        run: cd ios/AltimCore && ALTIM_LIVE=1 swift test --filter "LiveSourcesTests"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: bun install --frozen-lockfile
+      - name: Toutes les sources, toutes les unités de temps, flux temps réel (données réelles)
+        run: cd web && ALTIM_LIVE=1 bun test test/sources-live.test.ts

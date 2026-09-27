@@ -1,8 +1,0 @@
-*.xcodeproj
-xcuserdata/
-DerivedData/
-.build/
-.swiftpm/
-build/
-*.ipa
-Altim/Info.plist
