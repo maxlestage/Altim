@@ -5,6 +5,7 @@
 import type { Candle } from "../src/engine/signal";
 import { assessQuality, reliability, type Kind, type QualityReport, type Reliability } from "../src/engine/reliability";
 import { consensusQuotes, makeAsset, webullTickerId, type QuoteSourceStatus } from "./quotes";
+import { EXTRA_CANDLE_SOURCES } from "./stocks-extra";
 
 export type Interval = "1h" | "4h" | "1d";
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
@@ -452,10 +453,14 @@ export const LONG_SOURCES: Source[] = [
 
 export async function longDaily(symbol: string, kind: Kind): Promise<Consensus> {
   if (kind === "crypto") return consensus(symbol, "1d", LONG_SOURCES);
-  const order = ["Robinhood", "StockAnalysis", "Nasdaq", "Webull", "Cboe"];
+  const order = ["Robinhood", "StockAnalysis", "WSJ / MarketWatch", "Finviz", "Nasdaq", "Webull", "Cboe", "AlphaQuery", "Financial Times", "eToro"];
   const sources = order.map((n) => STOCK_SOURCES.find((s) => s.name === n)!).filter(Boolean);
   return consensus(symbol, "1d", sources, Infinity, 1, (candles, i) => stockClosed(candles, i));
 }
+
+// Daily candles from Dow Jones (WSJ / MarketWatch), AlphaQuery, Finviz, the Financial Times and eToro (stocks-extra.ts).
+// Finviz serves 10 years: the last 1 300 sessions (≈ 5 years) are enough.
+STOCK_SOURCES.push(...EXTRA_CANDLE_SOURCES.map((s) => ({ name: s.name, supports: s.supports as (i: Interval) => boolean, fetch: async (symbol: string) => (await s.fetch(symbol)).slice(-1300) })));
 
 /** Stock candle closed: the daily session lasts 6h30, not 24h. */
 const stockClosed = (candles: Candle[], interval: Interval, now = Date.now()) => {

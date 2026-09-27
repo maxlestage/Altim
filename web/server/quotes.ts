@@ -2,6 +2,8 @@
  * Price consensus for the site's market panel: each price is fetched from several independent
  * sources, compared with the median, and a divergent source is discarded.
  */
+import { EXTRA_QUOTE_SOURCES } from "./stocks-extra";
+
 export type Kind = "crypto" | "stock";
 export type Asset = { symbol: string; name: string; kind: Kind; gecko?: string };
 export type SourceQuote = { price: number; change?: number };
@@ -263,6 +265,12 @@ export const QUOTE_SOURCES: QuoteSource[] = [
     fetch: (a) => each(a.filter((x) => x.kind === "stock"), async (x) => parseQuotes.cboe(await getJSON(`https://www.cboe.com/education/tools/trade-optimizer/symbol-info/?symbol=${x.symbol.replace(/-/g, ".")}`))),
   },
 ];
+
+// Live quotes from Fidelity, StockCharts, TipRanks and Public.com (stocks-extra.ts).
+QUOTE_SOURCES.push(...EXTRA_QUOTE_SOURCES.map((s): QuoteSource => ({
+  name: s.name, kind: "stock",
+  fetch: async (a) => (await s.fetch(stocks(a).map((x) => x.symbol))) as Map<string, SourceQuote>,
+})));
 
 const median = (v: number[]) => {
   const s = [...v].sort((a, b) => a - b);

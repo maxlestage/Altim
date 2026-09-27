@@ -1,0 +1,183 @@
+{
+ "wsj": {
+  "TimeInfo": {
+   "Ticks": [
+    1790208000000,
+    1790294400000
+   ]
+  },
+  "Series": [
+   {
+    "SeriesId": "s1",
+    "DataPoints": [
+     [
+      336.72,
+      338.91,
+      334.3,
+      335.92
+     ],
+     [
+      336.04,
+      341.67,
+      334.53,
+      341.07
+     ]
+    ]
+   }
+  ]
+ },
+ "alphaquery": {
+  "unadjusted": [
+   {
+    "x": "2026-09-24T00:00:00Z",
+    "open": 336.72,
+    "high": 338.91,
+    "low": 334.3,
+    "close": 335.92,
+    "value": 335.92,
+    "volume": 24733000
+   },
+   {
+    "x": "2026-09-25T00:00:00Z",
+    "open": 336.04,
+    "high": 341.67,
+    "low": 334.53,
+    "close": 341.07,
+    "value": 341.07,
+    "volume": 29403000
+   }
+  ]
+ },
+ "finviz": {
+  "date": [
+   1790254800,
+   1790341200
+  ],
+  "open": [
+   336.72,
+   336.04
+  ],
+  "high": [
+   338.91,
+   341.67
+  ],
+  "low": [
+   334.3,
+   334.53
+  ],
+  "close": [
+   335.92,
+   341.07
+  ],
+  "volume": [
+   24732476,
+   30002507
+  ]
+ },
+ "ft": {
+  "Dates": [
+   "2026-09-24T00:00:00",
+   "2026-09-25T00:00:00"
+  ],
+  "Elements": [
+   {
+    "ComponentSeries": [
+     {
+      "Type": "Open",
+      "Values": [
+       336.72,
+       336.04
+      ]
+     },
+     {
+      "Type": "High",
+      "Values": [
+       338.91,
+       341.67
+      ]
+     },
+     {
+      "Type": "Low",
+      "Values": [
+       334.3,
+       334.53
+      ]
+     },
+     {
+      "Type": "Close",
+      "Values": [
+       335.92,
+       341.07
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "ftSearch": {
+  "data": {
+   "security": [
+    {
+     "symbol": "AAPL:NSQ",
+     "xid": "36276",
+     "isPrimary": true
+    },
+    {
+     "symbol": "AAPL:SGO",
+     "xid": "50801982",
+     "isPrimary": false
+    },
+    {
+     "symbol": "AAPL:SWX",
+     "xid": "80070391",
+     "isPrimary": false
+    }
+   ]
+  }
+ },
+ "etoro": {
+  "Candles": [
+   {
+    "Candles": [
+     {
+      "FromDate": "2026-09-24T00:00:00Z",
+      "Open": 336.86,
+      "High": 338.88,
+      "Low": 334.31,
+      "Close": 335.76,
+      "Volume": 18851116
+     },
+     {
+      "FromDate": "2026-09-25T00:00:00Z",
+      "Open": 335.76,
+      "High": 341.66,
+      "Low": 334.53,
+      "Close": 341.02,
+      "Volume": 15233183
+     }
+    ]
+   }
+  ]
+ },
+ "fidelity": "({\"QUOTES\":{\"AAPL\":{\"ERROR_CODE\":\"0\",\"LAST_PRICE\":\"341.0700\",\"PCT_CHG_TODAY\":\"1.53\"},\"BRK/B\":{\"ERROR_CODE\":\"0\",\"LAST_PRICE\":\"505.4800\",\"PCT_CHG_TODAY\":\"0.06\"},\"XXXX\":{\"ERROR_CODE\":\"-1000\"}}})",
+ "stockcharts": {
+  "close": "341.07",
+  "lastClose": "335.92",
+  "open": "336.04"
+ },
+ "tipranks": {
+  "prices": [
+   {
+    "date": "2026-09-24T00:00:00",
+    "d": "24/9/26",
+    "p": 335.92
+   },
+   {
+    "date": "2026-09-25T00:00:00",
+    "d": "25/9/26",
+    "p": 341.07
+   }
+  ]
+ },
+ "publicCom": "\"symbol\":\"AAPL\",\"name\":\"Apple\",\"displayName\":\"Apple\",\"availableForFractional\":true,\"availableForTrade\":true,\"safetyLabel\":null,\"trading\":\"BUY_AND_SELL\",\"optionsTrading\":\"BUY_AND_SELL\",\"optionsSpreadTrading\":\"BUY_AND_SELL\",\"tradingFractional\":\"BUY_AND_SELL\",\"instrumentClass\":\"STOCK\",\"daysToIpo\":null,\"ipoDate\":null,\"ipoEarliestLimitOrderTime\":null,\"untradableReason\":null,\"newSymbol\":null,\"newSymbolDate\":null,\"nameAlternatives\":[\"top\",\"popular\"],\"rootSymbol\":null,\"rootSymbolName\":null,\"shortSellingAvailability\":\"EASY_TO_BORROW\",\"shortSellingHardToBorrowPercentageRate\":null,\"shortInterestShares\":\"128753092\",\"shortInterestPercentageOfFloat\":\"0.88\",\"shortingDaysToCover\":\"2.85\",\"marginRequirement\":{\"longMaintenanceRequirement\":\"0.2500\",\"longInitialRequirement\":\"0.5000\",\"shortMaintenanceRequirement\":\"0.3000\",\"shortInitialRequirement\":\"0.5000\"},\"tradingSession\":\"TWENTY_FOUR_HOURS\"},\"quote\":{\"ask\":341.48,\"batsLastUpdated\":\"2026-09-25T20:00:00Z\",\"bid\":339.5,\"gainPercentage\":1.533,\"gainValue\":5.15,\"high\":341.67,\"last\":341.07,\"lastUpdated\":\"2026-09-25T20:00:00Z\",\"low\":334.53,\"open\":336.04,\"previousClose\":335.92"
+}

@@ -27,6 +27,10 @@ Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** �
 
 Aucun buildpack à configurer : Heroku détecte une app Node.js et Bun est installé automatiquement comme dépendance npm.
 
+### Source WSJ / MarketWatch (facultatif)
+
+La source Dow Jones (WSJ / MarketWatch) a besoin du jeton public de ses graphiques. Il n'est pas écrit dans le code : ajoutez-le dans Heroku → **Settings** → **Config Vars** → `WSJ_TOKEN`. Sans lui, cette source est simplement ignorée et les 16 autres sources d'actions fonctionnent.
+
 ## 2. Utiliser l'app sur iPhone
 
 Ouvrez le site dans Safari → **Ouvrir l'app** → bouton **Partager** → **Sur l'écran d'accueil**. Altim s'ouvre alors comme une app, en plein écran.
