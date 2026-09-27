@@ -84,17 +84,19 @@ La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −
   7. Sinon → conserver.
 - Stop de protection conseillé : 2 × l'ATR journalier.
 
-## Fiabilité des données : 16 sources de prix recoupées
+## Fiabilité des données : 31 sources de prix recoupées
 
 | Classe | Sources sans clé | Sources avec clé gratuite |
 |---|---|---|
-| Crypto | Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, CoinGecko (cours), Yahoo Finance | Twelve Data |
-| Actions / ETF | Yahoo Finance (2 serveurs), Nasdaq (journalier), Cboe (cours) | Alpaca (IEX), Twelve Data, Polygon, Finnhub (cours) |
+| Crypto (jusqu'à 24) | Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, Bitstamp, Gemini, Crypto.com, Bitget, MEXC, HTX, Poloniex, HitBTC, WhiteBIT, CoinEx, XT, WOO X, BingX, LBank, CoinGecko (cours), Yahoo Finance | Twelve Data |
+| Actions / ETF (8) | Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull (journalier) ; TradingView, Zacks, et les cours en direct de Robinhood, Cboe, Webull | Alpaca (IEX), Twelve Data, Polygon, Finnhub (cours) |
 | Contexte (hors score) | Fear & Greed (alternative.me), StockTwits | |
 
-1. **Consensus** : au moins 3 sources interrogées en parallèle, par ordre de priorité, en basculant sur les suivantes en cas de panne. Pour chaque bougie, la référence est la médiane ; une source qui s'en écarte de plus de 0,5 % (crypto) / 1 % (actions) est écartée.
+HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commence à 16 h UTC). En 1 h / 4 h, les bougies d'actions viennent de Yahoo (seules alignées sur la séance) et sont recoupées avec 6 cours en direct.
+
+1. **Consensus** : toutes les sources sont interrogées en parallèle. Pour chaque bougie, la référence est la médiane ; une source qui s'en écarte de plus de 0,5 % (crypto) / 1 % (actions) est écartée, tout comme une source en retard (paire inactive). Les bougies analysées sont la médiane des sources concordantes.
 2. **Contrôle qualité** des bougies : trous, pics aberrants aussitôt annulés (erreur de cotation), données périmées, volume absent, prix figés. Les fuseaux de New York (heure d'été / d'hiver) sont gérés pour aligner les séances.
-3. **Score de fiabilité** (0–100) : qualité, plafonnée à 50 avec une seule source indépendante et à 80 avec deux (les 2 serveurs Yahoo comptent pour une). Sources en désaccord → 30.
+3. **Score de fiabilité** (0–100) : qualité, plafonnée à 40 avec une seule source indépendante (pas de conseil), 60 avec deux, 75 avec trois, 90 avec quatre (les 2 serveurs Yahoo comptent pour une). Moins de la moitié des sources d'accord → 30.
 4. **Garde-fou** : fiabilité faible → **signal suspendu et achats bloqués**. Fiabilité moyenne → un signal « fort » est ramené à « normal ». La confiance est pondérée par la fiabilité.
 5. **Réseau résilient** : nouvelles tentatives avec attente exponentielle sur les lectures (jamais sur les ordres), respect des limites de débit, disjoncteur par source (60 s), conservation des dernières données valides.
 6. **Surveillance** : le workflow *Santé des sources* interroge chaque jour toutes les sources sur toutes les unités de temps et alerte par e-mail si un format d'API change.
@@ -114,7 +116,7 @@ Le moteur `AltimCore` contient encore des connecteurs Binance / Alpaca testés, 
 
 ## Bloomberg
 
-Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 16 sources ci-dessus ; toute source se branche via le protocole `MarketSource` : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
+Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence professionnelle payante et ne sont pas accessibles depuis une app grand public. Altim recoupe à la place les 31 sources ci-dessus ; toute source se branche via le protocole `MarketSource` : un flux Bloomberg peut être ajouté au consensus si vous avez une licence.
 
 ## Tests
 

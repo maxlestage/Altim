@@ -275,6 +275,20 @@ final class ConsensusTests: XCTestCase {
         XCTAssertEqual(ConsensusMarketData.blend(base, []), base)
     }
 
+    func testLaggingSourceIsDiscarded() async throws {
+        // An inactive pair: its 250 old candles agree, but it stopped 50 hours ago.
+        let c = ConsensusMarketData(sources: [
+            FakeSource(name: "A", candlesResult: .success(base)),
+            FakeSource(name: "B", candlesResult: .success(scaled(1.0001))),
+            FakeSource(name: "Lente", candlesResult: .success(Array(base.prefix(250)))),
+        ])
+        let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
+        if case let .failed(m) = s.checks.first(where: { $0.name == "Lente" })?.status {
+            XCTAssertTrue(m.contains("en retard"))
+        } else { XCTFail("Lente should be discarded") }
+        XCTAssertEqual(s.agreeingSources, 2)
+    }
+
     func testSingleSourceIsCapped() async throws {
         let c = ConsensusMarketData(sources: [FakeSource(name: "Seule", candlesResult: .success(base))])
         let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)

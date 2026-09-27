@@ -11,7 +11,7 @@ const QA = [
   ],
   [
     "Utilisez-vous Bloomberg ?",
-    "Les données Bloomberg (Terminal, B-PIPE) nécessitent une licence professionnelle. Altim recoupe à la place jusqu'à 16 sources de prix (Binance, OKX, Coinbase, Kraken, Nasdaq, Cboe…) et son architecture permet de brancher un flux Bloomberg si vous disposez d'une licence.",
+    "Les données Bloomberg (Terminal, B-PIPE) nécessitent une licence professionnelle. Altim recoupe à la place 31 sources de prix : jusqu'à 24 pour une crypto (Binance, OKX, Coinbase, Kraken, Bitstamp, Gemini…) et 8 pour une action (Nasdaq, Cboe, Robinhood, Webull…), et son architecture permet de brancher un flux Bloomberg si vous disposez d'une licence.",
   ],
   [
     "Que se passe-t-il si une source donne un mauvais prix ?",

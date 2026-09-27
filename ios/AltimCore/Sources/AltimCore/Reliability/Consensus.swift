@@ -156,7 +156,10 @@ public struct ConsensusMarketData: MarketDataProvider {
             NasdaqMarketData(transport: transport),
             RobinhoodMarketData(transport: transport),
             CboeMarketData(transport: transport),
+            StockAnalysisMarketData(transport: transport),
+            WebullMarketData(transport: transport),
         ]
+        list.insert(contentsOf: MoreExchanges.sources(transport: transport) as [MarketSource], at: 14)
         // Keyed sources (independent) go ahead of Yahoo's second server, which shares the same backend.
         if let a = alpaca, !a.key.isEmpty, !a.secret.isEmpty {
             list.append(AlpacaMarketData(keyId: a.key, secret: a.secret, transport: transport))
@@ -168,6 +171,8 @@ public struct ConsensusMarketData: MarketDataProvider {
         list.append(CboeQuotes(transport: transport))
         list.append(RobinhoodQuotes(transport: transport))
         list.append(TradingViewQuotes(transport: transport))
+        list.append(WebullQuotes(transport: transport))
+        list.append(ZacksQuotes(transport: transport))
         if let k = finnhubKey, !k.isEmpty { list.append(FinnhubQuotes(apiKey: k, transport: transport)) }
         return ConsensusMarketData(sources: list)
     }
@@ -269,14 +274,25 @@ public struct ConsensusMarketData: MarketDataProvider {
 
     private static func evaluate(asset: Asset, timeframe: Timeframe, fetched: [Fetched], quotes: [Fetched],
                                  skipped: [String], tolerance: Double, minimumCandles: Int, now: Date) throws -> MarketSnapshot {
-        let series = fetched.compactMap { f -> (Fetched, [Candle])? in
+        var series = fetched.compactMap { f -> (Fetched, [Candle])? in
             guard let c = f.candles else { return nil }
             let clean = c.sanitized()
             return clean.isEmpty ? nil : (f, clean)
         }
-        let failed = fetched.filter { $0.candles == nil || $0.candles!.sanitized().isEmpty }.map {
+        var failed = fetched.filter { $0.candles == nil || $0.candles!.sanitized().isEmpty }.map {
             SourceCheck(name: $0.name, status: .failed($0.error ?? "données vides"), deviationPercent: nil,
                         lastPrice: nil, latency: $0.latency)
+        }
+        // A source whose last candle lags behind the others (inactive market, delisted pair) is discarded:
+        // its old candles could still "agree" on the timestamps it shares with the others. Same rule as the web.
+        if let latest = series.compactMap({ $0.1.last?.time }).max() {
+            let limit = latest.addingTimeInterval(-2 * timeframe.seconds)
+            let (fresh, late) = (series.filter { $0.1.last!.time >= limit }, series.filter { $0.1.last!.time < limit })
+            series = fresh
+            failed += late.map { f, c in
+                SourceCheck(name: f.name, status: .failed("en retard (dernière bougie du \(ISO8601DateFormatter().string(from: c.last!.time).prefix(10)))"),
+                            deviationPercent: nil, lastPrice: nil, latency: f.latency)
+            }
         }
         guard !series.isEmpty else { throw ConsensusError.allFailed(failed) }
 

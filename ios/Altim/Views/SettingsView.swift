@@ -55,12 +55,12 @@ struct SettingsView: View {
                 } header: {
                     Text("Sources de données supplémentaires")
                 } footer: {
-                    Text("Facultatif. Sans clé, Altim recoupe déjà Binance, OKX, Coinbase, Kraken, KuCoin, Gate.io, Bitfinex, Binance.US, CoinGecko, Yahoo Finance, Nasdaq et Cboe. Ces clés gratuites (lecture de cours uniquement) ajoutent des sources indépendantes pour les actions. Elles restent chiffrées dans le trousseau de cet iPhone.")
+                    Text("Facultatif. Sans clé, Altim recoupe déjà jusqu'à 24 sources par crypto (Binance, OKX, Coinbase, Kraken, Bitstamp, Gemini…) et 8 par action (Yahoo Finance, Nasdaq, Robinhood, Cboe, StockAnalysis, Webull, TradingView, Zacks). Ces clés gratuites (lecture de cours uniquement) ajoutent des sources indépendantes pour les actions. Elles restent chiffrées dans le trousseau de cet iPhone.")
                 }
 
                 Section("À propos") {
-                    LabeledContent("Données crypto", value: "9 sources recoupées")
-                    LabeledContent("Données actions", value: "3 à 6 sources recoupées")
+                    LabeledContent("Données crypto", value: "jusqu'à 24 sources recoupées")
+                    LabeledContent("Données actions", value: "8 sources recoupées")
                     LabeledContent("Vos avoirs", value: "Base SQLite sur l'iPhone")
                     LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0")
                     Text("Altim est un conseiller : il ne passe aucun ordre et n'accède à aucun compte. Ses conseils sont indicatifs et ne constituent pas une recommandation d'investissement personnalisée.")
