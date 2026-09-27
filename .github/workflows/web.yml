@@ -2,9 +2,9 @@ name: Web
 
 on:
   push:
-    paths: ["web/**", "package.json", "bun.lock", ".github/workflows/web.yml"]
+    paths: ["web/**", "package.json", "package-lock.json", "bun.lock", "Procfile", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "package.json", "bun.lock", ".github/workflows/web.yml"]
+    paths: ["web/**", "package.json", "package-lock.json", "bun.lock", "Procfile", ".github/workflows/web.yml"]
 
 jobs:
   check:
@@ -26,3 +26,27 @@ jobs:
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
           curl -sS "localhost:3000/api/candles?base=../x&interval=1h" -o /dev/null -w "%{http_code}" | grep -q 400
+
+  heroku:
+    name: Build façon Heroku (Node.js seul, sans Bun préinstallé)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Même séquence que le buildpack heroku/nodejs
+        run: |
+          # Heroku has no Bun: remove any system Bun from the PATH so only the npm one is used.
+          if command -v bun; then export PATH=$(echo "$PATH" | tr ':' '\n' | grep -vxF "$(dirname "$(command -v bun)")" | paste -sd:); fi
+          echo "PATH=$PATH" >> "$GITHUB_ENV"
+          ! command -v bun
+          NODE_ENV=production npm ci --include=dev
+          npm run build
+          npm prune --omit=dev
+      - name: Démarrage avec le Procfile
+        run: |
+          PORT=3000 NODE_ENV=production npm start &
+          sleep 3
+          curl -fsS localhost:3000/health
+          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
