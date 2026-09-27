@@ -157,6 +157,29 @@ On n'achète pas au même endroit selon qu'on investit pour quelques jours ou po
   - long terme : achats échelonnés.
   - Un bandeau apparaît sur le radar quand le contexte est tendu.
 
+## Accès privé
+
+Le site, l'application et l'API sont réservés à leur propriétaire (`web/server/auth.ts`). Les secrets vivent uniquement dans les variables d'environnement Heroku, jamais dans le code :
+
+| Variable | Rôle |
+|---|---|
+| `ALTIM_USER` | identifiant |
+| `ALTIM_PASSWORD_HASH` | hachage **argon2id** du mot de passe (le mot de passe lui-même n'est stocké nulle part) |
+| `ALTIM_TOTP_SECRET` | second facteur : code à 6 chiffres d'une application d'authentification (RFC 6238) |
+| `ALTIM_SESSION_SECRET` | clé de signature des sessions (la changer déconnecte tous les appareils) |
+| `ALTIM_API_TOKEN` | jeton des bots : `Authorization: Bearer …` sur `/api/*` uniquement |
+
+Les valeurs se génèrent avec `cd web && bun run secrets` : mot de passe aléatoire de 24 caractères (≈ 139 bits), secret 2FA de 160 bits, clé de session de 512 bits, jeton API de 256 bits.
+
+Protections en place :
+- **Session** : cookie signé HMAC-SHA256, `HttpOnly`, `Secure`, `SameSite=Strict`, valable 7 jours.
+- **Comparaisons en temps constant** : aucune information ne fuit par le temps de réponse.
+- **Code 2FA** : un code déjà utilisé est refusé (anti-rejeu).
+- **Verrouillage** : 15 minutes par adresse IP après 5 échecs, avec un délai aléatoire après chaque échec.
+- **Formulaires** : l'origine est vérifiée (CSRF), et les redirections vers un autre site sont refusées.
+- **Confidentialité** : ni indexation (`noindex`, `robots.txt`), ni cache partagé.
+- **Échec fermé** : en production, sans configuration, rien n'est servi.
+
 ## Garde-fou marché (et API pour vos bots)
 
 Un bot court terme voit les petites variations mais pas ce qui l'entoure. Le garde-fou ajoute trois couches, pour chaque actif (application web et API) :
@@ -203,6 +226,7 @@ Les conseils d'Altim appliquent les mêmes règles : pas d'« Achat envisageable
 
 ```
 GET /api/guard?symbol=BTC&kind=crypto      (kind = crypto | stock)
+Authorization: Bearer <ALTIM_API_TOKEN>
 ```
 
 Réponse JSON (mise en cache 60 s, CORS ouvert) :
@@ -224,10 +248,11 @@ Réponse JSON (mise en cache 60 s, CORS ouvert) :
 Exemple côté bot : la boucle rapide du bot (millisecondes, secondes) reste la sienne. Il interroge le garde-fou toutes les 30 à 60 s, car ses données changent à l'échelle de la minute, et il applique la politique :
 
 ```python
-import requests, time
+import os, requests, time
 guard = {}
 while True:
-    guard = requests.get("https://VOTRE-APP.herokuapp.com/api/guard", params={"symbol": "BTC", "kind": "crypto"}, timeout=10).json()
+    guard = requests.get("https://VOTRE-APP.herokuapp.com/api/guard", params={"symbol": "BTC", "kind": "crypto"},
+                         headers={"Authorization": f"Bearer {os.environ['ALTIM_API_TOKEN']}"}, timeout=10).json()
     time.sleep(45)
 # dans la boucle de trading :
 # if guard["policy"]["scalping"] == "pause": ne rien ouvrir

@@ -37,6 +37,11 @@ export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: num
 
 async function get<T>(url: string): Promise<T> {
   const r = await fetch(url);
+  // Session expired (private access): back to the login page, then to the same screen.
+  if (r.status === 401 && typeof window !== "undefined") {
+    window.location.assign(`/login?next=${encodeURIComponent(window.location.pathname + window.location.search)}`);
+    throw new Error("Session expirée");
+  }
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((body as { error?: string }).error ?? `Erreur ${r.status}`);
   return body as T;

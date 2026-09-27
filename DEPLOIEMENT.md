@@ -2,6 +2,18 @@
 
 Tout se fait dans Safari (ou l'app GitHub) : aucun ordinateur n'est nécessaire.
 
+## 0. Accès privé (obligatoire)
+
+Sans ces variables, le site déployé reste fermé : toutes les pages mènent à la connexion.
+
+1. Générez vos valeurs (dans un terminal, ou demandez-les à Claude) : `cd web && bun run secrets -- --user VOTRE_IDENTIFIANT`.
+2. Heroku → votre app → **Settings** → **Config Vars** → ajoutez `ALTIM_USER`, `ALTIM_PASSWORD_HASH`, `ALTIM_TOTP_SECRET`, `ALTIM_SESSION_SECRET`, `ALTIM_API_TOKEN`.
+3. Dans votre application d'authentification (Google Authenticator, 1Password, Authy…) : **ajouter un compte** → saisir la clé `ALTIM_TOTP_SECRET` (type « basé sur l'heure »).
+4. Rangez le **mot de passe** dans un gestionnaire de mots de passe. Il n'est écrit nulle part ailleurs : Heroku ne garde que son hachage.
+5. Ouvrez le site : identifiant, mot de passe, puis le code à 6 chiffres.
+
+En cas de doute (appareil perdu, fuite), relancez `bun run secrets` et remplacez toutes les valeurs : l'ancienne session, l'ancien mot de passe et l'ancien jeton cessent de fonctionner.
+
 ## 1. Site web sur Heroku
 
 > Heroku est payant (dyno *Eco* ≈ 5 $/mois ou *Basic* ≈ 7 $/mois). Ajoutez un moyen de paiement dans votre compte Heroku.

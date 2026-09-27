@@ -8,7 +8,8 @@
     "build": "rm -rf dist && bun build ./src/index.html --outdir ./dist --production --public-path=/",
     "start": "bun ./server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "secrets": "bun ./scripts/secrets.ts"
   },
   "dependencies": {
     "compression": "^1.8.2",
