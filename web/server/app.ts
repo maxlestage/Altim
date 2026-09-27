@@ -15,8 +15,9 @@ import { guardReport } from "./guard";
 import { LiveHub } from "./live";
 import { authConfig, createAuth, type AuthConfig } from "./auth";
 import { macro, macroSeries } from "./macro";
-import { screen } from "./screener";
-import type { ScreenHorizon } from "../src/engine/screener";
+import { screen, TTL } from "./screener";
+import { toHorizon, HORIZON_LIST, SPECS, type Horizon } from "../src/engine/screener";
+import { usMarketOpen } from "./live";
 import { fibZones } from "../src/engine/fibonacci";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
@@ -108,18 +109,19 @@ async function guardFor(symbol: string, kind: Kind) {
     }));
 }
 
-/** Selection of a market and horizon (screener.ts), finalists checked with the consensus and the guard. Cached 30 min. */
-const selection = (h: ScreenHorizon, market: Kind = "stock") =>
-  cached(`selection:${market}:${h}`, 30 * 60_000, () =>
-    screen(h, async (symbol) => {
-      const [d, g] = await Promise.all([snap(symbol, market, "1d"), guardFor(symbol, market).catch(() => null)]);
+/** Selection of a market and horizon (screener.ts), finalists checked with the consensus and the guard. Cached
+ * according to the duration (4 min for 30 minutes, 30 min for daily horizons). */
+const selection = (h: Horizon, market: Kind = "stock") =>
+  cached(`selection:${market}:${h}`, TTL[SPECS[market][h].interval], () =>
+    screen(h, async (symbol, interval) => {
+      const [d, g] = await Promise.all([snap(symbol, market, interval === "1d" ? "1d" : "1h"), guardFor(symbol, market).catch(() => null)]);
       return {
         reliability: d.reliability.level,
         shock: g?.shock.level ?? "calm",
         reversalDown: !!g && g.reversal.direction === "down" && g.reversal.score >= 50,
         daily: d.candles,
       };
-    }, 150, 10, market));
+    }, market, 10, !usMarketOpen()));
 
 /** Buy zones by horizon (Fibonacci) with the macro context. */
 async function zones(symbol: string, kind: Kind) {
@@ -216,7 +218,8 @@ async function sentiment(symbol: string, kind: Kind) {
 
 /** Production: the three selections are computed at start-up and every 25 minutes, so nobody waits. */
 export function warmSelections() {
-  const jobs = (["stock", "crypto"] as Kind[]).flatMap((m) => (["medium", "long", "short"] as ScreenHorizon[]).map((h) => () => selection(h, m)));
+  // Daily horizons ahead of time; intraday ones are computed on demand (they go stale within minutes).
+  const jobs = (["stock", "crypto"] as Kind[]).flatMap((m) => (["1m", "3m", "6m", "7d", "14d"] as Horizon[]).map((h) => () => selection(h, m)));
   const run = () => jobs.reduce((p, job) => p.then(() => job().then(() => {}, () => {})), Promise.resolve());
   setTimeout(run, 5_000);
   setInterval(run, 25 * 60_000).unref?.();
@@ -378,13 +381,13 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
 
   // Which stocks or cryptos to buy: ranked (relative strength for stocks, technical signal for cryptos), checked finalists.
   api.get("/selection", wrap(async (req, res) => {
-    const h = String(req.query.horizon ?? "medium");
-    if (!["short", "medium", "long"].includes(h)) throw new BadRequest("horizon invalide (short | medium | long)");
     const market = parseKind(req.query.kind ?? "stock");
+    const h = toHorizon(String(req.query.horizon ?? "1m"), market);
+    if (!h) throw new BadRequest(`horizon invalide (${HORIZON_LIST.join(" | ")})`);
     res.setHeader("Access-Control-Allow-Origin", "*");
     // The first computation scans 150 stocks (≈ 30 s): the Heroku router cuts at 30 s, so after 20 s the client is
     // told to come back; the computation keeps going and lands in the cache.
-    const result = await Promise.race([selection(h as ScreenHorizon, market), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
+    const result = await Promise.race([selection(h, market), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
     if (!result) return res.status(202).json({ pending: true });
     res.setHeader("Cache-Control", "private, max-age=300");
     res.json(result);

@@ -43,7 +43,9 @@ export type SelectionCandidate = {
   checks: { label: string; ok: boolean; detail: string }[];
 };
 export type SelectionReport = {
-  market: "stock" | "crypto"; horizon: "short" | "medium" | "long"; asOf: number; scanned: number; holdDays: number;
+  market: "stock" | "crypto"; horizon: import("../engine/screener").Horizon; asOf: number; scanned: number;
+  rankBy: import("../engine/screener").Criterion; rankRule: import("../engine/screener").RankRule;
+  holdText: string; evidence: string; marketClosed: boolean;
   criteria: Record<import("../engine/screener").Criterion, string>;
   roles: Record<import("../engine/screener").Criterion, string>;
   buy: SelectionCandidate[];
@@ -86,7 +88,7 @@ export const api = {
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   macro: () => get<MacroInfo>("/api/macro"),
-  selection: (horizon: "short" | "medium" | "long", kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
+  selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

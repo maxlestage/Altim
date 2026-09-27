@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type SelectionReport, type SelectionCandidate } from "./api";
 import { onLink } from "./router";
-import { assetKey, setState, useAppState, useHoldings, type HorizonPref } from "./store";
+import { assetKey, setState, useAppState, useHoldings } from "./store";
 import { Segmented } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
-import { HORIZONS } from "../engine/fibonacci";
+import { HORIZON_LABEL, HORIZON_LIST, type Horizon } from "../engine/screener";
 import { formatPrice } from "../market";
 
 const ORDER = ["momentum", "zone", "trend", "risk", "signal"] as const;
@@ -12,6 +12,22 @@ const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits:
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const BUDGET_KEY = "altim.selection.budget";
 const MARKET_KEY = "altim.selection.market";
+const HORIZON_KEY = "altim.selection.horizon";
+const RANK_TEXT = {
+  signal: "signal technique d'Altim",
+  momentum: "force relative, les plus en hausse d'abord",
+  reversal: "rebond, les plus en baisse d'abord",
+  lowRisk: "les plus calmes d'abord",
+} as const;
+
+function readHorizon(): Horizon {
+  try {
+    const v = localStorage.getItem(HORIZON_KEY) as Horizon | null;
+    return v && HORIZON_LIST.includes(v) ? v : "1m";
+  } catch {
+    return "1m";
+  }
+}
 type Market = "stock" | "crypto";
 
 function readMarket(): Market {
@@ -53,7 +69,8 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
   const { watchlist } = useAppState();
   const kind = report.market;
   const inRadar = watchlist.some((w) => assetKey(w) === `${kind}:${c.symbol}`);
-  const rankBy = kind === "crypto" ? "signal" : "momentum";
+  const rankBy = report.rankBy;
+  const rankLabel = { signal: "signal", momentum: report.rankRule === "reversal" ? "rebond" : "force", risk: "calme", trend: "tendance", zone: "zone" }[rankBy];
   const price = live?.price ?? c.price;
   const plan = c.plan;
   const buyAt = plan?.limit ?? price;
@@ -70,7 +87,7 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
         </div>
         <div className="pick-price mono">
           <b><LivePrice tick={live} fallback={c.price} format={(v) => `${formatPrice(v)} $`} /></b>
-          <small className="muted">{kind === "crypto" ? "signal" : "force"} {Math.round(c.scores[rankBy])}/100</small>
+          <small className="muted">{rankLabel} {Math.round(report.rankRule === "reversal" ? 100 - c.scores.momentum : c.scores[rankBy])}/100</small>
         </div>
       </div>
 
@@ -127,7 +144,8 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
 
 /** Which stocks or cryptos to buy: ranked by what was measured to work, checked, with an entry plan and an amount. */
 export function Selection() {
-  const { horizon, risk } = useAppState();
+  const { risk } = useAppState();
+  const [horizon, setHorizon] = useState<Horizon>(readHorizon);
   const [market, setMarket] = useState<Market>(readMarket);
   const { holdings, cash } = useHoldings();
   const [report, setReport] = useState<SelectionReport | null>(null);
@@ -165,8 +183,9 @@ export function Selection() {
   useEffect(() => {
     try {
       localStorage.setItem(MARKET_KEY, market);
+      localStorage.setItem(HORIZON_KEY, horizon);
     } catch {}
-  }, [market]);
+  }, [market, horizon]);
 
   useEffect(() => {
     try {
@@ -195,12 +214,13 @@ export function Selection() {
         options={[["stock", "Actions"], ["crypto", "Cryptos"]]}
       />
 
-      <Segmented<HorizonPref>
-        label="Horizon"
-        value={horizon}
-        onChange={(h) => setState({ horizon: h })}
-        options={(["short", "medium", "long"] as HorizonPref[]).map((h) => [h, HORIZONS[h].label])}
-      />
+      <div className="horizon-grid" role="radiogroup" aria-label="Durée de détention">
+        {HORIZON_LIST.map((h) => (
+          <button key={h} role="radio" aria-checked={h === horizon} className={h === horizon ? "on" : ""} onClick={() => setHorizon(h)}>
+            {HORIZON_LABEL[h]}
+          </button>
+        ))}
+      </div>
 
       <div className="card method">
         <h2 className="card-title">Comment Altim choisit</h2>
@@ -208,35 +228,48 @@ export function Selection() {
           {market === "crypto" ? (
             <>
               <li><b>{report?.scanned ?? 110} cryptos</b> parmi les 120 plus grandes (classement CoinGecko), sans stablecoins ni jetons adossés (WBTC, stETH, or…).</li>
-              <li><b>Classement par le signal technique d'Altim</b> (7 familles d'indicateurs, bougies journalières). Sur les cryptos, c'est le critère qui a fait mieux que la moyenne à 10 jours, 1 mois et 3 mois ; la force relative y a été irrégulière et les cryptos les plus échangées ont fait moins bien.</li>
+              <li><b>Classement : {report ? RANK_TEXT[report.rankRule] : "…"}</b>, le critère qui a le mieux marché sur le passé pour cette durée. {report?.evidence}</li>
               <li><b>Pas de limite par secteur</b>, mais les cryptos bougent souvent ensemble : le montant par ligne reste plafonné.</li>
             </>
           ) : (
             <>
               <li><b>{report?.scanned ?? 150} grandes actions</b> analysées chaque jour (capitalisation, secteur : Nasdaq).</li>
-              <li><b>Classement par force relative</b> : la hausse des 6 derniers mois (hors dernier mois) comparée aux autres. C'est le seul critère qui a réellement fait mieux que la moyenne sur l'historique ; les autres ont été mesurés et ne classent pas.</li>
+              <li><b>Classement : {report ? RANK_TEXT[report.rankRule] : "…"}</b>, le critère qui a le mieux marché sur le passé pour cette durée. {report?.evidence}</li>
               <li><b>Au plus 3 actions par secteur</b>, pour ne pas tout miser sur un seul thème.</li>
             </>
           )}
           <li><b>Vérifications</b> de chaque finaliste : prix recoupés sur plusieurs sources, garde-fou marché, tendance de fond. Un titre qui échoue passe « à surveiller ».</li>
-          <li><b>Plan</b> pour votre horizon ({report ? `gardé ${report.holdDays} ${market === "crypto" ? "jours" : "séances"} dans le rejeu` : HORIZONS[horizon].holding}) : prix d'entrée (zone d'achat Fibonacci), stop selon la volatilité, objectif à 2 fois le risque, montant.</li>
+          <li><b>Plan</b> pour une détention de {HORIZON_LABEL[horizon]} : prix d'entrée (zone d'achat Fibonacci), stop selon la volatilité de la période, objectif à 2 fois le risque, montant.</li>
         </ol>
       </div>
 
+      {report?.marketClosed && <p className="notice warn small">Bourse de New York fermée : ce classement vient de la dernière séance ; il changera à la réouverture.</p>}
+
       {v && (
-        <div className={`card validation ${v.top > v.universe && v.beatRate >= 60 ? "good" : "weak"}`}>
+        <div className={`card validation ${v.edge === "clear" ? "good" : "weak"}`}>
           <h2 className="card-title">Ce que cette méthode aurait donné</h2>
+          {v.edge === "none" && (
+            <p className="notice danger small">
+              <b>Pas d'avance mesurée pour {HORIZON_LABEL[horizon]}.</b> Une fois les frais payés ({v.cost.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} % l'aller-retour), ce classement n'a pas fait mieux que de choisir au hasard. Il est affiché à titre indicatif : ne misez pas dessus.
+            </p>
+          )}
+          {v.edge === "weak" && (
+            <p className="notice warn small">
+              <b>Avance faible et irrégulière.</b> En moyenne la sélection a fait mieux, mais seulement environ une fois sur deux : quelques très bons choix tirent la moyenne. Une durée plus longue est plus fiable.
+            </p>
+          )}
           <p>
-            Rejouée <b>{v.periods} fois</b> depuis {new Date(v.from!).toLocaleDateString("fr-FR", { month: "long", year: "numeric" })} (sélection de 10, gardées {v.hold} {market === "crypto" ? "jours" : "séances"}) :
+            Rejouée <b>{v.periods} fois</b> depuis {new Date(v.from!).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} (sélection de 10, gardée {report?.holdText}) :
             <b> {pct(v.top)}</b> en moyenne pour la sélection contre <b>{pct(v.universe)}</b> pour l'ensemble des {report?.scanned} {market === "crypto" ? "cryptos" : "actions"}
             {v.benchmark != null && <> et <b>{pct(v.benchmark)}</b> pour le simple achat de Bitcoin</>} ; la sélection a fait mieux que l'ensemble <b>{Math.round(v.beatRate)} % du temps</b>.
           </p>
-          {market === "stock" && horizon === "short" && <p className="notice warn small">À court terme, l'avance est quasi nulle : le classement ne prédit pas les mouvements de quelques jours. Préférez le moyen ou le long terme pour choisir des actions.</p>}
           {market === "crypto" && v.top < 0 && <p className="notice warn small">Sur cette période, la sélection a perdu moins que les autres cryptos, mais elle a quand même perdu : quand presque toutes les cryptos baissent, bien choisir limite la casse sans l'éviter.</p>}
           <p className="muted small">
-            {market === "crypto"
-              ? "Limites honnêtes : l'historique ne couvre qu'environ 2 ans et demi (les plateformes gardent 1 000 jours), et la liste est celle des cryptos qui existent encore aujourd'hui, ce qui embellit les chiffres. Les cryptos restent très risquées. Ce n'est pas une garantie."
-              : "Limite honnête : la liste est celle des plus grandes sociétés d'aujourd'hui, qui ont par définition réussi, ce qui gonfle ces chiffres. Entre fin 2021 et 2023, la force relative n'a presque rien apporté ; l'essentiel de l'avance vient de 2023–2026. Ce n'est pas une garantie."}
+            {["30m", "1h", "5h"].includes(horizon)
+              ? `Durées courtes : rejouées sur ${market === "crypto" ? "quelques jours à 3 semaines" : "60 jours"} seulement ; à ces échelles les prix sont surtout du bruit et les frais pèsent lourd. Ce n'est pas une garantie.`
+              : market === "crypto"
+                ? "Limites honnêtes : l'historique ne couvre qu'environ 2 ans et demi (les plateformes gardent 1 000 jours), et la liste est celle des cryptos qui existent encore aujourd'hui, ce qui embellit les chiffres. Les cryptos restent très risquées. Ce n'est pas une garantie."
+                : "Limite honnête : la liste est celle des plus grandes sociétés d'aujourd'hui, qui ont par définition réussi, ce qui gonfle ces chiffres. Entre fin 2021 et 2023, la force relative n'a presque rien apporté ; l'essentiel de l'avance vient de 2023–2026. Ce n'est pas une garantie."}
           </p>
         </div>
       )}
