@@ -33,6 +33,25 @@ export type ZonesReport = {
   macro: MacroInfo | null;
 };
 
+export type SelectionCandidate = {
+  rank: number; symbol: string; name: string; sector: string; marketCap: number; price: number;
+  scores: Record<import("../engine/screener").Criterion, number>;
+  why: Record<import("../engine/screener").Criterion, string>;
+  action: string; zoneStatus: string;
+  plan: { entry: number; limit: number | null; stop: number; target: number; atrPct: number } | null;
+  track: { trades: number; winRate: number; avgReturn: number } | null;
+  checks: { label: string; ok: boolean; detail: string }[];
+};
+export type SelectionReport = {
+  horizon: "short" | "medium" | "long"; asOf: number; scanned: number; holdDays: number;
+  criteria: Record<import("../engine/screener").Criterion, string>;
+  roles: Record<import("../engine/screener").Criterion, string>;
+  buy: SelectionCandidate[];
+  watch: (SelectionCandidate & { reason: string })[];
+  setAside: { symbol: string; name: string; reason: string }[];
+  validation: import("../engine/screener").Validation | null;
+};
+
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
 
 async function get<T>(url: string): Promise<T> {
@@ -67,6 +86,7 @@ export const api = {
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   macro: () => get<MacroInfo>("/api/macro"),
+  selection: (horizon: "short" | "medium" | "long") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

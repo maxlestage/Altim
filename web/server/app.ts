@@ -15,6 +15,8 @@ import { guardReport } from "./guard";
 import { LiveHub } from "./live";
 import { authConfig, createAuth, type AuthConfig } from "./auth";
 import { macro, macroSeries } from "./macro";
+import { screen } from "./screener";
+import type { ScreenHorizon } from "../src/engine/screener";
 import { fibZones } from "../src/engine/fibonacci";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
@@ -94,6 +96,30 @@ async function macroContext(symbol: string, kind: Kind) {
   const [report, series, hist] = await Promise.all([macroNow(), macroSeries(), long(symbol, kind).catch(() => null)]);
   return { report, evidence: hist ? cached(`macroEv:${kind}:${symbol}`, 3_600_000, async () => macroEvidence(hist.candles, series)) : null };
 }
+
+/** Full market guard of an asset (cached 60 s). */
+async function guardFor(symbol: string, kind: Kind) {
+  const list = await universe(kind).catch(() => [] as UniverseEntry[]);
+  const name = list.find((e) => e[0] === symbol)?.[1] ?? makeAsset(symbol, kind).name;
+  return cached(`guard:${kind}:${symbol}`, 60_000, () =>
+    guardReport(symbol, kind, name, async (i) => (await snap(symbol, kind, i)).candles, Date.now(), async () => {
+      const ctx = await macroContext(symbol, kind);
+      return { report: ctx.report, evidence: await ctx.evidence };
+    }));
+}
+
+/** Stock selection of a horizon (screener.ts), finalists checked with the consensus and the guard. Cached 30 min. */
+const selection = (h: ScreenHorizon) =>
+  cached(`selection:${h}`, 30 * 60_000, () =>
+    screen(h, async (symbol) => {
+      const [d, g] = await Promise.all([snap(symbol, "stock", "1d"), guardFor(symbol, "stock").catch(() => null)]);
+      return {
+        reliability: d.reliability.level,
+        shock: g?.shock.level ?? "calm",
+        reversalDown: !!g && g.reversal.direction === "down" && g.reversal.score >= 50,
+        daily: d.candles,
+      };
+    }));
 
 /** Buy zones by horizon (Fibonacci) with the macro context. */
 async function zones(symbol: string, kind: Kind) {
@@ -187,6 +213,13 @@ async function sentiment(symbol: string, kind: Kind) {
 }
 
 // ---------- Application ----------
+
+/** Production: the three selections are computed at start-up and every 25 minutes, so nobody waits. */
+export function warmSelections() {
+  const run = () => (["medium", "long", "short"] as ScreenHorizon[]).reduce((p, h) => p.then(() => selection(h).then(() => {}, () => {})), Promise.resolve());
+  setTimeout(run, 5_000);
+  setInterval(run, 25 * 60_000).unref?.();
+}
 
 export function createApp({ live, auth = { cfg: authConfig(), production: process.env.NODE_ENV === "production" } }: { live?: LiveHub; auth?: { cfg: AuthConfig | null; production: boolean } } = {}) {
   const app = express();
@@ -298,13 +331,7 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
   api.get("/guard", wrap(async (req, res) => {
     const kind = parseKind(req.query.kind);
     const symbol = parseSymbol(req.query.symbol, kind);
-    const list = await universe(kind).catch(() => [] as UniverseEntry[]);
-    const name = list.find((e) => e[0] === symbol)?.[1] ?? makeAsset(symbol, kind).name;
-    const report = await cached(`guard:${kind}:${symbol}`, 60_000, () =>
-      guardReport(symbol, kind, name, async (i) => (await snap(symbol, kind, i)).candles, Date.now(), async () => {
-        const ctx = await macroContext(symbol, kind);
-        return { report: ctx.report, evidence: await ctx.evidence };
-      }));
+    const report = await guardFor(symbol, kind);
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Cache-Control", "private, max-age=30");
     res.json(report);
@@ -346,6 +373,19 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
     const z = await zones(parseSymbol(req.query.symbol, kind), kind);
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.json(z);
+  }));
+
+  // Which stocks to buy: ranking by relative strength over the largest US companies, checked finalists.
+  api.get("/selection", wrap(async (req, res) => {
+    const h = String(req.query.horizon ?? "medium");
+    if (!["short", "medium", "long"].includes(h)) throw new BadRequest("horizon invalide (short | medium | long)");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    // The first computation scans 150 stocks (≈ 30 s): the Heroku router cuts at 30 s, so after 20 s the client is
+    // told to come back; the computation keeps going and lands in the cache.
+    const result = await Promise.race([selection(h as ScreenHorizon), new Promise<null>((r) => setTimeout(() => r(null), 20_000))]);
+    if (!result) return res.status(202).json({ pending: true });
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.json(result);
   }));
 
   // Macro / geopolitical context (market-wide), readable by bots.

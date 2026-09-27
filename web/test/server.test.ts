@@ -43,6 +43,7 @@ test("validation des paramètres de l'API", async () => {
     "/api/sentiment?symbol=<script>",
     "/api/zones?symbol=../x&kind=crypto",
     "/api/zones?symbol=AAPL&kind=bond",
+    "/api/selection?horizon=forever",
   ]) {
     const r = await fetch(base + path);
     expect(r.status).toBe(400);
