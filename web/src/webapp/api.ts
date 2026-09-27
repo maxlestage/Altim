@@ -39,7 +39,7 @@ export const api = {
   radar: (items: WatchItem[], interval: Interval) => batched(items, (c) => get<RadarRow[]>(`/api/radar?symbols=${list(c)}&interval=${interval}`)),
   candles: (symbol: string, kind: Kind, interval: Interval) => get<Snapshot>(`/api/candles?symbol=${encodeURIComponent(symbol)}&kind=${kind}&interval=${interval}`),
   quotes: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<Quote[]>(`/api/tickers?symbols=${list(c)}`)),
-  search: (q: string) => get<UniverseItem[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  search: (q: string, limit = 20) => get<UniverseItem[]>(`/api/search?q=${encodeURIComponent(q)}&limit=${limit}`),
   universe: (kind: Kind, q: string, offset: number, limit: number) =>
     get<{ total: number; offset: number; items: UniverseItem[] }>(`/api/universe?kind=${kind}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),

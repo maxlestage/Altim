@@ -112,6 +112,7 @@ final class PublicAPITests: XCTestCase {
         let entry = UniverseEntry(symbol: "BTC", name: "Bitcoin", kind: .crypto, rank: 1, flag: 5)
         _ = (entry.id, entry.symbol, entry.name, entry.kind, entry.rank, entry.flag, entry.isETF, entry.asset.symbol)
         _ = AssetUniverse.search([entry], "bit", limit: 10)
+        _ = AssetUniverse.searchAll(crypto: [entry], stocks: [], "btc", limit: 20)
         _ = AssetUniverse.cleanStockName("Apple Inc. - Common Stock")
         _ = AssetUniverse.popularETFs
         let loader: (AssetClass, HTTPTransport) async throws -> [UniverseEntry] = { try await AssetUniverse.load($0, transport: $1) }
