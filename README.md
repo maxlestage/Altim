@@ -1,6 +1,6 @@
 # Altim
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku. Sur iPhone, Safari → Partager → « Sur l'écran d'accueil » l'ouvre comme une app.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku, et une **application iPhone native** (SwiftUI) qui se connecte à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -9,7 +9,9 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 | Dossier | Rôle |
 |---|---|
 | `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source**, **API garde-fou pour bots** |
-| `.github/workflows` | CI web, déploiement Heroku, santé quotidienne des sources |
+| `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
+| `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |
+| `.github/workflows` | CI web, CI iOS (build + tests), envoi TestFlight, déploiement Heroku, santé quotidienne des sources |
 
 ➡️ **Déploiement depuis un iPhone, sans ordinateur : voir [DEPLOIEMENT.md](DEPLOIEMENT.md).**
 
@@ -27,6 +29,19 @@ Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
 Aucun ordre, aucune clé de courtier : les données de l'app web restent dans le navigateur (localStorage).
 
 Le moteur (signal, confirmation par l'unité supérieure, avertissements, garde-fou de fiabilité, backtest, gestion du risque) est **vérifié sur 17 scénarios de référence**, backtest compris trade par trade.
+
+## Application iPhone native (`ios`)
+
+L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre serveur Heroku** (40 sources, sélection sur 8 durées, zones de Fibonacci, garde-fou, macro) : rien n'est recalculé ni simplifié sur le téléphone, donc les deux donnent toujours les mêmes chiffres.
+
+- **Connexion** : adresse du serveur, identifiant et mot de passe (le même formulaire que le site, protégé contre le CSRF ; code à 6 chiffres seulement si la 2FA est activée sur le serveur). Le mot de passe et la session (cookie de 7 jours) sont chiffrés dans le **trousseau iOS** (« cet appareil uniquement », jamais dans iCloud) ; à l'expiration, l'app se reconnecte seule. HTTPS obligatoire (HTTP seulement pour un serveur local).
+- **Face ID** (ou code de l'iPhone) à l'ouverture et après 2 minutes en arrière-plan, désactivable dans Réglages.
+- **Radar** : prix en direct (flux `/api/live`, reconnexion automatique), signal 4 h, fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
+- **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
+- **Sélection** : actions ou cryptos, 8 durées (30 min à 6 mois), méthode, résultat rejoué avec ses limites, plan (entrée, stop, objectif) et montant pour votre budget.
+- **Mes avoirs** : lignes gardées sur l'iPhone, valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne.
+
+Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`) ; avec `ALTIM_SERVER`, `ALTIM_USER` et `ALTIM_PASSWORD`, le test de bout en bout se connecte à un serveur réel (mauvais mot de passe refusé, API fermée sans session, reconnexion automatique, flux en direct). La CI compile l'app en Debug et en Release sur macOS ; l'envoi sur TestFlight se lance depuis l'onglet Actions (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ### Serveur (Express sur Bun)
 
