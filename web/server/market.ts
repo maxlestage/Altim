@@ -1,9 +1,10 @@
 /**
- * Multi-source market data for the live demo (server side: no CORS, same logic as the app).
- * Sources are queried in parallel, compared candle by candle, and the first agreeing one is served.
+ * Multi-source market data (server side: no CORS, same logic as the app).
+ * Every source is queried in parallel, compared candle by candle with the median, and the first agreeing one is served.
  */
 import type { Candle } from "../src/engine/signal";
 import { assessQuality, reliability, type Kind, type QualityReport, type Reliability } from "../src/engine/reliability";
+import { consensusQuotes, makeAsset, type QuoteSourceStatus } from "./quotes";
 
 export type Interval = "1h" | "4h" | "1d";
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
@@ -67,6 +68,32 @@ export const parse = {
   },
   gate: (d: unknown): Candle[] =>
     (d as string[][]).map((r) => ({ time: num(r[0]) * 1000, close: num(r[2]), high: num(r[3]), low: num(r[4]), open: num(r[5]), volume: num(r[6]) })),
+  bitstamp: (d: unknown): Candle[] =>
+    ((d as { data?: { ohlc?: Record<string, string>[] } }).data?.ohlc ?? []).map((r) => ({
+      time: num(r.timestamp) * 1000, open: num(r.open), high: num(r.high), low: num(r.low), close: num(r.close), volume: num(r.volume),
+    })),
+  /** Gemini: [ms, open, high, low, close, volume], most recent first. */
+  gemini: (d: unknown): Candle[] =>
+    (d as number[][]).map((r) => ({ time: r[0]!, open: r[1]!, high: r[2]!, low: r[3]!, close: r[4]!, volume: r[5]! })).reverse(),
+  /** Bitfinex: [ms, open, CLOSE, high, low, volume], most recent first. */
+  bitfinex: (d: unknown): Candle[] =>
+    (d as number[][]).map((r) => ({ time: r[0]!, open: r[1]!, close: r[2]!, high: r[3]!, low: r[4]!, volume: r[5]! })).reverse(),
+  cryptocom: (d: unknown): Candle[] => {
+    const o = d as { code: number; result?: { data?: Record<string, string | number>[] } };
+    if (o.code !== 0) throw new Error("Crypto.com");
+    return (o.result?.data ?? []).map((r) => ({ time: num(r.t), open: num(r.o), high: num(r.h), low: num(r.l), close: num(r.c), volume: num(r.v) }));
+  },
+  bitget: (d: unknown): Candle[] => {
+    const o = d as { code: string; data: string[][] };
+    if (o.code !== "00000") throw new Error("Bitget");
+    return o.data.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }));
+  },
+  /** HTX: {id (s), open, close, low, high, amount}, most recent first. */
+  htx: (d: unknown): Candle[] => {
+    const o = d as { status: string; data: Record<string, number>[] };
+    if (o.status !== "ok") throw new Error("HTX");
+    return o.data.map((r) => ({ time: r.id! * 1000, open: r.open!, high: r.high!, low: r.low!, close: r.close!, volume: r.amount! })).reverse();
+  },
 };
 
 type Source = { name: string; fetch: (base: string, interval: Interval) => Promise<Candle[]>; supports?: (i: Interval) => boolean };
@@ -91,6 +118,33 @@ export const SOURCES: Source[] = [
     },
   },
   { name: "Gate.io", fetch: async (b, i) => parse.gate(await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${b}_USDT&interval=${i}&limit=500`)) },
+  { name: "Bitstamp", fetch: async (b, i) => parse.bitstamp(await getJSON(`https://www.bitstamp.net/api/v2/ohlc/${b.toLowerCase()}usd/?step=${STEP[i] / 1000}&limit=500`)) },
+  {
+    name: "Gemini",
+    fetch: async (b, i) => {
+      // No 4 h candles at Gemini: rebuilt from 1 h.
+      const c = parse.gemini(await getJSON(`https://api.gemini.com/v2/candles/${b.toLowerCase()}usd/${i === "1d" ? "1day" : "1hr"}`));
+      return i === "4h" ? aggregate(c, STEP["1h"], STEP["4h"]) : c;
+    },
+  },
+  {
+    name: "Bitfinex",
+    fetch: async (b, i) => {
+      const pair = b.length > 3 ? `t${b}:USD` : `t${b}USD`;
+      const c = parse.bitfinex(await getJSON(`https://api-pub.bitfinex.com/v2/candles/trade:${i === "1d" ? "1D" : "1h"}:${pair}/hist?limit=${i === "4h" ? 2000 : 500}`));
+      return i === "4h" ? aggregate(c, STEP["1h"], STEP["4h"]) : c;
+    },
+  },
+  { name: "Crypto.com", fetch: async (b, i) => parse.cryptocom(await getJSON(`https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name=${b}_USDT&timeframe=${{ "1h": "1h", "4h": "4h", "1d": "1D" }[i]}&count=300`)) },
+  { name: "Bitget", fetch: async (b, i) => parse.bitget(await getJSON(`https://api.bitget.com/api/v2/spot/market/candles?symbol=${b}USDT&granularity=${{ "1h": "1h", "4h": "4h", "1d": "1Dutc" }[i]}&limit=500`)) },
+  { name: "MEXC", fetch: async (b, i) => parse.binance(await getJSON(`https://api.mexc.com/api/v3/klines?symbol=${b}USDT&interval=${{ "1h": "60m", "4h": "4h", "1d": "1d" }[i]}&limit=500`)) },
+  {
+    // HTX daily candles start at 16:00 UTC (UTC+8): hourly timeframes only.
+    name: "HTX",
+    supports: (i) => i !== "1d",
+    fetch: async (b, i) => parse.htx(await getJSON(`https://api.huobi.pro/market/history/kline?symbol=${b.toLowerCase()}usdt&period=${i === "1h" ? "60min" : "4hour"}&size=500`)),
+  },
+  { name: "Binance.US", fetch: async (b, i) => parse.binance(await getJSON(`https://api.binance.us/api/v3/klines?symbol=${b}USDT&interval=${i}&limit=500`)) },
 ];
 
 const median = (v: number[]) => {
@@ -112,7 +166,7 @@ export async function consensus(
   base: string,
   interval: Interval,
   sources = SOURCES,
-  target = 3,
+  target = Infinity,
   tolerance = 0.5,
   closed: (c: Candle[], i: Interval) => Candle[] = closedOnly,
 ): Promise<Consensus> {
@@ -145,7 +199,8 @@ export async function consensus(
     candles: primary.r.candles!,
     source: primary.r.name,
     agreeing: agreeing.length,
-    conflict: ok.length > 1 && agreeing.length === 0,
+    // Fewer than half of the responding sources agree: impossible to know which ones are right.
+    conflict: ok.length > 1 && agreeing.length * 2 < ok.length,
     sources: results.map((r) => {
       const i = ok.indexOf(r);
       return r.candles ? { name: r.name, ok: devs[i]! <= tolerance, deviation: devs[i] } : { name: r.name, ok: false, error: r.error };
@@ -187,6 +242,20 @@ export const parseStock = {
       })
       .reverse();
   },
+  /** Robinhood daily history: regular session only, dated at midnight UTC. */
+  robinhood: (d: any): Candle[] =>
+    ((d?.historicals ?? []) as any[])
+      .filter((r) => r.session === "reg" && !r.interpolated)
+      .map((r) => {
+        const [y, m, day] = String(r.begins_at).slice(0, 10).split("-").map(Number);
+        return { time: nyOpen(y!, m!, day!), open: Number(r.open_price), high: Number(r.high_price), low: Number(r.low_price), close: Number(r.close_price), volume: Number(r.volume) || 0 };
+      }),
+  /** Cboe daily history (since 2004): the last 800 sessions are enough. */
+  cboe: (d: any): Candle[] =>
+    ((d?.data ?? []) as any[]).slice(-800).map((r) => {
+      const [y, m, day] = String(r.date).split("-").map(Number);
+      return { time: nyOpen(y!, m!, day!), open: Number(r.open), high: Number(r.high), low: Number(r.low), close: Number(r.close), volume: Number(r.volume) || 0 };
+    }),
 };
 
 /** 1h → 4h for stocks: 4-bar blocks inside each session (New York day). */
@@ -234,6 +303,18 @@ export const STOCK_SOURCES: Source[] = [
       throw new Error("symbole inconnu");
     },
   },
+  {
+    name: "Robinhood",
+    // Robinhood hourly bars start on the hour (Yahoo's at :30): daily only, to compare the same candles.
+    supports: (i) => i === "1d",
+    fetch: async (symbol) =>
+      parseStock.robinhood(await getJSON(`https://api.robinhood.com/marketdata/historicals/${encodeURIComponent(symbol.replace(/-/g, "."))}/?interval=day&span=5year&bounds=regular`)),
+  },
+  {
+    name: "Cboe",
+    supports: (i) => i === "1d",
+    fetch: async (symbol) => parseStock.cboe(await getJSON(`https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/${encodeURIComponent(symbol.replace(/-/g, "."))}.json`)),
+  },
 ];
 
 /** Stock candle closed: the daily session lasts 6h30, not 24h. */
@@ -242,12 +323,37 @@ const stockClosed = (candles: Candle[], interval: Interval, now = Date.now()) =>
   return candles.filter((c) => c.time + duration <= now && Number.isFinite(c.close) && c.close > 0).sort((a, b) => a.time - b.time);
 };
 
+/**
+ * Intraday stocks: only Yahoo publishes hourly candles aligned on the session, so its last close is
+ * cross-checked with the live price of the other providers (Nasdaq, Cboe, Robinhood, TradingView).
+ * Tolerance: 2 % on 1 h, 3 % on 4 h (the price moves between the last closed candle and now).
+ */
+export function crossCheck(last: number, quotes: QuoteSourceStatus[], known: string[], tolerance: number): SourceStatus[] {
+  return quotes
+    .filter((q) => !known.includes(q.name))
+    .map((q) => {
+      if (!q.price) return { name: `${q.name} (cours)`, ok: false, error: q.error ?? "non coté" };
+      const deviation = Math.abs(q.price / last - 1) * 100;
+      return { name: `${q.name} (cours)`, ok: deviation <= tolerance, deviation };
+    });
+}
+
 /** Validated snapshot: multi-source candles + quality + reliability score. */
 export async function snapshot(symbol: string, kind: Kind, interval: Interval): Promise<Snapshot> {
-  const c = kind === "crypto"
-    ? await consensus(symbol, interval)
-    : await consensus(symbol, interval, STOCK_SOURCES, 3, 1, (candles, i) => stockClosed(candles, i));
+  const intraStock = kind === "stock" && interval !== "1d";
+  // Live prices are fetched at the same time as the candles (not after).
+  const [c, quotes] = await Promise.all([
+    kind === "crypto"
+      ? consensus(symbol, interval)
+      : consensus(symbol, interval, STOCK_SOURCES, Infinity, 1, (candles, i) => stockClosed(candles, i)),
+    intraStock ? consensusQuotes([makeAsset(symbol, "stock")]).catch(() => []) : Promise.resolve([]),
+  ]);
+  if (intraStock && c.candles.length) {
+    const extra = crossCheck(c.candles[c.candles.length - 1]!.close, quotes[0]?.sources ?? [], c.sources.map((s) => s.name), interval === "1h" ? 2 : 3);
+    c.sources = [...c.sources, ...extra];
+  }
   const quality = assessQuality(c.candles, STEP[interval], kind);
-  const independent = c.sources.filter((s) => s.ok).length;
-  return { ...c, symbol, kind, interval, quality, reliability: reliability(quality.score, independent, !!c.conflict) };
+  // Distinct providers that agree (a provider's candles and its live price count once).
+  const independent = new Set(c.sources.filter((s) => s.ok).map((s) => s.name.replace(/ \(cours\)$/, ""))).size;
+  return { ...c, agreeing: c.sources.filter((s) => s.ok).length, symbol, kind, interval, quality, reliability: reliability(quality.score, independent, !!c.conflict) };
 }

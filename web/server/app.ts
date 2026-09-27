@@ -74,17 +74,21 @@ const wrap = (fn: (req: Request, res: Response) => Promise<unknown>) => (req: Re
 
 // ---------- Data ----------
 
+/** Only closed candles are analysed: a snapshot changes at most once per candle. */
+const SNAP_TTL: Record<Interval, number> = { "1h": 60_000, "4h": 120_000, "1d": 300_000 };
 const snap = (symbol: string, kind: Kind, interval: Interval) =>
-  cached(`snap:${kind}:${symbol}:${interval}`, 30_000, () => snapshot(symbol, kind, interval));
+  cached(`snap:${kind}:${symbol}:${interval}`, SNAP_TTL[interval], () => snapshot(symbol, kind, interval));
 
 const quotes = (assets: Asset[]) =>
   cached(`quotes:${assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",")}`, 15_000, () => consensusQuotes(assets));
 
 async function radarItem(asset: Asset, interval: Interval) {
   try {
-    const s = await snap(asset.symbol, asset.kind, interval);
     const hi = HIGHER[interval];
-    const higher = hi ? await snap(asset.symbol, asset.kind, hi).catch(() => null) : null;
+    const [s, higher] = await Promise.all([
+      snap(asset.symbol, asset.kind, interval),
+      hi ? snap(asset.symbol, asset.kind, hi).catch(() => null) : Promise.resolve(null),
+    ]);
     const raw = analyze(s.candles, { higher: higher?.candles, intervalMs: STEP[interval] });
     const signal = raw ? gate(raw, s.reliability, s.quality.issues) : null;
     return {
@@ -103,17 +107,18 @@ async function radarItem(asset: Asset, interval: Interval) {
 }
 
 /** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first. */
-async function searchAssets(q: string) {
+/** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first, then the largest. */
+async function searchAssets(q: string, limit = 20) {
   const [crypto, stock] = await Promise.all([cryptoUniverse().catch(() => []), stockUniverse().catch(() => [])]);
   const hits = [
-    ...searchUniverse(crypto, q, 12).map((e) => ({ e, kind: "crypto" as Kind })),
-    ...searchUniverse(stock, q, 12).map((e) => ({ e, kind: "stock" as Kind })),
+    ...searchUniverse(crypto, q, limit).map((e, i) => ({ e, i, kind: "crypto" as Kind })),
+    ...searchUniverse(stock, q, limit).map((e, i) => ({ e, i, kind: "stock" as Kind })),
   ];
   const Q = q.toUpperCase().trim();
   const score = (e: UniverseEntry) => (e[0] === Q ? 0 : e[0].startsWith(Q) ? 1 : 2);
   return hits
-    .sort((a, b) => score(a.e) - score(b.e) || (a.e[2] || 1e9) - (b.e[2] || 1e9))
-    .slice(0, 16)
+    .sort((a, b) => score(a.e) - score(b.e) || (a.e[2] || 1e9) - (b.e[2] || 1e9) || a.i - b.i)
+    .slice(0, limit)
     .map(({ e, kind }) => toItem(e, kind));
 }
 
@@ -234,7 +239,8 @@ export function createApp() {
 
   api.get("/search", wrap(async (req, res) => {
     const q = String(req.query.q ?? "").slice(0, 30);
-    res.json(q.length < 1 ? [] : await cached(`search:${q.toUpperCase()}`, 600_000, () => searchAssets(q)));
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(req.query.limit) || 20)));
+    res.json(q.trim().length < 1 ? [] : await cached(`search:${limit}:${q.toUpperCase()}`, 600_000, () => searchAssets(q, limit)));
   }));
 
   // Full catalogue, paginated: /api/universe?kind=crypto|stock&q=&offset=0&limit=50
