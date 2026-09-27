@@ -6,7 +6,7 @@
  */
 import type { Candle } from "../src/engine/signal";
 import { backtest, trackRecord } from "../src/engine/backtest";
-import { alignSeries, explain, factorsAt, pick, scoreUniverse, validate, CRITERIA, HOLDS, ROLES, STOP_ATR, type Criterion, type Market, type RawFactors, type ScreenHorizon, type Validation } from "../src/engine/screener";
+import { alignSeries, explain, factorsAt, isPegged, pick, roles, scoreUniverse, span, validate, CRITERIA, RANKED_CRITERION, SPECS, type CandleInterval, type Criterion, type Horizon, type Market, type RawFactors, type RankRule, type Validation } from "../src/engine/screener";
 import { cached } from "./cache";
 import { parse, parseStock } from "./market";
 import { cryptoUniverse } from "./universe";
@@ -64,7 +64,7 @@ export function dailyFor(symbol: string): Promise<Candle[]> {
 // ---------- Cryptos ----------
 
 /** Pegged or wrapped tokens: they follow a currency, gold or another coin, there is nothing to choose there. */
-const STABLE = new Set("USDT USDC DAI FDUSD TUSD USDE USDS PYUSD USDD BUSD FRAX USD1 RLUSD EURC USDP GUSD LUSD SUSD USDX USDG USD0 BFUSD USDTB EUROC AEUR XUSD USDQ USDF".split(" "));
+const STABLE = new Set("USDT USDC DAI FDUSD TUSD USDE USDS PYUSD USDD BUSD FRAX USD1 RLUSD EURC USDP GUSD LUSD SUSD USDX USDG USD0 BFUSD USDTB EUROC AEUR XUSD USDQ USDF GHO CRVUSD DOLA MIM USDM USDB USDA USDAI FXUSD EUSD USTB BUIDL OUSG USYC USDZ AUSD".split(" "));
 const WRAPPED = /^(W(BTC|ETH|BNB|SOL|STETH|EETH|TRX|AVAX)|STETH|WSTETH|WEETH|CBBTC|CBETH|RETH|METH|EZETH|RSETH|SOLVBTC|LBTC|BTCB|TBTC|PAXG|XAUT|JITOSOL|MSOL|BNSOL|SUSDE|SAVAX|STSOL|OSETH|SWETH|ETHX|CMETH|LSETH|FBTC|UNIBTC|PUMPBTC|ENZOBTC|CLBTC|BBTC)$/;
 
 export const cryptoListed = () =>
@@ -91,6 +91,32 @@ export function cryptoDailyFor(base: string): Promise<Candle[]> {
     }
     throw new Error("historique indisponible");
   });
+}
+
+// ---------- Intraday candles ----------
+
+const INTERVAL_MS: Record<Exclude<CandleInterval, "1d">, number> = { "5m": 300_000, "15m": 900_000, "30m": 1_800_000 };
+/** Refresh: a 30-minute selection must follow the market, a 6-month one can wait. */
+export const TTL: Record<CandleInterval, number> = { "5m": 4 * 60_000, "15m": 8 * 60_000, "30m": 12 * 60_000, "1d": 30 * 60_000 };
+/** Only closed candles (the current one is still moving). */
+const closed = (c: Candle[], ms: number) => c.filter((x) => x.close > 0 && x.time + ms <= Date.now()).sort((a, b) => a.time - b.time);
+
+/** Stock intraday candles (Yahoo): recent window for the ranking, 60 days for the replay. */
+export function stockIntraday(symbol: string, interval: Exclude<CandleInterval, "1d">, replay = false): Promise<Candle[]> {
+  const range = replay ? "60d" : interval === "5m" ? "5d" : "1mo";
+  return cached(`screener:si:${symbol}:${interval}:${range}`, replay ? 6 * 3_600_000 : TTL[interval], async () =>
+    closed(parseStock.yahoo(await getJSON(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`)), INTERVAL_MS[interval]));
+}
+
+/** Crypto intraday candles (Gate, 1 000 candles: 3.5 days in 5 min, 10 days in 15 min, 3 weeks in 30 min). */
+export function cryptoIntraday(base: string, interval: Exclude<CandleInterval, "1d">): Promise<Candle[]> {
+  return cached(`screener:ci:${base}:${interval}`, TTL[interval], async () =>
+    closed(parse.gate(await getJSON(`https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair=${base}_USDT&interval=${interval}&limit=1000`)), INTERVAL_MS[interval]));
+}
+
+function candlesFor(market: Market, symbol: string, interval: CandleInterval, replay = false): Promise<Candle[]> {
+  if (interval === "1d") return market === "crypto" ? cryptoDailyFor(symbol) : dailyFor(symbol);
+  return market === "crypto" ? cryptoIntraday(symbol, interval) : stockIntraday(symbol, interval, replay);
 }
 
 async function mapLimit<T, R>(items: T[], limit: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -124,27 +150,43 @@ export interface Candidate {
 
 export interface ScreenResult {
   market: Market;
-  horizon: ScreenHorizon;
+  horizon: Horizon;
   asOf: number;
   scanned: number;
   criteria: Record<Criterion, string>;
   roles: Record<Criterion, string>;
-  holdDays: number;
+  /** Which criterion ranks, and how (for the page). */
+  rankBy: Criterion;
+  rankRule: RankRule;
+  holdText: string;
+  evidence: string;
+  /** Stocks: the US session is closed, intraday rankings come from the last session. */
+  marketClosed: boolean;
   buy: Candidate[];
   watch: (Candidate & { reason: string })[];
   setAside: { symbol: string; name: string; reason: string }[];
   validation: Validation | null;
 }
 
-type Verify = (symbol: string) => Promise<{ reliability: "high" | "medium" | "low"; shock: string; reversalDown: boolean; daily: Candle[] }>;
+type Verify = (symbol: string, interval: CandleInterval) => Promise<{ reliability: "high" | "medium" | "low"; shock: string; reversalDown: boolean; daily: Candle[] }>;
 
 /** Stage 1 on the whole universe (ranking), stage 2 on the best candidates (checks), then the final lists. */
-export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN = 10, market: Market = "stock"): Promise<ScreenResult> {
+export async function screen(h: Horizon, verify: Verify, market: Market = "stock", topN = 10, marketClosed = false): Promise<ScreenResult> {
   const crypto = market === "crypto";
-  const universe = (await (crypto ? cryptoListed() : listed())).slice(0, crypto ? 120 : size);
-  const candles = await mapLimit(universe, 10, (s) => (crypto ? cryptoDailyFor(s.symbol) : dailyFor(s.symbol)).catch(() => [] as Candle[]));
-  const factors: (RawFactors | null)[] = candles.map((c) => (c.length > 300 ? factorsAt(c, c.length - 1, h) : null));
-  const scored = scoreUniverse(factors, h, market);
+  const spec = SPECS[market][h];
+  const universe = (await (crypto ? cryptoListed() : listed())).slice(0, crypto ? 120 : 150);
+  const candles = await mapLimit(universe, 10, (s) => candlesFor(market, s.symbol, spec.interval).catch(() => [] as Candle[]));
+  // Cryptos that barely move are pegged tokens the lists missed: nothing to choose there.
+  const pegged = new Set<string>();
+  const factors: (RawFactors | null)[] = candles.map((c, i) => {
+    const f = c.length > 220 ? factorsAt(c, c.length - 1, spec) : null;
+    if (f && crypto && isPegged(f.atrPct, spec.interval)) {
+      pegged.add(universe[i]!.symbol);
+      return null;
+    }
+    return f;
+  });
+  const scored = scoreUniverse(factors, spec);
   const rows = universe.map((s, i) => ({ s, f: factors[i], sc: scored[i], c: candles[i]! })).filter((x) => x.f && x.sc);
   // A few more than needed: some will fail the checks.
   const finalists = pick(rows, (x) => x.sc!.total, (x) => (crypto ? undefined : x.s.sector), topN + 6);
@@ -152,7 +194,7 @@ export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN 
   const checked = await mapLimit(finalists, 4, async ({ s, f, sc, c }) => {
     let v: Awaited<ReturnType<Verify>> | null = null;
     try {
-      v = await verify(s.symbol);
+      v = await verify(s.symbol, spec.interval);
     } catch {}
     const bt = trackRecord(backtest(v?.daily.length ? v.daily : c.slice(-500)));
     const checks: Candidate["checks"] = [
@@ -165,11 +207,11 @@ export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN 
     const zoneTop = f!.zoneStatus === "above" && f!.zoneDistance != null && f!.zoneDistance <= 10 ? entry * (1 - f!.zoneDistance / 100) : null;
     // Stop and target from the price actually paid: the limit when there is one.
     const base = zoneTop ?? entry;
-    const stop = atrAbs ? base - STOP_ATR[h] * atrAbs : null;
+    const stop = atrAbs ? base - spec.stopAtr * atrAbs : null;
     return {
-      s, v, cand: {
+      cand: {
         rank: 0, symbol: s.symbol, name: s.name, sector: crypto ? "Crypto" : SECTOR_FR[s.sector] ?? s.sector, marketCap: s.marketCap, price: f!.price,
-        scores: sc!.scores, why: explain(f!, sc!, h), action: f!.action, zoneStatus: f!.zoneStatus,
+        scores: sc!.scores, why: explain(f!, sc!, spec, market), action: f!.action, zoneStatus: f!.zoneStatus,
         plan: stop && f!.atrPct != null ? { entry, limit: zoneTop, stop, target: base + 2 * (base - stop), atrPct: f!.atrPct } : null,
         track: bt.trades ? bt : null, checks,
       } satisfies Candidate,
@@ -179,15 +221,26 @@ export async function screen(h: ScreenHorizon, verify: Verify, size = 150, topN 
   const buy: Candidate[] = [], watch: ScreenResult["watch"] = [], setAside: ScreenResult["setAside"] = [];
   for (const { cand } of checked) {
     const data = cand.checks[0]!, guard = cand.checks[1]!, trend = cand.checks[2]!;
+    // A short-term rebound ("reversal") buys what has just fallen: a bearish trend is expected there, not a warning.
+    const trendMatters = spec.rank !== "reversal";
     if (!data.ok) setAside.push({ symbol: cand.symbol, name: cand.name, reason: `${data.label} : ${data.detail}` });
-    else if (!guard.ok || !trend.ok) watch.push({ ...cand, reason: !guard.ok ? `${guard.label} : ${guard.detail}` : `${trend.label} ${trend.detail}` });
+    else if (!guard.ok || (trendMatters && !trend.ok)) watch.push({ ...cand, reason: !guard.ok ? `${guard.label} : ${guard.detail}` : `${trend.label} ${trend.detail}` });
     else if (buy.length < topN) buy.push({ ...cand, rank: buy.length + 1 });
   }
-  const validation = await cached(`screener:validation:${market}:${h}:${size}:${topN}`, 12 * 3_600_000, async () => {
-    // Stocks with ≈ 6 years of history (replay from 2020); cryptos with ≈ 2.5 years (the exchanges keep 1 000 days).
-    const usable = universe.map((s, i) => ({ s, c: candles[i]! })).filter((x) => x.c.length > (crypto ? 900 : 1500));
+
+  const validation = await cached(`screener:validation:${market}:${h}:${topN}`, spec.interval === "1d" ? 12 * 3_600_000 : 2 * 3_600_000, async () => {
+    const hist = spec.interval === "1d" || crypto ? candles : await mapLimit(universe, 10, (s) => candlesFor(market, s.symbol, spec.interval, true).catch(() => [] as Candle[]));
+    const longest = Math.max(...hist.map((c) => c.length));
+    // Daily: stocks with ≈ 6 years (replay from 2020), cryptos with ≈ 2.5 years. Intraday: the full window.
+    const minLen = spec.interval === "1d" ? (crypto ? 900 : 1500) : Math.floor(longest * 0.8);
+    const usable = universe.map((s, i) => ({ s, c: hist[i]! })).filter((x) => x.c.length > minLen && !pegged.has(x.s.symbol));
     const btc = crypto ? usable.findIndex((x) => x.s.symbol === "BTC") : -1;
-    return validate(alignSeries(usable.map((x) => x.c)), h, topN, crypto ? 15 : 21, crypto ? undefined : usable.map((x) => x.s.sector), market, btc >= 0 ? btc : undefined);
+    return validate(alignSeries(usable.map((x) => x.c), spec.interval !== "1d"), spec, h, topN, crypto ? undefined : usable.map((x) => x.s.sector), btc >= 0 ? btc : undefined);
   }).catch(() => null);
-  return { market, horizon: h, asOf: Date.now(), scanned: rows.length, criteria: CRITERIA, roles: ROLES[market], holdDays: HOLDS[market][h], buy, watch, setAside, validation };
+
+  return {
+    market, horizon: h, asOf: Date.now(), scanned: rows.length, criteria: CRITERIA, roles: roles(spec, market),
+    rankBy: RANKED_CRITERION[spec.rank], rankRule: spec.rank, holdText: span(spec.hold, spec.interval, market), evidence: spec.evidence,
+    marketClosed: !crypto && spec.interval !== "1d" && marketClosed, buy, watch, setAside, validation,
+  };
 }
