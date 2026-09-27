@@ -7,7 +7,7 @@ const QA = [
   ],
   [
     "Quels marchés sont couverts ?",
-    "Les principales cryptos (BTC, ETH, SOL…) et les actions/ETF, avec des cours recoupés sur de nombreuses places de marché.",
+    "Toutes les cryptos cotées en dollar sur Binance, OKX, Coinbase, Kraken, KuCoin et Gate (environ 2 000), et toutes les actions et ETF cotés aux États-Unis (plus de 11 000, y compris de nombreuses sociétés européennes via leur cotation américaine). Les actions cotées en euros ne sont pas encore prises en charge.",
   ],
   [
     "Utilisez-vous Bloomberg ?",

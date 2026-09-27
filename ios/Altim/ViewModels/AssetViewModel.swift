@@ -62,17 +62,12 @@ final class AssetViewModel {
         let asset = asset
         let held = holdings.first { $0.kind == asset.assetClass && $0.asset.symbol == asset.symbol }
         let others = Dictionary(holdings.filter { $0.id != held?.id }.map { ($0.marketKey, $0) }, uniquingKeysWith: { a, _ in a })
-        var market = await withTaskGroup(of: (String, HoldingsAnalyzer.MarketInput?).self) { group in
-            for (key, h) in others {
-                group.addTask {
-                    guard let q = try? await consensus.quote(for: h.asset) else { return (key, nil) }
-                    return (key, HoldingsAnalyzer.MarketInput(price: q.price, daily: [], daySignal: nil, shortSignal: nil, reliability: nil))
-                }
-            }
-            var out: [String: HoldingsAnalyzer.MarketInput] = [:]
-            for await (k, v) in group { if let v { out[k] = v } }
-            return out
+        let quoted = await concurrentMap(Array(others)) { key, h -> (String, HoldingsAnalyzer.MarketInput?) in
+            guard let q = try? await consensus.quote(for: h.asset) else { return (key, nil) }
+            return (key, HoldingsAnalyzer.MarketInput(price: q.price, daily: [], daySignal: nil, shortSignal: nil, reliability: nil))
         }
+        var market: [String: HoldingsAnalyzer.MarketInput] = [:]
+        for (k, v) in quoted { if let v { market[k] = v } }
         var heldInput: HoldingsAnalyzer.MarketInput?
         if let held {
             heldInput = await HoldingsViewModel.marketInput(for: held.asset, market: consensus)

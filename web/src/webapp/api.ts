@@ -16,6 +16,8 @@ export type RadarRow = {
 export type Quote = { symbol: string; kind: Kind; name: string; price: number; change: number | null; agreeing: number; total: number; sources: { name: string; ok: boolean; price?: number; error?: string }[] };
 export type Sentiment = { fearGreed?: { value: number; label: string }; social?: { bullishPercent: number | null; sample: number } };
 
+export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
+
 async function get<T>(url: string): Promise<T> {
   const r = await fetch(url);
   const body = await r.json().catch(() => ({}));
@@ -25,11 +27,21 @@ async function get<T>(url: string): Promise<T> {
 
 const list = (items: { symbol: string; kind: Kind }[]) => encodeURIComponent(items.map((i) => `${i.symbol}:${i.kind}`).join(","));
 
+/** The server accepts 20 assets per request: larger portfolios are split into parallel batches. */
+const BATCH = 20;
+async function batched<I, T>(items: I[], call: (chunk: I[]) => Promise<T[]>): Promise<T[]> {
+  const chunks: I[][] = [];
+  for (let i = 0; i < items.length; i += BATCH) chunks.push(items.slice(i, i + BATCH));
+  return (await Promise.all(chunks.map(call))).flat();
+}
+
 export const api = {
-  radar: (items: WatchItem[], interval: Interval) => get<RadarRow[]>(`/api/radar?symbols=${list(items)}&interval=${interval}`),
+  radar: (items: WatchItem[], interval: Interval) => batched(items, (c) => get<RadarRow[]>(`/api/radar?symbols=${list(c)}&interval=${interval}`)),
   candles: (symbol: string, kind: Kind, interval: Interval) => get<Snapshot>(`/api/candles?symbol=${encodeURIComponent(symbol)}&kind=${kind}&interval=${interval}`),
-  quotes: (items: { symbol: string; kind: Kind }[]) => get<Quote[]>(`/api/tickers?symbols=${list(items)}`),
-  search: (q: string) => get<{ symbol: string; name: string; kind: Kind }[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  quotes: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<Quote[]>(`/api/tickers?symbols=${list(c)}`)),
+  search: (q: string) => get<UniverseItem[]>(`/api/search?q=${encodeURIComponent(q)}`),
+  universe: (kind: Kind, q: string, offset: number, limit: number) =>
+    get<{ total: number; offset: number; items: UniverseItem[] }>(`/api/universe?kind=${kind}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

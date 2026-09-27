@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
-import { api } from "./api";
+import { AssetPicker } from "./AssetPicker";
 import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type WatchItem } from "./store";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
@@ -11,31 +11,15 @@ const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: n
 
 export function Settings() {
   const { risk, watchlist } = useAppState();
-  const [q, setQ] = useState("");
-  const [results, setResults] = useState<WatchItem[]>([]);
-  const [searching, setSearching] = useState(false);
-
-  useEffect(() => {
-    if (q.trim().length < 2) return setResults([]);
-    let alive = true;
-    setSearching(true);
-    const t = setTimeout(() => {
-      api.search(q.trim())
-        .then((r) => alive && setResults(r))
-        .catch(() => alive && setResults([]))
-        .finally(() => alive && setSearching(false));
-    }, 350);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [q]);
+  const [picking, setPicking] = useState(false);
 
   const setRisk = (key: keyof RiskSettings, value: number) => setState((s) => ({ risk: { ...s.risk, [key]: value } }));
-  const add = (item: WatchItem) => {
-    if (!watchlist.some((w) => assetKey(w) === assetKey(item))) setState((s) => ({ watchlist: [...s.watchlist, item] }));
-    setQ("");
-  };
+  const toggle = (item: WatchItem) =>
+    setState((s) => ({
+      watchlist: s.watchlist.some((w) => assetKey(w) === assetKey(item))
+        ? s.watchlist.filter((w) => assetKey(w) !== assetKey(item))
+        : [...s.watchlist, { symbol: item.symbol, kind: item.kind, name: item.name }],
+    }));
 
   return (
     <section className="app-screen">
@@ -43,22 +27,8 @@ export function Settings() {
 
       <div className="card">
         <h2 className="card-title">Radar</h2>
-        <label className="field">
-          <span>Ajouter un actif (crypto ou action)</span>
-          <input type="search" placeholder="BTC, SOL, Apple, NVDA…" value={q} onChange={(e) => setQ(e.target.value)} />
-        </label>
-        {searching && <p className="muted small">Recherche…</p>}
-        {results.length > 0 && (
-          <ul className="search-results">
-            {results.map((r) => (
-              <li key={assetKey(r)}>
-                <button onClick={() => add(r)}>
-                  <b>{r.symbol}</b> <span className="muted">{r.name}</span> <small className="tag">{r.kind === "crypto" ? "Crypto" : "Action"}</small>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className="muted small">Suivez autant d'actifs que vous voulez, parmi toutes les cryptos et toutes les actions et ETF cotés aux États-Unis.</p>
+        <button className="btn btn-ghost" onClick={() => setPicking(true)}>+ Parcourir toutes les cryptos et actions</button>
         <ul className="watch-edit">
           {watchlist.map((w) => (
             <li key={assetKey(w)}>
@@ -69,6 +39,9 @@ export function Settings() {
         </ul>
         <button className="link-btn" onClick={() => setState({ watchlist: DEFAULT_WATCHLIST })}>Liste par défaut</button>
       </div>
+      {picking && (
+        <AssetPicker title="Actifs du radar" selected={new Set(watchlist.map(assetKey))} onToggle={toggle} onClose={() => setPicking(false)} />
+      )}
 
       <div className="card">
         <h2 className="card-title">Prudence des conseils</h2>

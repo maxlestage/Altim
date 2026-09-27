@@ -264,3 +264,24 @@
   .asset-grid .signal-card { grid-column: 2; grid-row: 1 / span 2; }
 
 }
+
+/* ---------- Full catalogue picker & multi-line entry ---------- */
+.picker-backdrop { z-index: 60; }
+.picker { max-height: 94svh; }
+.picker .sheet-head { position: sticky; top: -10px; z-index: 1; padding: 6px 0; background: #0a0d1c; }
+.picker-list button { flex-wrap: nowrap; }
+.picker-list button.picked { border-color: var(--cyan); background: rgba(0, 240, 255, 0.14); }
+.pick-box { flex: 0 0 26px; height: 26px; display: grid; place-items: center; border-radius: 8px; border: 1px solid var(--line); font-family: var(--mono); color: var(--cyan); }
+.picked .pick-box { background: var(--cyan); color: #02030a; border-color: var(--cyan); }
+.pick-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1 1 auto; font-size: 13px; }
+.picker-list .tag { flex-shrink: 0; }
+.entry-section { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: 10px; }
+.entry-section legend { padding: 0; margin-bottom: 10px; }
+.entry-line { display: grid; gap: 10px; }
+.entry-line.incomplete { border-color: rgba(255, 184, 0, 0.45); }
+.entry-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.entry-head .link-btn { padding: 0; min-height: 32px; flex-shrink: 0; }
+.entry-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.entry-fields .field input { font-size: 16px; padding: 0 10px; }
+.holding-group { display: grid; gap: 10px; }
+.group-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }

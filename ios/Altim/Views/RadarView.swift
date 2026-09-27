@@ -47,7 +47,11 @@ struct RadarView: View {
                     Button { showAdd = true } label: { Image(systemName: "plus.circle.fill") }
                 }
             }
-            .sheet(isPresented: $showAdd) { AddAssetView() }
+            .sheet(isPresented: $showAdd) {
+                AssetPickerView(title: "Actifs du radar",
+                                selected: Set(settings.watchlist.map { "\($0.assetClass.rawValue):\($0.base)" }),
+                                onToggle: toggleWatch)
+            }
         }
         .task(id: "\(settings.timeframe.rawValue)-\(settings.watchlist.count)") {
             // Rafraîchissement automatique toutes les 60 s tant que l'écran est visible.
@@ -55,6 +59,16 @@ struct RadarView: View {
                 await refresh()
                 try? await Task.sleep(for: .seconds(60))
             }
+        }
+    }
+
+    /// Adds or removes an asset from the radar (full catalogue picker).
+    private func toggleWatch(_ entry: UniverseEntry) {
+        let asset = entry.asset
+        if let i = settings.watchlist.firstIndex(where: { $0.assetClass == asset.assetClass && $0.base == asset.base }) {
+            settings.watchlist.remove(at: i)
+        } else {
+            settings.watchlist.append(asset)
         }
     }
 
@@ -159,56 +173,5 @@ struct AssetRow: View {
         }
         .padding(.bottom, row?.signal != nil ? 26 : 0)
         .glassCard(glow: row?.signal.map { Theme.color(for: $0.action) } ?? Theme.cyan)
-    }
-}
-
-/// Ajout d'un actif : crypto (paire USDT Binance) ou action (recherche Yahoo).
-struct AddAssetView: View {
-    @Environment(AppSettings.self) private var settings
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-    @State private var results: [Asset] = []
-    @State private var searching = false
-
-    var body: some View {
-        NavigationStack {
-            List {
-                if !query.isEmpty {
-                    Section("Crypto (Binance)") {
-                        let symbol = query.uppercased().replacingOccurrences(of: " ", with: "")
-                        let pair = symbol.hasSuffix("USDT") ? symbol : symbol + "USDT"
-                        Button {
-                            add(Asset(symbol: pair, name: String(pair.dropLast(4)), assetClass: .crypto, quote: "USDT"))
-                        } label: { Label(pair, systemImage: "bitcoinsign.circle") }
-                    }
-                }
-                Section("Actions / ETF") {
-                    if searching { ProgressView() }
-                    ForEach(results) { asset in
-                        Button { add(asset) } label: {
-                            VStack(alignment: .leading) {
-                                Text(asset.name)
-                                Text(asset.symbol).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
-            .searchable(text: $query, prompt: "BTC, SOL, Apple, NVDA…")
-            .task(id: query) {
-                guard query.count >= 2 else { results = []; return }
-                try? await Task.sleep(for: .milliseconds(350))
-                searching = true
-                results = (try? await YahooMarketData().search(query)) ?? []
-                searching = false
-            }
-            .navigationTitle("Ajouter un actif")
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Fermer") { dismiss() } } }
-        }
-    }
-
-    private func add(_ asset: Asset) {
-        if !settings.watchlist.contains(asset) { settings.watchlist.append(asset) }
-        dismiss()
     }
 }
