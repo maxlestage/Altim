@@ -392,3 +392,6 @@
 .watch-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .watch-list p { margin: 4px 0 0; }
 @media (max-width: 380px) { .app-tabs a { font-size: 10px; } }
+.horizon-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 4px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
+.horizon-grid button { min-height: 44px; border: 0; border-radius: 12px; background: none; color: var(--muted); font: inherit; font-family: var(--mono); font-size: 13px; cursor: pointer; }
+.horizon-grid button.on { background: var(--cyan); color: #05070f; font-weight: 700; box-shadow: 0 0 16px rgba(0, 240, 255, 0.4); }

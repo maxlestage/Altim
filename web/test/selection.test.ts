@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { alignSeries, factorsAt, pick, ranks, scoreUniverse, validate, SECTOR_CAP, STOP_ATR, ROLE, CRITERIA } from "../src/engine/screener";
+import { alignSeries, factorsAt, isPegged, pick, ranks, roles, scoreUniverse, span, toHorizon, validate, CRITERIA, HORIZON_LIST, SECTOR_CAP, SPECS } from "../src/engine/screener";
 import { parseListed } from "../server/screener";
 import type { Candle } from "../src/engine/signal";
 
@@ -31,34 +31,74 @@ test("sélection : les meilleurs, au plus 3 par secteur", () => {
   expect(pick(items, (x) => x.v, () => undefined, 2).map((x) => x.s)).toEqual(["A", "B"]);
 });
 
+const M = SPECS.stock["3m"], L = SPECS.stock["6m"];
+
 test("critères d'une action : force relative mesurée, et rien ne dépend du futur", () => {
   const up = trendSeries(600, 0.003);
-  const f = factorsAt(up, 599, "medium")!;
+  const f = factorsAt(up, 599, M)!;
   expect(f.momentum).toBeGreaterThan(30);
   expect(f.trend).toBe(100);
   expect(f.atrPct).toBeGreaterThan(0);
   const altered = up.map((c, i) => (i > 450 ? { ...c, close: c.close * 0.5, open: c.open * 0.5, high: c.high * 0.5, low: c.low * 0.5 } : c));
-  expect(factorsAt(altered, 450, "medium")).toEqual(factorsAt(up, 450, "medium"));
-  expect(factorsAt(up, 100, "medium")).toBeNull();
+  expect(factorsAt(altered, 450, M)).toEqual(factorsAt(up, 450, M));
+  expect(factorsAt(up, 100, M)).toBeNull();
 });
 
-test("classement de l'univers : la force relative classe, les autres critères sont notés", () => {
-  const list = [trendSeries(600, 0.004, 100, 1), trendSeries(600, 0.001, 100, 2), trendSeries(600, -0.001, 100, 3)].map((c) => factorsAt(c, 599, "long"));
-  const sc = scoreUniverse(list, "long");
-  expect(sc.map((x) => x!.total)).toEqual([100, 50, 0]);
-  for (const x of sc) for (const k of Object.keys(CRITERIA)) expect(x!.scores[k as keyof typeof CRITERIA]).toBeGreaterThanOrEqual(0);
-  expect(ROLE.momentum).toBe("classe les actions");
-  expect(STOP_ATR.long).toBeGreaterThan(STOP_ATR.short);
+test("classement selon la règle de la durée : force, rebond, signal, calme", () => {
+  const list = [trendSeries(600, 0.004, 100, 1), trendSeries(600, 0.001, 100, 2), trendSeries(600, -0.001, 100, 3)].map((c) => factorsAt(c, 599, L));
+  expect(scoreUniverse(list, L).map((x) => x!.total)).toEqual([100, 50, 0]);
+  expect(scoreUniverse(list, { ...L, rank: "reversal" }).map((x) => x!.total)).toEqual([0, 50, 100]);
+  expect(scoreUniverse(list, { ...L, rank: "signal" }).map((x) => x!.total)).toEqual(list.map((f) => f!.signal));
+  for (const x of scoreUniverse(list, L)) for (const k of Object.keys(CRITERIA)) expect(x!.scores[k as keyof typeof CRITERIA]).toBeGreaterThanOrEqual(0);
+  expect(roles(L, "stock").momentum).toBe("classe les actions");
+  expect(roles(SPECS.crypto["6m"], "crypto").risk).toContain("les plus calmes");
+  expect(roles(SPECS.stock["1h"], "stock").momentum).toContain("en baisse");
+  expect(SPECS.stock["6m"].stopAtr).toBeGreaterThan(SPECS.stock["7d"].stopAtr);
 });
 
-test("rejeu sur le passé : une sélection des plus fortes bat la moyenne quand la force persiste", () => {
-  // 12 stocks with persistent, different trends: the strongest keep leading, so the replay must show it.
+test("8 durées pour les actions et les cryptos, anciens noms acceptés", () => {
+  expect(HORIZON_LIST).toEqual(["30m", "1h", "5h", "7d", "14d", "1m", "3m", "6m"]);
+  for (const m of ["stock", "crypto"] as const) for (const h of HORIZON_LIST) {
+    const sp = SPECS[m][h];
+    expect(sp.hold).toBeGreaterThan(0);
+    expect(sp.evidence.length).toBeGreaterThan(20);
+    expect(["5m", "15m", "30m", "1d"]).toContain(sp.interval);
+  }
+  expect(SPECS.stock["30m"].interval).toBe("5m");
+  expect(SPECS.crypto["5h"].interval).toBe("30m");
+  expect(span(6, "5m", "stock")).toBe("30 min");
+  expect(span(10, "30m", "crypto")).toBe("5 h");
+  expect(span(126, "1d", "stock")).toBe("6 mois");
+  expect(span(7, "1d", "crypto")).toBe("7 jours");
+  expect(toHorizon("medium", "stock")).toBe("3m");
+  expect(toHorizon("medium", "crypto")).toBe("1m");
+  expect(toHorizon("30m", "crypto")).toBe("30m");
+  expect(toHorizon("2y", "stock")).toBeNull();
+});
+
+test("jetons adossés repérés à leur calme anormal, quelle que soit la taille des bougies", () => {
+  expect(isPegged(0.05, "1d")).toBe(true);
+  expect(isPegged(2.5, "1d")).toBe(false);
+  expect(isPegged(0.01, "5m")).toBe(true);
+  expect(isPegged(0.3, "5m")).toBe(false);
+  expect(isPegged(null, "1d")).toBe(false);
+});
+
+test("rejeu sur le passé : avance nette, faible ou nulle selon les frais et la régularité", () => {
+  // 12 assets with persistent, different trends: the strongest keep leading.
   const series = alignSeries(Array.from({ length: 12 }, (_, k) => trendSeries(700, -0.002 + k * 0.0006, 100, k + 1)));
-  const v = validate(series, "medium", 3)!;
+  const v = validate(series, { ...M, hold: 21, step: 21 }, "1m", 3)!;
   expect(v.periods).toBeGreaterThan(5);
   expect(v.top).toBeGreaterThan(v.universe);
   expect(v.beatRate).toBe(100);
-  expect(v.hold).toBe(63);
+  expect(v.edge).toBe("clear");
+  // Same ranking, with costs higher than the advance: no edge.
+  expect(validate(series, { ...M, hold: 21, step: 21, cost: 0.5 }, "1m", 3)!.edge).toBe("none");
+  // The worst first (rebound rule) on persistent trends: behind the average.
+  expect(validate(series, { ...M, hold: 21, step: 21, rank: "reversal" }, "1m", 3)!.edge).toBe("none");
+  const withBtc = validate(series, { ...SPECS.crypto["1m"] }, "1m", 3, undefined, 0)!;
+  expect(withBtc.hold).toBe(30);
+  expect(withBtc.benchmark).not.toBeNull();
 });
 
 test("univers : plus grandes sociétés, une seule classe d'actions par société", () => {
@@ -75,18 +115,3 @@ test("univers : plus grandes sociétés, une seule classe d'actions par sociét�
   expect(l[0]!.name).toBe("Apple Inc.");
 });
 
-test("cryptos : classées par le signal technique, durées de détention propres, comparaison au Bitcoin", async () => {
-  const { RANK_BY, ROLES, HOLDS } = await import("../src/engine/screener");
-  expect(RANK_BY).toEqual({ stock: "momentum", crypto: "signal" });
-  expect(ROLES.crypto.signal).toBe("classe les cryptos");
-  expect(HOLDS.crypto).toEqual({ short: 10, medium: 30, long: 90 });
-  const list = [trendSeries(600, 0.004, 100, 1), trendSeries(600, -0.004, 100, 2)].map((c) => factorsAt(c, 599, "medium"));
-  const sc = scoreUniverse(list, "medium", "crypto");
-  expect(sc[0]!.total).toBe(list[0]!.signal);
-  expect(sc[1]!.total).toBe(list[1]!.signal);
-  expect(sc[0]!.total).toBeGreaterThan(sc[1]!.total);
-  const series = alignSeries(Array.from({ length: 12 }, (_, k) => trendSeries(700, -0.002 + k * 0.0006, 100, k + 1)));
-  const v = validate(series, "medium", 3, 15, undefined, "crypto", 0)!;
-  expect(v.hold).toBe(30);
-  expect(v.benchmark).not.toBeNull();
-});

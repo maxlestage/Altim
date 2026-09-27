@@ -177,7 +177,42 @@ Rejeu de la sélection publiée (10 cryptos classées par le signal) sur 36 à 4
 - La liste ne contient que les cryptos qui existent encore aujourd'hui, ce qui embellit les chiffres.
 - Les quantités sont fractionnées.
 
-API : `GET /api/selection?kind=stock|crypto&horizon=short|medium|long`. Les six sélections sont calculées au démarrage puis toutes les 25 minutes ; le premier calcul prend environ 30 s.
+### 8 durées de détention : 30 min, 1 h, 5 h, 7 j, 14 j, 1 mois, 3 mois, 6 mois
+
+Chaque durée a ses propres réglages (`SPECS` dans `src/engine/screener.ts`) :
+- sa taille de bougies : 5, 15 ou 30 minutes jusqu'à 5 h, un jour au-delà ;
+- son critère de classement, choisi après mesure pour chaque marché ;
+- son stop, calé sur la volatilité de la période ;
+- ses frais aller-retour : 0,05 % pour les actions, 0,2 % pour les cryptos.
+
+Chaque sélection est **rejouée sur le passé** et classée :
+- **avance nette** : mieux que la moyenne de plus que les frais, plus de 55 % du temps ;
+- **faible** : mieux en moyenne, mais environ une fois sur deux ;
+- **aucune** : pas mieux que la moyenne une fois les frais payés. La page l'affiche en rouge : « ne misez pas dessus ».
+
+Rejeu dans l'application le 27/09/2026 :
+
+| Durée | Actions : classement | Rejeu | Cryptos : classement | Rejeu |
+|---|---|---|---|---|
+| 30 min | rebond (les plus en baisse) | **aucune** avance | rebond sur 6 h | **aucune** |
+| 1 h | rebond sur 1 h | **aucune** | force sur 1 h | **aucune** |
+| 5 h | force sur 5 h | **aucune** | rebond sur 5 h | **aucune** |
+| 7 j | force relative 6 mois | faible (+0,73 % vs +0,29 %, 54 %) | force relative 3 mois | nette (+0,34 % vs −0,19 %, 57 %) |
+| 14 j | force relative 6 mois | faible (+1,27 % vs +0,80 %, 52 %) | force relative 3 mois | faible (−0,62 % vs −1,19 %, 48 %) |
+| 1 mois | force relative 6 mois | nette (+2,6 % vs +1,7 %, 59 %) | signal technique | nette (+1,3 % vs −2,3 %, 60 %) |
+| 3 mois | force relative 6 mois | nette (+9,9 % vs +5,3 %, 69 %) | signal technique | nette (−1,0 % vs −6,8 %, 58 %) |
+| 6 mois | force relative 6 mois | nette (+20,5 % vs +11,2 %, 73 %) | les plus calmes | nette (+11,2 % vs −13,1 %, 97 %) |
+
+**En clair :** en dessous de quelques jours, aucun classement n'a fait mieux que le hasard une fois les frais payés, ni pour les actions ni pour les cryptos. Une première étude trouvait une avance à 5 h, mais elle a disparu sur une autre fenêtre de temps : c'était du bruit. Ces durées restent disponibles, avec cet avertissement. Les classements fiables commencent à 1 mois.
+
+Pour les durées courtes :
+- **Données** : bougies de Yahoo (actions, 60 jours de rejeu) et de Gate (cryptos, 3,5 jours à 3 semaines selon la taille des bougies). Seules les bougies clôturées sont utilisées.
+- **Rafraîchissement** : toutes les 4 à 12 minutes.
+- **Bourse fermée** : les actions sont classées sur la dernière séance, et la page le signale.
+
+**Jetons adossés** : une crypto qui ne bouge presque pas (volatilité ramenée à la journée inférieure à 0,5 %) est traitée comme un stablecoin et écartée.
+
+API : `GET /api/selection?kind=stock|crypto&horizon=30m|1h|5h|7d|14d|1m|3m|6m` (les anciens `short`, `medium` et `long` restent acceptés). Les durées journalières sont calculées au démarrage puis toutes les 25 minutes ; les durées courtes le sont à la demande.
 
 ## Zones d'achat par horizon (Fibonacci) et contexte macro
 
