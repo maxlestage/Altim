@@ -36,6 +36,21 @@ public enum Advisor {
         }
     }
 
+    /// Market guard context (MarketGuard): shock level and counter-trend reversal risk.
+    public struct GuardContext: Sendable, Hashable {
+        public let shock: MarketGuard.ShockLevel
+        public let reversalScore: Int
+        public let reversalDirection: MarketGuard.Direction?
+        public init(shock: MarketGuard.ShockLevel, reversalScore: Int, reversalDirection: MarketGuard.Direction?) {
+            self.shock = shock
+            self.reversalScore = reversalScore
+            self.reversalDirection = reversalDirection
+        }
+        public init(_ r: MarketGuard.Result) {
+            self.init(shock: r.shock.level, reversalScore: r.reversal.score, reversalDirection: r.reversal.direction)
+        }
+    }
+
     /// Below this track record on the asset itself, a buy signal is not advised (same rule in advice.ts).
     public static let minTrackTrades = 5
     public static let minWinRate = 40.0
@@ -77,7 +92,10 @@ public enum Advisor {
 
     public static func advise(signal: Signal?, reliability: ReliabilityLevel?, price: Double?,
                               line: HoldingsAnalyzer.Line?, capital: Double?, risk: RiskSettings,
-                              track: TrackRecord? = nil, symbol: String = "", kind: AssetClass = .crypto) -> Advice {
+                              track: TrackRecord? = nil, symbol: String = "", kind: AssetClass = .crypto,
+                              guard guardContext: GuardContext? = nil) -> Advice {
+        let reversalDown = guardContext.map { $0.reversalDirection == .down && $0.reversalScore >= MarketGuard.reversalHigh } ?? false
+        let agitated = guardContext?.shock == .agitated
         // Asset already held: the portfolio analysis takes precedence.
         if let line {
             let tone: Tone = switch line.recommendation {
@@ -95,7 +113,14 @@ public enum Advisor {
             if let stop = line.stop {
                 points.append("Stop de protection conseillé : \(px(stop)) (si le cours passe dessous, sortir limite la perte à ≈ \(usd(line.lossAtStop ?? 0))).")
             }
-            return Advice(tone: tone, title: line.recommendation.label, points: points, entry: nil, stop: line.stop, target: nil, amount: nil)
+            if guardContext?.shock == .shock {
+                points.append("Marché en choc (mouvements anormaux) : ne renforcez pas maintenant, vérifiez que votre stop est bien en place.")
+            }
+            if reversalDown {
+                points.append("Risque de retournement à la baisse élevé (\(guardContext!.reversalScore)/100) : resserrez votre stop ou prenez une partie de vos gains.")
+            }
+            let finalTone: Tone = tone == .buy && (guardContext?.shock == .shock || reversalDown) ? .hold : tone
+            return Advice(tone: finalTone, title: line.recommendation.label, points: points, entry: nil, stop: line.stop, target: nil, amount: nil)
         }
 
         guard let signal, let price, price > 0 else {
@@ -109,6 +134,19 @@ public enum Advisor {
         }
         let caution = reliability == .medium ? ["Fiabilité des données moyenne (peu de sources indépendantes) : restez prudent."] : []
 
+        // Market guard: no buy in a shock or when a reversal against the rise is likely.
+        if signal.action == .buy || signal.action == .strongBuy {
+            if guardContext?.shock == .shock {
+                return Advice(tone: .hold, title: "Attendre : marché en choc",
+                              points: ["Les indicateurs sont à l'achat, mais le marché fait des mouvements anormaux (volatilité, sauts de prix) : attendez que la tempête passe."] + caution,
+                              entry: nil, stop: nil, target: nil, amount: nil)
+            }
+            if reversalDown {
+                return Advice(tone: .hold, title: "Attendre : risque de retournement",
+                              points: ["Les indicateurs sont à l'achat, mais un retournement à la baisse est probable (\(guardContext!.reversalScore)/100 : excès, foule trop optimiste ou actualités défavorables). Attendez qu'il se produise ou soit écarté."] + caution,
+                              entry: nil, stop: nil, target: nil, amount: nil)
+            }
+        }
         // A buy signal must have worked on this very asset: otherwise, wait.
         if signal.action == .buy || signal.action == .strongBuy, let t = track, t.trades >= minTrackTrades,
            t.winRate < minWinRate || t.avgReturn <= 0 {
@@ -131,10 +169,11 @@ public enum Advisor {
                     entry = plan.entry; stop = plan.stopLoss; target = plan.takeProfit
                     points.append("Zone d'entrée : autour de \(px(plan.entry)). Stop conseillé : \(px(plan.stopLoss)). Objectif : \(px(plan.takeProfit)) (gain potentiel \(one(plan.riskReward)) fois le risque).")
                     if let capital, capital > 0, let size = RiskManager(settings: risk).positionSize(equity: capital, plan: plan) {
-                        let q = quantity(amount: size.notional, price: plan.entry, kind: kind)
+                        // Agitated market: half the amount (same rule as the guard's policy for bots).
+                        let q = quantity(amount: size.notional * (agitated ? 0.5 : 1), price: plan.entry, kind: kind)
                         qty = q
                         // Whole shares: the amount and the loss at the stop are those of the rounded quantity.
-                        let scale = kind == .stock && q > 0 ? q * plan.entry / size.notional : 1
+                        let scale = q > 0 && (kind == .stock || agitated) ? q * plan.entry / size.notional : agitated ? 0.5 : 1
                         amount = size.notional * scale
                         let qtyText = q > 0 && !symbol.isEmpty ? ", soit \(quantityText(q, kind: kind, symbol: symbol))"
                             : kind == .stock && !symbol.isEmpty ? " (moins d'une action entière : il faudrait des fractions d'action)" : ""
@@ -144,6 +183,7 @@ public enum Advisor {
                     }
                 }
             }
+            if agitated { points.append("Marché agité : le montant conseillé est divisé par deux, et un stop plus large évite d'être sorti par le bruit.") }
             points.append("Confiance du signal : \(Int(signal.confidence.rounded())) %. \(signal.action == .strongBuy ? "Les indicateurs sont largement d'accord." : "Signal modéré : entrez progressivement.")")
             if let t = track, t.trades >= minTrackTrades {
                 points.append("Sur l'historique de cet actif : \(t.trades) signaux d'achat, \(Int(t.winRate.rounded())) % gagnants, \(pct(t.avgReturn)) en moyenne par signal (frais inclus). Les performances passées ne préjugent pas des performances futures.")
