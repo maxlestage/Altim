@@ -162,6 +162,25 @@ export function deviations(series: Candle[][]): number[] {
   });
 }
 
+/**
+ * Consensus candles: for each candle of the primary source, the median open / high / low / close of every
+ * agreeing source that has that timestamp (the primary's own values when it is alone). The volume stays the
+ * primary's (volumes differ by exchange and only their variations matter). Same logic as Consensus.swift.
+ */
+export function blend(primary: Candle[], others: Candle[][]): Candle[] {
+  if (!others.length) return primary;
+  const maps = others.map((o) => new Map(o.map((c) => [c.time, c])));
+  return primary.map((c) => {
+    const same = [c, ...maps.flatMap((m) => (m.has(c.time) ? [m.get(c.time)!] : []))];
+    if (same.length < 2) return c;
+    const open = median(same.map((x) => x.open));
+    const close = median(same.map((x) => x.close));
+    const high = Math.max(median(same.map((x) => x.high)), open, close);
+    const low = Math.min(median(same.map((x) => x.low)), open, close);
+    return { time: c.time, open, high, low, close, volume: c.volume };
+  });
+}
+
 export async function consensus(
   base: string,
   interval: Interval,
@@ -196,7 +215,8 @@ export async function consensus(
   const agreeing = ok.map((r, i) => ({ r, d: devs[i]! })).filter((x) => x.d <= tolerance);
   const primary = agreeing.find((x) => x.r.candles!.length >= 60) ?? agreeing[0] ?? { r: ok[0]!, d: devs[0]! };
   return {
-    candles: primary.r.candles!,
+    // Consensus candles: median of the agreeing sources, so no single exchange's wick or bad tick drives the signal.
+    candles: blend(primary.r.candles!, agreeing.filter((x) => x !== primary).map((x) => x.r.candles!)),
     source: primary.r.name,
     agreeing: agreeing.length,
     // Fewer than half of the responding sources agree: impossible to know which ones are right.

@@ -118,6 +118,13 @@ final class PublicAPITests: XCTestCase {
         let loader: (AssetClass, HTTPTransport) async throws -> [UniverseEntry] = { try await AssetUniverse.load($0, transport: $1) }
         _ = loader
         let advice = Advisor.advise(signal: nil, reliability: nil, price: nil, line: nil, capital: nil, risk: RiskSettings())
-        _ = (advice.tone, advice.title, advice.points, advice.entry, advice.stop, advice.target, advice.amount)
+        _ = (advice.tone, advice.title, advice.points, advice.entry, advice.stop, advice.target, advice.amount, advice.quantity)
+        let track = Advisor.TrackRecord(Backtester().run(candles))
+        _ = Advisor.advise(signal: nil, reliability: .high, price: 1, line: nil, capital: 1000, risk: RiskSettings(),
+                           track: track, symbol: "BTC", kind: .crypto)
+        _ = (track.trades, track.winRate, track.avgReturn, Advisor.minTrackTrades, Advisor.minWinRate)
+        _ = Advisor.quantity(amount: 100, price: 10, kind: .stock)
+        _ = Advisor.quantityText(1, kind: .crypto, symbol: "BTC")
+        _ = ConsensusMarketData.blend(candles, [candles])
     }
 }

@@ -127,3 +127,18 @@ test("cryptos and stocks searched together: exact symbols first, then the larges
   expect(ids("sol")[0]).toBe("crypto:SOL");
   expect(ids("bitcoin")).toEqual(["crypto:BTC"]);
 });
+
+test("noms complets CoinGecko seulement pour un symbole non ambigu ; jetons obscurs hors recherche générale", () => {
+  const names = parseUniverse.geckoNames([
+    { id: "solv-protocol", symbol: "solv", name: "Solv Protocol" },
+    { id: "bitcoin", symbol: "btc", name: "Bitcoin" },
+    { id: "big-tom-coin", symbol: "btc", name: "Big Tom Coin" },
+  ]);
+  expect(names).toEqual([["SOLV", "Solv Protocol"]]);
+  const crypto = buildCrypto([["SOLV", "ZZQ"], ["SOLV"]], [], names);
+  expect(crypto.find((e) => e[0] === "SOLV")![1]).toBe("Solv Protocol");
+  // ZZQ: no name, no rank, one exchange → hidden from the combined search unless typed exactly.
+  expect(searchAll(crypto, [], "zz").map(({ e }) => e[0])).toEqual([]);
+  expect(searchAll(crypto, [], "zzq").map(({ e }) => e[0])).toEqual(["ZZQ"]);
+  expect(searchAll(crypto, [], "solv").map(({ e }) => e[0])).toEqual(["SOLV"]);
+});

@@ -327,11 +327,32 @@ public struct ConsensusMarketData: MarketDataProvider {
         checks += failed
         checks += skipped.map { SourceCheck(name: $0, status: .skipped, deviationPercent: nil, lastPrice: nil, latency: nil) }
 
-        let candles = primary!.candles
+        // Consensus candles: median of the agreeing sources (no single exchange's wick or bad tick drives the signal).
+        let agreeingSeries = series.enumerated().filter { i, f in
+            f.0.name != primary!.name && checks[i].status == .agrees
+        }.map { $0.element.1 }
+        let candles = Self.blend(primary!.candles, agreeingSeries)
         return MarketSnapshot(asset: asset, timeframe: timeframe, candles: candles, primarySource: primary!.name,
                               checks: checks, consensusPrice: prices.isEmpty ? nil : DataQuality.median(prices),
                               quality: DataQuality.assess(candles, timeframe: timeframe, assetClass: asset.assetClass, now: now),
                               conflict: conflict)
+    }
+
+    /// Consensus candles: for each candle of the primary source, the median open / high / low / close of every
+    /// agreeing source that has that timestamp (the primary's own values when it is alone). The volume stays the
+    /// primary's. Same logic as `blend` in web/server/market.ts.
+    public static func blend(_ primary: [Candle], _ others: [[Candle]]) -> [Candle] {
+        guard !others.isEmpty else { return primary }
+        let maps = others.map { Dictionary($0.map { ($0.time, $0) }, uniquingKeysWith: { a, _ in a }) }
+        return primary.map { c in
+            let same = [c] + maps.compactMap { $0[c.time] }
+            guard same.count >= 2 else { return c }
+            let open = DataQuality.median(same.map(\.open))
+            let close = DataQuality.median(same.map(\.close))
+            let high = max(DataQuality.median(same.map(\.high)), open, close)
+            let low = min(DataQuality.median(same.map(\.low)), open, close)
+            return Candle(time: c.time, open: open, high: high, low: low, close: close, volume: c.volume, isClosed: c.isClosed)
+        }
     }
 
     /// Median deviation (%) of each series from the per-timestamp median, over the (at most 20) most

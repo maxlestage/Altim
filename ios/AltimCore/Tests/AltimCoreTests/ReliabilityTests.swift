@@ -192,7 +192,8 @@ final class ConsensusTests: XCTestCase {
         let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
         XCTAssertEqual(s.primarySource, "B")
         XCTAssertEqual(s.checks.first { $0.name == "Faux" }?.status, .diverges)
-        XCTAssertEqual(s.candles.last?.close, base.last?.close)
+        // Median of B and C (the false source excluded): within 0.02 % of the true price.
+        XCTAssertEqual(s.candles.last!.close, base.last!.close, accuracy: base.last!.close * 0.0002)
     }
 
     func testEverySourceIsQueried() async throws {
@@ -251,6 +252,27 @@ final class ConsensusTests: XCTestCase {
         XCTAssertFalse(s.conflict)
         XCTAssertEqual(s.reliabilityScore, 75)
         XCTAssertEqual(s.checks.first { $0.name == "Faux" }?.status, .diverges)
+    }
+
+    func testConsensusCandlesAreTheMedianOfAgreeingSources() async throws {
+        // Bad tick on one exchange: absurd wick on candle 150.
+        let spiked = scaled(1.0002).enumerated().map { i, c in
+            i == 150 ? Candle(time: c.time, open: c.open, high: c.high * 1.3, low: c.low, close: c.close * 1.02, volume: c.volume) : c
+        }
+        let c = ConsensusMarketData(sources: [
+            FakeSource(name: "A", candlesResult: .success(base)),
+            FakeSource(name: "B", candlesResult: .success(spiked)),
+            FakeSource(name: "C", candlesResult: .success(scaled(0.9998))),
+            FakeSource(name: "Faux", candlesResult: .success(scaled(1.05))),
+        ])
+        let s = try await c.snapshot(for: btc, timeframe: .h1, now: now)
+        XCTAssertEqual(s.primarySource, "A")
+        XCTAssertEqual(s.candles.count, base.count)
+        XCTAssertEqual(s.candles[150].close, base[150].close, accuracy: 1e-9)
+        XCTAssertLessThan(s.candles[150].high, base[150].high * 1.001)
+        XCTAssertEqual(s.candles[10].close, base[10].close, accuracy: 1e-9)
+        XCTAssertTrue(s.candles.allSatisfy { $0.high >= max($0.open, $0.close) && $0.low <= min($0.open, $0.close) })
+        XCTAssertEqual(ConsensusMarketData.blend(base, []), base)
     }
 
     func testSingleSourceIsCapped() async throws {
