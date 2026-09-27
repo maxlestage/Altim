@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, INTERVAL_LABEL, type RadarRow, type Sentiment } from "./api";
+import { api, INTERVAL_LABEL, type MacroInfo, type RadarRow, type Sentiment } from "./api";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval } from "./store";
 import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
@@ -13,6 +13,7 @@ export function Radar() {
   const [updated, setUpdated] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fg, setFg] = useState<Sentiment["fearGreed"]>();
+  const [macro, setMacro] = useState<MacroInfo | null>(null);
   const busy = useRef(false);
   const live = useLive(watchlist);
 
@@ -50,6 +51,10 @@ export function Radar() {
 
   useEffect(() => {
     api.sentiment("BTC", "crypto").then((s) => setFg(s.fearGreed)).catch(() => {});
+    const loadMacro = () => api.macro().then(setMacro).catch(() => {});
+    loadMacro();
+    const id = setInterval(() => document.visibilityState === "visible" && loadMacro(), 300_000);
+    return () => clearInterval(id);
   }, []);
 
   const opportunities = watchlist
@@ -85,6 +90,14 @@ export function Radar() {
       />
 
       {error && <p className="notice warn">⚠ {error} — nouvelle tentative automatique.</p>}
+
+      {macro && macro.level !== "calm" && (
+        <div className={`notice ${macro.level === "high" ? "danger" : "warn"}`} role="status">
+          <b>Contexte macro {macro.level === "high" ? "très tendu" : "tendu"} ({macro.score}/100)</b>
+          <ul className="small">{macro.factors.slice(0, 3).map((f) => <li key={f.code}>{f.text}</li>)}</ul>
+          <small>Les zones d'achat techniques résistent mal aux crises : tailles réduites, achats échelonnés.</small>
+        </div>
+      )}
 
       {opportunities.length > 0 && (
         <div className="card opportunities">

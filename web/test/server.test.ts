@@ -41,6 +41,8 @@ test("validation des paramètres de l'API", async () => {
     "/api/candles?symbol=BTC&interval=1h&kind=forex",
     "/api/radar?symbols=AAPL:bond",
     "/api/sentiment?symbol=<script>",
+    "/api/zones?symbol=../x&kind=crypto",
+    "/api/zones?symbol=AAPL&kind=bond",
   ]) {
     const r = await fetch(base + path);
     expect(r.status).toBe(400);
