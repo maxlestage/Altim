@@ -2,7 +2,7 @@ import { Section } from "./Section";
 
 const ITEMS = [
   ["Aucun accès à vos comptes", "Altim conseille uniquement : aucune clé, aucun identifiant de courtier, aucun ordre."],
-  ["Vos avoirs restent chez vous", "Dans votre navigateur (localStorage), jamais sur un serveur."],
+  ["Vos avoirs restent chez vous", "Sur votre appareil (navigateur ou application, dans un stockage chiffré et exclu des sauvegardes), jamais sur un serveur."],
   ["Aucun traceur", "Pas de cookie, pas de mesure d'audience, pas de publicité."],
   ["Export à tout moment", "Vos avoirs s'exportent en un fichier, à réimporter sur un autre appareil."],
   ["Données vérifiées", "Chaque cours est recoupé sur plusieurs sources ; en cas de doute, aucun conseil."],

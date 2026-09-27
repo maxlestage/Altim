@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
@@ -63,6 +64,8 @@ class AltimClient(
     private val http: OkHttpClient = defaultHttp,
 ) {
     private val cookie = AtomicReference(sessionCookie)
+    private val renewLock = kotlinx.coroutines.sync.Mutex()
+    @Volatile private var renewFailedAt = 0L
 
     /** Current session cookie value (the app keeps it encrypted to avoid a login at each launch). */
     val sessionCookie: String? get() = cookie.get()
@@ -78,15 +81,17 @@ class AltimClient(
             .readTimeout(45, TimeUnit.SECONDS)
             .build()
 
-        /** "mon-app.herokuapp.com" → https://mon-app.herokuapp.com/ (http only for a local server). */
-        fun normalize(text: String): HttpUrl? {
+        /**
+         * "mon-app.herokuapp.com" → https://mon-app.herokuapp.com/. Plain http only for this device, and for the
+         * computer seen from the emulator (10.0.2.2) in development builds only ([dev]).
+         */
+        fun normalize(text: String, dev: Boolean = false): HttpUrl? {
             var t = text.trim().trimEnd('/')
             if (t.isEmpty()) return null
             if (!t.contains("://")) t = "https://$t"
             val url = t.toHttpUrlOrNull() ?: return null
             val host = url.host
-            // 10.0.2.2 = the computer seen from the Android emulator.
-            val local = host == "localhost" || host == "127.0.0.1" || host == "10.0.2.2" || host.endsWith(".local")
+            val local = host == "localhost" || host == "127.0.0.1" || (dev && host == "10.0.2.2")
             if (!(url.scheme == "https" || (url.scheme == "http" && local))) return null
             if (url.encodedPath != "/" || url.query != null) return null
             return url
@@ -150,10 +155,22 @@ class AltimClient(
         cookie.set(null)
     }
 
-    /** Logs in again after a 401 (session expired) and tells whether it worked. */
+    /**
+     * Logs in again after a 401 (session expired) and tells whether it worked. One login at a time (parallel callers
+     * reuse its result), and a failed attempt is not retried for a minute: a changed password must not burn the
+     * server's lock-out quota.
+     */
     suspend fun renewSession(): Boolean {
         val c = credentials ?: return false
-        return runCatching { login(c) }.isSuccess
+        val before = cookie.get()
+        return renewLock.withLock {
+            // Another caller renewed the session while we were waiting.
+            if (cookie.get() != null && cookie.get() != before) return@withLock true
+            if (System.currentTimeMillis() - renewFailedAt < 60_000) return@withLock false
+            val ok = runCatching { login(c) }.isSuccess
+            renewFailedAt = if (ok) 0L else System.currentTimeMillis()
+            ok
+        }
     }
 
     // ---------- API ----------
@@ -177,6 +194,10 @@ class AltimClient(
         get("/api/zones", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), ZonesReport.serializer())
 
     suspend fun macro(): MacroInfo = get("/api/macro", emptyMap(), MacroInfo.serializer())
+
+    suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
+        if (assets.isEmpty()) emptyList()
+        else batched(assets) { get("/api/alerts", mapOf("symbols" to list(it)), ListSerializer(BuyAlert.serializer())) }
 
     suspend fun selection(h: Horizon, kind: Kind): SelectionResult {
         val (status, body) = authorized(request("/api/selection", mapOf("horizon" to h.raw, "kind" to kind.raw)))

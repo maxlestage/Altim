@@ -74,6 +74,33 @@ class KitTest {
     }
 }
 
+class AlertTest {
+    @Test fun decodeRealAlerts() {
+        val items = AltimJson.decodeFromString(ListSerializer(BuyAlert.serializer()), fixture("alerts.json"))
+        assertEquals(listOf("BTC", "ETH", "AAPL", "ZZZZ"), items.map { it.symbol })
+        assertTrue(items[0].buy)
+        assertFalse(items[3].buy, "an unavailable asset is never buyable")
+    }
+
+    @Test fun trackerNotifiesOnlyOnChange() {
+        fun a(s: String, buy: Boolean, strong: Boolean = false, key: String) = BuyAlert(s, Kind.CRYPTO, buy = buy, strong = strong, key = key)
+        var t = AlertTracker()
+        fun step(items: List<BuyAlert>, onlyStrong: Boolean = false): List<String> {
+            val (next, out) = t.newAlerts(items, onlyStrong)
+            t = next
+            return out.map { it.symbol }
+        }
+        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, key = "signal"), a("ETH", false, key = ""))))
+        assertEquals(emptyList(), step(listOf(a("BTC", true, key = "signal"))), "same situation: no repeat")
+        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, true, "signal+zone:medium"))), "the zone is reached")
+        assertEquals(emptyList(), step(listOf(a("BTC", false, key = ""))))
+        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, key = "signal"))), "buyable again after a pause")
+        t = AlertTracker()
+        assertEquals(emptyList(), step(listOf(a("SOL", true, key = "signal")), onlyStrong = true))
+        assertEquals(listOf("SOL"), step(listOf(a("SOL", true, true, "signal+zone:long")), onlyStrong = true))
+    }
+}
+
 class SseTest {
     @Test fun realStreamCutAnywhere() {
         val raw = fixture("live.txt").toByteArray()
@@ -92,6 +119,15 @@ class SseTest {
     @Test fun commentsCrlfAndMultiline() {
         val p = SseParser()
         assertEquals(listOf("a\nb", "c"), p.feed(": ok\r\n\r\ndata: a\r\ndata: b\r\n\r\ndata:c\n\n".toByteArray()))
+    }
+
+    @Test fun hostileStreamStaysBounded() {
+        val p = SseParser()
+        p.feed(ByteArray(1_000_000) { 'A'.code.toByte() })
+        assertEquals(listOf("ok"), p.feed("\ndata: ok\n\n".toByteArray()))
+        val q = SseParser()
+        val out = q.feed(("data: x\n".repeat(10_000) + "\n").toByteArray())
+        assertTrue(out.all { it.split("\n").size <= 64 })
     }
 
     @Test fun utf8SplitInsideCharacter() {
@@ -118,7 +154,9 @@ class FormatAndClientTest {
     @Test fun normalizeServer() {
         assertEquals("https://mon-app.herokuapp.com/", AltimClient.normalize("mon-app.herokuapp.com/").toString())
         assertEquals("https://x.herokuapp.com/", AltimClient.normalize(" https://x.herokuapp.com ").toString())
-        assertEquals("http://10.0.2.2:4410/", AltimClient.normalize("http://10.0.2.2:4410").toString())
+        assertEquals("http://10.0.2.2:4410/", AltimClient.normalize("http://10.0.2.2:4410", dev = true).toString())
+        assertNull(AltimClient.normalize("http://10.0.2.2:4410"), "10.0.2.2 is a Wi-Fi address on a real phone")
+        assertNull(AltimClient.normalize("http://altim.local"))
         assertNull(AltimClient.normalize("http://x.herokuapp.com"), "no plain http on the Internet: the password would travel in clear")
         assertNull(AltimClient.normalize("https://x.herokuapp.com/app"))
         assertNull(AltimClient.normalize(""))

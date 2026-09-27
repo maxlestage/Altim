@@ -24,7 +24,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.maxlestage.altim.data.AppModel
+import com.maxlestage.altim.data.BuyAlerts
+import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.launch
 
 @Composable
@@ -32,6 +37,11 @@ fun SettingsScreen(model: AppModel, modifier: Modifier) {
     var confirmLogout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    var denied by remember { mutableStateOf(false) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        denied = !granted
+        if (granted) model.updateAlerts(context, enabled = true)
+    }
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "—" }
 
     Column(
@@ -43,6 +53,22 @@ fun SettingsScreen(model: AppModel, modifier: Modifier) {
             KeyValue("Adresse", model.serverUrl?.host ?: "—")
             KeyValue("Identifiant", model.user ?: "accès ouvert")
             TextButton(onClick = { confirmLogout = true }) { Text("Se déconnecter", color = AltimColors.sell, fontWeight = FontWeight.Bold) }
+        }
+        Card(title = "Notifications d'achat") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Me prévenir quand je peux acheter", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Switch(model.alertsEnabled, { on ->
+                    if (on && android.os.Build.VERSION.SDK_INT >= 33 && !BuyAlerts.canNotify(context)) permission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else model.updateAlerts(context, enabled = on)
+                }, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Seulement les achats conseillés (signal + zone)", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Switch(model.alertsStrongOnly, { model.updateAlerts(context, strongOnly = it) }, enabled = model.alertsEnabled, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
+            }
+            if (denied) Notice("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim → Notifications.", Tone.WARN)
+            Caption("Toutes les 15 minutes, votre serveur vérifie le radar et vos avoirs : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée. Une notification seulement quand un actif devient achetable ou que la raison change. Conseil indicatif : Altim ne passe aucun ordre.")
+            model.lastAlertCheck?.let { Caption("Dernière vérification : ${Format.date(it.toDouble(), time = true)} · ${model.lastBuyable} actif(s) achetable(s).") }
         }
         Card(title = "Sécurité") {
             Row(verticalAlignment = Alignment.CenterVertically) {

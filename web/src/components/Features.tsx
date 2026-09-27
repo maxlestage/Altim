@@ -42,7 +42,7 @@ const FEATURES = [
   {
     icon: "M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z",
     title: "Conseil, jamais d'ordre",
-    text: "Altim ne passe aucun ordre et n'accède à aucun compte. Vos avoirs restent sur votre appareil, dans votre navigateur.",
+    text: "Altim ne passe aucun ordre et n'accède à aucun compte. Vos avoirs restent sur votre appareil (navigateur ou application), jamais sur un serveur.",
   },
 ];
 

@@ -19,26 +19,33 @@ import javax.crypto.spec.GCMParameterSpec
 class SecureStore(context: Context) : SecretStore {
     private val prefs = context.getSharedPreferences("altim.secure", Context.MODE_PRIVATE)
 
-    enum class Key(val raw: String) { CREDENTIALS("credentials"), SESSION("session") }
+    /**
+     * The password's key only works while the phone is unlocked (a stolen, locked phone cannot decrypt it). The
+     * session's key also works while it is locked: the background check of the buy alerts needs it.
+     */
+    enum class Key(val raw: String, val alias: String, val unlockedOnly: Boolean) {
+        CREDENTIALS("credentials", "altim.access.credentials", true),
+        SESSION("session", "altim.access.session", false),
+    }
 
-    private val key: SecretKey
-        get() {
-            val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            (ks.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
-            val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
-            gen.init(
-                KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
-                    .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
-                    .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
-                    .setKeySize(256)
-                    .build(),
-            )
-            return gen.generateKey()
-        }
+    private fun key(k: Key): SecretKey {
+        val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+        (ks.getEntry(k.alias, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }
+        val gen = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
+        gen.init(
+            KeyGenParameterSpec.Builder(k.alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
+                .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
+                .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
+                .setKeySize(256)
+                .setUnlockedDeviceRequired(k.unlockedOnly)
+                .build(),
+        )
+        return gen.generateKey()
+    }
 
     override fun set(k: Key, value: String?) {
         if (value.isNullOrEmpty()) return prefs.edit().remove(k.raw).apply()
-        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key) }
+        val cipher = Cipher.getInstance(TRANSFORMATION).apply { init(Cipher.ENCRYPT_MODE, key(k)) }
         val sealed = cipher.iv + cipher.doFinal(value.toByteArray(Charsets.UTF_8))
         prefs.edit().putString(k.raw, Base64.encodeToString(sealed, Base64.NO_WRAP)).apply()
     }
@@ -48,7 +55,7 @@ class SecureStore(context: Context) : SecretStore {
         return runCatching {
             val sealed = Base64.decode(raw, Base64.NO_WRAP)
             val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, sealed, 0, IV_BYTES))
+            cipher.init(Cipher.DECRYPT_MODE, key(k), GCMParameterSpec(128, sealed, 0, IV_BYTES))
             cipher.doFinal(sealed, IV_BYTES, sealed.size - IV_BYTES).toString(Charsets.UTF_8)
         }.getOrNull()
     }
@@ -56,7 +63,6 @@ class SecureStore(context: Context) : SecretStore {
     override fun clear() = prefs.edit().clear().apply()
 
     private companion object {
-        const val ALIAS = "altim.access"
         const val TRANSFORMATION = "AES/GCM/NoPadding"
         const val IV_BYTES = 12
     }

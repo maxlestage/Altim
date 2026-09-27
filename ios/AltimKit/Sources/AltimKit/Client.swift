@@ -57,7 +57,8 @@ final class CookieJar: @unchecked Sendable {
     }
 }
 
-/// Stops at the login redirect to read the session cookie it sets.
+/// Never follows a redirect: at login it lets us read the session cookie; everywhere else it guarantees the cookie
+/// (sent by hand on each request) never reaches another host, even if something in front of the server redirects.
 final class NoRedirect: NSObject, URLSessionTaskDelegate {
     func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
                     newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
@@ -82,6 +83,8 @@ public final class AltimClient: Sendable {
         jar = CookieJar(sessionCookie)
     }
 
+    private let renewal = Renewal()
+
     /// Current session cookie value (the app keeps it in the Keychain to avoid a login at each launch).
     public var sessionCookie: String? { jar.value }
 
@@ -93,7 +96,7 @@ public final class AltimClient: Sendable {
         c.urlCache = nil
         c.requestCachePolicy = .reloadIgnoringLocalCacheData
         c.timeoutIntervalForRequest = 45
-        return URLSession(configuration: c)
+        return URLSession(configuration: c, delegate: NoRedirect(), delegateQueue: nil)
     }
 
     /// "mon-app.herokuapp.com" → https://mon-app.herokuapp.com (http only for a local server).
@@ -103,7 +106,11 @@ public final class AltimClient: Sendable {
         if t.isEmpty { return nil }
         if !t.contains("://") { t = "https://" + t }
         guard let url = URL(string: t), let scheme = url.scheme?.lowercased(), let host = url.host, !host.isEmpty else { return nil }
-        let local = host == "localhost" || host == "127.0.0.1" || host.hasSuffix(".local")
+        // Plain http only for this device; ".local" names (anyone on the Wi-Fi can answer them) only in development.
+        var local = host == "localhost" || host == "127.0.0.1"
+        #if DEBUG
+        local = local || host.hasSuffix(".local")
+        #endif
         guard scheme == "https" || (scheme == "http" && local) else { return nil }
         if !url.path.isEmpty && url.path != "/" { return nil }
         return url
@@ -196,6 +203,10 @@ public final class AltimClient: Sendable {
 
     public func macro() async throws -> MacroInfo { try await get("/api/macro", [:]) }
 
+    func getAlerts(_ assets: [Asset]) async throws -> [BuyAlert] {
+        try await get("/api/alerts", ["symbols": Self.list(assets)])
+    }
+
     public func selection(_ h: Horizon, kind: Kind) async throws -> SelectionResult {
         let (data, status) = try await authorized(request("/api/selection", query: ["horizon": h.rawValue, "kind": kind.rawValue]))
         if status == 202 { return .pending }
@@ -210,10 +221,11 @@ public final class AltimClient: Sendable {
         return r
     }
 
-    /// Logs in again after a 401 (session expired) and tells whether it worked.
+    /// Logs in again after a 401 (session expired) and tells whether it worked. Parallel callers share one login,
+    /// and a failed attempt is not retried for a minute (a changed password must not burn the server's lock-out quota).
     public func renewSession() async -> Bool {
         guard let credentials else { return false }
-        return (try? await login(credentials)) != nil
+        return await renewal.run { (try? await self.login(credentials)) != nil }
     }
 
     // MARK: Plumbing
@@ -302,5 +314,34 @@ public final class AltimClient: Sendable {
             for try await p in group { parts.append(p) }
             return parts.sorted { $0.0 < $1.0 }.flatMap { $0.1 }
         }
+    }
+}
+
+/// One re-login at a time, and not more than once a minute after a failure.
+final class Renewal: @unchecked Sendable {
+    private let lock = NSLock()
+    private var running: Task<Bool, Never>?
+    private var failedAt: Date?
+
+    func run(_ attempt: @escaping @Sendable () async -> Bool) async -> Bool {
+        lock.lock()
+        if let failedAt, Date().timeIntervalSince(failedAt) < 60 {
+            lock.unlock()
+            return false
+        }
+        let task: Task<Bool, Never>
+        if let running {
+            task = running
+        } else {
+            task = Task { await attempt() }
+            running = task
+        }
+        lock.unlock()
+        let ok = await task.value
+        lock.lock()
+        if running == task { running = nil }
+        failedAt = ok ? nil : Date()
+        lock.unlock()
+        return ok
     }
 }

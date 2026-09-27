@@ -10,6 +10,7 @@ import { Security } from "./components/Security";
 import { Transparency } from "./components/Transparency";
 import { FAQ } from "./components/FAQ";
 import { Download } from "./components/Download";
+import { Apps } from "./components/Apps";
 import { Footer } from "./components/Footer";
 import { MobileCTA } from "./components/MobileCTA";
 import { LEGAL_PAGES, LegalPage } from "./components/Legal";
@@ -44,6 +45,7 @@ function Home() {
         <Ticker ticks={ticks} />
         <LiveSignal />
         <Features />
+        <Apps />
         <Sources />
         <HowItWorks />
         <Transparency />

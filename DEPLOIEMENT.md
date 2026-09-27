@@ -63,6 +63,11 @@ Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depui
 1. Acceptez l'avertissement, puis saisissez l'adresse du serveur (par exemple `mon-app.herokuapp.com`, sans `https://`) → **Continuer**.
 2. Identifiant (`ALTIM_USER`) et mot de passe → **Se connecter**. Aucun code n'est demandé si `ALTIM_TOTP_SECRET` n'est pas défini sur Heroku.
 3. C'est tout : le mot de passe est chiffré dans le trousseau de l'iPhone, l'app se reconnecte seule quand la session de 7 jours expire, et Face ID protège l'ouverture (désactivable dans Réglages).
+4. **Notifications d'achat** : Réglages → « Me prévenir quand je peux acheter » → autorisez les notifications. Elles s'affichent aussi sur l'Apple Watch quand l'iPhone est verrouillé.
+5. **Dynamic Island** : sur la fiche d'un actif, bouton « Suivre » (icône en haut à droite). Réglages → Live Activity pour l'activer ou arrêter le suivi.
+6. **Apple Watch** : l'app s'installe avec celle de l'iPhone (app Watch de l'iPhone → Altim → Installer si ce n'est pas automatique). Elle affiche ce que l'iPhone a calculé ; « Mettre à jour » lui demande une nouvelle vérification.
+
+Le build TestFlight contient trois éléments signés automatiquement par le workflow : l'app (`com.maxlestage.altim`), l'extension Live Activity (`com.maxlestage.altim.widgets`) et l'app Watch (`com.maxlestage.altim.watchkitapp`). Aucune clé de notification Apple (APNs) n'est nécessaire : les notifications sont créées par l'iPhone lui-même après chaque vérification.
 
 Sans compte Apple Developer, le site reste utilisable comme une app : Safari → **Ouvrir l'app** → **Partager** → **Sur l'écran d'accueil**.
 
@@ -81,6 +86,7 @@ Android n'accepte une mise à jour que si elle est signée par la **même clé**
 1. Onglet **Actions** → **Android APK signé** → **Run workflow**. Environ 5 min plus tard : **Summary** → **Artifacts** → **Altim-apk**.
 2. Ouvrez le fichier sur le téléphone (décompressez le .zip), autorisez l'installation depuis cette source quand Android le demande, puis **Installer**.
 3. Premier lancement : avertissement, adresse du serveur (`mon-app.herokuapp.com`), identifiant et mot de passe, comme sur iPhone.
+4. **Notifications d'achat** : Réglages → « Me prévenir quand je peux acheter » → Autoriser. Android vérifie toutes les 15 minutes, même app fermée (tant que l'optimisation de batterie ne la bloque pas).
 
 Pour un simple essai sans clé, chaque exécution du workflow **Android** fournit aussi un APK de test (`altim-debug-apk`) ; il ne pourra pas être mis à jour par l'APK signé (désinstallez-le avant).
 

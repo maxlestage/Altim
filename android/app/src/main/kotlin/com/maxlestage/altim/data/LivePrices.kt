@@ -30,7 +30,7 @@ class LivePrices(private val scope: CoroutineScope) {
     fun price(a: Asset): LiveTick? = ticks[a.id]
 
     /** Follows these assets (restarts the stream only when the list changes). */
-    fun follow(assets: List<Asset>, client: AltimClient?, onExpired: () -> Unit) {
+    fun follow(assets: List<Asset>, client: AltimClient?, onRenewed: () -> Unit = {}, onExpired: () -> Unit) {
         val unique = assets.associateBy { it.id }
         val wanted = unique.keys.sorted()
         if (client == null || wanted.isEmpty()) return stop()
@@ -52,6 +52,10 @@ class LivePrices(private val scope: CoroutineScope) {
                         onExpired()
                         return@launch
                     }
+                    onRenewed()
+                    // A pause even after a successful login: a stream refused again must not loop on logins.
+                    delay(wait)
+                    wait = minOf(30_000L, wait * 2)
                     continue
                 } catch (_: Exception) {
                 }

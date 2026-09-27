@@ -3,6 +3,10 @@ import Foundation
 /// Incremental Server-Sent Events parser: feed it bytes as they arrive, get the complete `data:` payloads.
 /// Handles chunks cut anywhere (even inside a UTF-8 character), CRLF, comments (`: ok` heartbeats) and `retry:`.
 public struct SSEParser: Sendable {
+    /// Bounds against a broken or hostile server: a line longer than 64 KB, or an event of more than 64 lines,
+    /// is dropped instead of filling the memory.
+    static let maxLine = 64 * 1024
+    static let maxLines = 64
     private var buffer = Data()
     private var data: [String] = []
     public private(set) var retryMs: Int?
@@ -12,6 +16,12 @@ public struct SSEParser: Sendable {
     public mutating func feed(_ chunk: Data) -> [String] {
         buffer.append(chunk)
         var events: [String] = []
+        defer {
+            if buffer.count > Self.maxLine {
+                buffer.removeAll()
+                data.removeAll()
+            }
+        }
         while let nl = buffer.firstIndex(of: 0x0A) {
             var lineData = buffer[buffer.startIndex..<nl]
             buffer.removeSubrange(buffer.startIndex...nl)
@@ -23,6 +33,10 @@ public struct SSEParser: Sendable {
             } else if line.hasPrefix(":") {
                 continue
             } else if line.hasPrefix("data:") {
+                if line.utf8.count > Self.maxLine || data.count >= Self.maxLines {
+                    data.removeAll()
+                    continue
+                }
                 data.append(String(line.dropFirst(5)).trimmingLeadingSpace())
             } else if line.hasPrefix("retry:") {
                 retryMs = Int(String(line.dropFirst(6)).trimmingLeadingSpace())

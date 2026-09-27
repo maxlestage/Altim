@@ -7,6 +7,10 @@ on:
     paths: ["android/**", ".github/workflows/android.yml"]
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Tests du noyau, lint, builds Debug et Release

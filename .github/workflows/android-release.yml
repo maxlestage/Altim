@@ -6,6 +6,10 @@ name: Android APK signé
 on:
   workflow_dispatch:
 
+# Least privilege: the jobs only read the repository.
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: ubuntu-latest

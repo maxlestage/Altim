@@ -41,7 +41,10 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 - **Radar** : prix en direct (flux `/api/live`, reconnexion automatique), signal 4 h, fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
 - **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
 - **Sélection** : actions ou cryptos, 8 durées (30 min à 6 mois), méthode, résultat rejoué avec ses limites, plan (entrée, stop, objectif) et montant pour votre budget.
-- **Mes avoirs** : lignes gardées sur l'iPhone, valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne.
+- **Mes avoirs** : lignes gardées sur l'iPhone (fichier protégé, exclu des sauvegardes), valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne.
+- **Notifications « achat possible »** : vérification en arrière-plan (iOS en décide le rythme, au mieux toutes les 15 min) et à chaque ouverture ; une notification seulement quand un actif devient achetable ou que la raison change ; option « seulement les achats conseillés » (signal + zone).
+- **Live Activity et Dynamic Island** : sur la fiche d'un actif, « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island (en direct quand l'app tourne, à chaque vérification en arrière-plan sinon) ; activable dans Réglages.
+- **Apple Watch** : les actifs achetables et leurs raisons, envoyés par l'iPhone (la montre ne détient ni mot de passe ni session) ; les notifications de l'iPhone arrivent au poignet.
 
 Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`) ; avec `ALTIM_SERVER`, `ALTIM_USER` et `ALTIM_PASSWORD`, le test de bout en bout se connecte à un serveur réel (mauvais mot de passe refusé, API fermée sans session, reconnexion automatique, flux en direct). La CI compile l'app en Debug et en Release sur macOS ; l'envoi sur TestFlight se lance depuis l'onglet Actions (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
@@ -49,7 +52,8 @@ Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`
 
 Même application que sur iPhone, écran par écran : connexion privée, Radar en direct, fiche d'un actif (graphique avec la zone d'achat, zones de Fibonacci, garde-fou, macro, actualités), Sélection sur 8 durées avec budget, Mes avoirs, Réglages. Les chiffres viennent du même serveur, avec les mêmes textes et les mêmes seuils de preuve.
 
-- **Sécurité** : mot de passe et session chiffrés en AES-256-GCM par une clé du **Keystore Android** propre au téléphone (non exportable) ; sauvegardes cloud et transferts d'appareil désactivés ; HTTPS obligatoire (HTTP seulement pour un serveur local ou l'émulateur). Empreinte, visage ou code de l'écran à l'ouverture et après 2 minutes en arrière-plan.
+- **Sécurité** : mot de passe et session chiffrés en AES-256-GCM par une clé du **Keystore Android** propre au téléphone (non exportable) ; sauvegardes cloud et transferts d'appareil désactivés ; HTTPS obligatoire (HTTP seulement pour un serveur local ou l'émulateur). Empreinte, visage ou code de l'écran à l'ouverture et après 2 minutes en arrière-plan. La clé du mot de passe ne fonctionne que téléphone déverrouillé ; l'aperçu des apps récentes est masqué.
+- **Notifications « achat possible »** : toutes les 15 minutes (WorkManager), même règle que l'iPhone, sans répétition, résumé au-delà de 3 ; touche → fiche de l'actif.
 - **Tests** : `./gradlew :kit:test` (15 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir, Réglages, avec une capture de chaque écran dans `android/app/build/screens`.
 - **CI** : tests du noyau, lint, build Debug (APK de test téléchargeable dans l'onglet Actions) et Release minifié ; le workflow « Android APK signé » produit l'APK à installer (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
@@ -64,8 +68,9 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 | `GET /api/live?symbols=BTC:crypto,AAPL:stock` | **Prix en direct** (Server-Sent Events) : dernier prix tout de suite, puis chaque changement |
 | `GET /api/zones?symbol=BTC&kind=crypto` | **Zones d'achat** court / moyen / long terme (Fibonacci), vérifiées sur l'historique, avec le contexte macro |
 | `GET /api/macro` | **Contexte macro et géopolitique** : VIX, S&P 500, pétrole, or, dollar, taux, actualités d'escalade |
+| `GET /api/alerts?symbols=…` | **« Puis-je acheter ? »** pour les notifications des apps : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou plus bas cassé ; une clé de situation évite les notifications répétées |
 
-Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire avec déduplication des requêtes et dernières données valides en cas de panne d'une source.
+Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire borné avec déduplication des requêtes et dernières données valides en cas de panne d'une source. Connexion : une vérification à la fois par adresse et 2 au plus sur le serveur (argon2id, 64 Mo chacune : impossible de saturer la mémoire), 5 échecs → 15 min de blocage (IPv6 par /64), plafond global de 30 échecs, session révoquée côté serveur à la déconnexion. API sans CORS ouvert et jamais mise en cache par le navigateur ; 8 flux en direct au plus par adresse ; messages d'erreur sans adresse de source ; échec fermé sur Heroku même sans `NODE_ENV`.
 
 ## Le moteur de signaux
 

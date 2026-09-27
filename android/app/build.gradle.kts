@@ -40,7 +40,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     testOptions {
         unitTests.isIncludeAndroidResources = true
@@ -74,6 +77,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.17")

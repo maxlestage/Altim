@@ -40,6 +40,7 @@ test("validation des paramètres de l'API", async () => {
     "/api/candles?symbol=BTC&interval=5m",
     "/api/candles?symbol=BTC&interval=1h&kind=forex",
     "/api/radar?symbols=AAPL:bond",
+    "/api/alerts?symbols=BTC:crypto,../x:stock",
     "/api/sentiment?symbol=<script>",
     "/api/zones?symbol=../x&kind=crypto",
     "/api/zones?symbol=AAPL&kind=bond",
