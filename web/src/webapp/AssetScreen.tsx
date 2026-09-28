@@ -180,7 +180,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
         </div>
       </div>
 
-      <DecisionCard symbol={symbol} kind={kind} personal={personal} ready={!held || pricesReady} />
+      <DecisionCard symbol={symbol} kind={kind} personal={personal} ready={!held || pricesReady} livePrice={tick?.price ?? null} />
 
       <Segmented<Interval>
         label="Unité de temps"

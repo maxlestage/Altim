@@ -78,13 +78,13 @@ fun Root(model: AppModel) {
             else -> MainTabs(model)
         }
     }
-    // Live prices of everything visible: watch list, holdings, Sélection picks and the open asset.
+    // Live prices of everything visible: watch list, holdings, Sélection picks, simulated positions and the open asset.
     var resumed by remember { mutableStateOf(false) }
     LifecycleResumeEffect(Unit) {
         resumed = true
         onPauseOrDispose { resumed = false }
     }
-    val followed = model.watchlist + model.holdings.map { it.asset } + model.selectionAssets + listOfNotNull(model.focus)
+    val followed = model.watchlist + model.holdings.map { it.asset } + model.selectionAssets + model.paper.positions.map { it.asset } + listOfNotNull(model.focus)
     val key = "${model.phase}|$resumed|" + followed.map { it.id }.toSortedSet().joinToString(",")
     LaunchedEffect(key) {
         if (model.phase != AppModel.Phase.READY || !resumed) model.live.stop()

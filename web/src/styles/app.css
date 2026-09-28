@@ -556,3 +556,66 @@
   .dec-proscons { grid-template-columns: 1fr 1fr; }
   .dec-scenarios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+
+/* ---------- Simulation (paper trading) ----------
+   Mobile first: tables are stacked cards under 720 px; gains / losses always carry a sign (+ / −), never colour alone. */
+.portfolio-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.portfolio-tabs a { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 4px; min-height: 44px; padding: 4px 8px; border-radius: 10px; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.2; }
+.portfolio-tabs a small { font-size: 11px; }
+.portfolio-tabs a.on { background: var(--cyan); color: #02030a; font-weight: 600; box-shadow: 0 0 16px rgba(0, 240, 255, 0.45); }
+.simulation { grid-template-columns: minmax(0, 1fr); }
+.simulation .screen-top { flex-wrap: wrap; align-items: center; }
+.paper-banner { display: flex; gap: 6px; margin: 0; padding: 4px 10px; border-radius: 10px; border: 1px dashed var(--warn); color: var(--warn); font-size: 13px; font-weight: 600; }
+.paper-summary { display: grid; gap: 8px; border-color: rgba(255, 199, 51, 0.45); }
+.paper-summary .big { font-size: 30px; overflow-wrap: anywhere; }
+.paper-pnl { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.paper-pnl .muted { font-family: var(--body); font-size: 13px; }
+.paper-figures { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.paper-figures div { min-width: 0; }
+.paper-figures dt { color: var(--muted); font-size: 12px; }
+.paper-figures dd { margin: 2px 0 0; font-size: 14px; overflow-wrap: anywhere; }
+.paper-positions { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.paper-pos { display: grid; gap: 10px; padding: 14px; border-radius: 14px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); min-width: 0; }
+.paper-pos-pnl { flex-shrink: 0; font-size: 15px; }
+.paper-decision { margin: 0; color: var(--muted); overflow-wrap: anywhere; }
+.paper-decision b { color: var(--text); }
+.paper-pos .sell-sim { width: 100%; color: var(--sell); border-color: var(--sell); background: rgba(255, 59, 92, 0.08); box-shadow: none; }
+.paper-notices { display: grid; gap: 8px; }
+.paper-notices .notice { border-color: rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.06); }
+.paper-h3 { margin: 18px 0 8px; font-size: 15px; }
+.paper-rules summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; font-weight: 600; }
+.paper-rules ul { margin-top: 8px; }
+.paper-cta { padding-top: 10px; border-top: 1px solid var(--line); }
+.paper-cta .btn { width: 100%; }
+.notice.ok { background: rgba(57, 255, 136, 0.08); border-color: rgba(57, 255, 136, 0.4); }
+.notice.ok .link { display: inline-flex; align-items: center; min-height: 44px; }
+
+/* Tables → stacked cards on phones. */
+.paper-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.paper-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.paper-table, .paper-table tbody, .paper-table tr, .paper-table th, .paper-table td { display: block; }
+.paper-table tbody { display: grid; gap: 10px; }
+.paper-table tr { padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(255, 255, 255, 0.03); }
+.paper-table th[scope="row"] { text-align: left; font-weight: 400; padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); overflow-wrap: anywhere; }
+.paper-table td { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; text-align: right; overflow-wrap: anywhere; min-width: 0; }
+.paper-table td::before { content: attr(data-label); color: var(--muted); font-family: var(--body); text-align: left; flex-shrink: 0; }
+.paper-table.verdicts th[scope="row"] { font-weight: 700; }
+.paper-trade-dec { display: block; font-size: 12px; }
+
+@media (min-width: 720px) {
+  .portfolio-tabs { max-width: 560px; }
+  .paper-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .paper-figures.six { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .paper-positions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .paper-positions .paper-figures.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .paper-pos .sell-sim { width: auto; justify-self: start; }
+  .paper-cta .btn { width: auto; justify-self: start; }
+  .paper-table { display: table; }
+  .paper-table thead { position: static; width: auto; height: auto; clip: auto; display: table-header-group; }
+  .paper-table tbody { display: table-row-group; }
+  .paper-table tr { display: table-row; border: 0; background: none; }
+  .paper-table th, .paper-table td { display: table-cell; padding: 8px 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); text-align: right; vertical-align: top; }
+  .paper-table th[scope="row"], .paper-table thead th:first-child { text-align: left; margin: 0; }
+  .paper-table thead th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .paper-table td::before { content: none; }
+}

@@ -41,6 +41,7 @@ struct AltimApp: App {
             case .active:
                 model.willEnterForeground()
                 Task { await BuyNotifications.foregroundCheck(model) }
+                Task { await model.paperCheckExits() }
             default: break
             }
         }
@@ -83,7 +84,8 @@ struct RootView: View {
     }
 
     private var followed: [Asset] {
-        model.watchlist + model.holdings.map(\.asset) + model.selectionAssets + [model.focus, model.activityAsset].compactMap { $0 }
+        model.watchlist + model.holdings.map(\.asset) + model.paper.positions.map(\.asset) + model.selectionAssets
+            + [model.focus, model.activityAsset].compactMap { $0 }
     }
 
     private var followKey: String {

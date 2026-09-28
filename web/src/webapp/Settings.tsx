@@ -78,6 +78,12 @@ export function Settings() {
       </div>
 
       <div className="card">
+        <h2 className="card-title">Simulation (sans argent réel)</h2>
+        <p className="muted small">Un portefeuille virtuel pour tester les décisions d'Altim : achats simulés depuis la carte Décision, ventes au stop ou à l'objectif, résultats par décision. Aucun argent réel, aucun ordre passé, tout reste dans ce navigateur.</p>
+        <a href="/app/simulation" onClick={onLink} className="btn btn-ghost">Ouvrir la simulation</a>
+      </div>
+
+      <div className="card">
         <h2 className="card-title">Comprendre</h2>
         <p className="muted small">Signal, zone d'achat, stop, volatilité, flat tax… les mots d'Altim expliqués simplement.</p>
         <a href="/app/lexique" onClick={onLink} className="btn btn-ghost">Ouvrir le lexique</a>
