@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { api, INTERVAL_LABEL, type BuyAlert, type MacroInfo, type RadarRow, type Sentiment } from "./api";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval } from "./store";
+import { BriefCard } from "./BriefCard";
 import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { formatPrice } from "../market";
@@ -98,6 +99,8 @@ export function Radar() {
         onChange={(v) => setState({ interval: v })}
         options={(["1h", "4h", "1d"] as Interval[]).map((i) => [i, INTERVAL_LABEL[i]])}
       />
+
+      <BriefCard />
 
       {error && <p className="notice warn">⚠ {error} — nouvelle tentative automatique.</p>}
 
