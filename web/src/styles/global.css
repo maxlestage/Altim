@@ -118,8 +118,9 @@ strong, b { color: #fff; }
 /* ---------- Hero ---------- */
 main { position: relative; }
 .hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 48px; max-width: var(--max); margin: 0 auto; padding: 36px var(--gutter) 48px; }
-.hero .chip { white-space: normal; border-radius: 16px; }
-.chip { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 8px; margin: 0 0 18px; padding: 7px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.06); }
+.hero .chip { display: block; width: fit-content; white-space: normal; border-radius: 16px; line-height: 1.5; }
+.hero .chip .dot { display: inline-block; vertical-align: middle; margin: -2px 8px 0 0; }
+.chip { display: inline-flex; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 8px; margin: 0 0 18px; padding: 7px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.06); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--buy); box-shadow: 0 0 10px var(--buy); animation: pulse 1.6s infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 .hero h1 { font-size: clamp(40px, 12vw, 92px); font-weight: 900; }
