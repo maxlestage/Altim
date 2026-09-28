@@ -29,6 +29,8 @@ object AltimColors {
     val buy = Color(0xFF38FF87)
     val sell = Color(0xFFFF3B5C)
     val warning = Color(0xFFFFC733)
+    /** "Risque élevé" of a decision, between the warning yellow and the sell red. */
+    val orange = Color(0xFFFF8A3D)
     val textSecondary = Color.White.copy(alpha = 0.6f)
 
     // Allocation: categorical palette validated (dark mode, colorblind readers).

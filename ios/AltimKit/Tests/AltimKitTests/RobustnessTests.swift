@@ -10,11 +10,13 @@ final class StubProtocol: URLProtocol {
     enum Step { case status(Int, String), offline }
     nonisolated(unsafe) static var script: [Step] = []
     nonisolated(unsafe) static var calls = 0
+    nonisolated(unsafe) static var urls: [URL] = []
 
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.calls += 1
+        if let url = request.url { Self.urls.append(url) }
         let step = Self.script.isEmpty ? .offline : Self.script.removeFirst()
         switch step {
         case let .status(code, body):
@@ -37,6 +39,7 @@ final class RobustnessTests: XCTestCase {
         AltimClient.retryDelays = [0.01, 0.01]
         StubProtocol.script = []
         StubProtocol.calls = 0
+        StubProtocol.urls = []
         dir = FileManager.default.temporaryDirectory.appendingPathComponent("altim-cache-\(UUID().uuidString)")
     }
 

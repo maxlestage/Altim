@@ -92,6 +92,9 @@ class ScreensTest {
         // 4. Asset page: chart, zones, guard, macro.
         compose.onAllNodes(hasText("Bitcoin")).onFirst().performClick()
         waitFor("Retracement 38,2 %", 90_000)
+        // Decision card (/api/decision), first card of the page; informational (nothing held yet).
+        waitFor("Confiance du modèle", 90_000)
+        waitFor("Mode informationnel")
         waitFor("Tendance de fond", 90_000)
         waitFor("sources en accord", 90_000)
         waitFor("investis le", 90_000)

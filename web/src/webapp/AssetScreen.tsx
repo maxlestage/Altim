@@ -16,6 +16,8 @@ import { ActionBadge, Change, Gauge, PriceChart, ReliabilityBadge, Segmented } f
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { adviseAsset } from "../engine/advice";
 import { analyzePortfolio, type MarketInput } from "../engine/holdings";
+import { DecisionCard } from "./DecisionCard";
+import { averageCost, portfolioWeights } from "./decision";
 
 type Loaded = { snap: Snapshot; signal: Signal | null; quote: Quote | null };
 
@@ -25,15 +27,23 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
   const held = holdingsState.holdings.find((h) => h.symbol === symbol && h.kind === kind) ?? null;
   const [heldMarket, setHeldMarket] = useState<MarketInput | null>(null);
   const [holdingPrices, setHoldingPrices] = useState<Record<string, number>>({});
+  // false while the prices of the held lines load: the personal decision waits for its weights.
+  const [pricesReady, setPricesReady] = useState(false);
   const holdingsKey = holdingsState.holdings.map((h) => `${h.kind}:${h.symbol}`).sort().join(",");
 
   // Current value of every line (same valuation as "Mes avoirs").
   useEffect(() => {
-    if (!holdingsState.holdings.length) return setHoldingPrices({});
+    if (!holdingsState.holdings.length) {
+      setHoldingPrices({});
+      setPricesReady(true);
+      return;
+    }
     let alive = true;
+    setPricesReady(false);
     api.quotes(holdingsState.holdings)
       .then((q) => alive && setHoldingPrices(Object.fromEntries(q.map((x) => [`${x.kind}:${x.symbol}`, x.price]))))
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => alive && setPricesReady(true));
     return () => {
       alive = false;
     };
@@ -146,6 +156,12 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       })
     : null;
 
+  // Personal decision: average cost and each line's share of the portfolio (never quantities nor amounts). Prices
+  // of the first load, not the live ticks, so the request does not change at every tick.
+  const personal = held
+    ? { cost: averageCost(holdingsState.holdings, symbol, kind), weights: portfolioWeights(holdingsState.holdings, holdingPrices, holdingsState.cash) }
+    : null;
+
   return (
     <section className="app-screen asset-screen">
       <a href="/app" onClick={onLink} className="back">← Radar</a>
@@ -164,6 +180,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
         </div>
       </div>
 
+      <DecisionCard symbol={symbol} kind={kind} personal={personal} ready={!held || pricesReady} />
+
       <Segmented<Interval>
         label="Unité de temps"
         value={interval}
@@ -176,7 +194,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
 
       {advice && (
         <div className={`card advice advice-${advice.tone}`}>
-          <h2 className="card-title">Le conseil d'Altim</h2>
+          <h2 className="card-title">Lecture du signal · {INTERVAL_LABEL[interval]}</h2>
+          <p className="muted small">Une seule unité de temps et le signal technique : la décision en haut de page réunit toutes les familles, les interdictions d'achat et le rapport gain/risque, et c'est elle qui prime.</p>
           <p className="advice-title">{advice.title}</p>
           <ul>{advice.points.map((p) => <li key={p}>{p}</li>)}</ul>
           <div className="advice-actions">

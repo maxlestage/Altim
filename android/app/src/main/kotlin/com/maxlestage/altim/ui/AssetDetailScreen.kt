@@ -47,6 +47,7 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Candle
+import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.kit.FibZone
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.GuardFactor
@@ -71,6 +72,35 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
     var guard by remember(asset.id) { mutableStateOf<Loadable<GuardReport>>(Loadable.Loading) }
     var reload by remember { mutableStateOf(0) }
     var targetOpen by remember(asset.id) { mutableStateOf(false) }
+    var decision by remember(asset.id) { mutableStateOf<Loadable<Decision>>(Loadable.Loading) }
+    var decisionReload by remember { mutableStateOf(0) }
+    val held = model.holdings.any { it.asset.id == asset.id }
+
+    // Personal mode when held: the average cost and the portfolio weights (percentages only) go with the request,
+    // for this answer only; otherwise the informational decision.
+    LaunchedEffect(asset.id, reload, decisionReload, held, model.holdings) {
+        val client = model.client ?: return@LaunchedEffect
+        decision = Loadable.Loading
+        decision = try {
+            var cost: Double? = null
+            var weights: String? = null
+            if (held) {
+                cost = Decision.cost(model.holdings, asset)
+                val assets = model.holdings.map { it.asset }.distinctBy { it.id }
+                val prices = runCatching { client.quotes(assets).associate { "${it.kind.raw}:${it.symbol}" to it.price } }.getOrDefault(emptyMap()) +
+                    assets.mapNotNull { a -> model.live.price(a)?.let { a.id to it.price } }
+                weights = Decision.weights(model.holdings, prices)
+            }
+            Loadable.Loaded(client.decision(asset, cost, weights))
+        } catch (e: AltimException.Unauthorized) {
+            model.sessionLost()
+            return@LaunchedEffect
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Loadable.Failed(e.message ?: "Décision indisponible")
+        }
+    }
 
     LaunchedEffect(asset.id, reload) {
         val client = model.client ?: return@LaunchedEffect
@@ -119,6 +149,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 PriceTargetCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
             }
             Header(model, asset, signal, zones.value)
+            DecisionCard(decision, held) { decisionReload++ }
             Card {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     INTERVALS.forEachIndexed { i, (k, label) ->
