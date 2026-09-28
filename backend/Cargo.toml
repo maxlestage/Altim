@@ -17,6 +17,7 @@ chrono-tz = "0.10.4"
 futures = "0.3.34"
 hex = "0.4.3"
 hmac = "0.13.0"
+icu_normalizer = { version = "2.3.0", default-features = false, features = ["compiled_data"] }
 indexmap = { version = "2", features = ["serde"] }
 percent-encoding = "2.3.2"
 rand = "0.10.3"
@@ -24,6 +25,7 @@ regex = "1.13.1"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls", "gzip", "brotli", "deflate", "http2", "charset"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["preserve_order"] }
+sha1 = "0.11.0"
 sha2 = "0.11.0"
 subtle = "2.6.1"
 tokio = { version = "1.53.1", features = ["full"] }

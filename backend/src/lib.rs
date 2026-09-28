@@ -4,3 +4,5 @@ pub mod engine;
 pub mod http;
 pub mod js;
 pub mod types;
+pub mod auth;
+pub mod universe;
