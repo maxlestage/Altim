@@ -301,7 +301,7 @@ async fn live_stocks() {
     for sym in ["AAPL", "NVDA", "SPY"] {
         let candles = altim::market::long_daily(sym, Kind::Stock).await.map(|c| c.candles).unwrap_or_default();
         let price = candles.last().map(|c| c.close);
-        let f = fundamentals::stock_fundamentals(sym, price).await.unwrap();
+        let f = fundamentals::stock_fundamentals(sym, price, &candles).await.unwrap();
         println!("\n{sym} (cours {price:?}) : {}", serde_json::to_string_pretty(&f).unwrap());
         let l = liquidity::liquidity(sym, Kind::Stock, &candles).await;
         println!("{sym} liquidité : {l:?}");
@@ -350,4 +350,160 @@ fn paprika_fallback() {
     assert!((circ - 20_090_681.0).abs() < 1_000.0, "{circ}");
     assert!((c.fdv.unwrap() - 83741.30302596571 * 21e6).abs() < 1.0);
     assert!(altim::tokenomics::parse::paprika(&d, "ZZZ").is_none());
+}
+
+// ---------- Valuation history, ROIC, sector, peers ----------
+
+/// Apple's facts since mid-2019 (companyfacts trimmed to the concepts read, 10-K / 10-Q only) and 5 years of
+/// StockAnalysis daily closes (to 25/09/2026), both captured 28/09/2026.
+#[test]
+fn ratios_roic_and_valuation_history() {
+    let facts = sec::company_facts(&sample("sec-aapl-companyfacts-5y.json"));
+    let f = filed(&facts).unwrap();
+    assert_eq!(f.period, "12 mois au 27/06/2026 (10-Q)");
+    let s = assemble(Some(&f), None, Some(341.07), 1_790_600_000_000, "");
+    // 341.07 × 14 594 180 000 = 4 977.6 bn; ÷ revenue 466.823 bn, ÷ equity 107.520 bn
+    assert_eq!(s.ps, Some(10.66));
+    assert_eq!(s.pb, Some(46.29));
+    // Effective tax = income tax ÷ pre-tax income (12 months); NOPAT = 154.859 × (1 − t); ÷ (84.297 + 107.520 − 39.544)
+    let t = f.tax_rate.unwrap();
+    assert!((0.15..0.2).contains(&t), "{t}");
+    let expected = 154.859 * (1.0 - t) / (84.297 + 107.520 - 39.544) * 100.0;
+    assert!(close(s.roic.unwrap(), expected, 0.01), "{:?} vs {expected}", s.roic);
+    assert_eq!((s.roic_tax_rate, s.roic_tax_statutory), (Some(17.3), false));
+    // Dates of the figures: period end 27/06/2026, 10-Q filed 31/07/2026 (midnight UTC).
+    assert_eq!(s.period_end, Some(1_782_518_400_000));
+    assert_eq!(s.filed_at, Some(1_785_456_000_000));
+    assert!(s.guidance.contains("non disponibles"));
+    // Without effective rate: the statutory 21 %, said so.
+    let mut no_tax = f.clone();
+    no_tax.tax_rate = None;
+    assert_eq!(fundamentals::roic(&no_tax).map(|r| (r.1, r.2)), Some((21.0, true)));
+
+    let closes: Vec<(i64, f64)> =
+        altim::market::parse_stock::stockanalysis(&sample("stockanalysis-aapl-5y.json")).unwrap().iter().map(|c| (c.time, c.close)).collect();
+    let h = fundamentals::valuation_history(&facts, &closes, s.per, s.ps, "StockAnalysis").unwrap();
+    let per = h.per.as_ref().unwrap();
+    // No split in the window: every day kept (27/09/2021 → 25/09/2026).
+    assert_eq!(per.days, 1255);
+    assert_eq!((per.current, per.median, per.min, per.max, per.percentile), (39.16, 31.29, 20.46, 42.6, 95.0));
+    let ps = h.ps.as_ref().unwrap();
+    assert_eq!((ps.median, ps.percentile), (7.7, 99.0));
+    assert!(h.source.ends_with("StockAnalysis"));
+    let v = fundamentals::valuation_verdict(Some(&h), s.peg, s.eps_growth).unwrap();
+    assert!(v.starts_with("Valorisation élevée par rapport à sa propre histoire (PER de 39,2 ; plus haut que 95 % des jours sur 5 ans)"), "{v}");
+    assert!(v.ends_with("croissance qui la justifie en partie (PEG 1,22)"), "{v}");
+    assert!(fundamentals::valuation_verdict(Some(&h), Some(3.1), Some(8.0)).unwrap().ends_with("croissance qui ne la justifie pas (PEG 3,1)"));
+    assert!(fundamentals::valuation_verdict(Some(&h), None, Some(-4.0)).unwrap().contains("bénéfice par action en recul"));
+
+    // A 4-for-1 split not restated in the older filings: the days on the old basis are left out, never adjusted.
+    let mut split = facts.clone();
+    for n in ["EarningsPerShareDiluted", "EntityCommonStockSharesOutstanding"] {
+        for x in split.concepts.get_mut(n).unwrap().iter_mut().filter(|x| x.end < 19_000) {
+            x.val *= if n.starts_with("Earnings") { 4.0 } else { 0.25 };
+        }
+    }
+    let h2 = fundamentals::valuation_history(&split, &closes, s.per, s.ps, "StockAnalysis").unwrap();
+    assert!(h2.per.as_ref().unwrap().days < 1255 && h2.per.as_ref().unwrap().days >= 250, "{h2:?}");
+    // Under a year of history: nothing.
+    assert_eq!(fundamentals::valuation_history(&facts, &closes[closes.len() - 200..], s.per, s.ps, "x"), None);
+}
+
+#[test]
+fn sector_from_the_sic_code() {
+    let s = sec::submissions(&sample("sec-aapl-submissions.json")).unwrap();
+    assert_eq!((s.label.as_str(), s.sic.as_str(), s.sic_description.as_str()), ("Industrie", "3571", "Electronic Computers"));
+    assert_eq!(sec::sic_division("6022"), Some("Finance et immobilier"));
+    assert_eq!(sec::sic_division("7372"), Some("Services"));
+    assert_eq!(sec::sic_division(""), None);
+    assert_eq!(sec::submissions(&serde_json::json!({"sic": ""})), None);
+}
+
+#[test]
+fn peers_of_the_same_activity() {
+    let rows = sec::screener(&sample("nasdaq-screener-computers.json"));
+    let apple = rows.iter().find(|r| r.symbol == "AAPL").unwrap();
+    assert_eq!((apple.name.as_str(), apple.industry.as_str(), apple.price), ("Apple Inc.", "Computer Manufacturing", Some(341.07)));
+    let (group, peers) = fundamentals::pick_peers(&rows, "aapl", 4).unwrap();
+    assert_eq!(group, "Computer Manufacturing");
+    // Closest market caps first; Microsoft is in another activity.
+    let syms: Vec<&str> = peers.iter().map(|p| p.symbol.as_str()).collect();
+    // Super Micro's preferred depositary shares (SMCIP) are not its common stock: left out.
+    assert_eq!(syms, ["DELL", "IBM", "SMCI", "HPQ"]);
+    assert!(fundamentals::pick_peers(&rows, "ZZZZ", 4).is_none());
+
+    let facts = sec::company_facts(&sample("sec-aapl-companyfacts-5y.json"));
+    let f = filed(&facts).unwrap();
+    let p = fundamentals::peer(apple, &f);
+    assert_eq!((p.per, p.ps, p.operating_margin), (Some(39.16), Some(10.66), Some(33.17)));
+    let mk = |sym: &str, per: f64, margin: f64| altim::engine::decision_types::Peer {
+        symbol: sym.into(),
+        name: sym.into(),
+        per: Some(per),
+        ps: None,
+        operating_margin: Some(margin),
+        net_margin: None,
+        revenue_growth: None,
+        period_end: 0,
+    };
+    assert_eq!(fundamentals::compare("X", vec![mk("A", 10.0, 5.0), mk("B", 20.0, 7.0)], 0), None, "2 peers: no comparison");
+    let c = fundamentals::compare("Computer Manufacturing", vec![mk("A", 10.0, 5.0), mk("B", 20.0, 7.0), mk("C", 16.0, 9.0)], 0).unwrap();
+    assert_eq!((c.median_per, c.median_operating_margin, c.median_ps), (Some(16.0), Some(7.0), None));
+    let s = assemble(Some(&f), None, Some(341.07), 0, "");
+    let note = fundamentals::peer_note(&s, &c);
+    assert_eq!(
+        note,
+        "Comparée à 3 sociétés de même activité (Computer Manufacturing, classement Nasdaq), en médiane : PER 39,2 contre 16, marge opérationnelle 33,2 % contre 7 %"
+    );
+}
+
+// ---------- Developer activity, stablecoins ----------
+
+#[test]
+fn developer_activity() {
+    // CoinGecko's documented `developer_data` (no longer returned by the public API on 28/09/2026: read when present).
+    let d = serde_json::json!({"categories": ["Smart Contract Platform", "Layer 1 (L1)"], "developer_data": {
+        "forks": 21000, "stars": 48000, "subscribers": 2300, "total_issues": 9000, "closed_issues": 8700,
+        "pull_requests_merged": 11200, "pull_request_contributors": 850,
+        "code_additions_deletions_4_weeks": {"additions": 5210, "deletions": -3120}, "commit_count_4_weeks": 97}});
+    let a = tok::developer(&d).unwrap();
+    assert_eq!((a.commits4w, a.pull_requests_merged, a.contributors, a.stars), (Some(97.0), Some(11200.0), Some(850.0), Some(48000.0)));
+    assert_eq!((a.additions4w, a.deletions4w, a.smart_contract_platform), (Some(5210.0), Some(3120.0), true));
+    assert_eq!(tok::developer(&sample("coingecko-ethereum-links.json")), None);
+    assert_eq!(tok::developer(&serde_json::json!({"developer_data": {"commit_count_4_weeks": null}})), None);
+    // Real CoinGecko page (trimmed): repositories and categories.
+    let eth = sample("coingecko-ethereum-links.json");
+    assert_eq!(tok::github_repo(&eth).as_deref(), Some("ethereum/go-ethereum"));
+    assert!(tok::smart_contract_platform(&eth));
+    assert_eq!(tok::github_repo(&serde_json::json!({"links": {"repos_url": {"github": ["https://github.com/org"]}}})), None);
+    // GitHub REST formats (documented shapes: GitHub is not reachable from the test machine).
+    let weeks: Vec<Value> =
+        (0..52).map(|i| serde_json::json!({"week": 1_700_000_000 + i * 604_800, "total": i, "days": [0, 0, 0, 0, 0, 0, 0]})).collect();
+    assert_eq!(tok::github_commits4w(&Value::Array(weeks)), Some((48 + 49 + 50 + 51) as f64));
+    assert_eq!(tok::github_commits4w(&serde_json::json!({})), None, "HTTP 202: statistics being computed");
+    let freq = serde_json::json!([[1, 10, -1], [2, 20, -2], [3, 30, -3], [4, 40, -4], [5, 50, -5]]);
+    assert_eq!(tok::github_lines4w(&freq), Some((140.0, 14.0)));
+    assert_eq!(tok::github_merged(&serde_json::json!({"total_count": 5321, "incomplete_results": false, "items": []})), Some(5321.0));
+    assert_eq!(tok::github_merged(&serde_json::json!({"total_count": 5321, "incomplete_results": true})), None);
+    assert_eq!(tok::github_stars(&serde_json::json!({"stargazers_count": 49000, "archived": false})), Some(49000.0));
+    assert_eq!(tok::github_stars(&serde_json::json!({"stargazers_count": 49000, "archived": true})), None);
+}
+
+#[test]
+fn stablecoin_flows() {
+    // DefiLlama stablecoincharts (last 40 days, captured 28/09/2026): every peg's USD value summed.
+    let s = tok::stablecoins(&sample("defillama-stablecoincharts-all.json"), "Tous réseaux").unwrap();
+    assert_eq!(s.date, 1_790_553_600_000);
+    assert_eq!(s.total, 313_088_296_545.0);
+    assert_eq!((s.change7d, s.change7d_pct), (Some(2_801_975_209.0), Some(0.9)));
+    assert_eq!((s.change30d, s.change30d_pct), (Some(4_225_368_391.0), Some(1.37)));
+    let e = tok::stablecoins(&sample("defillama-stablecoincharts-ethereum.json"), "Ethereum").unwrap();
+    assert_eq!((e.scope.as_str(), e.total, e.change30d_pct), ("Ethereum", 148_452_954_020.0, Some(-0.18)));
+    assert_eq!(tok::stablecoins(&serde_json::json!([]), "x"), None);
+
+    let f = tokenomics::assemble("ETH", None, None, Some(1.0), None, None, None, (None, None));
+    assert!(f.not_covered.contains("baleines") && f.not_covered.contains("liquidations") && f.not_covered.contains("staking"));
+    let f = tokenomics::with_onchain(f, None, Some(s), Some(e));
+    assert_eq!(f.source, "DefiLlama, DefiLlama (stablecoins)");
+    assert!(f.stablecoins.is_some() && f.chain_stablecoins.is_some() && f.dev_activity.is_none());
 }

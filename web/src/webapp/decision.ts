@@ -29,6 +29,26 @@ export interface WhyNot { risks: string[]; uncertainty: Uncertainty; invalidatio
 export interface EarningsDate { date: number; estimated: boolean }
 export interface EarningsSurprise { quarter: string; eps: number; consensus: number; surprisePct: number }
 export interface Revisions { monthAgo: number; now: number; changePct: number }
+export interface Sector { label: string; sic: string; sicDescription: string; source: string }
+/** A ratio against its own daily history; `percentile`: % of days at or below today's value. */
+export interface RatioHistory { current: number; median: number; min: number; max: number; percentile: number; days: number; from: number; to: number }
+export interface ValuationHistory { per: RatioHistory | null; ps: RatioHistory | null; method: string; source: string }
+export interface Peer {
+  symbol: string; name: string; per: number | null; ps: number | null; operatingMargin: number | null; netMargin: number | null;
+  revenueGrowth: number | null; periodEnd: number;
+}
+export interface PeerComparison {
+  group: string; peers: Peer[]; medianPer: number | null; medianPs: number | null; medianOperatingMargin: number | null;
+  medianNetMargin: number | null; medianRevenueGrowth: number | null; date: number; source: string;
+}
+export interface DevActivity {
+  repo: string | null; commits4w: number | null; pullRequestsMerged: number | null; contributors: number | null; stars: number | null;
+  additions4w: number | null; deletions4w: number | null; smartContractPlatform: boolean; source: string;
+}
+export interface StablecoinFlows {
+  scope: string; date: number; total: number; change7d: number | null; change7dPct: number | null; change30d: number | null;
+  change30dPct: number | null; source: string;
+}
 export interface StockFundamentals {
   kind: "stock"; period: string;
   revenue: number | null; revenueGrowth: number | null; netIncome: number | null; eps: number | null; epsGrowth: number | null;
@@ -36,12 +56,17 @@ export interface StockFundamentals {
   debt: number | null; cash: number | null; netDebt: number | null; roe: number | null; per: number | null; peg: number | null;
   evEbitda: number | null; dividendYield: number | null; shareChange: number | null; nextEarnings: EarningsDate | null;
   surprises: EarningsSurprise[]; revisions: Revisions | null; sectorNote: string; source: string;
+  // Added later: absent from decisions cached by an older version.
+  ps?: number | null; pb?: number | null; roic?: number | null; roicTaxRate?: number | null; roicTaxStatutory?: boolean;
+  periodEnd?: number | null; filedAt?: number | null; sector?: Sector | null; valuationHistory?: ValuationHistory | null;
+  peers?: PeerComparison | null; valuationVerdict?: string | null; guidance?: string;
 }
 export interface CryptoFundamentals {
   kind: "crypto";
   marketCap: number | null; fdv: number | null; mcFdv: number | null; circulatingSupply: number | null; totalSupply: number | null;
   maxSupply: number | null; circulatingPct: number | null; tvl: number | null; fees30d: number | null; btcDominance: number | null;
   fundingRate: number | null; openInterest: number | null; txPerDay: number | null; hashRate: number | null; unlocks: string; source: string;
+  devActivity?: DevActivity | null; stablecoins?: StablecoinFlows | null; chainStablecoins?: StablecoinFlows | null; notCovered?: string;
 }
 export type Fundamentals = StockFundamentals | CryptoFundamentals;
 export interface Liquidity { spreadPct: number | null; dailyValue: number | null; relativeVolume: number | null; source: string }

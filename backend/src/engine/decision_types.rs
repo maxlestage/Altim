@@ -6,9 +6,10 @@
 //! never estimated.
 //!
 //! Units: prices and amounts in USD; fields named `*_pct`, `*_margin`, `*_growth`, `*_yield`, `*_change`,
-//! `win_rate`, `confidence`, `weight`, `share`, `circulating_pct`, `btc_dominance`, `roe` are percentages
-//! (46.8 = 46,8 %); `mc_fdv` and correlations are ratios; `funding_rate` is the fraction per 8-hour period as
-//! published by the exchange (6.88e-05 = 0,0069 %); `hash_rate` in hashes per second; times in ms since the epoch.
+//! `win_rate`, `confidence`, `weight`, `share`, `circulating_pct`, `btc_dominance`, `roe`, `roic`, `roic_tax_rate`,
+//! `percentile` are percentages (46.8 = 46,8 %); `mc_fdv`, `per`, `ps`, `pb` and correlations are ratios;
+//! `funding_rate` is the fraction per 8-hour period as published by the exchange (6.88e-05 = 0,0069 %); `hash_rate`
+//! in hashes per second; times in ms since the epoch.
 use serde::{Deserialize, Serialize};
 
 use crate::types::Kind;
@@ -229,8 +230,82 @@ pub struct Revisions {
     pub change_pct: f64,
 }
 
-/// Company figures from its filings (SEC EDGAR), trailing twelve months unless said otherwise. None = not reported.
+/// Sector of a company: its SIC code as filed at the SEC (submissions API), grouped by SIC division.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sector {
+    /// Short French label of the SIC division ("Industrie manufacturière").
+    pub label: String,
+    /// "3571"
+    pub sic: String,
+    /// As filed: "Electronic Computers".
+    pub sic_description: String,
+    pub source: String,
+}
+
+/// A valuation ratio against its own daily history (split-inconsistent days left out, never adjusted).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RatioHistory {
+    /// Today's ratio (current price, last twelve months filed).
+    pub current: f64,
+    pub median: f64,
+    pub min: f64,
+    pub max: f64,
+    /// Share of the days of the window with a ratio at or below today's, % (90 = more expensive than 90 % of days).
+    pub percentile: f64,
+    /// Number of daily values in the window.
+    pub days: usize,
+    /// First and last day of the window (ms).
+    pub from: i64,
+    pub to: i64,
+}
+
+/// P/E and P/S against their own history (up to 5 years of daily closes).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ValuationHistory {
+    pub per: Option<RatioHistory>,
+    pub ps: Option<RatioHistory>,
+    /// How the daily values are computed (French).
+    pub method: String,
+    pub source: String,
+}
+
+/// A comparable company: same activity (Nasdaq classification), figures from its own SEC filings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Peer {
+    pub symbol: String,
+    pub name: String,
+    pub per: Option<f64>,
+    pub ps: Option<f64>,
+    pub operating_margin: Option<f64>,
+    pub net_margin: Option<f64>,
+    pub revenue_growth: Option<f64>,
+    /// End of its last twelve months filed (ms).
+    pub period_end: i64,
+}
+
+/// Comparison with companies of the same activity: medians of the peers whose figures were actually read.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PeerComparison {
+    /// Activity shared with the peers (Nasdaq classification, in English as published).
+    pub group: String,
+    pub peers: Vec<Peer>,
+    pub median_per: Option<f64>,
+    pub median_ps: Option<f64>,
+    pub median_operating_margin: Option<f64>,
+    pub median_net_margin: Option<f64>,
+    pub median_revenue_growth: Option<f64>,
+    /// Date of the peers' prices (ms).
+    pub date: i64,
+    pub source: String,
+}
+
+/// Company figures from its filings (SEC EDGAR), trailing twelve months unless said otherwise. None = not reported.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StockFundamentals {
     /// "12 mois au 28/06/2026 (10-Q)"
@@ -261,6 +336,75 @@ pub struct StockFundamentals {
     /// Sector comparison, or why it is not given.
     pub sector_note: String,
     pub source: String,
+    /// Price ÷ sales: market cap ÷ revenue (12 months).
+    #[serde(default)]
+    pub ps: Option<f64>,
+    /// Price ÷ book: market cap ÷ stockholders' equity at `period_end`.
+    #[serde(default)]
+    pub pb: Option<f64>,
+    /// Return on invested capital, %: operating income × (1 − tax rate) ÷ (debt + equity − cash).
+    #[serde(default)]
+    pub roic: Option<f64>,
+    /// Tax rate used for the ROIC, % (effective: income tax ÷ pre-tax income, kept within 0–50 %).
+    #[serde(default)]
+    pub roic_tax_rate: Option<f64>,
+    /// true when the effective rate could not be computed and the 21 % US federal statutory rate is used.
+    #[serde(default)]
+    pub roic_tax_statutory: bool,
+    /// End of the last period filed and date of that filing (ms, midnight UTC).
+    #[serde(default)]
+    pub period_end: Option<i64>,
+    #[serde(default)]
+    pub filed_at: Option<i64>,
+    #[serde(default)]
+    pub sector: Option<Sector>,
+    #[serde(default)]
+    pub valuation_history: Option<ValuationHistory>,
+    #[serde(default)]
+    pub peers: Option<PeerComparison>,
+    /// Valuation vs growth in one sentence (P/E percentile, PEG, EPS growth).
+    #[serde(default)]
+    pub valuation_verdict: Option<String>,
+    /// Management guidance, or why it is not given.
+    #[serde(default)]
+    pub guidance: String,
+}
+
+/// Developer activity of the project's code (CoinGecko, else its main GitHub repository).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DevActivity {
+    /// "owner/name" of the repository read (GitHub only).
+    pub repo: Option<String>,
+    /// Commits over the last 4 weeks.
+    pub commits4w: Option<f64>,
+    /// Pull requests merged since the repository was created.
+    pub pull_requests_merged: Option<f64>,
+    pub contributors: Option<f64>,
+    pub stars: Option<f64>,
+    /// Lines added / deleted over the last 4 weeks.
+    pub additions4w: Option<f64>,
+    pub deletions4w: Option<f64>,
+    /// CoinGecko classifies the asset as a smart-contract platform.
+    pub smart_contract_platform: bool,
+    pub source: String,
+}
+
+/// Stablecoins in circulation (USD value, DefiLlama): the crypto market's cash, a liquidity indicator.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StablecoinFlows {
+    /// "Tous réseaux" or the chain's name.
+    pub scope: String,
+    /// Day of the last value (ms, midnight UTC).
+    pub date: i64,
+    pub total: f64,
+    /// Change over 7 and 30 days, USD and %.
+    pub change7d: Option<f64>,
+    pub change7d_pct: Option<f64>,
+    pub change30d: Option<f64>,
+    pub change30d_pct: Option<f64>,
+    pub source: String,
 }
 
 /// Token and network figures. None = not given by a free verifiable source.
@@ -286,10 +430,22 @@ pub struct CryptoFundamentals {
     /// "non vérifiable : aucune source gratuite (DefiLlama le réserve à son offre payante)".
     pub unlocks: String,
     pub source: String,
+    #[serde(default)]
+    pub dev_activity: Option<DevActivity>,
+    /// All chains, and the asset's own chain when it is one.
+    #[serde(default)]
+    pub stablecoins: Option<StablecoinFlows>,
+    #[serde(default)]
+    pub chain_stablecoins: Option<StablecoinFlows>,
+    /// What is not covered and why (no free verifiable source).
+    #[serde(default)]
+    pub not_covered: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
+// One value per decision: the size difference between the variants does not matter.
+#[allow(clippy::large_enum_variant)]
 pub enum Fundamentals {
     Stock(StockFundamentals),
     Crypto(CryptoFundamentals),

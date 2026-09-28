@@ -4,7 +4,7 @@ import { api } from "./api";
 import {
   cacheDecision, cachedDecision, count, decisionUrl, EXIT_KIND_LABEL, exitText, familyTone, hashRate, LEVEL_UI, longDate, modeText, nyDate, num,
   pct, recentVerdict, riskRewardText, SCENARIO_UI, shortDateTime, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL, usd, usdCompact,
-  type CryptoFundamentals, type Decision, type Family, type PersonalInput, type StockFundamentals,
+  type CryptoFundamentals, type Decision, type Family, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals,
 } from "./decision";
 import { TrackDetails } from "./TrackDetails";
 import { SimulateBuy } from "./PaperOrder";
@@ -81,11 +81,42 @@ function FamilyRow({ f }: { f: Family }) {
   );
 }
 
+/** "+2,8 Md$" / "−271 M$". */
+const signedUsd = (v: number | null | undefined) => (v == null ? "—" : `${v < 0 ? "−" : v > 0 ? "+" : ""}${usdCompact(Math.abs(v))}`);
+
+/** Two rows per ratio: today vs median and range, then where today stands in the window. */
+function historyRows(name: string, r: RatioHistory | null | undefined): [string, string][] {
+  if (!r) return [];
+  return [
+    [`${name} sur la période`, `${num(r.current, 1)} aujourd'hui · médiane ${num(r.median, 1)} · de ${num(r.min, 1)} à ${num(r.max, 1)}`],
+    [`Centile du ${name}`, `plus haut que ${num(r.percentile, 0)} % des ${count(r.days)} jours (${nyDate(r.from)} – ${nyDate(r.to)})`],
+  ];
+}
+
+function stableRows(s: StablecoinFlows | null | undefined, label: string): [string, string | null][] {
+  if (!s) return [];
+  return [
+    [`Stablecoins (${label})`, `${usdCompact(s.total)} au ${nyDate(s.date)}`],
+    ["… sur 7 jours", s.change7d != null ? `${signedUsd(s.change7d)} (${pct(s.change7dPct, 2, true)})` : null],
+    ["… sur 30 jours", s.change30d != null ? `${signedUsd(s.change30d)} (${pct(s.change30dPct, 2, true)})` : null],
+  ];
+}
+
 function StockFund({ f }: { f: StockFundamentals }) {
   const e = f.nextEarnings;
+  const h = f.valuationHistory;
+  const c = f.peers;
   return (
     <>
       <p className="muted small">{f.period}</p>
+      {f.periodEnd != null && f.filedAt != null && (
+        <p className="muted small">Comptes arrêtés au {nyDate(f.periodEnd)}, déposés à la SEC le {nyDate(f.filedAt)}.</p>
+      )}
+      {f.sector && (
+        <p className="small">
+          <span className="muted">Secteur : </span>{f.sector.label} · {f.sector.sicDescription} (code SIC {f.sector.sic})
+        </p>
+      )}
       <Figures
         rows={[
           ["Chiffre d'affaires", f.revenue != null ? `${usdCompact(f.revenue)}${f.revenueGrowth != null ? ` (${pct(f.revenueGrowth, 1, true)} sur un an)` : ""}` : null],
@@ -102,6 +133,11 @@ function StockFund({ f }: { f: StockFundamentals }) {
           ["PER", num(f.per, 1)],
           ["PEG", num(f.peg, 2)],
           ["EV/EBITDA", num(f.evEbitda, 1)],
+          ["P/S (capitalisation ÷ ventes)", num(f.ps, 1)],
+          ["P/B (capitalisation ÷ fonds propres)", num(f.pb, 1)],
+          ["ROIC (rentabilité du capital investi)", f.roic != null
+            ? `${pct(f.roic, 1)} (impôt ${pct(f.roicTaxRate, 1)}${f.roicTaxStatutory ? " : taux légal américain, taux effectif non calculable" : ", taux effectif"})`
+            : null],
           ["Rendement du dividende", pct(f.dividendYield, 2)],
           ["Nombre d'actions sur un an", f.shareChange != null ? `${pct(f.shareChange, 1, true)}${f.shareChange < 0 ? " (rachats)" : ""}` : null],
         ]}
@@ -128,7 +164,30 @@ function StockFund({ f }: { f: StockFundamentals }) {
           <span className={upDown(f.revisions.changePct)}>{pct(f.revisions.changePct, 1, true)}</span>).
         </p>
       )}
-      <p className="muted small">{f.sectorNote}</p>
+      {h && (
+        <div className="dec-block">
+          <h3>Valorisation par rapport à sa propre histoire</h3>
+          {f.valuationVerdict && <p className="small">{f.valuationVerdict}.</p>}
+          <Figures rows={[...historyRows("PER", h.per), ...historyRows("P/S", h.ps)]} />
+          <small className="muted">{h.method}. Source : {h.source}.</small>
+        </div>
+      )}
+      {c ? (
+        <div className="dec-block">
+          <h3>Comparaison sectorielle</h3>
+          <p className="small">{f.sectorNote}</p>
+          <ul className="dec-list small">
+            {c.peers.map((p) => (
+              <li key={p.symbol}>
+                {p.name} ({p.symbol}) : PER {num(p.per, 1)}, P/S {num(p.ps, 1)}, marge opérationnelle {pct(p.operatingMargin)}, chiffre d'affaires{" "}
+                {pct(p.revenueGrowth, 1, true)} sur un an
+              </li>
+            ))}
+          </ul>
+          <small className="muted">Cours du {nyDate(c.date)}. Source : {c.source}.</small>
+        </div>
+      ) : <p className="muted small">{f.sectorNote}</p>}
+      {f.guidance && <p className="muted small">{f.guidance}</p>}
       <small className="muted">Source : {f.source}</small>
     </>
   );
@@ -155,6 +214,34 @@ function CryptoFund({ f }: { f: CryptoFundamentals }) {
         ]}
       />
       <p className="small"><span className="muted">Déblocages de jetons : </span>{f.unlocks}</p>
+      {(f.stablecoins || f.chainStablecoins) && (
+        <div className="dec-block">
+          <h3>Flux de stablecoins</h3>
+          <Figures rows={[...stableRows(f.stablecoins, "tous réseaux"), ...stableRows(f.chainStablecoins, `réseau ${f.chainStablecoins?.scope ?? ""}`)]} />
+          <small className="muted">Liquidité disponible sur le marché crypto. Source : {(f.stablecoins ?? f.chainStablecoins)?.source}.</small>
+        </div>
+      )}
+      {f.devActivity !== undefined && (
+        <div className="dec-block">
+          <h3>Activité de développement</h3>
+          {f.devActivity ? (
+            <>
+              <Figures
+                rows={[
+                  ["Commits sur 4 semaines", f.devActivity.commits4w != null ? count(f.devActivity.commits4w) : null],
+                  ["Lignes ajoutées / supprimées (4 semaines)", f.devActivity.additions4w != null && f.devActivity.deletions4w != null
+                    ? `+${count(f.devActivity.additions4w)} / −${count(f.devActivity.deletions4w)}` : null],
+                  ["Pull requests intégrées (total)", f.devActivity.pullRequestsMerged != null ? count(f.devActivity.pullRequestsMerged) : null],
+                  ["Contributeurs", f.devActivity.contributors != null ? count(f.devActivity.contributors) : null],
+                  ["Étoiles", f.devActivity.stars != null ? count(f.devActivity.stars) : null],
+                ]}
+              />
+              <small className="muted">Source : {f.devActivity.source}</small>
+            </>
+          ) : <p className="muted small">Non disponible (CoinGecko ne la publie plus et le dépôt GitHub du projet n'a pas répondu).</p>}
+        </div>
+      )}
+      {f.notCovered && <p className="muted small">{f.notCovered}.</p>}
       <small className="muted">Source : {f.source}</small>
     </>
   );

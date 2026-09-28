@@ -616,6 +616,16 @@ fn stock_valuation(f: &StockFundamentals) -> Family {
     if let Some(y) = f.dividend_yield {
         points.push(format!("Rendement du dividende {}", pct(y)));
     }
+    if let Some(ps) = f.ps {
+        points.push(format!("Prix ÷ ventes (P/S) {}", fr(ps, 0, 1)));
+    }
+    // Against its own history: dearer than 80 % of the days → −0.3, cheaper than 80 % → +0.3.
+    if let Some(r) = f.valuation_history.as_ref().and_then(|h| h.per.as_ref().or(h.ps.as_ref())) {
+        comps.push(grade(r.percentile, &[(80.0, -0.3), (20.0, 0.0)], 0.3));
+    }
+    if let Some(v) = &f.valuation_verdict {
+        points.push(v.clone());
+    }
     if comps.is_empty() {
         return family("valuation", "Valorisation", None, "Données de valorisation indisponibles".into(), points, &f.source);
     }
@@ -679,6 +689,9 @@ fn stock_fundamentals(f: &StockFundamentals) -> Family {
     }
     if let Some(sc) = f.share_change {
         points.push(format!("Nombre d'actions {} sur un an{}", signed(sc), if sc < 0.0 { " (rachats)" } else { "" }));
+    }
+    if let Some(r) = f.roic {
+        points.push(format!("Rentabilité du capital investi (ROIC) {}", pct(r)));
     }
     if comps.is_empty() {
         return family("fundamentals", "Fondamentaux", None, "Données financières indisponibles".into(), points, &f.source);
@@ -945,13 +958,67 @@ fn families(inp: &DecisionInput, m: &Metrics) -> Vec<Family> {
     out.push(news_family(inp));
     out.push(liquidity_family(inp, m));
     if inp.kind == Kind::Crypto {
-        out.push(unavailable(
-            "onchain",
-            "On-chain",
-            "Pas de source gratuite et vérifiable des flux on-chain (entrées et sorties des plateformes, portefeuilles actifs)",
-        ));
+        out.push(onchain_family(match &inp.fundamentals {
+            Some(Fundamentals::Crypto(f)) => Some(f),
+            _ => None,
+        }));
     }
     out
+}
+
+/// Market-wide liquidity (stablecoins in circulation over 30 days: > +2 % → +0.4, rising → +0.15, falling → −0.15,
+/// < −2 % → −0.4; half weight over 7 days) and the project's developer activity (commits over 4 weeks: under 5 on a
+/// smart-contract platform → −0.4, 50 or more → +0.2). Exchange flows and active wallets stay uncovered.
+fn onchain_family(f: Option<&CryptoFundamentals>) -> Family {
+    const NONE: &str = "Pas de source gratuite et vérifiable des flux on-chain (entrées et sorties des plateformes, portefeuilles actifs)";
+    let Some(f) = f else { return unavailable("onchain", "On-chain", NONE) };
+    let mut comps: Vec<f64> = vec![];
+    let mut points = vec![];
+    let mut sources = vec![];
+    if let Some(s) = &f.stablecoins {
+        if let Some(p) = s.change30d_pct {
+            comps.push(grade(p, &[(2.0, 0.4), (0.0, 0.15), (-2.0, -0.15)], -0.4));
+            points.push(format!(
+                "Stablecoins en circulation : {} ({} sur 30 jours{})",
+                money(s.total),
+                signed(p),
+                if p > 0.0 { ", liquidité qui entre sur le marché crypto" } else { ", liquidité qui sort du marché crypto" }
+            ));
+        }
+        if let Some(p) = s.change7d_pct {
+            comps.push(grade(p, &[(1.0, 0.2), (0.0, 0.07), (-1.0, -0.07)], -0.2));
+            points.push(format!("Stablecoins sur 7 jours : {}", signed(p)));
+        }
+        sources.push(s.source.as_str());
+    }
+    if let Some(c) = f.chain_stablecoins.as_ref().and_then(|c| c.change30d_pct.map(|p| (c, p))) {
+        points.push(format!("Stablecoins sur le réseau {} : {} ({} sur 30 jours)", c.0.scope, money(c.0.total), signed(c.1)));
+    }
+    if let Some(d) = &f.dev_activity {
+        if let Some(n) = d.commits4w {
+            if n < 5.0 && d.smart_contract_platform {
+                comps.push(-0.4);
+                points
+                    .push(format!("Activité de développement quasi nulle : {} commit(s) en 4 semaines pour une plateforme de contrats", fr(n, 0, 0)));
+            } else {
+                if n >= 50.0 {
+                    comps.push(0.2);
+                }
+                points.push(format!("{} commits en 4 semaines", fr(n, 0, 0)));
+            }
+        }
+        if let Some(n) = d.pull_requests_merged {
+            points.push(format!("{} demandes de modification (pull requests) intégrées au total", fr(n, 0, 0)));
+        }
+        sources.push(d.source.as_str());
+    }
+    if comps.is_empty() {
+        return family("onchain", "On-chain", None, NONE.into(), points, &if sources.is_empty() { "—".to_string() } else { sources.join(", ") });
+    }
+    points.push(f.not_covered.clone());
+    let score = mean(&comps) * 100.0;
+    let summary = points.first().cloned().unwrap_or_default();
+    family("onchain", "On-chain", Some(score), summary, points, &sources.join(", "))
 }
 
 // ---------- Vetoes ----------

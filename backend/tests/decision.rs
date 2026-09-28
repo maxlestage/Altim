@@ -571,6 +571,7 @@ fn stock_fundamentals(next: Option<i64>) -> StockFundamentals {
         revisions: Some(Revisions { month_ago: 8.76, now: 8.74, change_pct: -0.2 }),
         sector_note: "Comparaison au secteur non disponible.".into(),
         source: "SEC EDGAR (10-K, 10-Q), Nasdaq (Zacks)".into(),
+        ..Default::default()
     }
 }
 
@@ -608,6 +609,46 @@ fn extras_fill_the_families_and_vetoes() {
     assert!(d.confidence_text.contains("sur 14,"), "{}", d.confidence_text);
     assert!(d.fundamentals.is_some() && d.track.is_some() && d.liquidity.is_some());
     assert_eq!(d.verdict, Verdict::Buy, "{}", d.headline);
+}
+
+#[test]
+fn onchain_family_from_stablecoins_and_developer_activity() {
+    let s = buy_setup();
+    assert_eq!(s.kind, Kind::Crypto);
+    // Without network data: unavailable.
+    let d = decide_on(&s, |_| {});
+    let fam = d.families.iter().find(|f| f.key == "onchain").unwrap();
+    assert_eq!(fam.status, Status::Unavailable);
+    let flows = |p30: f64| StablecoinFlows {
+        scope: "Tous réseaux".into(),
+        date: 0,
+        total: 3.1e11,
+        change7d: None,
+        change7d_pct: Some(0.9),
+        change30d: None,
+        change30d_pct: Some(p30),
+        source: "DefiLlama (stablecoins)".into(),
+    };
+    let crypto = |p30: f64, commits: f64| {
+        let mut f = altim::tokenomics::assemble("TEST", None, None, Some(1e9), None, None, None, (None, None));
+        f.stablecoins = Some(flows(p30));
+        f.dev_activity =
+            Some(DevActivity {
+                commits4w: Some(commits), smart_contract_platform: true, source: "GitHub (dépôt a/b)".into(), ..Default::default()
+            });
+        Fundamentals::Crypto(f)
+    };
+    // Stablecoins +3 % over 30 days, +0.9 % over 7, 120 commits: positive backdrop.
+    let d = decide_on(&s, |i| i.fundamentals = Some(crypto(3.0, 120.0)));
+    let fam = d.families.iter().find(|f| f.key == "onchain").unwrap();
+    assert_eq!(fam.status, Status::Positive, "{fam:?}");
+    assert!(fam.summary.starts_with("Stablecoins en circulation : "), "{}", fam.summary);
+    assert!(fam.points.iter().any(|p| p.starts_with("Non couverts")), "{:?}", fam.points);
+    // Stablecoins leaving (−3 %) and a platform nobody develops any more: negative.
+    let d = decide_on(&s, |i| i.fundamentals = Some(crypto(-3.0, 1.0)));
+    let fam = d.families.iter().find(|f| f.key == "onchain").unwrap();
+    assert_eq!(fam.status, Status::Negative, "{fam:?}");
+    assert!(fam.points.iter().any(|p| p.starts_with("Activité de développement quasi nulle")));
 }
 
 #[test]
