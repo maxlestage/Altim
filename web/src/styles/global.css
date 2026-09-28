@@ -117,8 +117,9 @@ strong, b { color: #fff; }
 
 /* ---------- Hero ---------- */
 main { position: relative; }
-.hero { display: grid; gap: 48px; max-width: var(--max); margin: 0 auto; padding: 36px var(--gutter) 48px; }
-.chip { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 18px; padding: 7px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.06); }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 48px; max-width: var(--max); margin: 0 auto; padding: 36px var(--gutter) 48px; }
+.hero .chip { white-space: normal; border-radius: 16px; }
+.chip { display: inline-flex; flex-wrap: wrap; max-width: 100%; overflow-wrap: anywhere; align-items: center; gap: 8px; margin: 0 0 18px; padding: 7px 12px; border-radius: 999px; font-family: var(--mono); font-size: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.06); }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--buy); box-shadow: 0 0 10px var(--buy); animation: pulse 1.6s infinite; }
 @keyframes pulse { 50% { opacity: 0.3; } }
 .hero h1 { font-size: clamp(40px, 12vw, 92px); font-weight: 900; }
@@ -378,7 +379,7 @@ main { position: relative; }
   .links a:not(.btn):hover { color: var(--cyan); }
   .links .btn { margin-top: 0; }
   .brand img { width: 34px; height: 34px; }
-  .hero { grid-template-columns: 1.15fr 0.85fr; align-items: center; gap: 40px; padding-top: 100px; min-height: calc(100svh - var(--nav-h)); }
+  .hero { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); align-items: center; gap: 40px; padding-top: 100px; min-height: calc(100svh - var(--nav-h)); }
   .phone { width: 320px; transform: rotateY(-14deg) rotateX(6deg); animation: hover 7s ease-in-out infinite alternate; }
   .btn:hover { transform: translateY(-2px); box-shadow: 0 0 36px rgba(0, 240, 255, 0.8), inset 0 0 12px rgba(255, 255, 255, 0.5); }
   .live-grid { grid-template-columns: 1.3fr 1fr; gap: 20px; }

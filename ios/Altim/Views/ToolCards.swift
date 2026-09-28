@@ -28,10 +28,7 @@ struct CompareCard: View {
     var body: some View {
         Card(title: "Comparer") {
             Text("Choisissez 2 à 4 actifs de votre radar.").font(.caption).foregroundStyle(Theme.textSecondary)
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 6) { chips }
-                ScrollView(.horizontal, showsIndicators: false) { HStack(spacing: 6) { chips } }
-            }
+            WrapLayout(spacing: 6) { chips }
             Picker("Période", selection: $days) {
                 Text("30 j").tag(30)
                 Text("90 j").tag(90)
@@ -342,5 +339,50 @@ struct RebalanceCard: View {
                 Text("Ajoutez des avoirs avec un prix pour calculer.").font(.footnote).foregroundStyle(Theme.textSecondary)
             }
         }
+    }
+}
+
+/// Lays its children out left to right and wraps to a new line when the width runs out (never a horizontal scroll).
+struct WrapLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = arrange(width: proposal.width ?? .infinity, subviews: subviews)
+        let width = rows.map { $0.width }.max() ?? 0
+        let height = rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: proposal.width.map { min($0, width) } ?? width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in arrange(width: bounds.width, subviews: subviews) {
+            var x = bounds.minX
+            for i in row.items {
+                let size = subviews[i].sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+                subviews[i].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: min(size.width, bounds.width), height: size.height))
+                x += min(size.width, bounds.width) + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private struct Row { var items: [Int] = []; var width: CGFloat = 0; var height: CGFloat = 0 }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var row = Row()
+        for i in subviews.indices {
+            let size = subviews[i].sizeThatFits(ProposedViewSize(width: width, height: nil))
+            let w = min(size.width, width)
+            if !row.items.isEmpty && row.width + spacing + w > width {
+                rows.append(row)
+                row = Row()
+            }
+            row.width += (row.items.isEmpty ? 0 : spacing) + w
+            row.height = max(row.height, size.height)
+            row.items.append(i)
+        }
+        if !row.items.isEmpty { rows.append(row) }
+        return rows
     }
 }
