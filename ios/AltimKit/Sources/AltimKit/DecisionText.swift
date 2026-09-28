@@ -1,21 +1,41 @@
 import Foundation
 
 /// Numbers written like `toLocaleString("fr-FR")` in the browser: narrow no-break space between thousands, comma,
-/// halves rounded away from zero (as Intl does), no trailing zeros beyond `min`.
+/// rounded on the exact value of the double with halves away from zero (as Intl does), no trailing zeros beyond `min`.
+/// Done by hand on the exact decimal expansion: NumberFormatter rounds differently between Linux and Apple systems.
 enum JSFormat {
     static func fr(_ v: Double, min: Int = 0, max: Int) -> String {
-        let f = NumberFormatter()
-        f.locale = Locale(identifier: "fr_FR")
-        f.numberStyle = .decimal
-        f.minimumFractionDigits = min
-        f.maximumFractionDigits = max
-        f.roundingMode = .halfUp
-        f.groupingSeparator = "\u{202F}"
-        f.decimalSeparator = ","
-        f.minusSign = "-"
-        let s = f.string(from: NSNumber(value: v)) ?? String(v)
-        // "-0" after rounding a tiny negative number: written 0, as the browser does.
-        return s == "-0" ? "0" : s
+        guard v.isFinite else { return String(v) }
+        // Exact decimal expansion of the double (a double has at most 1074 fraction digits; 60 is plenty here).
+        let exact = String(format: "%.60f", abs(v))
+        let parts = exact.split(separator: ".", omittingEmptySubsequences: false)
+        var intDigits = Array(parts[0]).map { Int(String($0))! }
+        let frac = parts.count > 1 ? Array(parts[1]).map { Int(String($0))! } : []
+        var kept = Array(frac.prefix(max))
+        while kept.count < max { kept.append(0) }
+        let rest = Array(frac.dropFirst(max))
+        // Half or more of the next unit: away from zero (the tail decides exact halves: they round up too).
+        if let first = rest.first, first >= 5 {
+            var digits = intDigits + kept
+            var i = digits.count - 1
+            while i >= 0 {
+                if digits[i] == 9 { digits[i] = 0; i -= 1 } else { digits[i] += 1; break }
+            }
+            if i < 0 { digits.insert(1, at: 0) }
+            intDigits = Array(digits.prefix(digits.count - max))
+            kept = Array(digits.suffix(max))
+        }
+        while kept.count > min, kept.last == 0 { kept.removeLast() }
+        // Thousands grouped by three with a narrow no-break space.
+        var grouped = ""
+        for (k, d) in intDigits.enumerated() {
+            if k > 0 && (intDigits.count - k) % 3 == 0 { grouped += "\u{202F}" }
+            grouped += String(d)
+        }
+        let body = kept.isEmpty ? grouped : "\(grouped),\(kept.map(String.init).joined())"
+        // A tiny negative number rounded to zero is written without its sign, as the browser does.
+        let zero = intDigits.allSatisfy { $0 == 0 } && kept.allSatisfy { $0 == 0 }
+        return v < 0 && !zero ? "-\(body)" : body
     }
 }
 

@@ -193,6 +193,7 @@ struct MacroBanner: View {
                 Spacer()
                 Badge(text: "\(Int(macro.score))/100", tone: macro.tone)
             }
+            if let r = macro.regime { RegimeLine(regime: r) }
             ForEach(macro.factors.prefix(3)) { f in
                 Text("• \(f.text)").font(.caption).foregroundStyle(.white.opacity(0.85))
             }

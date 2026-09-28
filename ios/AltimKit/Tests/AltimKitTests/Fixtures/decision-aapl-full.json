@@ -129,49 +129,77 @@
    "label": "Écart achat/vente trop grand",
    "active": false,
    "verifiable": true,
-   "detail": "0,001 % (seuil 0,5 %)"
+   "detail": "0,006 % (seuil 0,5 %)"
   },
   {
    "code": "liquidity",
    "label": "Liquidité insuffisante",
    "active": false,
    "verifiable": true,
-   "detail": "38 Md$ par jour"
+   "detail": "14,1 Md$ par jour (seuil 1 M$)"
   },
   {
    "code": "volatility",
    "label": "Volatilité extrême",
    "active": false,
    "verifiable": true,
-   "detail": "ATR 4,1 % (seuil 8 %)"
+   "detail": "ATR 2,1 % par jour (seuil 8 %)"
+  },
+  {
+   "code": "event",
+   "label": "Événement majeur imminent",
+   "active": false,
+   "verifiable": true,
+   "detail": "Actualité : invasion, panique bancaire (dernières 12 h, non vérifiable sur l'historique). Non confirmé par les marchés (stress macro sous 50/100) : surveillé, pas bloquant"
+  },
+  {
+   "code": "announcement",
+   "label": "Annonce économique dans les 48 h",
+   "active": false,
+   "verifiable": false,
+   "detail": "Calendrier des annonces indisponible ou incomplet : non vérifié"
   },
   {
    "code": "earnings",
    "label": "Résultats imminents",
    "active": false,
    "verifiable": true,
-   "detail": "Prochains résultats le 29/10/2026 (date estimée), dans 31 jours"
+   "detail": "Prochains résultats le 29/10/2026 (date estimée), dans 31 jour(s) (seuil 5)"
   },
   {
    "code": "crash",
    "label": "Chute brutale sans stabilisation",
    "active": false,
    "verifiable": true,
-   "detail": "−1,8 % en 24 h"
+   "detail": "−0,4 % en 3 jours (seuil −6,4 %)"
   },
   {
    "code": "pump",
    "label": "Hausse anormale",
    "active": false,
    "verifiable": true,
-   "detail": "+2,1 % sur 3 jours (seuil : 3 écarts-types)"
+   "detail": "−0,4 % sur 3 jours (seuil : 3 écarts-types, soit +10 %)"
+  },
+  {
+   "code": "volumeAnomaly",
+   "label": "Volume artificiel",
+   "active": false,
+   "verifiable": true,
+   "detail": "Volume du jour : 0,8 fois la médiane de 20 séances pour un mouvement de 1,5 % (alerte au-delà de 5 fois sans mouvement)"
+  },
+  {
+   "code": "regulation",
+   "label": "Risque réglementaire",
+   "active": false,
+   "verifiable": false,
+   "detail": "Non vérifiable : aucune source gratuite des procédures ; aucun titre réglementaire en 24 h"
   },
   {
    "code": "unlock",
    "label": "Déblocage de jetons imminent",
    "active": false,
-   "verifiable": false,
-   "detail": "Non vérifiable : aucune source gratuite"
+   "verifiable": true,
+   "detail": "Sans objet pour une action"
   },
   {
    "code": "divergence",
@@ -185,28 +213,28 @@
    "label": "Tendance principale baissière",
    "active": false,
    "verifiable": true,
-   "detail": "Tendance de fond haussière"
+   "detail": "Tendance de fond haussière (moyennes 50 et 200 jours alignées, ADX 20), confirmée en 4 h."
   },
   {
    "code": "riskReward",
    "label": "Rapport gain/risque insuffisant",
    "active": true,
    "verifiable": true,
-   "detail": "1,4 depuis le prix actuel (minimum 2)"
+   "detail": "0,1 depuis le prix actuel (minimum 2) ; 2 atteint en entrant sous 291,97 $"
   },
   {
    "code": "macro",
    "label": "Choc macro",
    "active": false,
    "verifiable": true,
-   "detail": "Contexte tendu, pas de choc"
+   "detail": "Contexte tendu (score 30/100, choc à partir de 50, VIX 16)"
   },
   {
    "code": "reliability",
    "label": "Données peu fiables",
    "active": false,
    "verifiable": true,
-   "detail": "Fiabilité élevée (21 sources)"
+   "detail": "Fiabilité élevée (100/100, 10 plateforme(s) en accord sur 10)"
   }
  ],
  "blocked": true,
@@ -275,7 +303,10 @@
   "riskReward": 1.2,
   "minRiskReward": 2,
   "acceptable": false,
-  "horizon": "moyen terme · quelques semaines"
+  "horizon": "moyen terme · quelques semaines",
+  "target3": 399.54416,
+  "reward3Pct": 36.8,
+  "target3Source": "Projection : objectif 2 + (objectif 2 − objectif 1), aucun niveau touché avant"
  },
  "whyWait": [],
  "toBuy": [
@@ -584,5 +615,388 @@
    "detail": "source payante uniquement"
   }
  ],
- "disclaimer": "Mode personnel : calcul fait avec votre prix d'achat et vos pondérations, transmis pour ce calcul et jamais conservés. Pas un conseil en investissement réglementé ; Altim ne passe aucun ordre."
+ "disclaimer": "Mode personnel : calcul fait avec votre prix d'achat et vos pondérations, transmis pour ce calcul et jamais conservés. Pas un conseil en investissement réglementé ; Altim ne passe aucun ordre.",
+ "rating": "hold",
+ "ratingLabel": "ATTENDRE",
+ "score": {
+  "value": 24,
+  "label": "Plutôt favorable",
+  "factors": [
+   {
+    "key": "tech",
+    "label": "Technique",
+    "weight": 32,
+    "applied": 35.6,
+    "value": 42,
+    "contribution": 14.9,
+    "sources": [
+     "trend",
+     "volume",
+     "volatility",
+     "structure"
+    ]
+   },
+   {
+    "key": "mom",
+    "label": "Momentum",
+    "weight": 18,
+    "applied": 20,
+    "value": 38,
+    "contribution": 7.6,
+    "sources": [
+     "momentum"
+    ]
+   },
+   {
+    "key": "fund",
+    "label": "Fondamentaux",
+    "weight": 20,
+    "applied": 22.2,
+    "value": 17,
+    "contribution": 3.8,
+    "sources": [
+     "valuation",
+     "fundamentals"
+    ]
+   },
+   {
+    "key": "sent",
+    "label": "Sentiment",
+    "weight": 10,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "news",
+    "label": "Actualités",
+    "weight": 10,
+    "applied": 11.1,
+    "value": 5,
+    "contribution": 0.6,
+    "sources": [
+     "news"
+    ]
+   },
+   {
+    "key": "macro",
+    "label": "Macro",
+    "weight": 10,
+    "applied": 11.1,
+    "value": -26,
+    "contribution": -2.9,
+    "sources": [
+     "macro"
+    ]
+   }
+  ],
+  "missing": [
+   "Sentiment"
+  ],
+  "custom": false,
+  "text": "Score composite +24 sur 5 facteur(s) mesuré(s), poids par défaut ; non mesuré(s) : Sentiment (poids réparti sur les autres)."
+ },
+ "degraded": {
+  "active": false,
+  "headline": "",
+  "reasons": []
+ },
+ "marketRegime": {
+  "kind": "neutral",
+  "label": "Neutre",
+  "benchmark": "S&P 500 (SPY)",
+  "reasons": [
+   "Stress macro 30/100 (tendu)",
+   "VIX 16",
+   "S&P 500 (SPY) au-dessus de sa moyenne 200 jours (+7,4 %), moyenne 50 jours au-dessus de la 200 : tendance haussière"
+  ]
+ },
+ "horizon": {
+  "kind": "mediumTerm",
+  "label": "Moyen terme",
+  "atrDistance": 7.7,
+  "detail": "Plan sur bougies journalières, objectif 1 à 7,7 ATR de l'entrée : moyen terme (quelques semaines à quelques mois)"
+ },
+ "structure": {
+  "timeframe": "Bougies journalières clôturées",
+  "score": 70,
+  "ichimoku": {
+   "tenkan": 336.845,
+   "kijun": 326.17499999999995,
+   "senkouA": 316.10498734741213,
+   "senkouB": 309.15997500000003,
+   "futureA": 331.51,
+   "futureB": 322.66999999999996,
+   "position": "above",
+   "tkCross": null,
+   "tkCrossBars": null,
+   "bias": "bullish",
+   "reading": "Prix au-dessus du nuage Ichimoku, Tenkan au-dessus de la Kijun"
+  },
+  "supertrend": {
+   "direction": "up",
+   "level": 320.854629809444,
+   "bars": 16,
+   "bias": "bullish",
+   "reading": "Supertrend haussier depuis 16 bougies (niveau 320,85 $)"
+  },
+  "donchian": {
+   "upper": 345.34,
+   "lower": 309.4,
+   "mid": 327.37,
+   "breakout": null,
+   "bias": "neutral",
+   "reading": "Dans le canal de Donchian 20 (309,40 $ – 345,34 $)"
+  },
+  "vwap": {
+   "value": 328.35858304313246,
+   "bars": 20,
+   "deviationPct": 3.04,
+   "bias": "bullish",
+   "reading": "Prix au-dessus du VWAP glissant sur 20 bougies (328,36 $, +3 %) ; glissant, pas ancré à une séance"
+  },
+  "volumeProfile": {
+   "poc": 310.05083333333334,
+   "valueAreaHigh": 341.18833333333333,
+   "valueAreaLow": 291.36833333333334,
+   "bars": 120,
+   "bins": 24,
+   "bias": "neutral",
+   "reading": "Prix dans la zone de valeur (291,37 $ – 341,19 $), prix le plus échangé vers 310,05 $",
+   "note": "Approximation à partir des bougies : le volume de chacune des 120 dernières bougies est réparti uniformément entre son plus bas et son plus haut (24 tranches de prix, zone de valeur = 70 % du volume)"
+  },
+  "pivots": {
+   "pivot": 339.09,
+   "r1": 343.65,
+   "r2": 346.23,
+   "s1": 336.50999999999993,
+   "s2": 331.94999999999993,
+   "from": 1790343000000,
+   "reading": "Prix entre S1 (336,51 $) et le pivot (339,09 $)"
+  },
+  "levels": [
+   {
+    "price": 335.605,
+    "touches": 2,
+    "kind": "support",
+    "distancePct": -0.81
+   },
+   {
+    "price": 344.954975,
+    "touches": 2,
+    "kind": "resistance",
+    "distancePct": 1.95
+   },
+   {
+    "price": 318.3298,
+    "touches": 4,
+    "kind": "support",
+    "distancePct": -5.92
+   },
+   {
+    "price": 302.242,
+    "touches": 5,
+    "kind": "support",
+    "distancePct": -10.67
+   },
+   {
+    "price": 288,
+    "touches": 2,
+    "kind": "support",
+    "distancePct": -14.88
+   },
+   {
+    "price": 280.5275,
+    "touches": 2,
+    "kind": "support",
+    "distancePct": -17.09
+   },
+   {
+    "price": 276.1312857142857,
+    "touches": 7,
+    "kind": "support",
+    "distancePct": -18.39
+   },
+   {
+    "price": 265.94166666666666,
+    "touches": 6,
+    "kind": "support",
+    "distancePct": -21.4
+   },
+   {
+    "price": 261.53000000000003,
+    "touches": 5,
+    "kind": "support",
+    "distancePct": -22.7
+   },
+   {
+    "price": 254.802,
+    "touches": 5,
+    "kind": "support",
+    "distancePct": -24.69
+   },
+   {
+    "price": 244.926,
+    "touches": 5,
+    "kind": "support",
+    "distancePct": -27.61
+   }
+  ],
+  "nearestSupport": {
+   "price": 335.605,
+   "touches": 2,
+   "kind": "support",
+   "distancePct": -0.81
+  },
+  "nearestResistance": {
+   "price": 344.954975,
+   "touches": 2,
+   "kind": "resistance",
+   "distancePct": 1.95
+  },
+  "levelsReading": "Support le plus proche 335,61 $ (2 contacts, −0,8 %) ; résistance la plus proche 344,95 $ (2 contacts, +2 %)",
+  "breakout": {
+   "kind": "fake",
+   "side": "down",
+   "level": 335.605,
+   "volumeRatio": 0.7,
+   "bias": "bullish",
+   "reading": "Fausse cassure baissière : le support 335,61 $ a été enfoncé puis le prix a refermé au-dessus"
+  },
+  "marketStructure": {
+   "trend": "up",
+   "highs": [
+    336.22,
+    345.34
+   ],
+   "lows": [
+    300.57,
+    309.9
+   ],
+   "bias": "bullish",
+   "reading": "Sommets et creux ascendants : structure haussière (sommets 336,22 $ puis 345,34 $, creux 300,57 $ puis 309,90 $)"
+  },
+  "relative": [
+   {
+    "benchmark": "S&P 500 (SPY)",
+    "symbol": "SPY",
+    "periods": [
+     {
+      "label": "1 mois",
+      "days": 30,
+      "assetPct": 8.81,
+      "benchmarkPct": 0.69,
+      "diff": 8.12
+     },
+     {
+      "label": "3 mois",
+      "days": 91,
+      "assetPct": 20.19,
+      "benchmarkPct": 5.81,
+      "diff": 14.38
+     },
+     {
+      "label": "6 mois",
+      "days": 182,
+      "assetPct": 37.09,
+      "benchmarkPct": 21.65,
+      "diff": 15.44
+     }
+    ],
+    "correlation": 0.11,
+    "bias": "bullish",
+    "reading": "Plus fort que le S&P 500 (SPY) (1 mois +8,1 pts, 3 mois +14,4 pts, 6 mois +15,4 pts) ; corrélation sur 90 jours 0,11"
+   },
+   {
+    "benchmark": "Nasdaq-100 (QQQ)",
+    "symbol": "QQQ",
+    "periods": [
+     {
+      "label": "1 mois",
+      "days": 30,
+      "assetPct": 8.81,
+      "benchmarkPct": 4.66,
+      "diff": 4.15
+     },
+     {
+      "label": "3 mois",
+      "days": 91,
+      "assetPct": 20.19,
+      "benchmarkPct": 5.38,
+      "diff": 14.81
+     },
+     {
+      "label": "6 mois",
+      "days": 182,
+      "assetPct": 37.09,
+      "benchmarkPct": 32.34,
+      "diff": 4.75
+     }
+    ],
+    "correlation": -0.02,
+    "bias": "bullish",
+    "reading": "Plus fort que le Nasdaq-100 (QQQ) (1 mois +4,2 pts, 3 mois +14,8 pts, 6 mois +4,8 pts) ; corrélation sur 90 jours -0,02"
+   }
+  ],
+  "relativeNote": null
+ },
+ "events": [
+  {
+   "date": 1790688600000,
+   "day": "2026-09-29",
+   "time": "15:30",
+   "kind": "centralBank",
+   "category": "discours",
+   "importance": "medium",
+   "title": "Prise de parole de la présidence de la BCE",
+   "originalName": "ECB President Lagarde Speaks",
+   "country": "Zone euro",
+   "source": "Nasdaq (calendrier économique)",
+   "url": "https://www.nasdaq.com/market-activity/economic-calendar"
+  },
+  {
+   "date": 1790766000000,
+   "day": "2026-09-30",
+   "time": "13:00",
+   "kind": "centralBank",
+   "category": "discours",
+   "importance": "medium",
+   "title": "Prise de parole de la présidence de la BCE",
+   "originalName": "ECB President Lagarde Speaks",
+   "country": "Zone euro",
+   "source": "Nasdaq (calendrier économique)",
+   "url": "https://www.nasdaq.com/market-activity/economic-calendar"
+  },
+  {
+   "date": 1790776800000,
+   "day": "2026-09-30",
+   "time": "16:00",
+   "kind": "macro",
+   "category": "activite",
+   "importance": "medium",
+   "title": "Confiance des consommateurs (Conference Board)",
+   "originalName": "CB Consumer Confidence",
+   "country": "États-Unis",
+   "consensus": "90.1",
+   "previous": "89.4",
+   "source": "Nasdaq (calendrier économique)",
+   "url": "https://www.nasdaq.com/market-activity/economic-calendar"
+  },
+  {
+   "date": 1790726400000,
+   "day": "2026-09-30",
+   "time": "après la clôture",
+   "kind": "earnings",
+   "category": "resultats",
+   "importance": "high",
+   "title": "Résultats de Micron Technology, Inc.",
+   "symbol": "MU",
+   "consensus": "BPA $31.24",
+   "previous": "BPA $2.86 il y a un an",
+   "detail": "Trimestre clos Aug/2026, 10 estimations",
+   "source": "Nasdaq (calendrier des résultats)",
+   "url": "https://www.nasdaq.com/market-activity/stocks/mu/earnings"
+  }
+ ]
 }

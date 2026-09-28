@@ -13,12 +13,14 @@ struct DecisionCard: View {
     private var nd: String { "non disponible" }
 
     var body: some View {
-        Card(title: "Décision", glow: DecisionStyle.color(decision.level)) {
+        Card(title: "Décision", glow: DecisionStyle.color(headlineLevel)) {
             verdict
             Meter(label: "Confiance", value: decision.confidence, tone: decision.confidence >= 65 ? .good : decision.confidence >= 40 ? .warn : .bad)
             Text(decision.confidenceText).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             lights
             modeLine
+            if let r = decision.marketRegime { RegimeLine(regime: r) }
+            if let s = decision.score { ScoreBlock(score: s) }
             if let plan = decision.plan { planView(plan) }
             if !decision.whyWait.isEmpty {
                 section("Pourquoi attendre ?")
@@ -51,15 +53,34 @@ struct DecisionCard: View {
 
     // MARK: Verdict
 
+    /// Level whose colour the headline takes: the rating's when there is one.
+    private var headlineLevel: Decision.Level { decision.rating?.level ?? decision.level }
+
+    private var verdictLabel: String { decision.label.isEmpty ? decision.verdict.label : decision.label }
+
     private var verdict: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(decision.label.isEmpty ? decision.verdict.label : decision.label)
-                .font(.title2.weight(.heavy))
-                .foregroundStyle(DecisionStyle.color(decision.level))
-                .fixedSize(horizontal: false, vertical: true)
+            if let rating = decision.rating {
+                let label = decision.ratingLabel.flatMap { $0.isEmpty ? nil : $0 } ?? rating.label
+                Text("\(rating.emoji) \(label)")
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DecisionStyle.color(rating.level))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(verdictLabel)
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DecisionStyle.color(decision.level))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text("\(decision.level.emoji) \(decision.levelLabel.isEmpty ? decision.level.label : decision.levelLabel)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
+            if decision.rating != nil {
+                (Text("Verdict du plan : ").foregroundStyle(.white.opacity(0.9)) + Text(verdictLabel).bold().foregroundStyle(.white)
+                    + Text(" · la note résume verdict, niveau et confiance").foregroundStyle(Theme.textSecondary))
+                    .font(.footnote).fixedSize(horizontal: false, vertical: true)
+            }
+            if let dg = decision.degraded, dg.active { DegradedBanner(degraded: dg) }
             Text(decision.headline).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             if decision.blocked {
                 Notice(text: "Achat interdit pour l'instant : " + decision.vetoes.filter(\.active).map(\.label).joined(separator: ", ") + ".", tone: .bad)
@@ -97,10 +118,23 @@ struct DecisionCard: View {
             if let t2 = p.target2 {
                 DecisionRow(key: "Objectif 2", value: "\(Format.price(t2))" + (p.reward2Pct.map { " (\(Format.percent($0, digits: 1)))" } ?? ""), tone: .good)
             }
+            if let t3 = p.target3 {
+                DecisionRow(key: "Objectif 3", value: "\(Format.price(t3))" + (p.reward3Pct.map { " (\(Format.percent($0, digits: 1)))" } ?? ""), tone: .good)
+            } else if decision.rating != nil {
+                DecisionRow(key: "Objectif 3", value: "aucun")
+            }
             DecisionRow(key: "Gain/risque", value: "\(Format.plain(p.riskReward, digits: 1)) (minimum \(Format.plain(p.minRiskReward, digits: 1)))",
                         tone: p.acceptable ? .good : .bad)
             Text("Calculé depuis \(Format.price(p.entry)) : " + (p.acceptable ? "rapport suffisant." : "rapport insuffisant, pas d'entrée à ce prix."))
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let h = decision.horizon {
+                (Text("Horizon : ").foregroundStyle(Theme.textSecondary) + Text(h.label).bold().foregroundStyle(.white)
+                    + Text(" — \(h.detail)").foregroundStyle(Theme.textSecondary))
+                    .font(.caption).fixedSize(horizontal: false, vertical: true)
+            }
+            if let src = p.target3Source, !src.isEmpty {
+                Text(DecisionText.target3Source(src)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -179,6 +213,28 @@ struct DecisionCard: View {
             .padding(.top, 6)
         }
         .tint(.white)
+        if let st = decision.structure {
+            DisclosureGroup("Structure technique · \(st.score.map { "direction \(DecisionText.signedScore($0))" } ?? "non disponible")") {
+                StructureList(structure: st).padding(.top, 6)
+            }
+            .tint(.white)
+        }
+        if decision.knowsEvents {
+            DisclosureGroup("Agenda (7 jours) · \(DecisionText.eventsBadge(decision.events))") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let note = DecisionText.eventsNote(decision.events, kind: decision.kind) {
+                        Text(note).font(.footnote).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(Array((decision.events ?? []).enumerated()), id: \.offset) { item in
+                        let e = item.element
+                        EventRow(event: e, timeLabel: Agenda.dayLabel(e.day) + (e.time.map { " · \($0)" } ?? ""))
+                        Divider().opacity(0.3)
+                    }
+                }
+                .padding(.top, 6)
+            }
+            .tint(.white)
+        }
         DisclosureGroup(vetoesTitle) {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(decision.sortedVetoes) { vetoRow($0) }

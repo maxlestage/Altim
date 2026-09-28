@@ -67,7 +67,8 @@ struct AssetDetailView: View {
         .onAppear { model.focus = asset }
         .onDisappear { if model.focus == asset { model.focus = nil } }
         .task { await loadStatic() }
-        .task { await loadDecision() }
+        // Reloaded when the score weights change (Réglages).
+        .task(id: model.scoreWeights) { await loadDecision() }
         .task(id: interval) { await loadChart() }
         .refreshable {
             await loadDecision()
@@ -247,7 +248,7 @@ struct AssetDetailView: View {
             weights = DecisionInputs.weights(model.holdings, prices: await holdingPrices(client))
         }
         do {
-            let d = try await client.decision(asset: asset, cost: cost, weights: weights)
+            let d = try await client.decision(asset: asset, cost: cost, weights: weights, scoreWeights: model.scoreWeights)
             decision = .loaded(d)
             // Compared with the last decision seen for this asset (Radar → Changements de configuration).
             model.recordDecision(d, personal: d.isPersonal)
@@ -422,6 +423,7 @@ struct MacroCard: View {
                 Spacer()
                 Text("\(Int(macro.score))/100").font(Theme.mono(13))
             }
+            if let r = macro.regime { RegimeLine(regime: r) }
             ForEach(macro.factors) { Text("• \($0.text)").font(.footnote) }
             ForEach(MacroInfo.series, id: \.key) { s in
                 if let v = macro.values[s.key] {

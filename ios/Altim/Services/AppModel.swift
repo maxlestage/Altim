@@ -48,6 +48,8 @@ final class AppModel {
     var selectionHorizon: Horizon { didSet { defaults.set(selectionHorizon.rawValue, forKey: "selectionHorizon") } }
     /// Risk limits (Réglages → Prudence des conseils), checked on Mes avoirs.
     var risk: RiskSettings { didSet { defaults.set(try? JSONEncoder().encode(risk), forKey: "riskSettings") } }
+    /// Weights of the decision's composite score (Réglages), sent as `w=` only when not the defaults.
+    var scoreWeights: ScoreWeights { didSet { defaults.set(try? JSONEncoder().encode(scoreWeights), forKey: "scoreWeights") } }
     /// Last decision seen per asset and the configuration changes (Radar), stored on the iPhone only.
     var configChanges: ConfigState { didSet { LocalStore.save(configChanges, "configChanges") } }
     /// Positions that became dangerous, last measured on Mes avoirs (shown again on the Radar with their time).
@@ -89,6 +91,7 @@ final class AppModel {
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
         selectionHorizon = Horizon(rawValue: defaults.string(forKey: "selectionHorizon") ?? "") ?? .mo1
         risk = defaults.data(forKey: "riskSettings").flatMap { try? JSONDecoder().decode(RiskSettings.self, from: $0) } ?? .defaults
+        scoreWeights = defaults.data(forKey: "scoreWeights").flatMap { try? JSONDecoder().decode(ScoreWeights.self, from: $0) } ?? .defaults
         // Damaged or older entries are dropped on reading (ConfigState validates each one).
         configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
         dangers = LocalStore.load(DangerState.self, "dangers")

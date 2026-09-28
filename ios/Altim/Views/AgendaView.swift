@@ -140,8 +140,10 @@ struct AgendaView: View {
 }
 
 /// One event: importance (dot + words for VoiceOver), time, title, tags, figures, detail, note and its source.
-private struct EventRow: View {
+struct EventRow: View {
     let event: CalendarEvent
+    /// Replaces the time (the decision card writes the day before it: "Demain · 14:30").
+    var timeLabel: String? = nil
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -150,8 +152,8 @@ private struct EventRow: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Circle().fill(e.high ? Theme.sell : Theme.warning).frame(width: 8, height: 8)
                     .accessibilityLabel(e.high ? "Importance haute" : "Importance moyenne")
-                Text(e.time ?? "Journée").font(Theme.mono(12, weight: .regular)).foregroundStyle(Theme.textSecondary)
-                    .fixedSize()
+                Text(timeLabel ?? e.time ?? "Journée").font(Theme.mono(12, weight: .regular)).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(e.title).font(.footnote.weight(.semibold)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
             }
             WrapLayout(spacing: 4) {

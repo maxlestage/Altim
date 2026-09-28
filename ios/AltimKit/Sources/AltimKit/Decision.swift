@@ -127,6 +127,11 @@ public struct Decision: Codable, Sendable {
         public var minRiskReward: Double
         public var acceptable: Bool
         public var horizon: String
+        /// Target 3 (next level beyond target 2, or target 2 + (target 2 − target 1)); absent from older answers.
+        public var target3: Double?
+        public var reward3Pct: Double?
+        /// Where target 3 comes from ("Projection : …", "Niveau touché 3 fois …").
+        public var target3Source: String?
     }
 
     public struct Condition: Codable, Sendable {
@@ -519,6 +524,22 @@ public struct Decision: Codable, Sendable {
     public var exposure: Exposure?
     public var sources: [DataSource]
     public var disclaimer: String
+    // Added later (absent from older answers, hence optional): 6-level rating, composite score, degraded signal,
+    // market regime, horizon class, technical structure, next 7 days' events.
+    public var rating: Rating?
+    public var ratingLabel: String?
+    public var score: CompositeScore?
+    public var degraded: Degraded?
+    public var marketRegime: MarketRegime?
+    public var horizon: HorizonClass?
+    public var structure: Structure?
+    /// Events of the next 7 days that matter for this asset; nil: calendar not verified (or an older server, see
+    /// `knowsEvents`); empty: nothing major.
+    public var events: [CalendarEvent]?
+
+    /// A server that knows the rating also sends `events` (null when the calendar could not be verified): an answer
+    /// without a rating comes from an older server, whose missing events mean nothing.
+    public var knowsEvents: Bool { rating != nil }
 
     public var isPersonal: Bool { mode == "personal" }
     /// Active vetoes first, then the checked ones, the unverifiable last.
@@ -591,17 +612,20 @@ public enum DecisionInputs {
 }
 
 extension AltimClient {
-    static func decisionQuery(_ asset: Asset, cost: Double?, weights: [DecisionWeight]) -> [String: String] {
+    static func decisionQuery(_ asset: Asset, cost: Double?, weights: [DecisionWeight], scoreWeights: ScoreWeights? = nil) -> [String: String] {
         var q = ["symbol": asset.symbol, "kind": asset.kind.rawValue]
         if let cost, cost.isFinite, cost > 0 { q["cost"] = DecisionInputs.number(cost, digits: 10) }
         let w = Array(weights.filter { $0.weight.isFinite && $0.weight > 0 }.prefix(20))
         if !w.isEmpty { q["weights"] = DecisionInputs.weightsParameter(w) }
+        // Score weights only when they differ from the defaults (the cached answer stays shared otherwise).
+        if let p = scoreWeights?.parameter { q["w"] = p }
         return q
     }
 
     /// Decision on one asset. Without `cost` and `weights`: informational (market data only). With them (the average
     /// purchase price and the portfolio's percentages, never quantities): personal, used for this answer only.
-    public func decision(asset: Asset, cost: Double? = nil, weights: [DecisionWeight] = []) async throws -> Decision {
-        try await getDecision(Self.decisionQuery(asset, cost: cost, weights: weights))
+    /// `scoreWeights`: the user's weights of the composite score (Réglages), sent only when not the defaults.
+    public func decision(asset: Asset, cost: Double? = nil, weights: [DecisionWeight] = [], scoreWeights: ScoreWeights? = nil) async throws -> Decision {
+        try await getDecision(Self.decisionQuery(asset, cost: cost, weights: weights, scoreWeights: scoreWeights))
     }
 }

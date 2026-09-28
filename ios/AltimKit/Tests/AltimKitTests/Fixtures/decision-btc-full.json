@@ -436,5 +436,112 @@
    "detail": "source payante uniquement"
   }
  ],
- "disclaimer": "Mode informationnel : données et scénarios observés, pas une recommandation personnalisée. Altim ne passe aucun ordre ; rien ne garantit l'avenir."
+ "disclaimer": "Mode informationnel : données et scénarios observés, pas une recommandation personnalisée. Altim ne passe aucun ordre ; rien ne garantit l'avenir.",
+ "rating": "hold",
+ "ratingLabel": "ATTENDRE",
+ "score": {
+  "value": null,
+  "label": "Non mesuré",
+  "factors": [
+   {
+    "key": "tech",
+    "label": "Technique",
+    "weight": 32,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "mom",
+    "label": "Momentum",
+    "weight": 18,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "fund",
+    "label": "Fondamentaux",
+    "weight": 20,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "sent",
+    "label": "Sentiment",
+    "weight": 10,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "news",
+    "label": "Actualités",
+    "weight": 10,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   },
+   {
+    "key": "macro",
+    "label": "Macro",
+    "weight": 10,
+    "applied": 0,
+    "value": null,
+    "contribution": null,
+    "sources": []
+   }
+  ],
+  "missing": [
+   "Technique",
+   "Momentum",
+   "Fondamentaux",
+   "Sentiment",
+   "Actualités",
+   "Macro"
+  ],
+  "custom": false,
+  "text": "Score composite non calculable : aucun facteur mesuré."
+ },
+ "degraded": {
+  "active": true,
+  "headline": "⚠️ Signal dégradé — Le modèle détecte des signaux contradictoires. Aucune entrée privilégiée actuellement.",
+  "reasons": [
+   "Familles contradictoires : 3 favorables, 3 défavorables"
+  ]
+ },
+ "marketRegime": {
+  "kind": "riskOff",
+  "label": "Risk-off",
+  "benchmark": "Bitcoin (BTC)",
+  "reasons": [
+   "VIX 32"
+  ]
+ },
+ "horizon": null,
+ "structure": {
+  "timeframe": "Bougies journalières clôturées",
+  "score": null,
+  "ichimoku": null,
+  "supertrend": null,
+  "donchian": null,
+  "vwap": null,
+  "volumeProfile": null,
+  "pivots": null,
+  "levels": [],
+  "nearestSupport": null,
+  "nearestResistance": null,
+  "levelsReading": "Aucun niveau touché au moins deux fois",
+  "breakout": null,
+  "marketStructure": null,
+  "relative": [],
+  "relativeNote": "Force relative non calculée : c'est la référence elle-même"
+ },
+ "events": []
 }
