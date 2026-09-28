@@ -434,3 +434,11 @@
 .history-legend { list-style: none; padding: 0; margin: 4px 0 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
 .history-legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
 .history-legend b { color: var(--text, #fff); font-weight: 600; }
+.dca-card .segmented { margin: 8px 0 4px; }
+
+/* Point du jour */
+.brief-headline { margin: 2px 0 6px; font-weight: 600; line-height: 1.4; }
+.brief-card .chip { display: inline-flex; gap: 6px; width: auto; margin: 0; padding: 3px 10px; font-size: 12px; text-decoration: none; color: var(--text); }
+.brief-news { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; }
+.brief-news a { color: var(--text); }
+.dca-card .kv b, .history-card .kv b { white-space: nowrap; }

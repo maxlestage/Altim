@@ -16,6 +16,7 @@ struct RadarView: View {
             if !query.isEmpty {
                 searchSection
             } else {
+                Section { BriefCard() }.listRowBackground(Color.clear)
                 if let macro, macro.level != "calm" {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
                 }

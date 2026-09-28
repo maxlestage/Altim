@@ -56,6 +56,8 @@ const THEMES: { theme: NewsTheme; re: RegExp }[] = [
   { theme: "earnings", re: /\b(earnings|quarterly results|revenue|guidance|eps|profit warning|résultats (trimestriels|annuels|semestriels)|chiffre d'affaires|bénéfice)\b/i },
 ];
 
+/** A conditional or an opinion ("could trigger a bank run", "pourrait déclencher") is not an event that happened. */
+const HEDGED = /\b(could|might|may|would|risks?|fears? of|what if|pourrai(t|ent)|risquer?ai(t|ent)|risque de|et si|selon (cet|un|une))\b/i;
 const ESCALATION = /\b(declar(es|ed|ing) war|invades?|invaded|invasion of|nuclear (strike|attack|threat|test)|martial law|state of emergency|bank runs?|bank collapse|circuit breaker|trading halted|defaults? on (its )?debt|déclare la guerre|déclaration de guerre|loi martiale|état d'urgence|panique bancaire|cotations suspendues)\b/i;
 
 const NEGATIVE = /\b(hack(ed)?|exploit|breach|stolen|lawsuit|sues|sued|fraud|bankrupt(cy)?|insolvency|liquidat(ed|ion)|delist(ed|ing)?|ban(ned)?|crackdown|crash(es)?|plunges?|tumbles?|sinks?|slumps?|slides?|sell-?off|downgraded?|misses|layoffs|recall|outage|warning|indictment|falls?|drops?|losses?|piratage|fraude|faillite|chute|plonge|recule|recul|dégringole|effondre|baisse|pertes?|licenciements?|panne|avertissement|sanctions?)\b/i;
@@ -192,7 +194,7 @@ export function aggregate(
         tone: neg && !pos ? "negative" : pos && !neg ? "positive" : "neutral",
         assets: assetIds,
         alsoIn: [...k.alsoIn].slice(0, 8),
-        alert: ESCALATION.test(k.title),
+        alert: ESCALATION.test(k.title) && !HEDGED.test(k.title),
       } satisfies NewsItem;
     })
     .sort((a, b) => b.time - a.time);
@@ -203,7 +205,8 @@ export function aggregate(
 /** "À la une": serious escalations first, then the stories told by the most sources (at least 2), recent first. */
 export function topStories(items: NewsItem[], n = 5): NewsItem[] {
   return items
-    .filter((i) => i.alert || i.alsoIn.length >= 1)
+    // A story on the front page is told by 2 sources at least, a serious escalation too (it comes first).
+    .filter((i) => i.alsoIn.length >= 1)
     .sort((a, b) => Number(b.alert) - Number(a.alert) || b.alsoIn.length - a.alsoIn.length || b.time - a.time)
     .slice(0, n);
 }

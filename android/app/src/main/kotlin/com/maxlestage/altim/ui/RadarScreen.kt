@@ -140,6 +140,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
         }
         PullToRefreshBox(isRefreshing = loading && rows.isNotEmpty(), onRefresh = { scope.launch { load() } }) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                item { BriefCard(model, open) }
                 macro?.takeIf { it.level != "calm" }?.let { m -> item { MacroBanner(m) } }
                 error?.let { e -> item { ErrorBox(e) { scope.launch { load() } } } }
                 item {
