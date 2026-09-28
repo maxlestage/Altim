@@ -74,9 +74,9 @@ export function CompareCard({ assets }: { assets: { symbol: string; kind: "crypt
                 {c.stats.map((s) => (
                   <tr key={s.id}>
                     <td><i className="dot" style={{ background: COLORS[picked.indexOf(s.id)] }} />{name(s.id)}</td>
-                    <td className={s.change >= 0 ? "up" : "down"}>{pct(s.change)}</td>
-                    <td>{Math.round(s.volatility)}&nbsp;%/an</td>
-                    <td className="down">{pct(s.maxDrawdown)}</td>
+                    <td data-label="Variation" className={s.change >= 0 ? "up" : "down"}>{pct(s.change)}</td>
+                    <td data-label="Volatilité">{Math.round(s.volatility)}&nbsp;%/an</td>
+                    <td data-label="Pire recul" className="down">{pct(s.maxDrawdown)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -199,10 +199,10 @@ export function SaleCard({ analysis }: { analysis: PortfolioAnalysis }) {
             {t.lines.map((l) => (
               <tr key={l.id}>
                 <td>{symbol(l.id)}</td>
-                <td>{usd(l.gross)}</td>
-                <td className={l.gain == null ? "muted" : l.gain >= 0 ? "up" : "down"}>{l.gain == null ? "—" : `${l.gain >= 0 ? "+" : "−"}${usd(Math.abs(l.gain))}`}</td>
-                <td>{l.tax > 0 ? `−${usd(l.tax)}` : "0 $"}</td>
-                <td><b>{usd(l.net)}</b></td>
+                <td data-label="Valeur">{usd(l.gross)}</td>
+                <td data-label="Plus-value" className={l.gain == null ? "muted" : l.gain >= 0 ? "up" : "down"}>{l.gain == null ? "—" : `${l.gain >= 0 ? "+" : "−"}${usd(Math.abs(l.gain))}`}</td>
+                <td data-label="Impôt">{l.tax > 0 ? `−${usd(l.tax)}` : "0 $"}</td>
+                <td data-label="Net"><b>{usd(l.net)}</b></td>
               </tr>
             ))}
           </tbody>
