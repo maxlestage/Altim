@@ -8,6 +8,7 @@ import { MyHoldings } from "./MyHoldings";
 import { Selection } from "./Selection";
 import { News } from "./News";
 import { Glossary } from "./Glossary";
+import { Simulation } from "./Simulation";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
@@ -43,9 +44,11 @@ export function WebApp() {
   else if (path === "/app/reglages") screen = <Settings />;
   else if (path === "/app/actu") screen = <News />;
   else if (path === "/app/lexique") screen = <Glossary />;
+  else if (path === "/app/simulation") screen = <Simulation />;
   else screen = <Radar />;
 
-  const active = asset ? "/app" : TABS.find((t) => t.href === path)?.href ?? "/app";
+  // The simulation sits next to the real holdings (tab "Mes avoirs").
+  const active = asset ? "/app" : path === "/app/simulation" ? "/app/avoirs" : TABS.find((t) => t.href === path)?.href ?? "/app";
 
   return (
     <div className="webapp">

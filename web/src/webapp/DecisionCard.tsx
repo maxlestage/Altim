@@ -6,6 +6,7 @@ import {
   pct, recentVerdict, riskRewardText, SCENARIO_UI, shortDateTime, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL, usd, usdCompact,
   type CryptoFundamentals, type Decision, type Family, type PersonalInput, type StockFundamentals,
 } from "./decision";
+import { SimulateBuy } from "./PaperOrder";
 
 // ---------- Small building blocks ----------
 
@@ -162,7 +163,11 @@ function CryptoFund({ f }: { f: CryptoFundamentals }) {
 
 export type DecisionStatus = { kind: "fresh" } | { kind: "refreshing"; at: number } | { kind: "stale"; at: number; offline: boolean; error: string };
 
-export function DecisionView({ d, status = { kind: "fresh" }, onRetry }: { d: Decision; status?: DecisionStatus; onRetry?: () => void }) {
+export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate }: {
+  d: Decision; status?: DecisionStatus; onRetry?: () => void;
+  /** Shows "Simuler cet achat" (paper trading) with the live price when known. */
+  simulate?: { livePrice: number | null };
+}) {
   const lv = LEVEL_UI[d.level];
   const vetoes = sortVetoes(d.vetoes);
   const active = vetoes.filter((v) => v.active).length;
@@ -403,6 +408,8 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry }: { d: De
         </Section>
       </div>
 
+      {simulate && <SimulateBuy d={d} livePrice={simulate.livePrice} />}
+
       <p className="dec-disclaimer small">{d.disclaimer}</p>
     </article>
   );
@@ -415,7 +422,11 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry }: { d: De
  * cached in this browser while loading or when the server is unreachable.
  * `personal` is null for an asset not held; `ready` is false while the portfolio prices are loading.
  */
-export function DecisionCard({ symbol, kind, personal, ready = true }: { symbol: string; kind: Kind; personal: PersonalInput | null; ready?: boolean }) {
+export function DecisionCard({ symbol, kind, personal, ready = true, livePrice = null }: {
+  symbol: string; kind: Kind; personal: PersonalInput | null; ready?: boolean;
+  /** Live price of the asset, used by "Simuler cet achat" (else the decision's price). */
+  livePrice?: number | null;
+}) {
   const isPersonal = !!personal && (personal.cost != null || personal.weights.length > 0);
   const url = decisionUrl(symbol, kind, isPersonal ? personal : null);
   const initial = () => {
@@ -472,7 +483,7 @@ export function DecisionCard({ symbol, kind, personal, ready = true }: { symbol:
     // The URL carries every input (symbol, kind, cost, weights).
   }, [url, ready, nonce]);
 
-  if (d) return <DecisionView d={d} status={status} onRetry={retry} />;
+  if (d) return <DecisionView d={d} status={status} onRetry={retry} simulate={{ livePrice }} />;
   if (error) {
     return (
       <div className="card decision">

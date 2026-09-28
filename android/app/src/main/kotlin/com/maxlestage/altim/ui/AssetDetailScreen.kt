@@ -74,6 +74,8 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
     var targetOpen by remember(asset.id) { mutableStateOf(false) }
     var decision by remember(asset.id) { mutableStateOf<Loadable<Decision>>(Loadable.Loading) }
     var decisionReload by remember { mutableStateOf(0) }
+    var simulateOpen by remember(asset.id) { mutableStateOf(false) }
+    var simulated by remember(asset.id) { mutableStateOf<String?>(null) }
     val held = model.holdings.any { it.asset.id == asset.id }
 
     // Personal mode when held: the average cost and the portfolio weights (percentages only) go with the request,
@@ -149,7 +151,8 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 PriceTargetCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
             }
             Header(model, asset, signal, zones.value)
-            DecisionCard(decision, held) { decisionReload++ }
+            DecisionCard(decision, held, onSimulate = { simulateOpen = true }) { decisionReload++ }
+            simulated?.let { Notice(it, Tone.GOOD) }
             Card {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                     INTERVALS.forEachIndexed { i, (k, label) ->
@@ -215,6 +218,17 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             DcaCard(model, asset)
             Caption("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
         }
+    }
+    val d = decision.value
+    if (simulateOpen && d != null) {
+        SimulateSheet(
+            model, asset, d, model.live.price(asset)?.price ?: signal?.price ?: d.price ?: zones.value?.price,
+            onDone = {
+                simulated = it
+                simulateOpen = false
+            },
+            onDismiss = { simulateOpen = false },
+        )
     }
 }
 

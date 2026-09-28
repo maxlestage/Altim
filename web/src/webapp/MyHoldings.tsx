@@ -9,6 +9,7 @@ import { exportHoldings, importHoldings, setHoldings, upsertHolding, useHoldings
 import { Change } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { HistoryCard } from "./HistoryCard";
+import { PortfolioTabs } from "./Simulation";
 import { ProjectionCard, RebalanceCard, SaleCard } from "./ToolCards";
 
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
@@ -121,6 +122,7 @@ export function MyHoldings() {
 
   return (
     <section className="app-screen">
+      <PortfolioTabs active="real" />
       <div className="screen-top">
         <div>
           <h1>Mes avoirs</h1>
