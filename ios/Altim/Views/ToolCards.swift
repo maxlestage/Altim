@@ -276,7 +276,7 @@ struct SaleCard: View {
 /// What the portfolio plus a monthly contribution would become, under three yearly returns (hypotheses).
 struct ProjectionCard: View {
     let start: Double
-    @State private var monthlyText = "200"
+    @State private var monthlyText = "0"
     @State private var years = 10
 
     var body: some View {
@@ -285,7 +285,7 @@ struct ProjectionCard: View {
         let paid = runs[0].end.paid
         Card(title: "Projection") {
             HStack {
-                Text("Versement chaque mois").foregroundStyle(Theme.textSecondary)
+                Text("Versement chaque mois, facultatif").foregroundStyle(Theme.textSecondary)
                 Spacer()
                 TextField("200", text: $monthlyText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).font(Theme.mono(16)).frame(maxWidth: 120)
                 Text("$").foregroundStyle(Theme.textSecondary)
@@ -296,7 +296,7 @@ struct ProjectionCard: View {
                 Text("20 ans").tag(20)
             }
             .pickerStyle(.segmented)
-            KeyValue(key: "Aujourd'hui \(dollars(start)) + versements", value: "\(dollars(paid)) versés")
+            KeyValue(key: monthly > 0 ? "Aujourd'hui \(dollars(start)) + versements" : "Vos avoirs aujourd'hui, sans rien ajouter", value: dollars(paid) + (monthly > 0 ? " versés" : ""))
             ForEach(runs, id: \.rate) { run in
                 let gain = run.end.value - paid
                 KeyValue(key: "Si \(Int(run.rate)) % par an", value: "\(dollars(run.end.value)) (\(gain >= 0 ? "+" : "−")\(dollars(abs(gain))))", tone: gain > 0 ? .good : nil)
