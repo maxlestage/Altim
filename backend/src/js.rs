@@ -128,13 +128,13 @@ fn render_fr(negative: bool, digits: &[u8], point: i32, min_frac: usize) -> Stri
     let mut grouped = String::new();
     let n = int_part.len();
     for (i, c) in int_part.chars().enumerate() {
-        if i > 0 && (n - i) % 3 == 0 && n > 3 {
+        if i > 0 && (n - i).is_multiple_of(3) && n > 3 {
             grouped.push('\u{202f}');
         }
         grouped.push(c);
     }
-    let zero = grouped.chars().all(|c| c == '0') && frac.chars().all(|c| c == '0');
-    let sign = if negative && !zero { "-" } else if negative { "-" } else { "" };
+    // Intl keeps the sign of a negative value rounded to zero ("-0").
+    let sign = if negative { "-" } else { "" };
     if frac.is_empty() { format!("{sign}{grouped}") } else { format!("{sign}{grouped},{frac}") }
 }
 
@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(fr(1234567.891, 0, 2), "1\u{202f}234\u{202f}567,89");
         assert_eq!(fr(1.005, 0, 2), "1,01");
         assert_eq!(fr(999.999, 2, 2), "1\u{202f}000,00");
-        assert_eq!(fr(-3.14159, 0, 1), "-3,1");
+        assert_eq!(fr(-3.24159, 0, 1), "-3,2");
         assert_eq!(fr(0.5, 0, 0), "1");
         assert_eq!(fr(1000.0, 0, 0), "1\u{202f}000");
         assert_eq!(fr(12.0, 2, 2), "12,00");
