@@ -147,8 +147,8 @@ const JS_WS: &str = r"\t\n\x0B\x0C\r \x{A0}\x{1680}\x{2000}-\x{200A}\x{2028}\x{2
 fn is_js_ws(c: char) -> bool {
     matches!(
         c,
-        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'..='\u{200A}' | '\u{2028}' | '\u{2029}'
-            | '\u{202F}' | '\u{205F}' | '\u{3000}' | '\u{FEFF}'
+        '\t' | '\n' | '\u{0B}' | '\u{0C}' | '\r' | ' ' | '\u{A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}' | '\u{2028}' | '\u{2029}' | '\u{202F}' | '\u{205F}' | '\u{3000}' | '\u{FEFF}'
     )
 }
 
@@ -190,27 +190,55 @@ fn word_re(alternatives: &str) -> Regex {
 
 static THEMES: LazyLock<Vec<(NewsTheme, Regex)>> = LazyLock::new(|| {
     vec![
-        (NewsTheme::Geopolitics, word_re(r"wars?|invasion|invades?|invaded|missiles?|air ?strikes?|drones?|military|troops|nuclear|sanctions?|ceasefire|hostages?|coup|blockade|guerre|frappes?|armée|militaires?|nucléaire|cessez-le-feu|otages?|invasion")),
-        (NewsTheme::Monetary, word_re(r"fed|federal reserve|fomc|powell|ecb|bce|lagarde|rate (hikes?|cuts?)|interest rates?|inflation|cpi|treasury yields?|taux (directeurs?|d'intérêt)|banque centrale|baisse des taux|hausse des taux")),
+        (
+            NewsTheme::Geopolitics,
+            word_re(
+                r"wars?|invasion|invades?|invaded|missiles?|air ?strikes?|drones?|military|troops|nuclear|sanctions?|ceasefire|hostages?|coup|blockade|guerre|frappes?|armée|militaires?|nucléaire|cessez-le-feu|otages?|invasion",
+            ),
+        ),
+        (
+            NewsTheme::Monetary,
+            word_re(
+                r"fed|federal reserve|fomc|powell|ecb|bce|lagarde|rate (hikes?|cuts?)|interest rates?|inflation|cpi|treasury yields?|taux (directeurs?|d'intérêt)|banque centrale|baisse des taux|hausse des taux",
+            ),
+        ),
         (NewsTheme::Trade, word_re(r"tariffs?|trade war|export (ban|controls?)|embargo|droits de douane|guerre commerciale|taxes douanières")),
-        (NewsTheme::Stress, word_re(r"recession|default(s|ed)?|bank (runs?|collapse|failures?)|financial crisis|market crash|crash|sell-?off|bankruptcy|contagion|récession|krach|faillite|crise financière|effondrement|défaut de paiement")),
-        (NewsTheme::Regulation, word_re(r"sec|cftc|regulators?|regulation|lawsuit|etf approval|mica|amf|régulateur|régulation|réglementation|plainte|procès")),
-        (NewsTheme::Earnings, word_re(r"earnings|quarterly results|revenue|guidance|eps|profit warning|résultats (trimestriels|annuels|semestriels)|chiffre d'affaires|bénéfice")),
+        (
+            NewsTheme::Stress,
+            word_re(
+                r"recession|default(s|ed)?|bank (runs?|collapse|failures?)|financial crisis|market crash|crash|sell-?off|bankruptcy|contagion|récession|krach|faillite|crise financière|effondrement|défaut de paiement",
+            ),
+        ),
+        (
+            NewsTheme::Regulation,
+            word_re(r"sec|cftc|regulators?|regulation|lawsuit|etf approval|mica|amf|régulateur|régulation|réglementation|plainte|procès"),
+        ),
+        (
+            NewsTheme::Earnings,
+            word_re(
+                r"earnings|quarterly results|revenue|guidance|eps|profit warning|résultats (trimestriels|annuels|semestriels)|chiffre d'affaires|bénéfice",
+            ),
+        ),
     ]
 });
 
 /// A conditional or an opinion ("could trigger a bank run", "pourrait déclencher") is not an event that happened.
-static HEDGED: LazyLock<Regex> = LazyLock::new(|| {
-    word_re(r"could|might|may|would|risks?|fears? of|what if|pourrai(t|ent)|risquer?ai(t|ent)|risque de|et si|selon (cet|un|une)")
-});
+static HEDGED: LazyLock<Regex> =
+    LazyLock::new(|| word_re(r"could|might|may|would|risks?|fears? of|what if|pourrai(t|ent)|risquer?ai(t|ent)|risque de|et si|selon (cet|un|une)"));
 static ESCALATION: LazyLock<Regex> = LazyLock::new(|| {
-    word_re(r"declar(es|ed|ing) war|invades?|invaded|invasion of|nuclear (strike|attack|threat|test)|martial law|state of emergency|bank runs?|bank collapse|circuit breaker|trading halted|defaults? on (its )?debt|déclare la guerre|déclaration de guerre|loi martiale|état d'urgence|panique bancaire|cotations suspendues")
+    word_re(
+        r"declar(es|ed|ing) war|invades?|invaded|invasion of|nuclear (strike|attack|threat|test)|martial law|state of emergency|bank runs?|bank collapse|circuit breaker|trading halted|defaults? on (its )?debt|déclare la guerre|déclaration de guerre|loi martiale|état d'urgence|panique bancaire|cotations suspendues",
+    )
 });
 static NEGATIVE: LazyLock<Regex> = LazyLock::new(|| {
-    word_re(r"hack(ed)?|exploit|breach|stolen|lawsuit|sues|sued|fraud|bankrupt(cy)?|insolvency|liquidat(ed|ion)|delist(ed|ing)?|ban(ned)?|crackdown|crash(es)?|plunges?|tumbles?|sinks?|slumps?|slides?|sell-?off|downgraded?|misses|layoffs|recall|outage|warning|indictment|falls?|drops?|losses?|piratage|fraude|faillite|chute|plonge|recule|recul|dégringole|effondre|baisse|pertes?|licenciements?|panne|avertissement|sanctions?")
+    word_re(
+        r"hack(ed)?|exploit|breach|stolen|lawsuit|sues|sued|fraud|bankrupt(cy)?|insolvency|liquidat(ed|ion)|delist(ed|ing)?|ban(ned)?|crackdown|crash(es)?|plunges?|tumbles?|sinks?|slumps?|slides?|sell-?off|downgraded?|misses|layoffs|recall|outage|warning|indictment|falls?|drops?|losses?|piratage|fraude|faillite|chute|plonge|recule|recul|dégringole|effondre|baisse|pertes?|licenciements?|panne|avertissement|sanctions?",
+    )
 });
 static POSITIVE: LazyLock<Regex> = LazyLock::new(|| {
-    word_re(r"approv(al|ed|es)|inflows|record high|all-time high|surges?|soars?|rall(y|ies)|upgraded?|beats|raises guidance|buyback|partnership|adoption|breakthrough|jumps?|climbs?|gains?|rebounds?|hausse|bondit|grimpe|record|rebond|progresse|s'envole|partenariat|rachat|approbation")
+    word_re(
+        r"approv(al|ed|es)|inflows|record high|all-time high|surges?|soars?|rall(y|ies)|upgraded?|beats|raises guidance|buyback|partnership|adoption|breakthrough|jumps?|climbs?|gains?|rebounds?|hausse|bondit|grimpe|record|rebond|progresse|s'envole|partenariat|rachat|approbation",
+    )
 });
 static FRENCH: LazyLock<Regex> =
     LazyLock::new(|| word_re(r"le|la|les|des|du|une|pour|dans|sur|avec|est|sont|pas|plus|qui|après|selon|français|bourse|marchés?"));
@@ -225,15 +253,20 @@ static ITEM: LazyLock<Regex> = LazyLock::new(|| re(r"(?s)<item(?-u:\b)[^>]*>(.*?
 static ENTRY: LazyLock<Regex> = LazyLock::new(|| re(r"(?s)<entry(?-u:\b)[^>]*>(.*?)</entry>"));
 static LINK_HREF: LazyLock<Regex> = LazyLock::new(|| re(r#"<link(?-u:\b)[^>]*href="([^"]+)""#));
 const TAG_NAMES: [&str; 9] = ["title", "link", "pubDate", "dc:date", "updated", "published", "source", "description", "summary"];
-static TAG: LazyLock<Vec<Regex>> =
-    LazyLock::new(|| TAG_NAMES.iter().map(|n| re(&format!(r"(?s)<{n}(?-u:\b)[^>]*>(.*?)</{n}>"))).collect());
+static TAG: LazyLock<Vec<Regex>> = LazyLock::new(|| TAG_NAMES.iter().map(|n| re(&format!(r"(?s)<{n}(?-u:\b)[^>]*>(.*?)</{n}>"))).collect());
 static TRAILING_WORD: LazyLock<Regex> = LazyLock::new(|| re(&format!("[{JS_WS}]+[^{JS_WS}]*$")));
 static COMPANY_SUFFIX: LazyLock<Regex> = LazyLock::new(|| re(r"(?i),? (Inc|Corp|Corporation|Ltd|plc|SA|NV|Holdings?)\.?$"));
 
 /// `String.fromCodePoint(n)` over the digits of an entity (RangeError beyond U+10FFFF), as UTF-16 code units.
 fn code_point(digits: &str, radix: u32, out: &mut Vec<u16>) -> Result<()> {
     let d = digits.trim_start_matches('0');
-    let n = if d.is_empty() { Some(0) } else if d.len() > 7 { None } else { u32::from_str_radix(d, radix).ok() };
+    let n = if d.is_empty() {
+        Some(0)
+    } else if d.len() > 7 {
+        None
+    } else {
+        u32::from_str_radix(d, radix).ok()
+    };
     match n {
         Some(n) if n <= 0x10FFFF => {
             if (0xD800..=0xDFFF).contains(&n) {
@@ -568,6 +601,10 @@ pub fn news_digest(items: &[NewsItem], now: i64) -> NewsDigest {
     NewsDigest {
         total: day.len(),
         themes,
-        tone: ToneCount { negative: tone_count(NewsTone::Negative), positive: tone_count(NewsTone::Positive), neutral: tone_count(NewsTone::Neutral) },
+        tone: ToneCount {
+            negative: tone_count(NewsTone::Negative),
+            positive: tone_count(NewsTone::Positive),
+            neutral: tone_count(NewsTone::Neutral),
+        },
     }
 }

@@ -1,6 +1,6 @@
 /**
  * Data audit: compares what Altim shows with independent references it does not use for the same figure.
- *   bun scripts/audit.ts [server]   (default http://localhost:4413, a server without login)
+ *   bun scripts/audit.ts [server]   (default http://localhost:3000: `cd backend && cargo run --release`, without login)
  * - Live prices: crypto vs CoinPaprika (not an Altim source), stocks vs Yahoo Finance (1 source out of ~12).
  * - Daily closes over a year (history, charts, simulator): crypto vs Coinbase daily candles (Altim's daily history
  *   comes from Bitstamp, Binance, Gate, MEXC, Kraken), stocks vs Yahoo daily chart (Altim: Robinhood, Nasdaq, WSJ…).
@@ -12,7 +12,7 @@
  */
 export {};
 
-const SERVER = process.argv[2] ?? "http://localhost:4413";
+const SERVER = process.argv[2] ?? "http://localhost:3000";
 const UA = { "User-Agent": "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Safari/605.1.15 AltimAudit/1.0" };
 // Symbol, Coinbase product (null: not listed there), CoinPaprika id.
 const CRYPTO: [string, string | null, string][] = [

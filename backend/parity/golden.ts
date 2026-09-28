@@ -3,13 +3,15 @@
  * the Rust tests (tests/parity.rs): bun parity/golden.ts
  * Each section writes tests/golden/<name>.json = [{ args, output }].
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { Candle } from "../../web/src/engine/signal";
 import { analyze } from "../../web/src/engine/signal";
 
 export type Input = { symbol: string; kind: "crypto" | "stock"; interval: "1h" | "4h" | "1d" | "long"; candles: Candle[] };
 export const DIR = join(import.meta.dir, "../tests/golden");
+/** The TypeScript server (web/server) was replaced by the Rust one: the golden files recorded from it are frozen. */
+export const SERVER = existsSync(join(import.meta.dir, "../../web/server"));
 export const inputs = JSON.parse(readFileSync(join(DIR, "inputs.json"), "utf8")) as Input[];
 export const find = (symbol: string, interval: string) => inputs.find((i) => i.symbol === symbol && i.interval === interval);
 /** A fixed "now" just after the capture, so time-dependent outputs are reproducible. */
@@ -56,7 +58,7 @@ const HIGHER: Record<string, string | null> = { "1h": "4h", "4h": "1d", "1d": nu
 }
 
 // Other engines: one file per module, imported here (parity/golden-*.ts).
-for (const m of ["engines-a", "engines-b", "engines-b1", "server"]) {
+for (const m of ["engines-a", "engines-b", "engines-b1", ...(SERVER ? ["server"] : [])]) {
   try {
     await import(`./golden-${m}.ts`);
   } catch (e) {

@@ -94,13 +94,7 @@ pub struct FeedResult {
 
 /// `fetch(url).text()`: follows redirects, 8 s, the body read as UTF-8 whatever the charset (BOM dropped).
 async fn fetch_text(url: &str) -> Result<String> {
-    let res = CLIENT
-        .get(url)
-        .header("User-Agent", UA)
-        .header("Accept", ACCEPT)
-        .timeout(Duration::from_secs(8))
-        .send()
-        .await?;
+    let res = CLIENT.get(url).header("User-Agent", UA).header("Accept", ACCEPT).timeout(Duration::from_secs(8)).send().await?;
     if !res.status().is_success() {
         return err(format!("HTTP {}", res.status().as_u16()));
     }
@@ -137,8 +131,7 @@ async fn fetch_feed(feed: Feed) -> FeedResult {
 
 /// Feeds of the user's own assets: Yahoo Finance for each stock, Google News (FR and EN) for each asset.
 pub fn asset_feeds(assets: &[Asset]) -> Vec<Feed> {
-    static SUFFIX: LazyLock<regex::Regex> =
-        LazyLock::new(|| regex::Regex::new(r"(?i),? (Inc|Corp|Corporation|Ltd|plc)\.?$").expect("regex"));
+    static SUFFIX: LazyLock<regex::Regex> = LazyLock::new(|| regex::Regex::new(r"(?i),? (Inc|Corp|Corporation|Ltd|plc)\.?$").expect("regex"));
     assets
         .iter()
         .flat_map(|a| {

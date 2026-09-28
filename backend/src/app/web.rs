@@ -7,7 +7,7 @@ use axum::body::Body;
 use axum::extract::Request;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
-use axum::response::{IntoResponse, Redirect, Response};
+use axum::response::{IntoResponse, Response};
 use regex::Regex;
 
 pub const CSP: &str = "default-src 'self';script-src 'self';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src https://fonts.gstatic.com;img-src 'self' data:;connect-src 'self' https://api.binance.com https://api.coingecko.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none'";
@@ -43,16 +43,19 @@ pub async fn https_redirect(req: Request, next: Next) -> Response {
     if req.headers().get("x-forwarded-proto").is_some_and(|v| v == "http") {
         let host = req.headers().get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
         let path = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("/");
-        return Redirect::permanent(&format!("https://{host}{path}")).into_response();
+        // 301 like Express's `res.redirect(301, …)` (axum's permanent redirect is a 308).
+        let url = format!("https://{host}{path}");
+        return match HeaderValue::from_str(&url) {
+            Ok(loc) => (StatusCode::MOVED_PERMANENTLY, [(header::LOCATION, loc)], format!("Moved Permanently. Redirecting to {url}")).into_response(),
+            Err(_) => StatusCode::BAD_REQUEST.into_response(),
+        };
     }
     next.run(req).await
 }
 
 /// Folder holding `dist/` (built app) and `public/`: $ALTIM_WEB_ROOT, else ../web next to the crate.
 pub fn web_root() -> PathBuf {
-    std::env::var("ALTIM_WEB_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../web"))
+    std::env::var("ALTIM_WEB_ROOT").map(PathBuf::from).unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../web"))
 }
 
 static HASHED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-[a-z0-9]{8,}\.(js|css|svg|png)$").unwrap());
@@ -114,7 +117,9 @@ async fn send_file(path: &Path, cache: &str, req_headers: &HeaderMap, head: bool
             return r;
         }
     }
-    let body = if head { Body::empty() } else {
+    let body = if head {
+        Body::empty()
+    } else {
         match tokio::fs::read(path).await {
             Ok(b) => Body::from(b),
             Err(_) => return not_found(),
@@ -157,7 +162,11 @@ pub async fn site(req: Request) -> Response {
     }
     let index = root.join("dist/index.html");
     if !index.is_file() {
-        return (StatusCode::INTERNAL_SERVER_ERROR, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], "Build manquant : lancez `bun run build`.")
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
+            "Build manquant : lancez `bun run build`.",
+        )
             .into_response();
     }
     send_file(&index, "no-cache", req.headers(), head).await

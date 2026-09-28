@@ -179,13 +179,7 @@ pub fn rsi(closes: &[f64], period: usize) -> Series {
 fn true_range(c: &[Candle]) -> Vec<f64> {
     c.iter()
         .enumerate()
-        .map(|(i, x)| {
-            if i == 0 {
-                x.high - x.low
-            } else {
-                (x.high - x.low).max((x.high - c[i - 1].close).abs()).max((x.low - c[i - 1].close).abs())
-            }
-        })
+        .map(|(i, x)| if i == 0 { x.high - x.low } else { (x.high - x.low).max((x.high - c[i - 1].close).abs()).max((x.low - c[i - 1].close).abs()) })
         .collect()
 }
 
@@ -298,7 +292,14 @@ fn obv(c: &[Candle]) -> Vec<f64> {
     let mut out = vec![0.0; c.len()];
     for i in 1..c.len() {
         let d = c[i].close - c[i - 1].close;
-        out[i] = out[i - 1] + if d > 0.0 { c[i].volume } else if d < 0.0 { -c[i].volume } else { 0.0 };
+        out[i] = out[i - 1]
+            + if d > 0.0 {
+                c[i].volume
+            } else if d < 0.0 {
+                -c[i].volume
+            } else {
+                0.0
+            };
     }
     out
 }
@@ -356,7 +357,13 @@ pub fn analyze(raw: &[Candle], options: &AnalyzeOptions) -> Option<Signal> {
     if let (Some(fast), Some(slow)) = (fast, slow) {
         let raw_trend = 0.5 * sign(fast - slow) + 0.5 * sign(price - slow);
         let strength = adx_now.map(|a| clamp((a - 15.0) / 20.0, 0.3, 1.0)).unwrap_or(0.6);
-        let dir = if raw_trend > 0.0 { "haussière" } else if raw_trend < 0.0 { "baissière" } else { "neutre" };
+        let dir = if raw_trend > 0.0 {
+            "haussière"
+        } else if raw_trend < 0.0 {
+            "baissière"
+        } else {
+            "neutre"
+        };
         let adx_text = adx_now.map(|a| format!(" · ADX {}", to_fixed(a, 0))).unwrap_or_default();
         factors.push(factor("Tendance", clamp(raw_trend * strength, -1.0, 1.0), W_TREND, format!("{label} {dir}{adx_text}")));
     }
@@ -367,15 +374,23 @@ pub fn analyze(raw: &[Candle], options: &AnalyzeOptions) -> Option<Signal> {
     // 2. MACD
     let f12 = ema(&closes, 12);
     let s26 = ema(&closes, 26);
-    let line: Series = f12.iter().zip(&s26).map(|(f, s)| match (f, s) {
-        (Some(f), Some(s)) => Some(f - s),
-        _ => None,
-    }).collect();
+    let line: Series = f12
+        .iter()
+        .zip(&s26)
+        .map(|(f, s)| match (f, s) {
+            (Some(f), Some(s)) => Some(f - s),
+            _ => None,
+        })
+        .collect();
     let sig = ema_opt(&line, 9);
-    let hist: Series = line.iter().zip(&sig).map(|(l, s)| match (l, s) {
-        (Some(l), Some(s)) => Some(l - s),
-        _ => None,
-    }).collect();
+    let hist: Series = line
+        .iter()
+        .zip(&sig)
+        .map(|(l, s)| match (l, s) {
+            (Some(l), Some(s)) => Some(l - s),
+            _ => None,
+        })
+        .collect();
     if let (Some(h), Some(hp)) = (hist[last], hist[last - 1]) {
         let mut score = 0.5 * sign(h);
         let mut detail = String::from(if h >= 0.0 { "Histogramme positif" } else { "Histogramme négatif" });
@@ -412,7 +427,13 @@ pub fn analyze(raw: &[Candle], options: &AnalyzeOptions) -> Option<Signal> {
         } else {
             (rv - 50.0) / 40.0
         };
-        let zone = if rv < 30.0 { "survente" } else if rv > 70.0 { "surachat" } else { "zone neutre" };
+        let zone = if rv < 30.0 {
+            "survente"
+        } else if rv > 70.0 {
+            "surachat"
+        } else {
+            "zone neutre"
+        };
         factors.push(factor("RSI", clamp(score, -1.0, 1.0), W_RSI, format!("RSI {} ({zone})", to_fixed(rv, 1))));
     }
 
@@ -446,7 +467,13 @@ pub fn analyze(raw: &[Candle], options: &AnalyzeOptions) -> Option<Signal> {
         let lo = mid - 2.0 * sd;
         if up > lo {
             let pb = (price - lo) / (up - lo);
-            let score = if pb < 0.0 { 0.8 } else if pb > 1.0 { -0.8 } else { (0.5 - pb) * 0.6 };
+            let score = if pb < 0.0 {
+                0.8
+            } else if pb > 1.0 {
+                -0.8
+            } else {
+                (0.5 - pb) * 0.6
+            };
             factors.push(factor("Bollinger", score, W_BOLL, format!("%B {}", to_fixed(pb, 2))));
         }
     }
@@ -477,7 +504,13 @@ pub fn analyze(raw: &[Candle], options: &AnalyzeOptions) -> Option<Signal> {
         if let (Some(hf), Some(hs)) = (ema(&hc, 20)[hl], ema(&hc, 50)[hl]) {
             let sc = 0.5 * sign(hf - hs) + 0.5 * sign(hc[hl] - hs);
             higher_score = Some(sc);
-            let detail = if sc > 0.0 { "Tendance de fond haussière" } else if sc < 0.0 { "Tendance de fond baissière" } else { "Neutre" };
+            let detail = if sc > 0.0 {
+                "Tendance de fond haussière"
+            } else if sc < 0.0 {
+                "Tendance de fond baissière"
+            } else {
+                "Neutre"
+            };
             factors.push(factor("UT supérieure", sc, W_HIGHER, detail.into()));
         }
     }

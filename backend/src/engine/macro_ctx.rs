@@ -352,14 +352,20 @@ static THEMES: LazyLock<Vec<ThemeDef>> = LazyLock::new(|| {
         ThemeDef {
             theme: MacroThemeKind::Geopolitics,
             label: "Géopolitique / guerre",
-            re: re(r"\b(wars?|invasion|invades?|invaded|missiles?|air ?strikes?|drone strikes?|military|troops|nuclear|sanctions?|ceasefire|hostages?|coup|blockade)\b"),
+            re: re(
+                r"\b(wars?|invasion|invades?|invaded|missiles?|air ?strikes?|drone strikes?|military|troops|nuclear|sanctions?|ceasefire|hostages?|coup|blockade)\b",
+            ),
         },
         ThemeDef {
             theme: MacroThemeKind::Monetary,
             label: "Banques centrales / inflation",
             re: re(r"\b(fed|federal reserve|fomc|powell|ecb|rate (hikes?|cuts?)|interest rates?|inflation|cpi|treasury yields?)\b"),
         },
-        ThemeDef { theme: MacroThemeKind::Trade, label: "Commerce / droits de douane", re: re(r"\b(tariffs?|trade war|export (ban|controls?)|embargo)\b") },
+        ThemeDef {
+            theme: MacroThemeKind::Trade,
+            label: "Commerce / droits de douane",
+            re: re(r"\b(tariffs?|trade war|export (ban|controls?)|embargo)\b"),
+        },
         ThemeDef {
             theme: MacroThemeKind::Stress,
             label: "Crise financière",

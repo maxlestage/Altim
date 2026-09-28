@@ -31,7 +31,8 @@ async fn get_text(url: &str) -> Result<String> {
 
 /// `encodeURIComponent`.
 pub fn encode_uri_component(s: &str) -> String {
-    const SET: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'!').remove(b'~').remove(b'*').remove(b'\'').remove(b'(').remove(b')');
+    const SET: &AsciiSet =
+        &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'!').remove(b'~').remove(b'*').remove(b'\'').remove(b'(').remove(b')');
     utf8_percent_encode(s, SET).to_string()
 }
 
@@ -282,12 +283,7 @@ pub async fn news(symbol: &str, kind: Kind, name: &str) -> Vec<NewsItem> {
 }
 
 pub async fn vix() -> Vec<f64> {
-    cached("vix", 3_600_000, || async {
-        Ok(parse_guard::vix(&get_json(VIX_URL).await?))
-    })
-    .await
-    .map(|v| (*v).clone())
-    .unwrap_or_default()
+    cached("vix", 3_600_000, || async { Ok(parse_guard::vix(&get_json(VIX_URL).await?)) }).await.map(|v| (*v).clone()).unwrap_or_default()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -342,18 +338,8 @@ pub fn build_report(
     v: &[f64],
     mac: Option<&MacroContext>,
 ) -> GuardReport {
-    let result = guard(&GuardInput {
-        kind,
-        daily,
-        h4,
-        h1,
-        positioning: pos,
-        sentiment: Some(sent),
-        news: Some(items),
-        vix: Some(v),
-        macro_ctx: mac,
-        now,
-    });
+    let result =
+        guard(&GuardInput { kind, daily, h4, h1, positioning: pos, sentiment: Some(sent), news: Some(items), vix: Some(v), macro_ctx: mac, now });
     let day: Vec<&NewsItem> = items.iter().filter(|n| n.time >= now - 86_400_000 && n.time <= now).collect();
     let mut headlines: Vec<NewsItem> = day.iter().map(|n| (*n).clone()).collect();
     headlines.sort_by(|a, b| b.time.cmp(&a.time));
@@ -392,14 +378,10 @@ where
         candles(Interval::D1),
         candles(Interval::H4),
         candles(Interval::H1),
-        async {
-            if kind == Kind::Crypto { positioning(symbol).await } else { None }
-        },
+        async { if kind == Kind::Crypto { positioning(symbol).await } else { None } },
         sentiment_input(symbol, kind),
         news(symbol, kind, name),
-        async {
-            if kind == Kind::Stock { vix().await } else { vec![] }
-        },
+        async { if kind == Kind::Stock { vix().await } else { vec![] } },
         macro_context,
     );
     let (daily, h4) = (daily?, h4?);

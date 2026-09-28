@@ -9,13 +9,13 @@ use indexmap::IndexMap;
 use serde_json::{Value, json};
 
 fn samples() -> Value {
-    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/test/live-samples.json")).unwrap()).unwrap()
+    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/live-samples.json")).unwrap()).unwrap()
 }
 fn feed(name: &str) -> &'static altim::live::FeedSpec {
     FEEDS.iter().find(|f| f.name == name).unwrap()
 }
 
-// Messages captured on the real streams (BTC), see web/test/live-samples.json.
+// Messages captured on the real streams (BTC), see tests/samples/live-samples.json.
 #[test]
 fn chaque_flux_decode() {
     let names: Vec<&str> = FEEDS.iter().map(|f| f.name).collect();
@@ -65,7 +65,7 @@ fn consensus_temps_reel() {
         ("A", 100.0, Some(1.0), now - 1000),
         ("B", 100.4, Some(2.0), now - 500),
         ("C", 99.8, None, now),
-        ("D", 110.0, Some(9.0), now),       // 10 % away: ignored
+        ("D", 110.0, Some(9.0), now),          // 10 % away: ignored
         ("E", 50.0, Some(0.0), now - 700_000), // stale: ignored
     ]
     .into_iter()

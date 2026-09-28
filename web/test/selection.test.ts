@@ -1,6 +1,5 @@
 import { expect, test } from "bun:test";
 import { alignSeries, factorsAt, isPegged, pick, ranks, roles, scoreUniverse, span, toHorizon, validate, CRITERIA, HORIZON_LIST, SECTOR_CAP, SPECS } from "../src/engine/screener";
-import { parseListed } from "../server/screener";
 import type { Candle } from "../src/engine/signal";
 
 const D = 86_400_000;
@@ -99,19 +98,5 @@ test("rejeu sur le passé : avance nette, faible ou nulle selon les frais et la 
   const withBtc = validate(series, { ...SPECS.crypto["1m"] }, "1m", 3, undefined, 0)!;
   expect(withBtc.hold).toBe(30);
   expect(withBtc.benchmark).not.toBeNull();
-});
-
-test("univers : plus grandes sociétés, une seule classe d'actions par société", () => {
-  const rows = [
-    { symbol: "GOOGL", name: "Alphabet Inc. Class A Common Stock", marketCap: "4187062800000.00", sector: "Technology" },
-    { symbol: "GOOG", name: "Alphabet Inc. Class C Capital Stock", marketCap: "4146092300000.00", sector: "Technology" },
-    { symbol: "AAPL", name: "Apple Inc. Common Stock", marketCap: "4902476945600.00", sector: "Technology" },
-    { symbol: "BRK/B", name: "Berkshire Hathaway Inc.", marketCap: "1000000000000", sector: "Finance" },
-    { symbol: "XYZ^", name: "Bad symbol", marketCap: "5", sector: "" },
-    { symbol: "ZERO", name: "No cap", marketCap: "", sector: "Energy" },
-  ];
-  const l = parseListed({ data: { rows } }, 10);
-  expect(l.map((x) => x.symbol)).toEqual(["AAPL", "GOOGL", "BRK-B"]);
-  expect(l[0]!.name).toBe("Apple Inc.");
 });
 

@@ -295,7 +295,13 @@ pub fn zone_evidence(c: &[Candle], h: Horizon) -> Option<Evidence> {
     let n = events.len() as f64;
     let rate = (wins / n) * 100.0;
     let base = if base_n != 0.0 { (base_wins / base_n) * 100.0 } else { 0.0 };
-    let lift = if base > 0.0 { rate / base } else if rate > 0.0 { 2.0 } else { 1.0 };
+    let lift = if base > 0.0 {
+        rate / base
+    } else if rate > 0.0 {
+        2.0
+    } else {
+        1.0
+    };
     Some(Evidence { samples: n, rate, base, lift })
 }
 
@@ -342,7 +348,9 @@ pub fn zone_state(s: &Swing, p: f64) -> ZoneState {
         ),
         ZoneStatus::InZone => format!("Prix dans la zone d'achat (38,2 % – 61,8 % du mouvement de {} à {}).", px(s.low), px(s.high)),
         ZoneStatus::Golden => "Prix dans la « zone d'or » (61,8 % – 65 %), le repli le plus surveillé par les traders.".to_string(),
-        ZoneStatus::Deep => format!("Repli profond (au-delà de 65 %) : dernier soutien avant {} ; un passage sous ce plus bas invalide la zone.", px(s.low)),
+        ZoneStatus::Deep => {
+            format!("Repli profond (au-delà de 65 %) : dernier soutien avant {} ; un passage sous ce plus bas invalide la zone.", px(s.low))
+        }
         ZoneStatus::Broken => format!("Le plus bas du mouvement ({}) est cassé : zone invalidée, attendre un nouveau point bas.", px(s.low)),
         ZoneStatus::Downtrend | ZoneStatus::None => String::new(),
     };

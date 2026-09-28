@@ -51,7 +51,8 @@ fn constant_time_and_strict_configuration() {
     let env = |pairs: Vec<(&'static str, String)>| move |k: &str| pairs.iter().find(|(n, _)| *n == k).map(|(_, v)| v.clone());
     assert_eq!(auth_config(env(vec![])), Ok(None));
     assert!(auth_config(env(vec![("ALTIM_USER", "max".into())])).is_err());
-    let ok = || vec![("ALTIM_USER", "max".to_string()), ("ALTIM_PASSWORD_HASH", "$argon2id$v=19$…".to_string()), ("ALTIM_SESSION_SECRET", "x".repeat(64))];
+    let ok =
+        || vec![("ALTIM_USER", "max".to_string()), ("ALTIM_PASSWORD_HASH", "$argon2id$v=19$…".to_string()), ("ALTIM_SESSION_SECRET", "x".repeat(64))];
     assert_eq!(auth_config(env(ok())).unwrap().unwrap().user, "max");
     let with = |k: &'static str, v: &str| {
         let mut e = ok();
@@ -223,12 +224,14 @@ async fn refusals_wrong_password_code_replay_open_redirect_csrf() {
     assert_eq!(post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &c)], "203.0.113.23", &[]).await.status(), 303);
     assert_eq!(post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &c)], "203.0.113.24", &[]).await.status(), 401);
     // Open redirect: an external "next" is replaced by /app (the steps before the used one are refused as replays).
-    let r = post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &code(-1)), ("next", "//evil.example/x")], "203.0.113.25", &[]).await;
+    let r =
+        post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &code(-1)), ("next", "//evil.example/x")], "203.0.113.25", &[]).await;
     if r.status() == 303 {
         assert_eq!(header(&r, "location").unwrap(), "/app");
     }
     // Form posted from another site.
-    let csrf = post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &code(0))], "203.0.113.1", &[("origin", "https://evil.example")]).await;
+    let csrf =
+        post_login(&app, &[("user", "max"), ("password", PASSWORD), ("code", &code(0))], "203.0.113.1", &[("origin", "https://evil.example")]).await;
     assert_eq!(csrf.status(), 403);
     let bad = post_login(&app, &[("user", "max"), ("password", "x"), ("code", "123456")], ip, &[]).await;
     assert!(body_text(bad).await.contains("Identifiant, mot de passe ou code incorrect."));
@@ -354,18 +357,5 @@ fn cookie_signed_by_typescript_is_accepted() {
     assert_eq!(&a.0[..60], &b.0[..60]);
 }
 
-#[test]
-fn cookie_signed_by_rust_is_accepted_by_typescript() {
-    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/parity");
-    let run = |cookie: &str| std::process::Command::new("bun").arg("auth_verify.ts").arg(cookie).current_dir(dir).output();
-    let c = cfg(false);
-    let cookie = make_session(&c, now_ms());
-    let Ok(out) = run(&cookie) else {
-        eprintln!("bun absent : vérification croisée ignorée");
-        return;
-    };
-    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
-    assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "valide");
-    let forged = make_session(&AuthConfig { session_secret: "z".repeat(128), ..c }, now_ms());
-    assert_eq!(String::from_utf8_lossy(&run(&forged).unwrap().stdout).trim(), "refusé");
-}
+// A cookie made by `make_session` was also checked by the TypeScript `readSession` (both ways) before the TypeScript
+// server was removed; the test above keeps a cookie signed by it, so sessions opened before the switch stay valid.

@@ -28,7 +28,8 @@ pub fn js_len(s: &str) -> usize {
 pub fn is_js_space(c: char) -> bool {
     matches!(
         c,
-        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
     )
 }
 
@@ -44,8 +45,23 @@ pub fn latin1(bytes: &[u8]) -> String {
 
 /// Headers Node keeps only once (the first) when a request repeats them.
 const SINGLE: [&str; 17] = [
-    "age", "authorization", "content-length", "content-type", "etag", "expires", "from", "host", "if-modified-since", "if-unmodified-since",
-    "last-modified", "location", "max-forwards", "proxy-authorization", "referer", "retry-after", "user-agent",
+    "age",
+    "authorization",
+    "content-length",
+    "content-type",
+    "etag",
+    "expires",
+    "from",
+    "host",
+    "if-modified-since",
+    "if-unmodified-since",
+    "last-modified",
+    "location",
+    "max-forwards",
+    "proxy-authorization",
+    "referer",
+    "retry-after",
+    "user-agent",
 ];
 
 /// `req.headers[name]` in Node: latin1, first value for the single-valued headers, `; ` between cookies, `, ` otherwise.

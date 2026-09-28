@@ -11,7 +11,6 @@ use crate::engine::guard::NewsItem;
 use crate::engine::macro_ctx::{MacroKey, MacroPoint, MacroReport, MacroSeries, macro_report};
 use crate::guard::{encode_uri_component, parse_guard};
 use crate::http::{Error, Result, err, get_json_with, get_text_with};
-use crate::types::Candle;
 
 const UA: &str = "Mozilla/5.0 (Macintosh) AppleWebKit/605.1.15 Safari/605.1.15 Altim/1.0";
 const TIMEOUT: Duration = Duration::from_secs(8);
@@ -30,39 +29,9 @@ const QUERIES: [&str; 2] = [
     "(\"Federal Reserve\" OR Fed OR inflation OR tariffs OR recession OR \"interest rates\" OR \"stock market\" OR \"sell-off\" OR \"trade war\" OR \"bank\")",
 ];
 
-/// Private copy of `parseStock.yahoo` (web/server/market.ts), ported as `market::parse_stock::yahoo` by the market
-/// module: to be replaced by it (de-duplicated) at merge.
-fn yahoo(d: &Value) -> Result<Vec<Candle>> {
-    let Some(r) = d.pointer("/chart/result/0").filter(|r| !r.is_null()) else {
-        return match d.pointer("/chart/error/description") {
-            Some(Value::String(s)) => err(s.clone()),
-            Some(v) if !v.is_null() => err(v.to_string()),
-            _ => err("Yahoo : aucune donnée"),
-        };
-    };
-    let q = r.pointer("/indicators/quote/0");
-    let field = |name: &str, i: usize| q.and_then(|q| q.get(name)).and_then(|a| a.get(i)).filter(|v| !v.is_null());
-    let ts: &[Value] = r.get("timestamp").and_then(|t| t.as_array()).map(|a| a.as_slice()).unwrap_or(&[]);
-    Ok(ts
-        .iter()
-        .enumerate()
-        .filter_map(|(i, t)| {
-            let (o, h, l, c) = (field("open", i)?, field("high", i)?, field("low", i)?, field("close", i)?);
-            Some(Candle {
-                time: (t.as_f64()? * 1000.0) as i64,
-                open: o.as_f64()?,
-                high: h.as_f64()?,
-                low: l.as_f64()?,
-                close: c.as_f64()?,
-                volume: field("volume", i).and_then(|v| v.as_f64()).unwrap_or(0.0),
-            })
-        })
-        .collect())
-}
-
 /// Daily closes of a Yahoo chart response.
 pub fn parse_series(d: &Value) -> Result<Vec<MacroPoint>> {
-    Ok(yahoo(d)?.into_iter().map(|c| MacroPoint { time: c.time, close: c.close }).collect())
+    Ok(crate::market::parse_stock::yahoo(d)?.into_iter().map(|c| MacroPoint { time: c.time, close: c.close }).collect())
 }
 
 async fn series(symbol: &str) -> Result<Vec<MacroPoint>> {

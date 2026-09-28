@@ -86,8 +86,7 @@ pub fn headline(level: Option<MarketLevel>, buyable: &[BriefBuy], moves: &[Mover
     if buyable.is_empty() {
         parts.push("rien d'achetable pour l'instant".into());
     } else {
-        let names = buyable.iter().take(3).map(|b| b.symbol.as_str()).collect::<Vec<_>>().join(", ")
-            + if buyable.len() > 3 { "…" } else { "" };
+        let names = buyable.iter().take(3).map(|b| b.symbol.as_str()).collect::<Vec<_>>().join(", ") + if buyable.len() > 3 { "…" } else { "" };
         parts.push(format!("{} achetable{} ({names})", buyable.len(), if buyable.len() > 1 { "s" } else { "" }));
     }
     let big: Vec<&Mover> = moves.iter().filter(|m| m.change.abs() >= 1.0).take(2).collect();

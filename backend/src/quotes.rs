@@ -185,7 +185,10 @@ pub mod parse {
         for r in array(Some(rows), "rows", "map", BINANCE)? {
             need(Some(r), "r.symbol")?;
             let r = Some(r);
-            m.insert(strip_suffix(&to_string(get(r, "symbol")), "USDT").into(), SourceQuote { price: nan(n(get(r, "lastPrice"))), change: n(get(r, "priceChangePercent")) });
+            m.insert(
+                strip_suffix(&to_string(get(r, "symbol")), "USDT").into(),
+                SourceQuote { price: nan(n(get(r, "lastPrice"))), change: n(get(r, "priceChangePercent")) },
+            );
         }
         Ok(m)
     }
@@ -458,7 +461,9 @@ pub static QUOTE_SOURCES: LazyLock<Vec<QuoteSource>> = LazyLock::new(|| {
     let mut v = vec![
         QuoteSource::new("Binance", Kind::Crypto, |a| async move {
             let symbols: Vec<String> = cryptos(&a).iter().map(|x| format!("{}USDT", x.symbol)).collect();
-            parse::binance(&get_json(&format!("https://api.binance.com/api/v3/ticker/24hr?symbols={}", enc(&serde_json::to_string(&symbols).unwrap()))).await?)
+            parse::binance(
+                &get_json(&format!("https://api.binance.com/api/v3/ticker/24hr?symbols={}", enc(&serde_json::to_string(&symbols).unwrap()))).await?,
+            )
         }),
         QuoteSource::new("OKX", Kind::Crypto, |a| async move {
             let bases: Vec<String> = cryptos(&a).iter().map(|x| x.symbol.clone()).collect();
@@ -501,18 +506,24 @@ pub static QUOTE_SOURCES: LazyLock<Vec<QuoteSource>> = LazyLock::new(|| {
                 return Ok(QuoteMap::new());
             }
             let ids = known.iter().filter_map(|x| x.gecko.clone()).collect::<Vec<_>>().join(",");
-            parse::coingecko(&get_json(&format!("https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true")).await?, &known)
+            parse::coingecko(
+                &get_json(&format!("https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_24hr_change=true")).await?,
+                &known,
+            )
         }),
         QuoteSource::new("Yahoo Finance", Kind::Stock, |a| {
             each(stocks(&a), |x| async move {
-                Ok(Some(parse::yahoo(&get_json(&format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=5d", x.symbol)).await?)?))
+                Ok(Some(parse::yahoo(
+                    &get_json(&format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval=1d&range=5d", x.symbol)).await?,
+                )?))
             })
         }),
         QuoteSource::new("Nasdaq", Kind::Stock, |a| {
             each(stocks(&a), |x| async move {
                 // Class shares: BRK-B (Yahoo) = BRK.B (Nasdaq). ETFs live in another asset class.
                 let sym = x.symbol.replace('-', ".");
-                let first = async { parse::nasdaq(&get_json(&format!("https://api.nasdaq.com/api/quote/{sym}/info?assetclass=stocks")).await?) }.await;
+                let first =
+                    async { parse::nasdaq(&get_json(&format!("https://api.nasdaq.com/api/quote/{sym}/info?assetclass=stocks")).await?) }.await;
                 match first {
                     Ok(q) => Ok(Some(q)),
                     Err(_) => Ok(Some(parse::nasdaq(&get_json(&format!("https://api.nasdaq.com/api/quote/{sym}/info?assetclass=etf")).await?)?)),
@@ -530,7 +541,10 @@ pub static QUOTE_SOURCES: LazyLock<Vec<QuoteSource>> = LazyLock::new(|| {
             each(stocks(&a), |x| async move {
                 let id = webull_ticker_id(&x.symbol).await.filter(|x| truthy_num(*x));
                 let Some(id) = id else { return err("non coté") };
-                let url = format!("https://quotes-gw.webullfintech.com/api/stock/tickerRealTime/getQuote?tickerId={}&includeSecu=1", crate::js::number_to_string(id));
+                let url = format!(
+                    "https://quotes-gw.webullfintech.com/api/stock/tickerRealTime/getQuote?tickerId={}&includeSecu=1",
+                    crate::js::number_to_string(id)
+                );
                 Ok(Some(parse::webull(&get_json(&url).await?)?))
             })
         }),
@@ -605,8 +619,15 @@ pub fn combine(assets: &[Asset], results: &[QuoteResult]) -> Vec<ConsensusQuote>
                 sources: relevant
                     .iter()
                     .map(|r| match r.quotes.as_ref().and_then(|q| q.get(&asset.symbol)) {
-                        Some(q) => QuoteSourceStatus { name: r.name.clone(), ok: agree.iter().any(|f| f.0 == r.name), price: Some(q.price), error: None },
-                        None => QuoteSourceStatus { name: r.name.clone(), ok: false, price: None, error: Some(r.error.clone().unwrap_or_else(|| "non coté".into())) },
+                        Some(q) => {
+                            QuoteSourceStatus { name: r.name.clone(), ok: agree.iter().any(|f| f.0 == r.name), price: Some(q.price), error: None }
+                        }
+                        None => QuoteSourceStatus {
+                            name: r.name.clone(),
+                            ok: false,
+                            price: None,
+                            error: Some(r.error.clone().unwrap_or_else(|| "non coté".into())),
+                        },
                     })
                     .collect(),
             })

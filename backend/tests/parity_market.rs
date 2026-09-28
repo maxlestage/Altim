@@ -3,7 +3,8 @@ mod common;
 use altim::js::to_value;
 use altim::live::{ChanIds, FEEDS, LiveQuote, live_consensus, us_market_open};
 use altim::market::{
-    NAN_TIME, Source, aggregate, aggregate_session, blend, closed_only, consensus, cross_check, deviations, ny_open, ny_open_checked, parse, parse_stock,
+    NAN_TIME, Source, aggregate, aggregate_session, blend, closed_only, consensus, cross_check, deviations, ny_open, ny_open_checked, parse,
+    parse_stock,
 };
 use altim::quotes::{self, QuoteResult, QuoteSourceStatus, SourceQuote, combine};
 use altim::stocks_extra;
@@ -91,12 +92,31 @@ fn session_parity() {
         let per = a["per"].as_u64().unwrap() as usize;
         let candles = if a["symbol"] == "synth" {
             let mut synth = Vec::new();
-            for day in ["2025-03-06", "2025-03-07", "2025-03-10", "2025-03-11", "2025-10-31", "2025-11-03", "2025-11-04", "2026-03-06", "2026-03-09", "2026-10-30", "2026-11-02"] {
+            for day in [
+                "2025-03-06",
+                "2025-03-07",
+                "2025-03-10",
+                "2025-03-11",
+                "2025-10-31",
+                "2025-11-03",
+                "2025-11-04",
+                "2026-03-06",
+                "2026-03-09",
+                "2026-10-30",
+                "2026-11-02",
+            ] {
                 let p: Vec<u32> = day.split('-').map(|x| x.parse().unwrap()).collect();
                 let open = ny_open(p[0] as i32, p[1], p[2]);
                 for k in 0..7 {
                     let kf = k as f64;
-                    synth.push(Candle { time: open + k * H, open: 100.0 + kf, high: 101.0 + kf, low: 99.0 + kf, close: 100.5 + kf, volume: 10.0 + kf });
+                    synth.push(Candle {
+                        time: open + k * H,
+                        open: 100.0 + kf,
+                        high: 101.0 + kf,
+                        low: 99.0 + kf,
+                        close: 100.5 + kf,
+                        volume: 10.0 + kf,
+                    });
                 }
             }
             for t in ["2026-11-03T03:00:00Z", "2026-11-03T05:00:00Z"] {
@@ -338,7 +358,10 @@ fn combine_parity() {
                     q.iter()
                         .map(|e| {
                             let price = e[1]["price"].as_f64().unwrap_or(f64::NAN);
-                            (e[0].as_str().unwrap().to_string(), SourceQuote { price, change: e[1].get("change").map(|c| c.as_f64().unwrap_or(f64::NAN)) })
+                            (
+                                e[0].as_str().unwrap().to_string(),
+                                SourceQuote { price, change: e[1].get("change").map(|c| c.as_f64().unwrap_or(f64::NAN)) },
+                            )
                         })
                         .collect()
                 }),
@@ -368,7 +391,8 @@ fn zero_clock(v: &mut Value) {
 
 #[test]
 fn feeds_parity() {
-    let live: Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/test/live-samples.json")).unwrap()).unwrap();
+    let live: Value =
+        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/live-samples.json")).unwrap()).unwrap();
     for c in golden("live-feeds") {
         let name = c.args["feed"].as_str().unwrap();
         let f = FEEDS.iter().find(|f| f.name == name).unwrap();
@@ -412,7 +436,12 @@ fn live_consensus_parity() {
             .as_array()
             .unwrap()
             .iter()
-            .map(|e| (e[0].as_str().unwrap().to_string(), LiveQuote { price: e[1]["price"].as_f64().unwrap(), change: e[1]["change"].as_f64(), time: e[1]["time"].as_i64().unwrap() }))
+            .map(|e| {
+                (
+                    e[0].as_str().unwrap().to_string(),
+                    LiveQuote { price: e[1]["price"].as_f64().unwrap(), change: e[1]["change"].as_f64(), time: e[1]["time"].as_i64().unwrap() },
+                )
+            })
             .collect();
         let out = live_consensus(&q, a["now"].as_i64().unwrap(), a["maxAge"].as_i64().unwrap(), a["tol"].as_f64().unwrap());
         assert_same(&to_value(&out), &c.output, &format!("liveConsensus {a}"));

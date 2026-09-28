@@ -282,9 +282,8 @@ pub mod parse {
 
     /// nasdaqlisted.txt / otherlisted.txt (pipe separated, last line = file date).
     pub fn nasdaq_directory(text: &str) -> R<Vec<Listed>> {
-        static EXCLUDED: LazyLock<Regex> = LazyLock::new(|| {
-            Regex::new(r"(?i-u)(?-u:\b)(warrants?|rights?|units?|notes? due|subordinated|debentures?|preferred)(?-u:\b)").unwrap()
-        });
+        static EXCLUDED: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r"(?i-u)(?-u:\b)(warrants?|rights?|units?|notes? due|subordinated|debentures?|preferred)(?-u:\b)").unwrap());
         let text = js_trim(text);
         let lines: Vec<&str> = text.split('\n').map(|l| l.strip_suffix('\r').unwrap_or(l)).collect();
         let header: Vec<&str> = lines[0].split('|').collect();
@@ -306,7 +305,10 @@ pub mod parse {
             }
             let symbol = raw.replace('.', "-"); // Yahoo format: BRK.B → BRK-B
             let b = symbol.as_bytes();
-            if !(1..=10).contains(&b.len()) || !b[0].is_ascii_uppercase() || !b[1..].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == b'-') {
+            if !(1..=10).contains(&b.len())
+                || !b[0].is_ascii_uppercase()
+                || !b[1..].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || *c == b'-')
+            {
                 continue;
             }
             out.push(Listed { symbol, name: clean_stock_name(name), etf: etf_col.is_some_and(|c| f[c] == "Y") });
@@ -336,7 +338,8 @@ pub mod parse {
 
 /// "Apple Inc. - Common Stock" → "Apple Inc."; "Alphabet Inc. - Class A Common Stock" → "Alphabet Inc. Class A".
 pub fn clean_stock_name(name: &str) -> String {
-    static SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]+").unwrap());
+    static SPACES: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"[\t\n\x0B\x0C\r \x{a0}\x{1680}\x{2000}-\x{200a}\x{2028}\x{2029}\x{202f}\x{205f}\x{3000}\x{feff}]+").unwrap());
     static CLASS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?-u:\b)Class [A-Z](?-u:\b)").unwrap());
     static SUFFIX: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(concat!(
@@ -368,7 +371,10 @@ static TOKENIZED_STOCK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i-u)(?
 /// Leveraged tokens (BTC3L, ETH5S…) are derivatives, not coins you hold: /^[A-Z0-9]{2,}[2-9][LS]$/.
 fn leveraged(s: &str) -> bool {
     let b = s.as_bytes();
-    b.len() >= 4 && matches!(b[b.len() - 1], b'L' | b'S') && (b'2'..=b'9').contains(&b[b.len() - 2]) && b[..b.len() - 2].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
+    b.len() >= 4
+        && matches!(b[b.len() - 1], b'L' | b'S')
+        && (b'2'..=b'9').contains(&b[b.len() - 2])
+        && b[..b.len() - 2].iter().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit())
 }
 
 const STABLE_OR_FIAT: [&str; 14] = ["USDT", "USD", "USDC", "DAI", "FDUSD", "TUSD", "BUSD", "USDE", "PYUSD", "USDP", "EUR", "GBP", "EURC", "EURT"];
@@ -410,9 +416,9 @@ pub fn build_crypto(exchanges: &[Vec<String>], gecko: &[GeckoCoin], names: &[(St
 /// Largest US ETFs by assets under management (the Nasdaq screener gives no size for ETFs):
 /// they are listed right after the ranked stocks instead of alphabetically.
 pub const POPULAR_ETFS: [&str; 54] = [
-    "VOO", "IVV", "SPY", "VTI", "QQQ", "VUG", "VEA", "IEFA", "VTV", "BND", "AGG", "IWF", "GLD", "IEMG", "VXUS", "VGT", "IJH", "VWO", "VIG", "IJR", "SPLG",
-    "XLK", "IWM", "SCHD", "VO", "RSP", "ITOT", "IBIT", "BNDX", "VB", "EFA", "IWD", "SCHX", "VYM", "TLT", "XLF", "SMH", "IAU", "SCHG", "QUAL", "IVW", "MUB",
-    "VCIT", "SCHF", "VT", "XLV", "VNQ", "DIA", "IWR", "XLE", "ARKK", "SOXX", "SLV", "FBTC",
+    "VOO", "IVV", "SPY", "VTI", "QQQ", "VUG", "VEA", "IEFA", "VTV", "BND", "AGG", "IWF", "GLD", "IEMG", "VXUS", "VGT", "IJH", "VWO", "VIG", "IJR",
+    "SPLG", "XLK", "IWM", "SCHD", "VO", "RSP", "ITOT", "IBIT", "BNDX", "VB", "EFA", "IWD", "SCHX", "VYM", "TLT", "XLF", "SMH", "IAU", "SCHG", "QUAL",
+    "IVW", "MUB", "VCIT", "SCHF", "VT", "XLV", "VNQ", "DIA", "IWR", "XLE", "ARKK", "SOXX", "SLV", "FBTC",
 ];
 
 pub fn build_stocks(directories: &[Vec<Listed>], caps: &IndexMap<String, f64>) -> Vec<UniverseEntry> {
@@ -604,7 +610,15 @@ pub fn search_all<'a>(crypto: &'a [UniverseEntry], stock: &'a [UniverseEntry], q
         .map(|(i, e)| (Hit { e, kind: Kind::Crypto }, i))
         .chain(search_universe(stock, query, limit).into_iter().enumerate().map(|(i, e)| (Hit { e, kind: Kind::Stock }, i)))
         .collect();
-    let score = |e: &UniverseEntry| if e.0 == q { 0 } else if e.0.starts_with(&q) { 1 } else { 2 };
+    let score = |e: &UniverseEntry| {
+        if e.0 == q {
+            0
+        } else if e.0.starts_with(&q) {
+            1
+        } else {
+            2
+        }
+    };
     let size = |e: &UniverseEntry| if e.2 != 0 { e.2 as f64 } else { 1e9 };
     hits.sort_by(|(a, ai), (b, bi)| {
         score(a.e).cmp(&score(b.e)).then_with(|| size(a.e).partial_cmp(&size(b.e)).unwrap_or(Ordering::Equal)).then_with(|| ai.cmp(bi))

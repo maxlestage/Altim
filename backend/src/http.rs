@@ -7,12 +7,7 @@ use serde_json::Value;
 pub const UA: &str = "Mozilla/5.0 Altim/1.0";
 
 pub static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
-    reqwest::Client::builder()
-        .user_agent(UA)
-        .timeout(Duration::from_secs(8))
-        .pool_idle_timeout(Duration::from_secs(60))
-        .build()
-        .expect("client HTTP")
+    reqwest::Client::builder().user_agent(UA).timeout(Duration::from_secs(8)).pool_idle_timeout(Duration::from_secs(60)).build().expect("client HTTP")
 });
 
 /// Error carried up to the routes (message only, like `new Error(...)`).

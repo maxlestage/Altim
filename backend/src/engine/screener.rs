@@ -105,13 +105,8 @@ impl<T> ByCriterion<T> {
     }
 }
 
-pub const CRITERIA: ByCriterion<&str> = ByCriterion {
-    signal: "Signal technique",
-    trend: "Tendance de fond",
-    momentum: "Force relative",
-    zone: "Zone d'achat",
-    risk: "Risque",
-};
+pub const CRITERIA: ByCriterion<&str> =
+    ByCriterion { signal: "Signal technique", trend: "Tendance de fond", momentum: "Force relative", zone: "Zone d'achat", risk: "Risque" };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum CandleInterval {
@@ -214,7 +209,18 @@ pub struct Spec {
 }
 
 #[allow(clippy::too_many_arguments)]
-const fn s(interval: CandleInterval, hold: usize, step: usize, rank: RankRule, mom_len: usize, mom_skip: usize, zone: ZoneHorizon, stop_atr: f64, evidence: &'static str, cost: f64) -> Spec {
+const fn s(
+    interval: CandleInterval,
+    hold: usize,
+    step: usize,
+    rank: RankRule,
+    mom_len: usize,
+    mom_skip: usize,
+    zone: ZoneHorizon,
+    stop_atr: f64,
+    evidence: &'static str,
+    cost: f64,
+) -> Spec {
     Spec { interval, hold, step, rank, mom_len, mom_skip, zone, stop_atr, cost, evidence }
 }
 
@@ -226,25 +232,157 @@ use ZoneHorizon::{Long as ZL, Medium as ZM};
 /// 2021–2026 and 60 days of 5-minute candles; cryptos: 80–108 coins, daily 2024–2026 and 2 weeks of 5-minute candles).
 /// In the order of `HORIZON_LIST`; see `spec`.
 pub const SPECS_STOCK: [Spec; 8] = [
-    s(I5M, 6, 24, Reversal, 6, 0, ZM, 3.0, "À 30 minutes, rien ne fait mieux que la moyenne une fois les frais payés : le meilleur critère (acheter ce qui vient de baisser) rapporte +0,047 % pour 0,05 % de frais.", 0.0005),
-    s(I15M, 4, 8, Reversal, 4, 0, ZM, 3.0, "Acheter ce qui a le plus baissé dans l'heure : +0,04 % de mieux que la moyenne, mieux 59 % du temps, à peine au-dessus des frais.", 0.0005),
-    s(I30M, 10, 10, Momentum, 10, 0, ZM, 2.5, "Acheter ce qui a le plus monté sur les 5 dernières heures de cotation : +0,34 % de mieux que la moyenne, mieux 64 % du temps (60 jours mesurés).", 0.0005),
+    s(
+        I5M,
+        6,
+        24,
+        Reversal,
+        6,
+        0,
+        ZM,
+        3.0,
+        "À 30 minutes, rien ne fait mieux que la moyenne une fois les frais payés : le meilleur critère (acheter ce qui vient de baisser) rapporte +0,047 % pour 0,05 % de frais.",
+        0.0005,
+    ),
+    s(
+        I15M,
+        4,
+        8,
+        Reversal,
+        4,
+        0,
+        ZM,
+        3.0,
+        "Acheter ce qui a le plus baissé dans l'heure : +0,04 % de mieux que la moyenne, mieux 59 % du temps, à peine au-dessus des frais.",
+        0.0005,
+    ),
+    s(
+        I30M,
+        10,
+        10,
+        Momentum,
+        10,
+        0,
+        ZM,
+        2.5,
+        "Acheter ce qui a le plus monté sur les 5 dernières heures de cotation : +0,34 % de mieux que la moyenne, mieux 64 % du temps (60 jours mesurés).",
+        0.0005,
+    ),
     s(I1D, 5, 10, Momentum, 126, 21, ZM, 1.5, "Force relative sur 6 mois : +0,6 % de mieux que la moyenne par semaine (2021–2026).", 0.0005),
-    s(I1D, 10, 10, Momentum, 126, 21, ZM, 1.5, "Force relative sur 6 mois : +0,6 à 0,8 % de mieux que la moyenne sur 2 semaines (2021–2026).", 0.0005),
-    s(I1D, 21, 21, Momentum, 126, 21, ZM, 2.0, "Force relative sur 6 mois : +2,0 % de mieux que la moyenne par mois, mieux 62 % du temps (2021–2026).", 0.0005),
-    s(I1D, 63, 21, Momentum, 126, 21, ZM, 2.0, "Force relative sur 6 mois : +9,9 % contre +5,3 % sur 3 mois, mieux 69 % du temps (2021–2026).", 0.0005),
-    s(I1D, 126, 21, Momentum, 126, 21, ZL, 3.0, "Force relative sur 6 mois : +20,5 % contre +11,2 % sur 6 mois, mieux 73 % du temps (2021–2026).", 0.0005),
+    s(
+        I1D,
+        10,
+        10,
+        Momentum,
+        126,
+        21,
+        ZM,
+        1.5,
+        "Force relative sur 6 mois : +0,6 à 0,8 % de mieux que la moyenne sur 2 semaines (2021–2026).",
+        0.0005,
+    ),
+    s(
+        I1D,
+        21,
+        21,
+        Momentum,
+        126,
+        21,
+        ZM,
+        2.0,
+        "Force relative sur 6 mois : +2,0 % de mieux que la moyenne par mois, mieux 62 % du temps (2021–2026).",
+        0.0005,
+    ),
+    s(
+        I1D,
+        63,
+        21,
+        Momentum,
+        126,
+        21,
+        ZM,
+        2.0,
+        "Force relative sur 6 mois : +9,9 % contre +5,3 % sur 3 mois, mieux 69 % du temps (2021–2026).",
+        0.0005,
+    ),
+    s(
+        I1D,
+        126,
+        21,
+        Momentum,
+        126,
+        21,
+        ZL,
+        3.0,
+        "Force relative sur 6 mois : +20,5 % contre +11,2 % sur 6 mois, mieux 73 % du temps (2021–2026).",
+        0.0005,
+    ),
 ];
 
 pub const SPECS_CRYPTO: [Spec; 8] = [
-    s(I5M, 6, 24, Reversal, 78, 0, ZM, 3.0, "À 30 minutes, rien ne fait mieux que la moyenne une fois les frais payés : le meilleur critère (acheter ce qui a baissé sur 6 h) rapporte +0,05 % pour 0,2 % de frais.", 0.002),
-    s(I15M, 4, 8, Momentum, 4, 0, ZM, 3.0, "Acheter ce qui a le plus monté dans l'heure : +0,09 % de mieux que la moyenne, entièrement mangé par les frais (0,2 %).", 0.002),
-    s(I30M, 10, 10, Reversal, 10, 0, ZM, 2.5, "Acheter ce qui a le plus baissé sur 5 h (retour à la moyenne) : +0,34 % de mieux que la moyenne, mieux 60 % du temps (2 semaines mesurées : échantillon court).", 0.002),
-    s(I1D, 7, 7, Momentum, 90, 0, ZM, 1.5, "Force relative sur 3 mois : +0,75 % de mieux que la moyenne par semaine, positive dans les deux moitiés de 2024–2026.", 0.002),
+    s(
+        I5M,
+        6,
+        24,
+        Reversal,
+        78,
+        0,
+        ZM,
+        3.0,
+        "À 30 minutes, rien ne fait mieux que la moyenne une fois les frais payés : le meilleur critère (acheter ce qui a baissé sur 6 h) rapporte +0,05 % pour 0,2 % de frais.",
+        0.002,
+    ),
+    s(
+        I15M,
+        4,
+        8,
+        Momentum,
+        4,
+        0,
+        ZM,
+        3.0,
+        "Acheter ce qui a le plus monté dans l'heure : +0,09 % de mieux que la moyenne, entièrement mangé par les frais (0,2 %).",
+        0.002,
+    ),
+    s(
+        I30M,
+        10,
+        10,
+        Reversal,
+        10,
+        0,
+        ZM,
+        2.5,
+        "Acheter ce qui a le plus baissé sur 5 h (retour à la moyenne) : +0,34 % de mieux que la moyenne, mieux 60 % du temps (2 semaines mesurées : échantillon court).",
+        0.002,
+    ),
+    s(
+        I1D,
+        7,
+        7,
+        Momentum,
+        90,
+        0,
+        ZM,
+        1.5,
+        "Force relative sur 3 mois : +0,75 % de mieux que la moyenne par semaine, positive dans les deux moitiés de 2024–2026.",
+        0.002,
+    ),
     s(I1D, 14, 14, Momentum, 90, 0, ZM, 1.5, "Force relative sur 3 mois : +1,1 % de mieux que la moyenne sur 2 semaines (2024–2026).", 0.002),
     s(I1D, 30, 15, RSignal, 126, 21, ZM, 2.0, "Signal technique d'Altim : +2,3 % contre −1,9 % par mois, mieux 60 % du temps (2024–2026).", 0.002),
     s(I1D, 90, 15, RSignal, 126, 21, ZM, 2.0, "Signal technique d'Altim : +2,0 % contre −6,4 % sur 3 mois, mieux 66 % du temps (2024–2026).", 0.002),
-    s(I1D, 180, 15, LowRisk, 126, 21, ZL, 3.0, "Les cryptos les plus calmes (les grandes) : +9,4 % contre −12,8 % sur 6 mois, mieux 94 % du temps (périodes qui se chevauchent : à prendre avec prudence).", 0.002),
+    s(
+        I1D,
+        180,
+        15,
+        LowRisk,
+        126,
+        21,
+        ZL,
+        3.0,
+        "Les cryptos les plus calmes (les grandes) : +9,4 % contre −12,8 % sur 6 mois, mieux 94 % du temps (périodes qui se chevauchent : à prendre avec prudence).",
+        0.002,
+    ),
 ];
 
 /// `SPECS[market][h]`.
@@ -586,7 +724,14 @@ pub struct Validation {
 /// Replays the selection on the past: every `step` candles, score the universe with the data known that day,
 /// take the top N, and compare their return over the next `hold` candles with the universe average.
 /// Series must be aligned on the same dates (see align_series). `top_n` defaults to 10 in the TypeScript.
-pub fn validate(series: &[Vec<Candle>], spec: &Spec, h: Horizon, top_n: usize, sectors: Option<&[String]>, benchmark: Option<usize>) -> Option<Validation> {
+pub fn validate(
+    series: &[Vec<Candle>],
+    spec: &Spec,
+    h: Horizon,
+    top_n: usize,
+    sectors: Option<&[String]>,
+    benchmark: Option<usize>,
+) -> Option<Validation> {
     let n = series.iter().map(|s| s.len()).min()?;
     let (hold, every) = (spec.hold, spec.step.max(1));
     let (mut tops, mut alls, mut bench): (Vec<f64>, Vec<f64>, Vec<f64>) = (vec![], vec![], vec![]);

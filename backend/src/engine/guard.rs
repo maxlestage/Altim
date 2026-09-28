@@ -298,8 +298,7 @@ pub fn regime(daily_raw: &[Candle], h4_raw: &[Candle]) -> Regime {
         (Some(f20), Some(f50)) => (trend == Trend::Up && f20 > f50) || (trend == Trend::Down && f20 < f50),
         _ => false,
     };
-    let strength =
-        if trend == Trend::Range { round(a.min(40.0)) } else { round(100f64.min(a * 2.5 + if aligned { 10.0 } else { 0.0 })) };
+    let strength = if trend == Trend::Range { round(a.min(40.0)) } else { round(100f64.min(a * 2.5 + if aligned { 10.0 } else { 0.0 })) };
     let text = if trend == Trend::Range {
         format!(
             "Pas de tendance de fond nette (prix {} de la moyenne {long} jours, ADX {}) : marché sans direction.",
@@ -320,17 +319,87 @@ pub fn regime(daily_raw: &[Candle], h4_raw: &[Candle]) -> Regime {
 // ---------- News tone ----------
 
 const NEGATIVE: &[&str] = &[
-    "hack", "hacked", "exploit", "breach", "stolen", "lawsuit", "sues", "sued", "sec charges", "investigation", "probe", "fraud",
-    "bankrupt", "bankruptcy", "insolvency", "liquidation", "liquidated", "delist", "ban", "banned", "crackdown", "crash", "plunge",
-    "plunges", "tumble", "tumbles", "sell-off", "selloff", "downgrade", "downgraded", "misses", "miss estimates", "cuts guidance",
-    "layoffs", "recall", "halt", "halted", "outage", "default", "warning", "subpoena", "indictment", "sanction",
-    "piratage", "faillite", "enquête", "plainte", "effondrement", "chute", "interdiction", "fraude",
+    "hack",
+    "hacked",
+    "exploit",
+    "breach",
+    "stolen",
+    "lawsuit",
+    "sues",
+    "sued",
+    "sec charges",
+    "investigation",
+    "probe",
+    "fraud",
+    "bankrupt",
+    "bankruptcy",
+    "insolvency",
+    "liquidation",
+    "liquidated",
+    "delist",
+    "ban",
+    "banned",
+    "crackdown",
+    "crash",
+    "plunge",
+    "plunges",
+    "tumble",
+    "tumbles",
+    "sell-off",
+    "selloff",
+    "downgrade",
+    "downgraded",
+    "misses",
+    "miss estimates",
+    "cuts guidance",
+    "layoffs",
+    "recall",
+    "halt",
+    "halted",
+    "outage",
+    "default",
+    "warning",
+    "subpoena",
+    "indictment",
+    "sanction",
+    "piratage",
+    "faillite",
+    "enquête",
+    "plainte",
+    "effondrement",
+    "chute",
+    "interdiction",
+    "fraude",
 ];
 const POSITIVE: &[&str] = &[
-    "approval", "approved", "approves", "etf inflows", "record high", "all-time high", "surge", "surges", "soars", "rally",
-    "rallies", "upgrade", "upgraded", "beats", "beat estimates", "raises guidance", "buyback", "partnership", "adoption",
-    "launch", "launches", "breakthrough", "acquisition", "wins",
-    "approbation", "hausse", "partenariat", "rachat",
+    "approval",
+    "approved",
+    "approves",
+    "etf inflows",
+    "record high",
+    "all-time high",
+    "surge",
+    "surges",
+    "soars",
+    "rally",
+    "rallies",
+    "upgrade",
+    "upgraded",
+    "beats",
+    "beat estimates",
+    "raises guidance",
+    "buyback",
+    "partnership",
+    "adoption",
+    "launch",
+    "launches",
+    "breakthrough",
+    "acquisition",
+    "wins",
+    "approbation",
+    "hausse",
+    "partenariat",
+    "rachat",
 ];
 
 fn word_regexes(words: &[&str]) -> Vec<Regex> {
@@ -688,7 +757,11 @@ pub fn technical_reversal(c: &[Candle], r: &Series, e20: &Series, a: &Series, i:
         if at > 0.0 {
             let ext = (c[i].close - m) / at;
             if if up { ext > 3.0 } else { ext < -3.0 } {
-                f.push(raw(format!("extension{tfs}"), 15.0, format!("Prix très éloigné de sa moyenne 20 périodes en {label} ({} ATR).", one(ext.abs()))));
+                f.push(raw(
+                    format!("extension{tfs}"),
+                    15.0,
+                    format!("Prix très éloigné de sa moyenne 20 périodes en {label} ({} ATR).", one(ext.abs())),
+                ));
             }
         }
     }
@@ -783,7 +856,11 @@ pub fn reversal(input: &GuardInput, trend: Trend) -> Reversal {
         } else if up && fr_ >= GUARD.funding_hot {
             raw_f.push(raw("funding", 15.0, format!("Financement élevé ({fr_text}) : beaucoup d'acheteurs à levier.")));
         } else if !up && fr_ <= GUARD.funding_very_cold {
-            raw_f.push(raw("funding", 25.0, format!("Financement très négatif ({fr_text}) : les vendeurs à découvert sont surchargés, risque de rachat brutal (short squeeze).")));
+            raw_f.push(raw(
+                "funding",
+                25.0,
+                format!("Financement très négatif ({fr_text}) : les vendeurs à découvert sont surchargés, risque de rachat brutal (short squeeze)."),
+            ));
         } else if !up && fr_ <= GUARD.funding_cold {
             raw_f.push(raw("funding", 15.0, format!("Financement négatif ({fr_text}) : beaucoup de vendeurs à découvert.")));
         }
@@ -793,10 +870,18 @@ pub fn reversal(input: &GuardInput, trend: Trend) -> Reversal {
         let last = ls[ls.len() - 1];
         let rank = percentile_rank(&ls[..ls.len() - 1], last);
         if up && rank >= 90.0 {
-            raw_f.push(raw("longShort", 10.0, format!("Ratio acheteurs/vendeurs à {}, parmi les plus hauts du mois : la foule est déjà acheteuse.", one(last))));
+            raw_f.push(raw(
+                "longShort",
+                10.0,
+                format!("Ratio acheteurs/vendeurs à {}, parmi les plus hauts du mois : la foule est déjà acheteuse.", one(last)),
+            ));
         }
         if !up && rank <= 10.0 {
-            raw_f.push(raw("longShort", 10.0, format!("Ratio acheteurs/vendeurs à {}, parmi les plus bas du mois : la foule est déjà vendeuse.", one(last))));
+            raw_f.push(raw(
+                "longShort",
+                10.0,
+                format!("Ratio acheteurs/vendeurs à {}, parmi les plus bas du mois : la foule est déjà vendeuse.", one(last)),
+            ));
         }
     }
     let oi: &[f64] = p.map(|p| p.open_interest.as_slice()).unwrap_or(&[]);
@@ -804,7 +889,11 @@ pub fn reversal(input: &GuardInput, trend: Trend) -> Reversal {
         let oi_change = oi[oi.len() - 1] / oi[oi.len() - 25] - 1.0;
         let price_change = (h4[h4.len() - 1].close / h4[h4.len() - 7].close - 1.0).abs();
         if oi_change >= 0.1 && price_change < 0.01 {
-            raw_f.push(raw("openInterest", 10.0, format!("Positions à levier en hausse de {} en 24 h sans que le prix avance : situation fragile.", pct(oi_change * 100.0))));
+            raw_f.push(raw(
+                "openInterest",
+                10.0,
+                format!("Positions à levier en hausse de {} en 24 h sans que le prix avance : situation fragile.", pct(oi_change * 100.0)),
+            ));
         }
     }
 

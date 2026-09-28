@@ -1,7 +1,9 @@
 //! Unit tests of `web/test/zones.test.ts` (Fibonacci part), `web/test/alerts.test.ts` and `web/test/selection.test.ts`
 //! (engine part), ported.
 use altim::engine::alerts::{AlertInput, AlertMacro, AlertShock, AlertSignal, AlertTrend, AlertZone, buy_alert};
-use altim::engine::fibonacci::{Band, Horizon as ZH, Swing, Trend, ZoneStatus, fib_zone, fib_zones, level, swing_at, weekly, zone_evidence, zone_state};
+use altim::engine::fibonacci::{
+    Band, Horizon as ZH, Swing, Trend, ZoneStatus, fib_zone, fib_zones, level, swing_at, weekly, zone_evidence, zone_state,
+};
 use altim::engine::reliability::ReliabilityLevel;
 use altim::engine::screener::{
     self, CRITERIA, CandleInterval, Criterion, Edge, HORIZON_LIST, Horizon, RankRule, SECTOR_CAP, Spec, align_series, factors_at, is_pegged, pick,
@@ -219,7 +221,10 @@ fn alert_cautions_do_not_block() {
 
 #[test]
 fn alert_broken_or_downtrend_zone_is_no_reason() {
-    let a = buy_alert(&AlertInput { zones: vec![zone(ZH::Medium, ZoneStatus::Broken, "Moyen terme"), zone(ZH::Long, ZoneStatus::Downtrend, "Long terme")], ..base() });
+    let a = buy_alert(&AlertInput {
+        zones: vec![zone(ZH::Medium, ZoneStatus::Broken, "Moyen terme"), zone(ZH::Long, ZoneStatus::Downtrend, "Long terme")],
+        ..base()
+    });
     assert!(!a.buy);
 }
 
@@ -252,8 +257,13 @@ fn percentile_ranks() {
 #[test]
 fn pick_best_three_per_sector() {
     let items: Vec<(&str, Option<f64>, &str)> = vec![
-        ("A", Some(99.0), "Tech"), ("B", Some(98.0), "Tech"), ("C", Some(97.0), "Tech"), ("D", Some(96.0), "Tech"),
-        ("E", Some(95.0), "Santé"), ("F", None, "Santé"), ("G", Some(10.0), "Énergie"),
+        ("A", Some(99.0), "Tech"),
+        ("B", Some(98.0), "Tech"),
+        ("C", Some(97.0), "Tech"),
+        ("D", Some(96.0), "Tech"),
+        ("E", Some(95.0), "Santé"),
+        ("F", None, "Santé"),
+        ("G", Some(10.0), "Énergie"),
     ];
     assert_eq!(SECTOR_CAP, 3);
     fn names<'a>(v: Vec<&(&'a str, Option<f64>, &str)>) -> Vec<&'a str> {

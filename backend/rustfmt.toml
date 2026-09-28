@@ -1,0 +1,3 @@
+# Long lines read closer to the TypeScript they were ported from (same width as the web code).
+max_width = 150
+use_small_heuristics = "Max"

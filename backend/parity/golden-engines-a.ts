@@ -3,7 +3,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { inputs, find, NOW, write } from "./golden";
+import { inputs, find, NOW, write, SERVER } from "./golden";
 import { backtest, trackRecord } from "../../web/src/engine/backtest";
 import { portfolioHistory, type Close } from "../../web/src/engine/history";
 import { headline, movers, type BriefBuy, type MarketLevel, type Mover } from "../../web/src/engine/brief";
@@ -248,8 +248,8 @@ const attempt = <T>(f: () => T) => {
   write("news", cases);
 }
 
-// ---------- server/news.ts: feed list ----------
-{
+// ---------- server/news.ts: feed list (frozen since the TypeScript server was replaced, see golden.ts) ----------
+if (SERVER) {
   const { FEEDS, assetFeeds } = await import("../../web/server/news");
   const assets = [
     { symbol: "BTC", name: "Bitcoin", kind: "crypto" as const, gecko: "bitcoin" },

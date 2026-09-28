@@ -9,10 +9,7 @@ import {
   shockEvidence, technicalReversal, weigh, type GuardInput, type NewsItem,
 } from "../../web/src/engine/guard";
 import { align, headlineThemes, macroAdvice, macroEvidence, macroReport, marketStress, type MacroSeries } from "../../web/src/engine/macro";
-import { clearCache } from "../../web/server/cache";
-import { guardReport, parseGuard } from "../../web/server/guard";
-import { macro } from "../../web/server/macro";
-import { find, inputs, NOW, write } from "./golden";
+import { find, inputs, NOW, write, SERVER } from "./golden";
 
 const D = 86_400_000, H4 = 14_400_000, H1 = 3_600_000;
 const SYMBOLS = ["BTC", "ETH", "SOL", "DOGE", "AAPL", "NVDA", "SPY"];
@@ -397,6 +394,12 @@ const sentiments = [
 }
 
 // ---------- server: parsers, guardReport and macro() with upstream answers mocked ----------
+// Recorded from the TypeScript server (web/server) before it was replaced by the Rust one: these golden files are
+// frozen (tests/golden/guard-report.json, guard-parse.json, macro-server.json) and only rewritten while it exists.
+if (SERVER) {
+const { clearCache } = await import("../../web/server/cache");
+const { guardReport, parseGuard } = await import("../../web/server/guard");
+const { macro } = await import("../../web/server/macro");
 
 const funding = { code: "0", data: [{ instId: "BTC-USDT-SWAP", fundingRate: "-0.0000093022018830", fundingTime: "1790524800000" }] };
 const ls = { code: "0", data: [["1790517600000", "1.2"], ["1790514000000", "1.27"], ["1790510400000", "1.29"]], msg: "" };
@@ -536,6 +539,7 @@ const assetRss = rssOf([
   await run("nothing", { "^VIX": { status: 500, body: "x" }, "^GSPC": { status: 200, body: { chart: { result: [{ timestamp: [], indicators: { quote: [{}] } }] } } } }, [{ status: 500, body: "" }, { status: 500, body: "" }]);
   clearCache();
   write("macro-server", cases);
+}
 }
 
 // Shared fixtures of the cases above (macro series, headlines, macro contexts), so Rust uses the exact same inputs.

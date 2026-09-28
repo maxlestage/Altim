@@ -7,7 +7,7 @@ use altim::types::{Candle, Interval};
 use serde_json::{Value, json};
 
 fn samples() -> Value {
-    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/test/samples.json")).unwrap()).unwrap()
+    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/samples.json")).unwrap()).unwrap()
 }
 
 fn at(c: &[Candle], t: i64) -> Candle {
@@ -70,7 +70,13 @@ fn ecart_source_fausse() {
 
 #[tokio::test]
 async fn consensus_bascule_et_ecarte() {
-    let sources = [src("Panne", Err("451")), src("Faux", Ok(series(1.05))), src("A", Ok(series(1.0))), src("B", Ok(series(1.0001))), src("C", Ok(series(0.9999)))];
+    let sources = [
+        src("Panne", Err("451")),
+        src("Faux", Ok(series(1.05))),
+        src("A", Ok(series(1.0))),
+        src("B", Ok(series(1.0001))),
+        src("C", Ok(series(0.9999))),
+    ];
     let r = consensus("BTC", Interval::H1, &sources, Some(3), 0.5, closed_only).await.unwrap();
     assert_eq!(r.source, "A");
     assert!(!r.sources.iter().find(|s| s.name == "Faux").unwrap().ok);
@@ -91,7 +97,8 @@ fn agregation_1h_4h() {
 fn bougies_de_consensus_mediane() {
     let (a, b, c) = (series(1.0), series(1.0002), series(0.9998));
     // Bad tick on one exchange: absurd wick on candle 50.
-    let spiked: Vec<Candle> = b.iter().enumerate().map(|(i, x)| if i == 50 { Candle { high: x.high * 1.3, close: x.close * 1.02, ..*x } } else { *x }).collect();
+    let spiked: Vec<Candle> =
+        b.iter().enumerate().map(|(i, x)| if i == 50 { Candle { high: x.high * 1.3, close: x.close * 1.02, ..*x } } else { *x }).collect();
     let out = blend(&a, &[spiked, c]);
     assert_eq!(out.len(), a.len());
     assert!((out[50].high - 102.0).abs() < 1e-6); // median of 102, 132.6, 101.98
@@ -126,7 +133,8 @@ const T0: i64 = 1_790_503_200_000;
 const T1: i64 = 1_790_506_800_000;
 
 fn sample(name: &str) -> Value {
-    let s: Value = serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/parity/server-samples.json")).unwrap()).unwrap();
+    let s: Value =
+        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/parity/server-samples.json")).unwrap()).unwrap();
     let (group, key) = name.split_once('.').unwrap();
     s[group][key][0].clone()
 }
@@ -190,10 +198,20 @@ fn cours_robinhood_tradingview() {
 
 #[test]
 fn verification_croisee_intraday() {
-    let q = |name: &str, ok: bool, price: Option<f64>, error: Option<&str>| QuoteSourceStatus { name: name.into(), ok, price, error: error.map(String::from) };
+    let q = |name: &str, ok: bool, price: Option<f64>, error: Option<&str>| QuoteSourceStatus {
+        name: name.into(),
+        ok,
+        price,
+        error: error.map(String::from),
+    };
     let checks = cross_check(
         100.0,
-        &[q("Yahoo Finance", true, Some(100.1), None), q("Nasdaq", true, Some(101.0), None), q("Cboe", true, Some(105.0), None), q("TradingView", false, None, Some("non coté"))],
+        &[
+            q("Yahoo Finance", true, Some(100.1), None),
+            q("Nasdaq", true, Some(101.0), None),
+            q("Cboe", true, Some(105.0), None),
+            q("TradingView", false, None, Some("non coté")),
+        ],
         &["Yahoo Finance".to_string()],
         2.0,
     );
@@ -252,14 +270,31 @@ fn actions_stockanalysis_webull_zacks() {
     assert_eq!(quotes::parse::webull_ticker(&sample("quotes.webullTicker"), "BRK-A").unwrap(), None);
     assert_eq!(quotes::parse::zacks(&sample("quotes.zacks")).unwrap()["AAPL"].price, 341.07);
     let names: Vec<&str> = STOCK_SOURCES.iter().map(|s| s.name.as_str()).collect();
-    assert_eq!(names, ["Yahoo Finance", "Nasdaq", "Robinhood", "StockAnalysis", "Webull", "Cboe", "WSJ / MarketWatch", "AlphaQuery", "Finviz", "Financial Times", "eToro"]);
+    assert_eq!(
+        names,
+        [
+            "Yahoo Finance",
+            "Nasdaq",
+            "Robinhood",
+            "StockAnalysis",
+            "Webull",
+            "Cboe",
+            "WSJ / MarketWatch",
+            "AlphaQuery",
+            "Finviz",
+            "Financial Times",
+            "eToro"
+        ]
+    );
 }
 
 #[tokio::test]
 async fn source_en_retard_ecartee() {
     const H: i64 = 3_600_000;
     let serie = |n: i64, f: f64| -> Vec<Candle> {
-        (0..n).map(|i| Candle { time: i * H, open: 100.0 * f, high: 101.0 * f, low: 99.0 * f, close: (100.0 + (i % 7) as f64) * f, volume: 1.0 }).collect()
+        (0..n)
+            .map(|i| Candle { time: i * H, open: 100.0 * f, high: 101.0 * f, low: 99.0 * f, close: (100.0 + (i % 7) as f64) * f, volume: 1.0 })
+            .collect()
     };
     let sources = [src("A", Ok(serie(200, 1.0))), src("B", Ok(serie(200, 1.0001))), src("Lente", Ok(serie(150, 1.0)))];
     let r = consensus("PEPE", Interval::H1, &sources, None, 0.5, closed_only).await.unwrap();

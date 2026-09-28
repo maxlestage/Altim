@@ -7,8 +7,8 @@ use altim::engine::backtest::{self, BacktestResult, backtest, backtest_default, 
 use altim::engine::brief::{BriefBuy, MarketLevel, Mover, PriceNow, headline, movers};
 use altim::engine::history::{Close, HistoryLine, portfolio_history};
 use altim::engine::news::{
-    self, FeedItems, NewsCategory, NewsTheme, NewsTone, RawNews, WatchAsset, aggregate, decode_text, mentions, news_digest, parse_feed,
-    safe_link, same_story, top_stories,
+    self, FeedItems, NewsCategory, NewsTheme, NewsTone, RawNews, WatchAsset, aggregate, decode_text, mentions, news_digest, parse_feed, safe_link,
+    same_story, top_stories,
 };
 use altim::js::to_value;
 use altim::types::Kind;
@@ -101,7 +101,18 @@ fn input_series() -> HashMap<String, Vec<Close>> {
     let odd = odd
         .into_iter()
         .enumerate()
-        .map(|(k, (t, c))| (t, if k % 17 == 0 { 0.0 } else if k % 23 == 0 { -c } else { c }))
+        .map(|(k, (t, c))| {
+            (
+                t,
+                if k % 17 == 0 {
+                    0.0
+                } else if k % 23 == 0 {
+                    -c
+                } else {
+                    c
+                },
+            )
+        })
         .collect();
     s.insert("crypto:ODD".into(), odd);
     let nvda = &s["stock:NVDA"];
@@ -205,9 +216,15 @@ fn history_weekend_late_listing_drawdown() {
     assert!(h.points.iter().all(|p| p.value == 20.0));
     assert_eq!(h.change, 0.0);
 
-    let closes: Vec<Close> = [100.0, 120.0, 90.0, 108.0, 60.0, 80.0].iter().enumerate().map(|(i, c)| (d("2026-09-01") + i as i64 * DAY, *c)).collect();
-    let h = portfolio_history(&[line("crypto:A", 1.0), line("crypto:GONE", 3.0)], &HashMap::from([("crypto:A".to_string(), closes)]), 5, d("2026-09-06") + 1)
-        .unwrap();
+    let closes: Vec<Close> =
+        [100.0, 120.0, 90.0, 108.0, 60.0, 80.0].iter().enumerate().map(|(i, c)| (d("2026-09-01") + i as i64 * DAY, *c)).collect();
+    let h = portfolio_history(
+        &[line("crypto:A", 1.0), line("crypto:GONE", 3.0)],
+        &HashMap::from([("crypto:A".to_string(), closes)]),
+        5,
+        d("2026-09-06") + 1,
+    )
+    .unwrap();
     assert!((h.max_drawdown + 50.0).abs() < 0.5e-6);
     assert!((h.worst.unwrap().change + 44.444).abs() < 0.005);
     assert_eq!(h.missing, ["crypto:GONE"]);
@@ -338,7 +355,13 @@ fn parity_news() {
 #[test]
 fn news_real_feeds() {
     let tag = regex::Regex::new(r"(?i)<[a-z/]").unwrap();
-    for (name, source) in [("bfm", "BFM Économie"), ("cointelegraph", "Cointelegraph"), ("google-fr", "Google Actualités"), ("yahoo-aapl", "Yahoo Finance"), ("decrypt", "Decrypt")] {
+    for (name, source) in [
+        ("bfm", "BFM Économie"),
+        ("cointelegraph", "Cointelegraph"),
+        ("google-fr", "Google Actualités"),
+        ("yahoo-aapl", "Yahoo Finance"),
+        ("decrypt", "Decrypt"),
+    ] {
         let items = parse_feed(&sample(name), source).unwrap();
         assert_eq!(items.len(), 6, "{name}");
         for it in &items {
@@ -427,7 +450,12 @@ fn news_assets() {
     assert!(mentions("$SOL rallies", &sol));
 
     let items = [item("Bitcoin miners expand in Texas", "Google News", 1.0), item("Crypto market wobbles on macro fears", "Google News", 1.0)];
-    let out = aggregate(&[FeedItems { category: NewsCategory::Actifs, fallback: Some(NewsCategory::Crypto), items: &items }], &[btc], now8(), news::MAX_AGE_MS);
+    let out = aggregate(
+        &[FeedItems { category: NewsCategory::Actifs, fallback: Some(NewsCategory::Crypto), items: &items }],
+        &[btc],
+        now8(),
+        news::MAX_AGE_MS,
+    );
     let b = out.iter().find(|i| i.title.starts_with("Bitcoin")).unwrap();
     assert_eq!((b.category, b.assets.clone()), (NewsCategory::Actifs, vec!["crypto:BTC".to_string()]));
     let c = out.iter().find(|i| i.title.starts_with("Crypto")).unwrap();
@@ -454,8 +482,10 @@ fn news_tone_lang_alert_cap() {
     assert!(paris.themes.contains(&NewsTheme::Monetary));
     assert!(out.iter().find(|i| i.source == "C").unwrap().alert);
     assert!(top_stories(&out, 5).is_empty());
-    let hedged_items =
-        [item("Les agents IA pourraient déclencher un bank run, selon cet économiste", "X", 1.0), item("AI agents could trigger a bank run", "Y", 1.0)];
+    let hedged_items = [
+        item("Les agents IA pourraient déclencher un bank run, selon cet économiste", "X", 1.0),
+        item("AI agents could trigger a bank run", "Y", 1.0),
+    ];
     assert!(aggregate(&[feed(NewsCategory::Monde, &hedged_items)], &[], now, news::MAX_AGE_MS).iter().all(|i| !i.alert));
     let war_items = [
         item("Russia declares war on neighbour, markets slide", "A", 1.0),
@@ -466,8 +496,9 @@ fn news_tone_lang_alert_cap() {
     let war = aggregate(&[feed(NewsCategory::Monde, &war_items)], &[], now, news::MAX_AGE_MS);
     assert!(top_stories(&war, 5)[0].alert);
     let w = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"];
-    let many: Vec<RawNews> =
-        (0..100).map(|i| item(&format!("{} {}token {i}x{}chain news", w[i % 10], w[i / 10], w[(i * 3) % 10]), &format!("S{i}"), i as f64 / 10.0)).collect();
+    let many: Vec<RawNews> = (0..100)
+        .map(|i| item(&format!("{} {}token {i}x{}chain news", w[i % 10], w[i / 10], w[(i * 3) % 10]), &format!("S{i}"), i as f64 / 10.0))
+        .collect();
     let many = aggregate(&[feed(NewsCategory::Crypto, &many)], &[], now, news::MAX_AGE_MS);
     assert_eq!(many.len(), NewsCategory::Crypto.per_category());
     assert_eq!(news_digest(&out, now).tone.negative, 2);

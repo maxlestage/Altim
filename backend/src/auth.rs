@@ -290,7 +290,8 @@ pub fn login_page(opts: &LoginPage) -> String {
         } else {
             ""
         };
-        let error = opts.error.filter(|e| !e.is_empty()).map(|e| format!("<p class=\"err\" role=\"alert\">{}</p>", escape_html(e))).unwrap_or_default();
+        let error =
+            opts.error.filter(|e| !e.is_empty()).map(|e| format!("<p class=\"err\" role=\"alert\">{}</p>", escape_html(e))).unwrap_or_default();
         format!(
             "<form method=\"post\" action=\"/login\" autocomplete=\"on\">
       <input type=\"hidden\" name=\"next\" value=\"{}\">
@@ -604,7 +605,12 @@ fn login_form(auth: &Auth, req: &Request) -> Response {
     if auth.cfg.is_some() && auth.is_authenticated(headers, &path) {
         return Res::new().redirect(method, headers, 302, &next);
     }
-    let page = login_page(&LoginPage { error: None, next: Some(&next), totp: auth.cfg.as_ref().is_some_and(|c| c.totp_secret.is_some()), configured: auth.cfg.is_some() });
+    let page = login_page(&LoginPage {
+        error: None,
+        next: Some(&next),
+        totp: auth.cfg.as_ref().is_some_and(|c| c.totp_secret.is_some()),
+        configured: auth.cfg.is_some(),
+    });
     Res::new().set("cache-control", "no-store").set("x-robots-tag", "noindex, nofollow").send(method, headers, "text/html", page)
 }
 

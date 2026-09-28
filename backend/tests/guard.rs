@@ -1,10 +1,12 @@
 //! Port of web/test/guard.test.ts, guard-scenarios.test.ts, guard-data.test.ts and the macro part of zones.test.ts.
 use altim::engine::Evidence;
 use altim::engine::guard::{
-    Direction, FactorStatus, GUARD, GuardInput, GuardResult, MacroContext, NewsItem, Positioning, Scalping, SentimentInput, ShockLevel,
-    Trend, divergence, guard, news_tone, pivots, regime, reversal, reversal_evidence, shock, shock_evidence, technical_reversal, weigh,
+    Direction, FactorStatus, GUARD, GuardInput, GuardResult, MacroContext, NewsItem, Positioning, Scalping, SentimentInput, ShockLevel, Trend,
+    divergence, guard, news_tone, pivots, regime, reversal, reversal_evidence, shock, shock_evidence, technical_reversal, weigh,
 };
-use altim::engine::macro_ctx::{MACRO, MacroLevel, MacroPoint, MacroSeries, align, headline_themes, macro_advice, macro_evidence, macro_report, market_stress};
+use altim::engine::macro_ctx::{
+    MACRO, MacroLevel, MacroPoint, MacroSeries, align, headline_themes, macro_advice, macro_evidence, macro_report, market_stress,
+};
 use altim::engine::signal::{atr, ema, rsi};
 use altim::guard::{news_query, parse_guard};
 use altim::types::{Candle, Interval, Kind};
@@ -215,8 +217,11 @@ fn pivots_et_divergence() {
     closes.extend((0..10).map(|i| 119.3 - i as f64 * 1.2));
     closes.extend((0..20).map(|i| 108.5 + i as f64 * 0.65));
     closes.extend((0..5).map(|i| 121.0 - i as f64 * 0.8));
-    let c: Vec<Candle> =
-        closes.iter().enumerate().map(|(i, &x)| Candle { time: i as i64 * H4, open: x, high: x * 1.001, low: x * 0.999, close: x, volume: 1000.0 }).collect();
+    let c: Vec<Candle> = closes
+        .iter()
+        .enumerate()
+        .map(|(i, &x)| Candle { time: i as i64 * H4, open: x, high: x * 1.001, low: x * 0.999, close: x, volume: 1000.0 })
+        .collect();
     let r = rsi(&closes, 14);
     let until = c.len() as i64 - 1;
     assert!(divergence(&c, &r, Direction::Down, until, 60));
@@ -291,16 +296,20 @@ fn preuves_sans_regard_vers_le_futur() {
     }
     let i = 250;
     let closes: Vec<f64> = h4.iter().map(|c| c.close).collect();
-    let before: Vec<String> =
-        technical_reversal(&h4, &rsi(&closes, 14), &ema(&closes, 20), &atr(&h4, 14), i, Direction::Down, Interval::H4).into_iter().map(|f| f.code).collect();
+    let before: Vec<String> = technical_reversal(&h4, &rsi(&closes, 14), &ema(&closes, 20), &atr(&h4, 14), i, Direction::Down, Interval::H4)
+        .into_iter()
+        .map(|f| f.code)
+        .collect();
     let altered: Vec<Candle> = h4
         .iter()
         .enumerate()
         .map(|(j, c)| if j > i { Candle { close: c.close * 1.5, high: c.high * 1.5, low: c.low * 1.5, open: c.open * 1.5, ..*c } } else { *c })
         .collect();
     let ac: Vec<f64> = altered.iter().map(|c| c.close).collect();
-    let after: Vec<String> =
-        technical_reversal(&altered, &rsi(&ac, 14), &ema(&ac, 20), &atr(&altered, 14), i, Direction::Down, Interval::H4).into_iter().map(|f| f.code).collect();
+    let after: Vec<String> = technical_reversal(&altered, &rsi(&ac, 14), &ema(&ac, 20), &atr(&altered, 14), i, Direction::Down, Interval::H4)
+        .into_iter()
+        .map(|f| f.code)
+        .collect();
     assert_eq!(after, before);
 }
 

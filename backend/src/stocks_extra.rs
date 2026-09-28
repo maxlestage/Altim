@@ -146,7 +146,14 @@ pub mod parse {
             need(Some(r), "r.x")?;
             let r = Some(r);
             let f = |k: &str| number(get(r, k));
-            out.push(Candle { time: from_iso(&to_string(get(r, "x")))?, open: f("open"), high: f("high"), low: f("low"), close: f("close"), volume: or0(f("volume")) });
+            out.push(Candle {
+                time: from_iso(&to_string(get(r, "x")))?,
+                open: f("open"),
+                high: f("high"),
+                low: f("low"),
+                close: f("close"),
+                volume: or0(f("volume")),
+            });
         }
         Ok(out.into_iter().filter(valid).collect())
     }
@@ -186,7 +193,14 @@ pub mod parse {
         for (i, s) in dates.iter().enumerate() {
             let time = from_iso(&to_string(Some(s)))?;
             let close = at("Close", i);
-            let c = Candle { time, open: number(at("Open", i)), high: number(at("High", i)), low: number(at("Low", i)), close: number(close), volume: 0.0 };
+            let c = Candle {
+                time,
+                open: number(at("Open", i)),
+                high: number(at("High", i)),
+                low: number(at("Low", i)),
+                close: number(close),
+                volume: 0.0,
+            };
             if !nullish(close) && valid(&c) {
                 out.push(c);
             }
@@ -223,7 +237,14 @@ pub mod parse {
             need(Some(r), "r.FromDate")?;
             let r = Some(r);
             let f = |k: &str| number(get(r, k));
-            out.push(Candle { time: from_iso(&to_string(get(r, "FromDate")))?, open: f("Open"), high: f("High"), low: f("Low"), close: f("Close"), volume: or0(f("Volume")) });
+            out.push(Candle {
+                time: from_iso(&to_string(get(r, "FromDate")))?,
+                open: f("Open"),
+                high: f("High"),
+                low: f("Low"),
+                close: f("Close"),
+                volume: or0(f("Volume")),
+            });
         }
         Ok(out.into_iter().filter(valid).collect())
     }
@@ -247,7 +268,11 @@ pub mod parse {
 
     fn js_trim(s: &str) -> &str {
         s.trim_matches(|c: char| {
-            matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+            matches!(
+                c,
+                '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+                    ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+            )
         })
     }
 
@@ -420,7 +445,12 @@ async fn etoro_id(symbol: &str) -> Result<Option<f64>> {
         if stale {
             let at = now_ms();
             let fut = async move {
-                let r = async { Ok(Arc::new(parse::etoro_ids(&fetch_json("https://api.etorostatic.com/sapi/instrumentsmetadata/V1.1/instruments", &[], None).await?)?)) }.await;
+                let r = async {
+                    Ok(Arc::new(parse::etoro_ids(
+                        &fetch_json("https://api.etorostatic.com/sapi/instrumentsmetadata/V1.1/instruments", &[], None).await?,
+                    )?))
+                }
+                .await;
                 if r.is_err() {
                     let mut list = LIST.lock().unwrap();
                     if list.as_ref().is_some_and(|(t, _)| *t == at) {
@@ -463,12 +493,26 @@ pub static EXTRA_CANDLE_SOURCES: LazyLock<Vec<CandleSource>> = LazyLock::new(|| 
         CandleSource {
             name: "AlphaQuery",
             supports: daily,
-            fetch: |s| async move { parse::alphaquery(&fetch_json(&format!("https://www.alphaquery.com/data/stock-price-chart?ticker={}", enc(&dotted(&s))), &[], None).await?) }.boxed(),
+            fetch: |s| {
+                async move {
+                    parse::alphaquery(
+                        &fetch_json(&format!("https://www.alphaquery.com/data/stock-price-chart?ticker={}", enc(&dotted(&s))), &[], None).await?,
+                    )
+                }
+                .boxed()
+            },
         },
         CandleSource {
             name: "Finviz",
             supports: daily,
-            fetch: |s| async move { parse::finviz(&fetch_json(&format!("https://finviz.com/api/quote.ashx?instrument=stock&ticker={}&timeframe=d", enc(&s)), &[], None).await?) }.boxed(),
+            fetch: |s| {
+                async move {
+                    parse::finviz(
+                        &fetch_json(&format!("https://finviz.com/api/quote.ashx?instrument=stock&ticker={}&timeframe=d", enc(&s)), &[], None).await?,
+                    )
+                }
+                .boxed()
+            },
         },
         CandleSource {
             name: "Financial Times",
@@ -481,7 +525,10 @@ pub static EXTRA_CANDLE_SOURCES: LazyLock<Vec<CandleSource>> = LazyLock::new(|| 
                         "timeServiceFormat": "JSON", "returnDateType": "ISO8601",
                         "elements": [{ "Type": "price", "Symbol": xid, "OverlayIndicators": [], "Params": {} }],
                     });
-                    parse::ft(&fetch_json("https://markets.ft.com/data/chartapi/series", &[("Content-Type", "application/json")], Some(body.to_string())).await?)
+                    parse::ft(
+                        &fetch_json("https://markets.ft.com/data/chartapi/series", &[("Content-Type", "application/json")], Some(body.to_string()))
+                            .await?,
+                    )
                 }
                 .boxed()
             },
@@ -493,7 +540,10 @@ pub static EXTRA_CANDLE_SOURCES: LazyLock<Vec<CandleSource>> = LazyLock::new(|| 
                 async move {
                     let id = etoro_id(&s).await?.filter(|x| crate::jsval::truthy_num(*x));
                     let Some(id) = id else { return err("non coté") };
-                    parse::etoro(&fetch_json(&format!("https://candle.etoro.com/candles/asc.json/OneDay/1000/{}", crate::js::number_to_string(id)), &[], None).await?)
+                    parse::etoro(
+                        &fetch_json(&format!("https://candle.etoro.com/candles/asc.json/OneDay/1000/{}", crate::js::number_to_string(id)), &[], None)
+                            .await?,
+                    )
                 }
                 .boxed()
             },
@@ -528,7 +578,10 @@ pub static EXTRA_QUOTE_SOURCES: LazyLock<Vec<QuoteSourceExtra>> = LazyLock::new(
                         return Ok(IndexMap::new());
                     }
                     let list = symbols.iter().map(|s| enc(&slashed(s))).collect::<Vec<_>>().join(",");
-                    parse::fidelity(&fetch_text(&format!("https://fastquote.fidelity.com/service/quote/json?productid=embeddedquotes&symbols={list}"), &[], None).await?)
+                    parse::fidelity(
+                        &fetch_text(&format!("https://fastquote.fidelity.com/service/quote/json?productid=embeddedquotes&symbols={list}"), &[], None)
+                            .await?,
+                    )
                 }
                 .boxed()
             },
@@ -537,7 +590,9 @@ pub static EXTRA_QUOTE_SOURCES: LazyLock<Vec<QuoteSourceExtra>> = LazyLock::new(
             name: "StockCharts",
             fetch: |symbols| {
                 each(symbols, |s| async move {
-                    parse::stockcharts(&fetch_json(&format!("https://stockcharts.com/j-sum/sum?cmd=symsum&symbol={}", enc(&slashed(&s))), &[], None).await?)
+                    parse::stockcharts(
+                        &fetch_json(&format!("https://stockcharts.com/j-sum/sum?cmd=symsum&symbol={}", enc(&slashed(&s))), &[], None).await?,
+                    )
                 })
                 .boxed()
             },
@@ -545,8 +600,10 @@ pub static EXTRA_QUOTE_SOURCES: LazyLock<Vec<QuoteSourceExtra>> = LazyLock::new(
         QuoteSourceExtra {
             name: "TipRanks",
             fetch: |symbols| {
-                each(symbols, |s| async move { parse::tipranks(&fetch_json(&format!("https://www.tipranks.com/api/stocks/getData/?name={}", enc(&dotted(&s))), &[], None).await?) })
-                    .boxed()
+                each(symbols, |s| async move {
+                    parse::tipranks(&fetch_json(&format!("https://www.tipranks.com/api/stocks/getData/?name={}", enc(&dotted(&s))), &[], None).await?)
+                })
+                .boxed()
             },
         },
         QuoteSourceExtra {

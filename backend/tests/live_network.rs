@@ -30,7 +30,14 @@ async fn live_snapshot_and_quotes() {
     }
     for k in ["btc1h", "aapl1d", "aapl1h"] {
         let s = &out[k];
-        println!("{k}: source {} agreeing {} candles {} last {} reliability {}", s["source"], s["agreeing"], s["candles"].as_array().map_or(0, |c| c.len()), s["candles"].as_array().and_then(|c| c.last()).map_or(json!(null), |c| c["close"].clone()), s["reliability"]);
+        println!(
+            "{k}: source {} agreeing {} candles {} last {} reliability {}",
+            s["source"],
+            s["agreeing"],
+            s["candles"].as_array().map_or(0, |c| c.len()),
+            s["candles"].as_array().and_then(|c| c.last()).map_or(json!(null), |c| c["close"].clone()),
+            s["reliability"]
+        );
     }
     for q in quotes {
         println!("{} {} {:?} {}/{}", q.symbol, q.price, q.change, q.agreeing, q.total);

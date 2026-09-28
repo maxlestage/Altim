@@ -45,7 +45,11 @@ pub fn truthy_num(x: f64) -> bool {
 }
 
 fn js_whitespace(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}')
+    matches!(
+        c,
+        '\t' | '\n' | '\u{b}' | '\u{c}' | '\r' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' | '\u{205f}' | '\u{3000}' | '\u{feff}'
+    )
 }
 
 /// `Number(s)` for a string: trimmed, "" → 0, decimal / 0x / 0o / 0b literals, ±Infinity, anything else NaN.
@@ -179,8 +183,16 @@ pub fn items(v: V<'_>) -> &[Value] {
 }
 
 /// Characters `encodeURIComponent` leaves as they are: A–Z a–z 0–9 - _ . ! ~ * ' ( ).
-const URI_COMPONENT: &percent_encoding::AsciiSet =
-    &percent_encoding::NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.').remove(b'!').remove(b'~').remove(b'*').remove(b'\'').remove(b'(').remove(b')');
+const URI_COMPONENT: &percent_encoding::AsciiSet = &percent_encoding::NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'!')
+    .remove(b'~')
+    .remove(b'*')
+    .remove(b'\'')
+    .remove(b'(')
+    .remove(b')');
 
 /// `encodeURIComponent`.
 pub fn encode_uri_component(s: &str) -> String {

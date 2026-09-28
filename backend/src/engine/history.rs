@@ -117,9 +117,8 @@ pub fn portfolio_history(lines: &[HistoryLine], series: &HashMap<String, Vec<Clo
     if grid.len() - start < 2 {
         return None;
     }
-    let points: Vec<HistoryPoint> = (start..grid.len())
-        .map(|i| HistoryPoint { t: grid[i], value: valued.iter().fold(0.0, |s, v| s + v.0 * v.1[i].unwrap()) })
-        .collect();
+    let points: Vec<HistoryPoint> =
+        (start..grid.len()).map(|i| HistoryPoint { t: grid[i], value: valued.iter().fold(0.0, |s, v| s + v.0 * v.1[i].unwrap()) }).collect();
 
     let first = points[0].value;
     let last = points[points.len() - 1].value;

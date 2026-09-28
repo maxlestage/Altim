@@ -209,7 +209,11 @@ pub static FEEDS: LazyLock<Vec<FeedSpec>> = LazyLock::new(|| {
                     .filter_map(|d| {
                         let d = Some(d);
                         let price = truthy(num(get(d, "last")))?;
-                        Some(Parsed { base: strip(&to_string(get(d, "instId")), "-USDT").into(), price, change: from_open(price, num(get(d, "open24h"))) })
+                        Some(Parsed {
+                            base: strip(&to_string(get(d, "instId")), "-USDT").into(),
+                            price,
+                            change: from_open(price, num(get(d, "open24h"))),
+                        })
                     })
                     .collect()
             },
@@ -227,7 +231,11 @@ pub static FEEDS: LazyLock<Vec<FeedSpec>> = LazyLock::new(|| {
                     return vec![];
                 }
                 let Some(price) = truthy(num(get(m, "price"))) else { return vec![] };
-                vec![Parsed { base: strip(&to_string(get(m, "product_id")), "-USD").into(), price, change: from_open(price, num(get(m, "open_24h"))) }]
+                vec![Parsed {
+                    base: strip(&to_string(get(m, "product_id")), "-USD").into(),
+                    price,
+                    change: from_open(price, num(get(m, "open_24h"))),
+                }]
             },
             ping: None,
             reply: None,
@@ -297,7 +305,11 @@ pub static FEEDS: LazyLock<Vec<FeedSpec>> = LazyLock::new(|| {
                     .filter_map(|d| {
                         let d = Some(d);
                         let price = truthy(num(get(d, "lastPr")))?;
-                        Some(Parsed { base: strip(&to_string(get(d, "instId")), "USDT").into(), price, change: from_open(price, num(get(d, "open24h"))) })
+                        Some(Parsed {
+                            base: strip(&to_string(get(d, "instId")), "USDT").into(),
+                            price,
+                            change: from_open(price, num(get(d, "open24h"))),
+                        })
                     })
                     .collect()
             },
@@ -817,13 +829,24 @@ impl Inner {
     fn emit(st: &mut State, key: &str) {
         let stock = key.starts_with("stock:");
         let now = now_ms();
-        let Some(c) = st.quotes.get(key).and_then(|q| live_consensus(q, now, if stock { 3_600_000 } else { 120_000 }, if stock { 1.5 } else { 1.0 })) else {
+        let Some(c) = st.quotes.get(key).and_then(|q| live_consensus(q, now, if stock { 3_600_000 } else { 120_000 }, if stock { 1.5 } else { 1.0 }))
+        else {
             return;
         };
         let mut parts = key.split(':');
         let (Some(kind), Some(symbol)) = (parts.next().and_then(Kind::parse), parts.next()) else { return };
         let market = st.market.get(key).copied();
-        let tick = Tick { symbol: symbol.into(), kind, price: c.price, change: c.change, agreeing: c.agreeing, total: c.total, sources: c.sources, time: c.time, market };
+        let tick = Tick {
+            symbol: symbol.into(),
+            kind,
+            price: c.price,
+            change: c.change,
+            agreeing: c.agreeing,
+            total: c.total,
+            sources: c.sources,
+            time: c.time,
+            market,
+        };
         let prev = st.last.insert(key.to_string(), tick.clone());
         st.last_emit.insert(key.to_string(), now);
         if let Some(p) = prev {
@@ -880,7 +903,8 @@ impl Inner {
                     let kind = parts.next().and_then(Kind::parse)?;
                     let symbol = parts.next().unwrap_or("").to_string();
                     if kind == Kind::Crypto {
-                        let live_ws = st.quotes.get(k).is_some_and(|q| q.iter().any(|(n, x)| ws_names.contains(&n.as_str()) && now - x.time < WS_FRESH));
+                        let live_ws =
+                            st.quotes.get(k).is_some_and(|q| q.iter().any(|(n, x)| ws_names.contains(&n.as_str()) && now - x.time < WS_FRESH));
                         if live_ws {
                             return None;
                         }
@@ -916,7 +940,10 @@ impl Inner {
                 let kind = assets.iter().find(|a| &a.symbol == sym && source_kind == Some(a.kind)).map(|a| a.kind);
                 // Same name as a WebSocket feed: one exchange, one vote (the most recent quote wins).
                 if let Some(kind) = kind {
-                    st.quotes.entry(format!("{}:{sym}", kind.as_str())).or_default().insert(name.clone(), LiveQuote { price: q.price, change: q.change, time: t });
+                    st.quotes
+                        .entry(format!("{}:{sym}", kind.as_str()))
+                        .or_default()
+                        .insert(name.clone(), LiveQuote { price: q.price, change: q.change, time: t });
                 }
             }
         }

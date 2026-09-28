@@ -41,6 +41,10 @@ where
     F: FnOnce() -> Fut,
     Fut: Future<Output = Result<T>> + Send + 'static,
 {
+    // The type is part of the key: two modules choosing the same name can never read each other's values (the
+    // TypeScript server had that bug: the guard's headlines and the news page both used "news:crypto:BTC").
+    let typed = format!("{key}#{}", std::any::type_name::<T>());
+    let key = typed.as_str();
     let pending = {
         let mut store = STORE.lock().unwrap();
         if let Some(e) = store.map.get(key) {
@@ -70,9 +74,7 @@ where
                     }
                     r
                 });
-                let shared: Pending = async move { task.await.unwrap_or_else(|e| Err(Error(format!("tâche interrompue : {e}")))) }
-                    .boxed()
-                    .shared();
+                let shared: Pending = async move { task.await.unwrap_or_else(|e| Err(Error(format!("tâche interrompue : {e}")))) }.boxed().shared();
                 if !store.map.contains_key(key) && store.map.len() >= MAX_KEYS {
                     let mut old: Vec<(u64, String)> =
                         store.map.iter().filter(|(_, e)| e.pending.is_none()).map(|(k, e)| (e.seq, k.clone())).collect();
@@ -132,5 +134,9 @@ mod tests {
         assert_eq!(*v, 42);
         let e = cached::<u32, _, _>("t:none", 0, || async { Err(Error("panne".into())) }).await;
         assert_eq!(e.unwrap_err().0, "panne");
+        // Same name, other type: its own entry, never the other one's value.
+        let s = cached::<String, _, _>("t:dedup", 60_000, || async { Ok("texte".to_string()) }).await.unwrap();
+        assert_eq!(*s, "texte");
+        assert_eq!(*cached::<u32, _, _>("t:dedup", 60_000, || async { Ok(7) }).await.unwrap(), 42);
     }
 }

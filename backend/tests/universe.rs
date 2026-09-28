@@ -120,7 +120,8 @@ fn union_of_exchanges_without_stablecoins_nor_leveraged_ranked_by_market_cap() {
         { "symbol": "pepe", "name": "Pepe copycat", "market_cap_rank": 900 },
     ]))
     .unwrap();
-    let names = [("NEWCOIN", "New Coin"), ("NVDAX", "NVIDIA xStock"), ("SPYON", "SPDR S&P 500 ETF (Ondo Tokenized ETF)")].map(|(a, b)| (a.to_string(), b.to_string()));
+    let names = [("NEWCOIN", "New Coin"), ("NVDAX", "NVIDIA xStock"), ("SPYON", "SPDR S&P 500 ETF (Ondo Tokenized ETF)")]
+        .map(|(a, b)| (a.to_string(), b.to_string()));
     let list = build_crypto(&[okx, coinbase, kraken, gate, vec!["NVDAX".into(), "SPYON".into()]], &gecko, &names);
     let symbols: Vec<&str> = list.iter().map(|e| e.0.as_str()).collect();
     assert_eq!(symbols, ["BTC", "ETH", "DOGE", "PEPE", "NEWCOIN"]);
@@ -160,9 +161,7 @@ fn cryptos_and_stocks_together_exact_symbols_first_then_largest() {
         &[("SPYX".into(), "Spy Token".into())],
     );
     let stock = build_stocks(&[nasdaq(), other()], &caps(&[("AAPL", 3e12)]));
-    let ids = |q: &str| {
-        search_all(&crypto, &stock, q, 5).iter().map(|h| format!("{}:{}", h.kind.as_str(), h.e.0)).collect::<Vec<_>>()
-    };
+    let ids = |q: &str| search_all(&crypto, &stock, q, 5).iter().map(|h| format!("{}:{}", h.kind.as_str(), h.e.0)).collect::<Vec<_>>();
     assert_eq!(ids("spy"), ["stock:SPY", "crypto:SPYX"]);
     assert_eq!(ids("apple"), ["stock:AAPL"]);
     assert_eq!(ids("sol")[0], "crypto:SOL");

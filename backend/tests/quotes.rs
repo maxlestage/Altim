@@ -22,7 +22,11 @@ fn parseurs_de_cours() {
     assert_eq!(okx["BTC"].price, 84699.2);
     assert!(close_to(okx["BTC"].change.unwrap(), 0.8254, 3));
     let bases: Vec<String> = ["BTC", "SOL", "BNB"].map(String::from).to_vec();
-    let kraken = parse::kraken(&json!({ "error": [], "result": { "XXBTZUSD": { "c": ["84687.40000", "0.1"] }, "SOLUSD": { "c": ["123.90000", "1"] } } }), &bases).unwrap();
+    let kraken = parse::kraken(
+        &json!({ "error": [], "result": { "XXBTZUSD": { "c": ["84687.40000", "0.1"] }, "SOLUSD": { "c": ["123.90000", "1"] } } }),
+        &bases,
+    )
+    .unwrap();
     assert_eq!(kraken["BTC"].price, 84687.4);
     assert_eq!(kraken["SOL"].price, 123.9);
     assert!(!kraken.contains_key("BNB"));
@@ -83,7 +87,7 @@ fn aucun_cours_actif_omis() {
 // ---------- stocks-extra.test.ts (AAPL, 24–25/09/2026) ----------
 
 fn s() -> Value {
-    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../web/test/stocks-extra-samples.json")).unwrap()).unwrap()
+    serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/stocks-extra-samples.json")).unwrap()).unwrap()
 }
 
 #[test]
@@ -146,7 +150,11 @@ fn cours_fidelity_stockcharts_tipranks_public() {
 fn dix_sept_fournisseurs_actions() {
     assert!(EXTRA_CANDLE_SOURCES.iter().all(|x| STOCK_SOURCES.iter().any(|y| y.name == x.name)));
     assert!(EXTRA_QUOTE_SOURCES.iter().all(|x| QUOTE_SOURCES.iter().any(|y| y.name == x.name && y.kind == Kind::Stock)));
-    let mut providers: Vec<&str> = STOCK_SOURCES.iter().map(|x| x.name.as_str()).chain(QUOTE_SOURCES.iter().filter(|q| q.kind == Kind::Stock).map(|q| q.name.as_str())).collect();
+    let mut providers: Vec<&str> = STOCK_SOURCES
+        .iter()
+        .map(|x| x.name.as_str())
+        .chain(QUOTE_SOURCES.iter().filter(|q| q.kind == Kind::Stock).map(|q| q.name.as_str()))
+        .collect();
     providers.sort();
     providers.dedup();
     assert_eq!(providers.len(), 17);

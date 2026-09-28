@@ -2,18 +2,20 @@
 //! from `bun parity/golden.ts`, section `parity/golden-engines-b1.ts`).
 mod common;
 use altim::engine::alerts::{AlertInput, buy_alert};
-use altim::engine::fibonacci::{EXTENSIONS, HORIZONS, Horizon as ZH, RATIOS, Swing, fib_zone, fib_zones, level, swing_at, weekly, zone_evidence, zone_state};
+use altim::engine::fibonacci::{
+    EXTENSIONS, HORIZONS, Horizon as ZH, RATIOS, Swing, fib_zone, fib_zones, level, swing_at, weekly, zone_evidence, zone_state,
+};
 use altim::engine::format::{format_percent, format_price};
 use altim::engine::screener::{
-    self, CRITERIA, CandleInterval, HORIZON_LIST, RankRule, Spec, align_series, explain, factors_at, is_pegged, pick, ranks, roles, score_universe, span,
-    to_horizon, validate,
+    self, CRITERIA, CandleInterval, HORIZON_LIST, RankRule, Spec, align_series, explain, factors_at, is_pegged, pick, ranks, roles, score_universe,
+    span, to_horizon, validate,
 };
 use altim::engine::signal::atr;
 use altim::js::to_value;
 use altim::types::{Candle, Kind};
 use common::*;
-use std::sync::LazyLock;
 use serde_json::{Map, Value, json};
+use std::sync::LazyLock;
 
 fn s(v: &Value) -> &str {
     v.as_str().unwrap()
@@ -260,10 +262,16 @@ fn screener_universe() {
         let why: Value = if h == "momLen1000" {
             Value::Null
         } else {
-            to_value(&list.iter().zip(&sc).map(|(f, x)| match (f, x) {
-                (Some(f), Some(x)) => Some(explain(f, x, &sp, m)),
-                _ => None,
-            }).collect::<Vec<_>>())
+            to_value(
+                &list
+                    .iter()
+                    .zip(&sc)
+                    .map(|(f, x)| match (f, x) {
+                        (Some(f), Some(x)) => Some(explain(f, x, &sp, m)),
+                        _ => None,
+                    })
+                    .collect::<Vec<_>>(),
+            )
         };
         let out = json!({ "list": to_value(&list), "sc": to_value(&sc), "why": why });
         assert_same(&out, &c.output, &format!("scoreUniverse {a}"));
@@ -273,8 +281,15 @@ fn screener_universe() {
 #[test]
 fn screener_pick() {
     let items: Vec<(&str, Option<f64>, &str)> = vec![
-        ("A", Some(99.0), "Tech"), ("B", Some(98.0), "Tech"), ("C", Some(97.0), "Tech"), ("D", Some(96.0), "Tech"),
-        ("E", Some(95.0), "Santé"), ("F", None, "Santé"), ("G", Some(10.0), "Énergie"), ("H", Some(95.0), ""), ("I", Some(97.0), "Tech"),
+        ("A", Some(99.0), "Tech"),
+        ("B", Some(98.0), "Tech"),
+        ("C", Some(97.0), "Tech"),
+        ("D", Some(96.0), "Tech"),
+        ("E", Some(95.0), "Santé"),
+        ("F", None, "Santé"),
+        ("G", Some(10.0), "Énergie"),
+        ("H", Some(95.0), ""),
+        ("I", Some(97.0), "Tech"),
     ];
     for c in golden("screener-pick") {
         let n = c.args["n"].as_u64().unwrap() as usize;

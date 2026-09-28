@@ -183,9 +183,7 @@ pub fn median(v: &[f64]) -> f64 {
 
 /// `new Date(ms).toISOString()`.
 pub fn iso(ms: i64) -> String {
-    chrono::DateTime::from_timestamp_millis(ms)
-        .map(|d| d.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string())
-        .unwrap_or_else(|| "Invalid Date".into())
+    chrono::DateTime::from_timestamp_millis(ms).map(|d| d.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()).unwrap_or_else(|| "Invalid Date".into())
 }
 
 /// `new Date(ms).toISOString().slice(0, 10)`.
@@ -212,7 +210,17 @@ pub fn parse_date(s: &str) -> Option<i64> {
         return Some(d.and_hms_opt(0, 0, 0)?.and_utc().timestamp_millis());
     }
     // RFC 822 variants with a named zone ("GMT", "EST", "EDT"...) chrono refuses.
-    for (zone, offset) in [("GMT", "+0000"), ("UTC", "+0000"), ("UT", "+0000"), ("EST", "-0500"), ("EDT", "-0400"), ("CST", "-0600"), ("CDT", "-0500"), ("PST", "-0800"), ("PDT", "-0700")] {
+    for (zone, offset) in [
+        ("GMT", "+0000"),
+        ("UTC", "+0000"),
+        ("UT", "+0000"),
+        ("EST", "-0500"),
+        ("EDT", "-0400"),
+        ("CST", "-0600"),
+        ("CDT", "-0500"),
+        ("PST", "-0800"),
+        ("PDT", "-0700"),
+    ] {
         if let Some(head) = s.strip_suffix(zone) {
             if let Ok(d) = chrono::DateTime::parse_from_rfc2822(&format!("{}{}", head, offset)) {
                 return Some(d.timestamp_millis());

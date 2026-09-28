@@ -150,7 +150,8 @@ pub fn closed_only(candles: Vec<Candle>, interval: Interval) -> Vec<Candle> {
 }
 
 pub fn closed_only_at(candles: Vec<Candle>, interval: Interval, now: i64) -> Vec<Candle> {
-    let mut c: Vec<Candle> = candles.into_iter().filter(|c| c.time.saturating_add(interval.step()) <= now && c.close.is_finite() && c.close > 0.0).collect();
+    let mut c: Vec<Candle> =
+        candles.into_iter().filter(|c| c.time.saturating_add(interval.step()) <= now && c.close.is_finite() && c.close > 0.0).collect();
     c.sort_by_key(|c| c.time);
     c
 }
@@ -297,12 +298,14 @@ pub mod parse {
         list.iter().map(|r| need(Some(r), first).map(|_| row(r))).collect()
     }
 
-    const BINANCE: &str = "d.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
+    const BINANCE: &str =
+        "d.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
     pub fn binance(d: &Value) -> Result<Vec<Candle>> {
         rows(Some(d), "d", BINANCE, "r[0]", |r| c(at(r, 0), at(r, 1), at(r, 2), at(r, 3), at(r, 4), at(r, 5)))
     }
 
-    const OKX: &str = "o.data.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
+    const OKX: &str =
+        "o.data.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
     pub fn okx(d: &Value) -> Result<Vec<Candle>> {
         need(Some(d), "o.code")?;
         if !is_str(get(Some(d), "code"), "0") {
@@ -328,7 +331,9 @@ pub mod parse {
             Some(Value::Array(a)) if !a.is_empty() => {
                 Err(Error(a.iter().map(|x| if x.is_null() { String::new() } else { to_string(Some(x)) }).collect::<Vec<_>>().join(",")))
             }
-            Some(Value::String(s)) if !s.is_empty() => Err(Error(format!("{expr}.join is not a function. (In '{expr}.join()', '{expr}.join' is undefined)"))),
+            Some(Value::String(s)) if !s.is_empty() => {
+                Err(Error(format!("{expr}.join is not a function. (In '{expr}.join()', '{expr}.join' is undefined)")))
+            }
             _ => Ok(()),
         }
     }
@@ -350,18 +355,21 @@ pub mod parse {
         rows(found, KRAKEN_EXPR, KRAKEN, "r[0]", |r| c(at(r, 0) * 1000.0, at(r, 1), at(r, 2), at(r, 3), at(r, 4), at(r, 6)))
     }
 
-    const KUCOIN: &str = "o.data.map((r) => ({ time: num(r[0]) * 1000, open: num(r[1]), close: num(r[2]), high: num(r[3]), low: num(r[4]), volume: num(r[5]) }))";
+    const KUCOIN: &str =
+        "o.data.map((r) => ({ time: num(r[0]) * 1000, open: num(r[1]), close: num(r[2]), high: num(r[3]), low: num(r[4]), volume: num(r[5]) }))";
     pub fn kucoin(d: &Value) -> Result<Vec<Candle>> {
         need(Some(d), "o.code")?;
         if !is_str(get(Some(d), "code"), "200000") {
             return err("KuCoin");
         }
-        let mut out = rows(get(Some(d), "data"), "o.data", KUCOIN, "r[0]", |r| c(at(r, 0) * 1000.0, at(r, 1), at(r, 3), at(r, 4), at(r, 2), at(r, 5)))?;
+        let mut out =
+            rows(get(Some(d), "data"), "o.data", KUCOIN, "r[0]", |r| c(at(r, 0) * 1000.0, at(r, 1), at(r, 3), at(r, 4), at(r, 2), at(r, 5)))?;
         out.reverse();
         Ok(out)
     }
 
-    const GATE: &str = "d.map((r) => ({ time: num(r[0]) * 1000, close: num(r[2]), high: num(r[3]), low: num(r[4]), open: num(r[5]), volume: num(r[6]) }))";
+    const GATE: &str =
+        "d.map((r) => ({ time: num(r[0]) * 1000, close: num(r[2]), high: num(r[3]), low: num(r[4]), open: num(r[5]), volume: num(r[6]) }))";
     pub fn gate(d: &Value) -> Result<Vec<Candle>> {
         rows(Some(d), "d", GATE, "r[0]", |r| c(at(r, 0) * 1000.0, at(r, 5), at(r, 3), at(r, 4), at(r, 2), at(r, 6)))
     }
@@ -373,7 +381,9 @@ pub mod parse {
         if nullish(ohlc) {
             return Ok(vec![]);
         }
-        rows(ohlc, "(d.data?.ohlc ?? [])", BITSTAMP, "r.timestamp", |r| c(f(r, "timestamp") * 1000.0, f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume")))
+        rows(ohlc, "(d.data?.ohlc ?? [])", BITSTAMP, "r.timestamp", |r| {
+            c(f(r, "timestamp") * 1000.0, f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume"))
+        })
     }
 
     const GEMINI: &str = "d.map((r) => ({ time: r[0], open: r[1], high: r[2], low: r[3], close: r[4], volume: r[5] }))";
@@ -392,7 +402,8 @@ pub mod parse {
         Ok(out)
     }
 
-    const CRYPTOCOM: &str = "(o.result?.data ?? []).map((r) => ({ time: num(r.t), open: num(r.o), high: num(r.h), low: num(r.l), close: num(r.c), volume: num(r.v) }))";
+    const CRYPTOCOM: &str =
+        "(o.result?.data ?? []).map((r) => ({ time: num(r.t), open: num(r.o), high: num(r.h), low: num(r.l), close: num(r.c), volume: num(r.v) }))";
     pub fn cryptocom(d: &Value) -> Result<Vec<Candle>> {
         need(Some(d), "o.code")?;
         if !is_num(get(Some(d), "code"), 0.0) {
@@ -405,7 +416,8 @@ pub mod parse {
         rows(data, "(o.result?.data ?? [])", CRYPTOCOM, "r.t", |r| c(f(r, "t"), f(r, "o"), f(r, "h"), f(r, "l"), f(r, "c"), f(r, "v")))
     }
 
-    const BITGET: &str = "o.data.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
+    const BITGET: &str =
+        "o.data.map((r) => ({ time: num(r[0]), open: num(r[1]), high: num(r[2]), low: num(r[3]), close: num(r[4]), volume: num(r[5]) }))";
     pub fn bitget(d: &Value) -> Result<Vec<Candle>> {
         need(Some(d), "o.code")?;
         if !is_str(get(Some(d), "code"), "00000") {
@@ -421,12 +433,15 @@ pub mod parse {
         if !is_str(get(Some(d), "status"), "ok") {
             return err("HTX");
         }
-        let mut out = rows(get(Some(d), "data"), "o.data", HTX, "r.id", |r| c(f(r, "id") * 1000.0, f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "amount")))?;
+        let mut out = rows(get(Some(d), "data"), "o.data", HTX, "r.id", |r| {
+            c(f(r, "id") * 1000.0, f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "amount"))
+        })?;
         out.reverse();
         Ok(out)
     }
 
-    const POLONIEX: &str = "d.map((r) => ({ time: num(r[12]), open: num(r[2]), high: num(r[1]), low: num(r[0]), close: num(r[3]), volume: num(r[5]) }))";
+    const POLONIEX: &str =
+        "d.map((r) => ({ time: num(r[12]), open: num(r[2]), high: num(r[1]), low: num(r[0]), close: num(r[3]), volume: num(r[5]) }))";
     /// Poloniex: [low, high, open, close, amount, quantity, …, startTime (index 12), closeTime].
     pub fn poloniex(d: &Value) -> Result<Vec<Candle>> {
         rows(Some(d), "d", POLONIEX, "r[12]", |r| c(at(r, 12), at(r, 2), at(r, 1), at(r, 0), at(r, 3), at(r, 5)))
@@ -444,7 +459,8 @@ pub mod parse {
         Ok(out)
     }
 
-    const WHITEBIT: &str = "o.result.map((r) => ({ time: num(r[0]) * 1000, open: num(r[1]), close: num(r[2]), high: num(r[3]), low: num(r[4]), volume: num(r[5]) }))";
+    const WHITEBIT: &str =
+        "o.result.map((r) => ({ time: num(r[0]) * 1000, open: num(r[1]), close: num(r[2]), high: num(r[3]), low: num(r[4]), volume: num(r[5]) }))";
     /// WhiteBIT: [time (s), open, close, high, low, base volume, quote volume].
     pub fn whitebit(d: &Value) -> Result<Vec<Candle>> {
         need(Some(d), "o.success")?;
@@ -460,7 +476,9 @@ pub mod parse {
         if !is_num(get(Some(d), "code"), 0.0) {
             return err("CoinEx");
         }
-        rows(get(Some(d), "data"), "o.data", COINEX, "r.created_at", |r| c(f(r, "created_at"), f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume")))
+        rows(get(Some(d), "data"), "o.data", COINEX, "r.created_at", |r| {
+            c(f(r, "created_at"), f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume"))
+        })
     }
 
     const XT: &str = "o.result.map((r) => ({ time: num(r.t), open: num(r.o), high: num(r.h), low: num(r.l), close: num(r.c), volume: num(r.q) }))";
@@ -482,7 +500,9 @@ pub mod parse {
         if !truthy(get(Some(d), "success")) {
             return err("WOO X");
         }
-        let mut out = rows(get(Some(d), "rows"), "o.rows", WOOX, "r.start_timestamp", |r| c(f(r, "start_timestamp"), f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume")))?;
+        let mut out = rows(get(Some(d), "rows"), "o.rows", WOOX, "r.start_timestamp", |r| {
+            c(f(r, "start_timestamp"), f(r, "open"), f(r, "high"), f(r, "low"), f(r, "close"), f(r, "volume"))
+        })?;
         out.reverse();
         Ok(out)
     }
@@ -558,7 +578,14 @@ pub mod parse_stock {
                 need(Some(r), "r.date")?;
                 let r = Some(r);
                 let time = ny_open_parts(&to_string(get(r, "date")), '/', [2, 0, 1])?;
-                Ok(Candle { time, open: num(get(r, "open")), high: num(get(r, "high")), low: num(get(r, "low")), close: num(get(r, "close")), volume: or0(num(get(r, "volume"))) })
+                Ok(Candle {
+                    time,
+                    open: num(get(r, "open")),
+                    high: num(get(r, "high")),
+                    low: num(get(r, "low")),
+                    close: num(get(r, "close")),
+                    volume: or0(num(get(r, "volume"))),
+                })
             })
             .collect::<Result<Vec<_>>>()?;
         out.reverse();
@@ -580,7 +607,14 @@ pub mod parse_stock {
             let date = to_string(get(r, "begins_at"));
             let time = ny_open_parts(slice_utf16(&date, 10), '-', [0, 1, 2])?;
             let n = |k: &str| number(get(r, k));
-            out.push(Candle { time, open: n("open_price"), high: n("high_price"), low: n("low_price"), close: n("close_price"), volume: or0(n("volume")) });
+            out.push(Candle {
+                time,
+                open: n("open_price"),
+                high: n("high_price"),
+                low: n("low_price"),
+                close: n("close_price"),
+                volume: or0(n("volume")),
+            });
         }
         Ok(out)
     }
@@ -637,7 +671,11 @@ pub mod parse_stock {
         let list = match list {
             None | Some(Value::Null) => &[][..],
             Some(Value::Array(a)) => a.as_slice(),
-            _ => return Err(Error("(d?.data ?? []).slice is not a function. (In '(d?.data ?? []).slice(-800)', '(d?.data ?? []).slice' is undefined)".into())),
+            _ => {
+                return Err(Error(
+                    "(d?.data ?? []).slice is not a function. (In '(d?.data ?? []).slice(-800)', '(d?.data ?? []).slice' is undefined)".into(),
+                ));
+            }
         };
         list[list.len().saturating_sub(800)..]
             .iter()
@@ -714,29 +752,51 @@ pub static SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
             parse::binance(&get_json(&format!("https://api.binance.com/api/v3/klines?symbol={b}USDT&interval={}&limit=500", i.as_str())).await?)
         }),
         Source::new("OKX", |b, i| async move {
-            parse::okx(&get_json(&format!("https://www.okx.com/api/v5/market/candles?instId={b}-USDT&bar={}&limit=300", pick(i, "1H", "4H", "1Dutc"))).await?)
+            parse::okx(
+                &get_json(&format!("https://www.okx.com/api/v5/market/candles?instId={b}-USDT&bar={}&limit=300", pick(i, "1H", "4H", "1Dutc")))
+                    .await?,
+            )
         }),
         Source::new("Coinbase", |b, i| async move {
-            let c = parse::coinbase(&get_json(&format!("https://api.exchange.coinbase.com/products/{b}-USD/candles?granularity={}", if i == Interval::D1 { 86400 } else { 3600 })).await?)?;
+            let c = parse::coinbase(
+                &get_json(&format!(
+                    "https://api.exchange.coinbase.com/products/{b}-USD/candles?granularity={}",
+                    if i == Interval::D1 { 86400 } else { 3600 }
+                ))
+                .await?,
+            )?;
             Ok(if i == Interval::H4 { aggregate(&c, Interval::H1.step(), Interval::H4.step()) } else { c })
         }),
         Source::new("Kraken", |b, i| async move {
-            parse::kraken(&get_json(&format!("https://api.kraken.com/0/public/OHLC?pair={}USD&interval={}", kraken_pair(&b), i.step() / 60_000)).await?)
+            parse::kraken(
+                &get_json(&format!("https://api.kraken.com/0/public/OHLC?pair={}USD&interval={}", kraken_pair(&b), i.step() / 60_000)).await?,
+            )
         }),
         Source::new("KuCoin", |b, i| async move {
             let end = now_ms().div_euclid(1000);
             let t = pick(i, "1hour", "4hour", "1day");
-            parse::kucoin(&get_json(&format!("https://api.kucoin.com/api/v1/market/candles?type={t}&symbol={b}-USDT&startAt={}&endAt={end}", end - (i.step() / 1000) * 500)).await?)
+            parse::kucoin(
+                &get_json(&format!(
+                    "https://api.kucoin.com/api/v1/market/candles?type={t}&symbol={b}-USDT&startAt={}&endAt={end}",
+                    end - (i.step() / 1000) * 500
+                ))
+                .await?,
+            )
         }),
         Source::new("Gate.io", |b, i| async move {
-            parse::gate(&get_json(&format!("https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={b}_USDT&interval={}&limit=500", i.as_str())).await?)
+            parse::gate(
+                &get_json(&format!("https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={b}_USDT&interval={}&limit=500", i.as_str()))
+                    .await?,
+            )
         }),
         Source::new("Bitstamp", |b, i| async move {
             parse::bitstamp(&get_json(&format!("https://www.bitstamp.net/api/v2/ohlc/{}usd/?step={}&limit=500", lower(&b), i.step() / 1000)).await?)
         }),
         Source::new("Gemini", |b, i| async move {
             // No 4 h candles at Gemini: rebuilt from 1 h.
-            let c = parse::gemini(&get_json(&format!("https://api.gemini.com/v2/candles/{}usd/{}", lower(&b), if i == Interval::D1 { "1day" } else { "1hr" })).await?)?;
+            let c = parse::gemini(
+                &get_json(&format!("https://api.gemini.com/v2/candles/{}usd/{}", lower(&b), if i == Interval::D1 { "1day" } else { "1hr" })).await?,
+            )?;
             Ok(if i == Interval::H4 { aggregate(&c, Interval::H1.step(), Interval::H4.step()) } else { c })
         }),
         Source::new("Bitfinex", |b, i| async move {
@@ -750,33 +810,62 @@ pub static SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
             Ok(if i == Interval::H4 { aggregate(&c, Interval::H1.step(), Interval::H4.step()) } else { c })
         }),
         Source::new("Crypto.com", |b, i| async move {
-            parse::cryptocom(&get_json(&format!("https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name={b}_USDT&timeframe={}&count=300", pick(i, "1h", "4h", "1D"))).await?)
+            parse::cryptocom(
+                &get_json(&format!(
+                    "https://api.crypto.com/exchange/v1/public/get-candlestick?instrument_name={b}_USDT&timeframe={}&count=300",
+                    pick(i, "1h", "4h", "1D")
+                ))
+                .await?,
+            )
         }),
         Source::new("Bitget", |b, i| async move {
-            parse::bitget(&get_json(&format!("https://api.bitget.com/api/v2/spot/market/candles?symbol={b}USDT&granularity={}&limit=500", pick(i, "1h", "4h", "1Dutc"))).await?)
+            parse::bitget(
+                &get_json(&format!(
+                    "https://api.bitget.com/api/v2/spot/market/candles?symbol={b}USDT&granularity={}&limit=500",
+                    pick(i, "1h", "4h", "1Dutc")
+                ))
+                .await?,
+            )
         }),
         Source::new("MEXC", |b, i| async move {
-            parse::binance(&get_json(&format!("https://api.mexc.com/api/v3/klines?symbol={b}USDT&interval={}&limit=500", pick(i, "60m", "4h", "1d"))).await?)
+            parse::binance(
+                &get_json(&format!("https://api.mexc.com/api/v3/klines?symbol={b}USDT&interval={}&limit=500", pick(i, "60m", "4h", "1d"))).await?,
+            )
         }),
         // HTX daily candles start at 16:00 UTC (UTC+8): hourly timeframes only.
         Source::new("HTX", |b, i| async move {
-            parse::htx(&get_json(&format!("https://api.huobi.pro/market/history/kline?symbol={}usdt&period={}&size=500", lower(&b), if i == Interval::H1 { "60min" } else { "4hour" })).await?)
+            parse::htx(
+                &get_json(&format!(
+                    "https://api.huobi.pro/market/history/kline?symbol={}usdt&period={}&size=500",
+                    lower(&b),
+                    if i == Interval::H1 { "60min" } else { "4hour" }
+                ))
+                .await?,
+            )
         })
         .only(not_daily),
         Source::new("Binance.US", |b, i| async move {
             parse::binance(&get_json(&format!("https://api.binance.us/api/v3/klines?symbol={b}USDT&interval={}&limit=500", i.as_str())).await?)
         }),
         Source::new("Poloniex", |b, i| async move {
-            parse::poloniex(&get_json(&format!("https://api.poloniex.com/markets/{b}_USDT/candles?interval={}&limit=500", pick(i, "HOUR_1", "HOUR_4", "DAY_1"))).await?)
+            parse::poloniex(
+                &get_json(&format!("https://api.poloniex.com/markets/{b}_USDT/candles?interval={}&limit=500", pick(i, "HOUR_1", "HOUR_4", "DAY_1")))
+                    .await?,
+            )
         }),
         Source::new("HitBTC", |b, i| async move {
-            parse::hitbtc(&get_json(&format!("https://api.hitbtc.com/api/3/public/candles/{b}USDT?period={}&limit=500", pick(i, "H1", "H4", "D1"))).await?)
+            parse::hitbtc(
+                &get_json(&format!("https://api.hitbtc.com/api/3/public/candles/{b}USDT?period={}&limit=500", pick(i, "H1", "H4", "D1"))).await?,
+            )
         }),
         Source::new("WhiteBIT", |b, i| async move {
             parse::whitebit(&get_json(&format!("https://whitebit.com/api/v1/public/kline?market={b}_USDT&interval={}&limit=500", i.as_str())).await?)
         }),
         Source::new("CoinEx", |b, i| async move {
-            parse::coinex(&get_json(&format!("https://api.coinex.com/v2/spot/kline?market={b}USDT&period={}&limit=500", pick(i, "1hour", "4hour", "1day"))).await?)
+            parse::coinex(
+                &get_json(&format!("https://api.coinex.com/v2/spot/kline?market={b}USDT&period={}&limit=500", pick(i, "1hour", "4hour", "1day")))
+                    .await?,
+            )
         }),
         Source::new("XT", |b, i| async move {
             parse::xt(&get_json(&format!("https://sapi.xt.com/v4/public/kline?symbol={}_usdt&interval={}&limit=500", lower(&b), i.as_str())).await?)
@@ -786,13 +875,20 @@ pub static SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
         }),
         // BingX daily candles start at 16:00 UTC (UTC+8): intraday timeframes only.
         Source::new("BingX", |b, i| async move {
-            parse::bingx(&get_json(&format!("https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol={b}-USDT&interval={}&limit=500", i.as_str())).await?)
+            parse::bingx(
+                &get_json(&format!("https://open-api.bingx.com/openApi/spot/v2/market/kline?symbol={b}-USDT&interval={}&limit=500", i.as_str()))
+                    .await?,
+            )
         })
         .only(not_daily),
         // LBank daily candles start at 16:00 UTC (UTC+8): intraday timeframes only.
         Source::new("LBank", |b, i| async move {
             let since = (now_ms() - 500 * i.step()).div_euclid(1000);
-            let url = format!("https://api.lbkex.com/v2/kline.do?symbol={}_usdt&size=500&type={}&time={since}", lower(&b), if i == Interval::H1 { "hour1" } else { "hour4" });
+            let url = format!(
+                "https://api.lbkex.com/v2/kline.do?symbol={}_usdt&size=500&type={}&time={since}",
+                lower(&b),
+                if i == Interval::H1 { "hour1" } else { "hour4" }
+            );
             parse::lbank(&get_json(&url).await?)
         })
         .only(not_daily),
@@ -812,7 +908,8 @@ pub static STOCK_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
                 Interval::H4 => ("1h", "2y"),
                 Interval::H1 => ("1h", "6mo"),
             };
-            let url = format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={interval}&range={range}&includePrePost=false", enc(&symbol));
+            let url =
+                format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={interval}&range={range}&includePrePost=false", enc(&symbol));
             let c = parse_stock::yahoo(&get_json(&url).await?)?;
             Ok(if i == Interval::H4 { aggregate_session(&c, 4) } else { c })
         }),
@@ -834,22 +931,34 @@ pub static STOCK_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
         .only(daily),
         // Robinhood hourly bars start on the hour (Yahoo's at :30): daily only, to compare the same candles.
         Source::new("Robinhood", |symbol, _| async move {
-            parse_stock::robinhood(&get_json(&format!("https://api.robinhood.com/marketdata/historicals/{}/?interval=day&span=5year&bounds=regular", enc(&dotted(&symbol)))).await?)
+            parse_stock::robinhood(
+                &get_json(&format!(
+                    "https://api.robinhood.com/marketdata/historicals/{}/?interval=day&span=5year&bounds=regular",
+                    enc(&dotted(&symbol))
+                ))
+                .await?,
+            )
         })
         .only(daily),
         Source::new("StockAnalysis", |symbol, _| async move {
-            parse_stock::stockanalysis(&get_json(&format!("https://stockanalysis.com/api/symbol/s/{}/history?range=5Y&period=daily", enc(&dotted(&symbol).to_lowercase()))).await?)
+            parse_stock::stockanalysis(
+                &get_json(&format!("https://stockanalysis.com/api/symbol/s/{}/history?range=5Y&period=daily", enc(&dotted(&symbol).to_lowercase())))
+                    .await?,
+            )
         })
         .only(daily),
         Source::new("Webull", |symbol, _| async move {
             let id = webull_ticker_id(&symbol).await;
             let Some(id) = id.filter(|x| crate::jsval::truthy_num(*x)) else { return err("non coté") };
-            let url = format!("https://quotes-gw.webullfintech.com/api/quote/charts/query?tickerIds={}&type=d1&count=800", crate::js::number_to_string(id));
+            let url =
+                format!("https://quotes-gw.webullfintech.com/api/quote/charts/query?tickerIds={}&type=d1&count=800", crate::js::number_to_string(id));
             parse_stock::webull(&get_json(&url).await?)
         })
         .only(daily),
         Source::new("Cboe", |symbol, _| async move {
-            parse_stock::cboe(&get_json(&format!("https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/{}.json", enc(&dotted(&symbol)))).await?)
+            parse_stock::cboe(
+                &get_json(&format!("https://cdn.cboe.com/api/global/delayed_quotes/charts/historical/{}.json", enc(&dotted(&symbol)))).await?,
+            )
         })
         .only(daily),
     ];
@@ -871,11 +980,21 @@ pub static STOCK_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
 /// Long daily history (≈ 3 years) for the long-term horizon: only sources that serve 700–1 000 days.
 pub static LONG_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
     vec![
-        Source::new("Bitstamp", |b, _| async move { parse::bitstamp(&get_json(&format!("https://www.bitstamp.net/api/v2/ohlc/{}usd/?step=86400&limit=1000", lower(&b))).await?) }),
-        Source::new("Binance", |b, _| async move { parse::binance(&get_json(&format!("https://api.binance.com/api/v3/klines?symbol={b}USDT&interval=1d&limit=1000")).await?) }),
-        Source::new("Gate.io", |b, _| async move { parse::gate(&get_json(&format!("https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={b}_USDT&interval=1d&limit=1000")).await?) }),
-        Source::new("MEXC", |b, _| async move { parse::binance(&get_json(&format!("https://api.mexc.com/api/v3/klines?symbol={b}USDT&interval=1d&limit=1000")).await?) }),
-        Source::new("Kraken", |b, _| async move { parse::kraken(&get_json(&format!("https://api.kraken.com/0/public/OHLC?pair={}USD&interval=1440", kraken_pair(&b))).await?) }),
+        Source::new("Bitstamp", |b, _| async move {
+            parse::bitstamp(&get_json(&format!("https://www.bitstamp.net/api/v2/ohlc/{}usd/?step=86400&limit=1000", lower(&b))).await?)
+        }),
+        Source::new("Binance", |b, _| async move {
+            parse::binance(&get_json(&format!("https://api.binance.com/api/v3/klines?symbol={b}USDT&interval=1d&limit=1000")).await?)
+        }),
+        Source::new("Gate.io", |b, _| async move {
+            parse::gate(&get_json(&format!("https://api.gateio.ws/api/v4/spot/candlesticks?currency_pair={b}_USDT&interval=1d&limit=1000")).await?)
+        }),
+        Source::new("MEXC", |b, _| async move {
+            parse::binance(&get_json(&format!("https://api.mexc.com/api/v3/klines?symbol={b}USDT&interval=1d&limit=1000")).await?)
+        }),
+        Source::new("Kraken", |b, _| async move {
+            parse::kraken(&get_json(&format!("https://api.kraken.com/0/public/OHLC?pair={}USD&interval=1440", kraken_pair(&b))).await?)
+        }),
     ]
 });
 
@@ -892,7 +1011,14 @@ struct Fetched {
 
 /// Queries the sources in waves until `target` of them answer (`None` = all, `Infinity` in the TypeScript), drops the
 /// lagging ones, compares the others with the median and blends the agreeing ones.
-pub async fn consensus(base: &str, interval: Interval, sources: &[Source], target: Option<usize>, tolerance: f64, closed: Closed) -> Result<Consensus> {
+pub async fn consensus(
+    base: &str,
+    interval: Interval,
+    sources: &[Source],
+    target: Option<usize>,
+    tolerance: f64,
+    closed: Closed,
+) -> Result<Consensus> {
     let sources: Vec<&Source> = sources.iter().filter(|s| s.supports(interval)).collect();
     let mut results: Vec<Fetched> = Vec::new();
     let ok_count = |r: &[Fetched]| r.iter().filter(|x| x.candles.is_some()).count();
@@ -979,7 +1105,12 @@ pub fn cross_check(last: f64, quotes: &[QuoteSourceStatus], known: &[String], to
         .iter()
         .filter(|q| !known.contains(&q.name))
         .map(|q| match q.price.filter(|p| crate::jsval::truthy_num(*p)) {
-            None => SourceStatus { name: format!("{} (cours)", q.name), ok: false, deviation: None, error: Some(q.error.clone().unwrap_or_else(|| "non coté".into())) },
+            None => SourceStatus {
+                name: format!("{} (cours)", q.name),
+                ok: false,
+                deviation: None,
+                error: Some(q.error.clone().unwrap_or_else(|| "non coté".into())),
+            },
             Some(price) => {
                 let deviation = (price / last - 1.0).abs() * 100.0;
                 SourceStatus { name: format!("{} (cours)", q.name), ok: deviation <= tolerance, deviation: Some(deviation), error: None }
@@ -998,9 +1129,7 @@ pub async fn snapshot(symbol: &str, kind: Kind, interval: Interval) -> Result<Sn
             Kind::Stock => consensus(symbol, interval, &STOCK_SOURCES, None, 1.0, stock_closed).await,
         }
     };
-    let quotes = async {
-        if intra_stock { consensus_quotes(&[make_asset(symbol, Kind::Stock, None)], &QUOTE_SOURCES).await } else { vec![] }
-    };
+    let quotes = async { if intra_stock { consensus_quotes(&[make_asset(symbol, Kind::Stock, None)], &QUOTE_SOURCES).await } else { vec![] } };
     let (c, quotes) = tokio::join!(candles, quotes);
     let mut c = c?;
     if intra_stock && !c.candles.is_empty() {
@@ -1015,6 +1144,16 @@ pub async fn snapshot(symbol: &str, kind: Kind, interval: Interval) -> Result<Sn
     let independent: IndexSet<&str> = c.sources.iter().filter(|s| s.ok).map(|s| s.name.strip_suffix(" (cours)").unwrap_or(&s.name)).collect();
     let rel = reliability(quality.score, independent.len(), c.conflict);
     let agreeing = c.sources.iter().filter(|s| s.ok).count();
-    Ok(Snapshot { candles: c.candles, source: c.source, agreeing, conflict: c.conflict, sources: c.sources, symbol: symbol.into(), kind, interval, quality, reliability: rel })
+    Ok(Snapshot {
+        candles: c.candles,
+        source: c.source,
+        agreeing,
+        conflict: c.conflict,
+        sources: c.sources,
+        symbol: symbol.into(),
+        kind,
+        interval,
+        quality,
+        reliability: rel,
+    })
 }
-

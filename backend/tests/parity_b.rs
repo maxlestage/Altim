@@ -5,10 +5,12 @@ use std::collections::HashMap;
 use std::sync::LazyLock;
 
 use altim::engine::guard::{
-    Direction, GuardInput, MacroContext, NewsItem, Positioning, SentimentInput, Trend, divergence, guard, hourly_shock_factors,
-    news_tone, percentile_rank, pivots, regime, reversal, reversal_evidence, shock, shock_evidence, technical_reversal, weigh,
+    Direction, GuardInput, MacroContext, NewsItem, Positioning, SentimentInput, Trend, divergence, guard, hourly_shock_factors, news_tone,
+    percentile_rank, pivots, regime, reversal, reversal_evidence, shock, shock_evidence, technical_reversal, weigh,
 };
-use altim::engine::macro_ctx::{MacroKey, MacroLevel, MacroSeries, align, headline_themes, macro_advice, macro_evidence, macro_report, market_stress};
+use altim::engine::macro_ctx::{
+    MacroKey, MacroLevel, MacroSeries, align, headline_themes, macro_advice, macro_evidence, macro_report, market_stress,
+};
 use altim::engine::signal::{atr, ema, rsi};
 use altim::guard::{
     FEAR_GREED_URL, VIX_URL, assemble_positioning, assemble_sentiment, build_report, news_url, okx_urls, parse_guard, stocktwits_url,
@@ -72,7 +74,8 @@ fn macro_engine() {
         let out = match s(&a["fn"]) {
             "align" => {
                 let al = align(set(a));
-                let values: serde_json::Map<String, Value> = MacroKey::ALL.iter().map(|k| (k.as_str().to_string(), json!(al.values[k.index()]))).collect();
+                let values: serde_json::Map<String, Value> =
+                    MacroKey::ALL.iter().map(|k| (k.as_str().to_string(), json!(al.values[k.index()]))).collect();
                 json!({ "dates": al.dates, "times": al.times, "values": values })
             }
             "marketStress" => to_value(&market_stress(&align(set(a)).values, n(&a["i"]))),
@@ -288,10 +291,8 @@ fn guard_report() {
             (Ok(daily), Ok(h4)) => {
                 let h1 = candles("1h").unwrap_or_default();
                 let pos = if crypto { assemble_positioning(body("funding"), body("ls"), body("oi")) } else { None };
-                let sent = assemble_sentiment(
-                    if crypto { body("fng").map(parse_guard::fear_greed) } else { None },
-                    body("st").map(parse_guard::stocktwits),
-                );
+                let sent =
+                    assemble_sentiment(if crypto { body("fng").map(parse_guard::fear_greed) } else { None }, body("st").map(parse_guard::stocktwits));
                 let items = body("news").map(|b| parse_guard::rss(s(b))).unwrap_or_default();
                 let vix = if crypto { vec![] } else { body("vix").map(parse_guard::vix).unwrap_or_default() };
                 let mac = a["macro"].as_u64().and_then(|i| SETS.macros[i as usize].clone());
@@ -317,7 +318,8 @@ fn macro_server() {
         let out = match assemble_series(entries) {
             Err(e) => json!({ "error": e.0 }),
             Ok(series) => {
-                let lists = a["news"].as_array().unwrap().iter().map(|b| if b["status"] == 200 { parse_guard::rss(s(&b["body"])) } else { vec![] }).collect();
+                let lists =
+                    a["news"].as_array().unwrap().iter().map(|b| if b["status"] == 200 { parse_guard::rss(s(&b["body"])) } else { vec![] }).collect();
                 to_value(&macro_report(&series, &dedupe_news(lists), now()))
             }
         };
