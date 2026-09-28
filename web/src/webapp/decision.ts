@@ -4,6 +4,7 @@
  * Pure functions (no React, no fetch) so they are tested with `bun test`.
  */
 import type { Kind } from "../engine/reliability";
+import type { CalendarEvent } from "./calendar";
 import { recordConfiguration } from "./config-changes";
 
 export type Verdict = "buy" | "buyZone" | "wait" | "noPosition" | "trim" | "sell";
@@ -130,6 +131,8 @@ export interface Decision {
   position: Position | null; exposure: Exposure | null; sources: DataSource[]; disclaimer: string;
   rating?: Rating; ratingLabel?: string; score?: CompositeScore; degraded?: Degraded;
   marketRegime?: MarketRegime | null; horizon?: HorizonClass | null; structure?: Structure | null;
+  /** Next 7 days' events (economy, central banks; a stock's earnings, dividends, splits); null: calendar not loaded. */
+  events?: CalendarEvent[] | null;
 }
 
 // ---------- Runtime check (a wrong answer shows an error instead of a broken card) ----------
@@ -169,6 +172,7 @@ export function parseDecision(raw: unknown): Decision {
   if (dg != null && !Array.isArray(dg.reasons)) throw bad("degraded.reasons");
   const st = d.structure as Structure | null | undefined;
   if (st != null && (!Array.isArray(st.levels) || !Array.isArray(st.relative))) throw bad("structure");
+  if (d.events != null && !Array.isArray(d.events)) throw bad("events");
   return d as unknown as Decision;
 }
 

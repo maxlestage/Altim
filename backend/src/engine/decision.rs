@@ -38,6 +38,7 @@ use super::reliability::{Reliability, ReliabilityLevel, gate};
 use super::signal::{AnalyzeOptions, Candle, Signal, adx, analyze, atr, is_sell, rsi, sanitize, sma};
 use super::structure::{Benchmark, Bias, BreakoutKind, Structure, structure};
 use super::synthesis::{self, PlanCandles, ScoreWeights};
+use crate::calendar::{CalendarEvent, EventKind, Importance};
 use crate::js::{fr, iso_date, round};
 use crate::types::{DAY_MS, Interval, Kind};
 
@@ -138,6 +139,8 @@ pub struct DecisionInput<'a> {
     pub benchmarks: Vec<Benchmark>,
     /// Weights of the composite score (`w=`); None = default weights.
     pub score_weights: Option<ScoreWeights>,
+    /// Upcoming events of the next days (calendar::upcoming_for); None when the calendar could not be loaded.
+    pub events: Option<Vec<CalendarEvent>>,
 }
 
 // ---------- Formatting ----------
@@ -1074,7 +1077,7 @@ fn veto(code: &str, label: &str, active: bool, verifiable: bool, detail: String)
 
 /// Vetoes that keep the asset off-limits for now (AUCUNE POSITION); the others are a matter of timing (ATTENDRE).
 fn is_blocking(code: &str) -> bool {
-    !matches!(code, "riskReward" | "earnings" | "divergence")
+    !matches!(code, "riskReward" | "earnings" | "divergence" | "announcement")
 }
 
 static REGULATION: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -1142,15 +1145,25 @@ fn vetoes(inp: &DecisionInput, m: &Metrics, p: Option<&PlanCalc>) -> Vec<Veto> {
                     if shock { format!(" ; secousse mesurée sur l'actif (score {score}/100)") } else { String::new() }
                 ),
                 None if active => format!("Secousse mesurée sur l'actif (score {score}/100)"),
-                None => format!(
-                    "Aucune secousse ni titre d'escalade (score {}/100) ; calendrier des annonces (banques centrales, inflation) non couvert",
-                    fr(own.min(100.0), 0, 0)
-                ),
+                None => format!("Aucune secousse ni titre d'escalade (score {}/100)", fr(own.min(100.0), 0, 0)),
             };
             v.push(veto("event", "Événement majeur imminent", active, true, detail));
         }
         None => v.push(veto("event", "Événement majeur imminent", false, false, na.clone())),
     }
+    // Scheduled announcements (central banks, inflation, jobs, GDP) within 48 h: the price can jump either way on the
+    // figure, whatever the chart says. A matter of timing (wait for the figure), not a reason to stay out.
+    let soon = imminent_events(inp);
+    let detail = match (&inp.events, soon.first()) {
+        (None, _) => "Calendrier des annonces indisponible ou incomplet : non vérifié".to_string(),
+        (Some(_), None) => "Aucune annonce majeure (banques centrales, inflation, emploi, PIB) dans les 48 h".to_string(),
+        (Some(_), Some(e)) => format!(
+            "{}{} : attendre la publication, le prix peut bouger fortement dans un sens ou dans l'autre",
+            event_text(e),
+            if soon.len() > 1 { format!(" (+{} autre(s))", soon.len() - 1) } else { String::new() }
+        ),
+    };
+    v.push(veto("announcement", "Annonce économique dans les 48 h", !soon.is_empty(), inp.events.is_some(), detail));
     // Earnings (stocks).
     match (inp.kind, &inp.fundamentals) {
         (Kind::Crypto, _) => v.push(veto("earnings", "Résultats imminents", false, true, "Sans objet pour une crypto".into())),
@@ -1915,6 +1928,29 @@ fn confidence(inp: &DecisionInput, fams: &[Family], verdict: Verdict) -> (f64, S
 
 // ---------- Decision ----------
 
+/// High-importance macro and central bank announcements from one hour ago to 48 h ahead (the stock's earnings
+/// have their own veto).
+fn imminent_events<'a>(inp: &'a DecisionInput) -> Vec<&'a CalendarEvent> {
+    inp.events
+        .iter()
+        .flatten()
+        .filter(|e| matches!(e.kind, EventKind::Macro | EventKind::CentralBank) && e.importance == Importance::High)
+        .filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 2 * DAY_MS)
+        .collect()
+}
+
+/// "Décision de la Fed (États-Unis) le 30/09 à 20:00".
+fn event_text(e: &CalendarEvent) -> String {
+    let day = e.day.get(8..10).zip(e.day.get(5..7)).map(|(d, m)| format!("{d}/{m}")).unwrap_or_else(|| e.day.clone());
+    let country = e.country.as_ref().map(|c| format!(" ({c})")).unwrap_or_default();
+    let time = match &e.time {
+        Some(t) if t.contains(':') => format!(" à {t}"),
+        Some(t) => format!(" {t}"),
+        None => String::new(),
+    };
+    format!("{}{country} le {day}{time}", e.title)
+}
+
 pub fn decide(inp: &DecisionInput) -> Decision {
     let m = metrics(inp);
     let p = plan_calc(&m);
@@ -2076,6 +2112,10 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         market_regime,
         horizon,
         structure: Some(m.st.clone()),
+        events: inp
+            .events
+            .as_ref()
+            .map(|es| es.iter().filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 7 * DAY_MS).cloned().collect()),
     }
 }
 

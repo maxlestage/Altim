@@ -61,6 +61,7 @@ fn input<'a>(symbol: &'a str, s: &'a Series, g: Option<&'a GuardResult>, t: i64)
         exposure: None,
         benchmarks: vec![],
         score_weights: None,
+        events: None,
     }
 }
 
@@ -99,7 +100,7 @@ fn assert_coherent(d: &Decision, what: &str) {
     assert!(!d.why_not.invalidation.is_empty() && !d.why_not.risks.is_empty(), "{what}: why_not");
     assert_eq!(d.scenarios.len(), 3, "{what}: scenarios");
     assert!(!d.to_buy.is_empty() && !d.to_sell.is_empty(), "{what}: conditions");
-    assert_eq!(d.vetoes.len(), 15, "{what}: vetoes");
+    assert_eq!(d.vetoes.len(), 16, "{what}: vetoes");
     assert_eq!(d.blocked, d.vetoes.iter().any(|v| v.active), "{what}: blocked");
     assert!(d.vetoes.iter().all(|v| v.verifiable || !v.active), "{what}: an unverifiable veto cannot be active");
     assert_eq!(d.label, d.verdict.label());
@@ -371,6 +372,33 @@ fn buy_when_the_setup_is_complete() {
     let p = d.plan.unwrap();
     assert!(p.acceptable && p.risk_reward >= 2.0);
     assert!(d.setup.steps[6].state == StepState::Ok, "confirmation");
+}
+
+#[test]
+fn a_scheduled_announcement_turns_a_buy_into_a_wait() {
+    let s = buy_setup();
+    let t = scenario_now(&s);
+    let fed: altim::calendar::CalendarEvent = serde_json::from_value(serde_json::json!({
+        "date": t + DAY_MS, "day": "2026-10-01", "time": "20:00", "kind": "centralBank", "category": "tauxDirecteurs",
+        "importance": "high", "title": "Décision de la Fed sur les taux", "country": "États-Unis",
+        "source": "Réserve fédérale", "url": "https://www.federalreserve.gov/"
+    }))
+    .unwrap();
+    let d = decide_on(&s, |i| i.events = Some(vec![fed.clone()]));
+    let v = d.vetoes.iter().find(|v| v.code == "announcement").unwrap();
+    assert!(v.active && v.detail.contains("Décision de la Fed sur les taux (États-Unis) le 01/10 à 20:00"), "{}", v.detail);
+    assert_eq!(d.verdict, Verdict::Wait, "a matter of timing, not a reason to stay out");
+    assert_eq!(d.events.as_ref().map(|e| e.len()), Some(1));
+    // Without a calendar: said, never taken as "nothing announced".
+    let d = decide_on(&s, |_| {});
+    let v = d.vetoes.iter().find(|v| v.code == "announcement").unwrap();
+    assert!(!v.active && !v.verifiable);
+    assert_eq!(d.verdict, Verdict::Buy);
+    // An announcement a week away does not block.
+    let later = altim::calendar::CalendarEvent { date: t + 7 * DAY_MS, ..fed };
+    let d = decide_on(&s, |i| i.events = Some(vec![later]));
+    assert!(!d.vetoes.iter().find(|v| v.code == "announcement").unwrap().active);
+    assert_eq!(d.verdict, Verdict::Buy);
 }
 
 #[test]

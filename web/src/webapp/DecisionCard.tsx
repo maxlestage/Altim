@@ -9,6 +9,8 @@ import {
   type StockFundamentals, type Structure,
 } from "./decision";
 import { TrackDetails } from "./TrackDetails";
+import { AgendaEvent } from "./Agenda";
+import { dayLabel } from "./calendar";
 import { SimulateBuy } from "./PaperOrder";
 import { useAppState } from "./store";
 
@@ -509,6 +511,22 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
         {d.structure && (
           <Section title="Structure technique" badge={d.structure.score != null ? `direction ${signedScore(d.structure.score)}` : "non disponible"}>
             <StructureList st={d.structure} />
+          </Section>
+        )}
+
+        {d.events !== undefined && (
+          <Section title="Agenda (7 jours)" badge={d.events == null ? "non vérifié" : d.events.length ? `${d.events.length} événement${d.events.length > 1 ? "s" : ""}` : "rien de majeur"}>
+            {d.events == null ? (
+              <p className="small muted">Calendrier indisponible ou incomplet : les annonces à venir n'ont pas pu être vérifiées.</p>
+            ) : d.events.length === 0 ? (
+              <p className="small muted">Aucune annonce majeure (banques centrales, inflation, emploi, PIB){d.kind === "stock" ? ", ni résultats, dividende ou split" : ""} dans les 7 jours.</p>
+            ) : (
+              <ul className="news-list">
+                {d.events.map((e, i) => (
+                  <AgendaEvent key={`${e.kind}:${e.title}:${e.day}:${i}`} e={{ ...e, time: `${dayLabel(e.day)}${e.time ? ` · ${e.time}` : ""}` }} />
+                ))}
+              </ul>
+            )}
           </Section>
         )}
 

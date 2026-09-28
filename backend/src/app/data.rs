@@ -127,13 +127,16 @@ pub async fn selection(h: Horizon, market: Kind) -> Result<Arc<ScreenResult>> {
     .await
 }
 
-/// Production: the daily selections are computed at start-up and every 25 minutes, so nobody waits.
+/// Production: the daily selections and the coming days of the calendar are computed at start-up and every 25 minutes,
+/// so nobody waits.
 pub fn warm_selections() {
     tokio::spawn(async {
         tokio::time::sleep(Duration::from_secs(5)).await;
         let mut every = tokio::time::interval(Duration::from_secs(25 * 60));
         loop {
             every.tick().await;
+            // The calendar's macro days, so a decision's announcement check does not wait on a cold Nasdaq (≈ 2 s a day).
+            let _ = crate::calendar::upcoming_for("BTC", Kind::Crypto, 7).await;
             // Daily horizons ahead of time; intraday ones are computed on demand (they go stale within minutes).
             for m in [Kind::Stock, Kind::Crypto] {
                 for h in [Horizon::Mo1, Horizon::Mo3, Horizon::Mo6, Horizon::D7, Horizon::D14] {
@@ -582,7 +585,11 @@ pub async fn macro_regime(report: &MacroReport) -> Option<MarketRegime> {
 /// extras); the personal parts (average cost, weights) are only used for this answer, never in a cache key.
 pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: &[Weight], score_weights: Option<ScoreWeights>) -> Result<Decision> {
     let name = asset_name(symbol, kind).await;
-    let (h1, h4, d, hist, z, g, news, expo, bench) = tokio::join!(
+    // The calendar is slow when cold (≈ 2 s per Nasdaq day): past 5 s the decision goes without it and says so, the
+    // fetches keep filling the cache for the next call. A calendar with a failed source counts as not loaded.
+    let events =
+        async { tokio::time::timeout(std::time::Duration::from_secs(5), crate::calendar::upcoming_for(symbol, kind, 7)).await.ok().flatten() };
+    let (h1, h4, d, hist, z, g, news, expo, bench, events) = tokio::join!(
         snap(symbol, kind, Interval::H1),
         snap(symbol, kind, Interval::H4),
         snap(symbol, kind, Interval::D1),
@@ -592,6 +599,7 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         crate::guard::news(symbol, kind, &name),
         exposure_input(kind, weights),
         benchmarks(kind),
+        events,
     );
     let (h4, d) = (h4?, d?);
     let (h1, hist, z, g) = (h1.ok(), hist.ok(), z.ok(), g.ok());
@@ -642,6 +650,7 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         exposure: expo,
         benchmarks: bench,
         score_weights,
+        events,
     };
     Ok(decide(&input))
 }

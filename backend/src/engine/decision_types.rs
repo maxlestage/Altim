@@ -614,4 +614,8 @@ pub struct Decision {
     /// Technical structure on the daily candles (Ichimoku, Supertrend, levels, breakouts, relative strength…).
     #[serde(default)]
     pub structure: Option<Structure>,
+    /// Scheduled events of the next 7 days that matter for this asset (economy, central banks; for a stock also its
+    /// earnings, dividends and splits); None when the calendar could not be loaded.
+    #[serde(default)]
+    pub events: Option<Vec<crate::calendar::CalendarEvent>>,
 }

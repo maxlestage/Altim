@@ -37,7 +37,9 @@ use crate::types::{Asset, DAY_MS, Kind};
 use crate::universe::{search_universe, universe};
 use data::*;
 use error::{ApiError, ApiResult, bad};
-use validate::{int_or, js_number, parse_cost, parse_days, parse_interval, parse_kind, parse_score_weights, parse_symbol, parse_symbol_list, parse_weights};
+use validate::{
+    int_or, js_number, parse_cost, parse_days, parse_interval, parse_kind, parse_score_weights, parse_symbol, parse_symbol_list, parse_weights,
+};
 
 type Q = Query<HashMap<String, String>>;
 

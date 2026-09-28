@@ -42,7 +42,7 @@ const NASDAQ_DIVIDENDS_PAGE: &str = "https://www.nasdaq.com/market-activity/divi
 const NASDAQ_SPLITS_PAGE: &str = "https://www.nasdaq.com/market-activity/stock-splits";
 const NASDAQ_IPO_PAGE: &str = "https://www.nasdaq.com/market-activity/ipos";
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum EventKind {
     Macro,
@@ -53,7 +53,7 @@ pub enum EventKind {
     CentralBank,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Category {
     /// Rate decisions, statements, minutes (Fed, ECB…).
@@ -71,14 +71,14 @@ pub enum Category {
     Ipo,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Importance {
     High,
     Medium,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CalendarEvent {
     /// Exact instant (ms) when the source gives a time, otherwise 00:00 UTC of `day`.
@@ -370,9 +370,16 @@ pub mod parse {
         Some(values.iter().map(|v| v.clone().unwrap_or_else(|| "—".into())).collect::<Vec<_>>().join(" · "))
     }
 
-    /// Nasdaq economic calendar of `day`: major releases of the followed countries only, same-name rows merged.
+    /// Nasdaq economic calendar of `day` (the answer to `?date=` the day after, see `economic_query_date`): major
+    /// releases of the followed countries only, same-name rows merged.
     pub fn economic(d: &Value, day: NaiveDate) -> Result<Vec<CalendarEvent>> {
         let rows = nasdaq_rows(d, &[])?;
+        // Weekly jobless claims come out on Thursdays (Wednesday in a holiday week): anywhere else, the day offset
+        // of the source has changed and every date would be wrong, so the day fails instead of being shown.
+        let claims = rows.iter().any(|r| get(r, "eventName").as_str().is_some_and(|n| n.trim() == "Initial Jobless Claims"));
+        if claims && !matches!(day.weekday(), chrono::Weekday::Wed | chrono::Weekday::Thu) {
+            return err(format!("calendrier économique Nasdaq : dates décalées pour le {}", ymd(day)));
+        }
         let mut groups: indexmap::IndexMap<(String, String, String), Vec<&Value>> = indexmap::IndexMap::new();
         for r in rows {
             let country = get(r, "country").as_str().unwrap_or("").trim().to_string();
@@ -401,6 +408,13 @@ pub mod parse {
             out.push(e);
         }
         Ok(out)
+    }
+
+    /// Nasdaq's economic calendar answers `?date=D` with the releases of the day before D (checked on 28/09/2026:
+    /// `?date=2026-09-29` gave Monday's releases with their figures, `?date=2026-10-03` Friday's payrolls, and the
+    /// Fed decision of 28/10 came under 29/10), unlike its earnings, dividends and splits calendars.
+    pub fn economic_query_date(day: NaiveDate) -> NaiveDate {
+        day.succ_opt().unwrap_or(day)
     }
 
     /// Nasdaq earnings calendar of `day`. `market_cap` in dollars when given.
@@ -818,7 +832,8 @@ async fn run(job: Job, day: NaiveDate, today: NaiveDate, from: NaiveDate, to: Na
     match job {
         Job::Economic => {
             cached(&format!("calendar:eco:{d}"), ttl, move || async move {
-                let v = nasdaq(&format!("https://api.nasdaq.com/api/calendar/economicevents?date={d}")).await?;
+                let q = ymd(parse::economic_query_date(day));
+                let v = nasdaq(&format!("https://api.nasdaq.com/api/calendar/economicevents?date={q}")).await?;
                 parse::economic(&v, day).map(plain)
             })
             .await
@@ -979,13 +994,13 @@ pub async fn calendar(days: u32, symbols: Option<&[String]>) -> Calendar {
 
 /// For the decision's event veto: high-importance macro and central bank events plus the stock's own earnings,
 /// dividends and splits within the next `within_days` days (today included; a crypto gets macro and central banks
-/// only). Sources that fail simply give nothing (the caller can say the check was partial with `calendar_with`).
-pub async fn upcoming_for(symbol: &str, kind: Kind, within_days: u32) -> Vec<CalendarEvent> {
+/// only). None when a source failed: a partial calendar must not read as "no announcement".
+pub async fn upcoming_for(symbol: &str, kind: Kind, within_days: u32) -> Option<Vec<CalendarEvent>> {
     let days = (within_days + 1).clamp(1, MAX_DAYS);
     let symbols = [symbol.to_string()];
     let stock = kind == Kind::Stock;
     let cal = calendar_with(days, stock.then_some(&symbols[..]), Wants { companies: stock, ipo: false }).await;
-    select_for(&cal.events, symbol, kind, cal.as_of)
+    cal.sources.iter().all(|s| s.ok).then(|| select_for(&cal.events, symbol, kind, cal.as_of))
 }
 
 #[cfg(test)]

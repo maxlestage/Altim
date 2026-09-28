@@ -40,7 +40,7 @@ function Figures({ e }: { e: CalendarEvent }) {
   );
 }
 
-function Event({ e }: { e: CalendarEvent }) {
+export function AgendaEvent({ e }: { e: CalendarEvent }) {
   const high = e.importance === "high";
   return (
     <li className={`agenda-item ${high ? "high" : ""}`}>
@@ -155,7 +155,7 @@ export function Agenda() {
       {groups.map((g) => (
         <section key={g.day} className="agenda-day">
           <h3 className="section-label">{dayLabel(g.day)}</h3>
-          <ul className="news-list">{g.events.map((e, i) => <Event key={`${e.kind}:${e.title}:${e.time ?? ""}:${e.symbol ?? ""}:${i}`} e={e} />)}</ul>
+          <ul className="news-list">{g.events.map((e, i) => <AgendaEvent key={`${e.kind}:${e.title}:${e.time ?? ""}:${e.symbol ?? ""}:${i}`} e={e} />)}</ul>
         </section>
       ))}
 

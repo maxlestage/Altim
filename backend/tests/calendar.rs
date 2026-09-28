@@ -1,5 +1,6 @@
 //! Calendar parsers on responses saved from the real sources (`tests/samples/calendar/`, 28/09/2026, trimmed), and
-//! the live sources (ignored: network).
+//! the live sources (ignored: network). The Nasdaq economic samples are named after the `?date=` asked: they hold the
+//! releases of the day before (`parse::economic_query_date`).
 use altim::calendar::parse::{self, Meeting};
 use altim::calendar::{Bank, Category, EventKind, Importance, merge_official, sort_events};
 use chrono::NaiveDate;
@@ -19,7 +20,9 @@ fn date(y: i32, m: u32, d: u32) -> NaiveDate {
 
 #[test]
 fn economic_releases() {
-    let day = date(2026, 10, 3);
+    // `?date=2026-10-03` (a Saturday) answers with Friday 2/10: payrolls on the first Friday of the month.
+    let day = date(2026, 10, 2);
+    assert_eq!(parse::economic_query_date(day), date(2026, 10, 3));
     let ev = parse::economic(&json("nasdaq-economic-2026-10-03.json"), day).unwrap();
     let titles: Vec<(&str, &str)> = ev.iter().map(|e| (e.country.as_deref().unwrap(), e.original_name.as_deref().unwrap())).collect();
     // Payrolls, unemployment and hourly earnings for the US, CPI for the euro area; CFTC, rig counts, n.s.a. left out.
@@ -29,7 +32,7 @@ fn economic_releases() {
     let nfp = ev.iter().find(|e| e.original_name.as_deref() == Some("Nonfarm Payrolls")).unwrap();
     assert_eq!((nfp.kind, nfp.category, nfp.importance), (EventKind::Macro, Category::Emploi, Importance::High));
     // 08:30 in New York = 14:30 in Paris.
-    assert_eq!((nfp.day.as_str(), nfp.time.as_deref()), ("2026-10-03", Some("14:30")));
+    assert_eq!((nfp.day.as_str(), nfp.time.as_deref()), ("2026-10-02", Some("14:30")));
     assert_eq!((nfp.consensus.as_deref(), nfp.previous.as_deref(), nfp.actual.as_deref()), (Some("98K"), Some("162K"), None));
     assert_eq!(nfp.title, "Créations d'emplois (NFP)");
     // The two unlabelled CPI rows (year on year, month on month) merged, aligned, "—" where a row has no value.
@@ -38,11 +41,21 @@ fn economic_releases() {
     assert_eq!(cpi.time.as_deref(), Some("11:00"));
     assert_eq!(cpi.url, "https://www.nasdaq.com/market-activity/economic-calendar");
 
-    let ev = parse::economic(&json("nasdaq-economic-2026-10-01.json"), date(2026, 10, 1)).unwrap();
+    // `?date=2026-10-01` answers with Wednesday 30/09 (ADP and mortgage applications come out on Wednesdays).
+    let ev = parse::economic(&json("nasdaq-economic-2026-10-01.json"), date(2026, 9, 30)).unwrap();
     let pce: Vec<_> = ev.iter().filter(|e| e.title == "Inflation PCE").collect();
     assert_eq!(pce.len(), 1, "same release written with two cases: one event");
     assert!(ev.iter().any(|e| e.title == "Croissance (PIB)" && e.country.as_deref() == Some("États-Unis")));
     assert!(ev.iter().all(|e| e.original_name.as_deref() != Some("Atlanta Fed GDPNow")));
+}
+
+#[test]
+fn a_shifted_economic_calendar_fails_instead_of_showing_wrong_dates() {
+    // Read without the one-day offset, Thursday's jobless claims of `?date=2026-10-02` would land on Friday 2/10.
+    let shifted = parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 10, 2));
+    assert!(shifted.unwrap_err().0.contains("dates décalées"));
+    let ok = parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 10, 1)).unwrap();
+    assert!(ok.iter().any(|e| e.original_name.as_deref() == Some("Initial Jobless Claims") && e.day == "2026-10-01"));
 }
 
 #[test]
@@ -104,22 +117,24 @@ fn official_schedules() {
 
 #[test]
 fn official_date_wins_over_nasdaq() {
-    // Nasdaq lists the Fed decision on 29/10, the Fed's own calendar says the meeting is 27-28/10.
-    let mut ev = parse::economic(&json("nasdaq-economic-2026-10-29.json"), date(2026, 10, 29)).unwrap();
+    // `?date=2026-10-29` holds the Fed decision of 28/10, the day the Fed's own calendar gives: both agree.
+    let mut ev = parse::economic(&json("nasdaq-economic-2026-10-29.json"), date(2026, 10, 28)).unwrap();
     assert_eq!(ev.len(), 1);
-    let meetings = vec![Meeting { decision: date(2026, 10, 28), detail: "Réunion des 27 et 28 oct.".into() }];
+    assert_eq!(ev[0].day, "2026-10-28");
+    // Were they to disagree (here a made-up official 27/10), the official date wins and the gap is told.
+    let meetings = vec![Meeting { decision: date(2026, 10, 27), detail: "Réunion des 26 et 27 oct.".into() }];
     let official = parse::meetings_events(&meetings, Bank::Fed, date(2026, 10, 20), date(2026, 11, 5));
     merge_official(&mut ev, official);
     sort_events(&mut ev);
     assert_eq!(ev.len(), 1);
     let fed = &ev[0];
-    assert_eq!((fed.day.as_str(), fed.kind, fed.importance), ("2026-10-28", EventKind::CentralBank, Importance::High));
+    assert_eq!((fed.day.as_str(), fed.kind, fed.importance), ("2026-10-27", EventKind::CentralBank, Importance::High));
     assert_eq!(fed.source, parse::FED_SOURCE);
-    assert_eq!(fed.note.as_deref(), Some("Nasdaq l'annonce le 29/10 : la date du calendrier officiel est retenue."));
+    assert_eq!(fed.note.as_deref(), Some("Nasdaq l'annonce le 28/10 : la date du calendrier officiel est retenue."));
     assert_eq!(fed.previous.as_deref(), Some("4.00%"));
     // Same day: the time given by Nasdaq is kept.
-    let mut ev = parse::economic(&json("nasdaq-economic-2026-10-29.json"), date(2026, 10, 29)).unwrap();
-    let meetings = vec![Meeting { decision: date(2026, 10, 29), detail: String::new() }];
+    let mut ev = parse::economic(&json("nasdaq-economic-2026-10-29.json"), date(2026, 10, 28)).unwrap();
+    let meetings = vec![Meeting { decision: date(2026, 10, 28), detail: "Réunion des 27 et 28 oct.".into() }];
     merge_official(&mut ev, parse::meetings_events(&meetings, Bank::Fed, date(2026, 10, 20), date(2026, 11, 5)));
     assert_eq!((ev.len(), ev[0].time.as_deref()), (1, Some("19:00")));
 }
@@ -163,7 +178,7 @@ async fn calendar_live() {
     println!("{} événements", cal.events.len());
     assert!(cal.sources.iter().filter(|s| s.ok).count() >= 5, "{:?}", cal.sources);
     assert!(cal.events.iter().any(|e| e.kind == EventKind::Macro));
-    let aapl = altim::calendar::upcoming_for("AAPL", altim::types::Kind::Stock, 30).await;
+    let aapl = altim::calendar::upcoming_for("AAPL", altim::types::Kind::Stock, 30).await.unwrap_or_default();
     println!("AAPL : {} événements", aapl.len());
     assert!(aapl.iter().all(|e| e.importance == Importance::High || e.symbol.as_deref() == Some("AAPL")));
 }
