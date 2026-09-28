@@ -118,6 +118,28 @@ fun AgendaPane(model: AppModel, modifier: Modifier, header: @Composable () -> Un
         }
     }
 
+    // Risk of the next 7 days: its own request, with the user's stocks and the largest companies together (top=1),
+    // whatever the list's filters.
+    val held = Calendar.stockSymbols(model.holdings.map { it.asset })
+    val watched = Calendar.stockSymbols(model.watchlist)
+    val riskStocks = (held + watched).distinct().take(50)
+    var risk by remember { mutableStateOf<CalendarReport?>(null) }
+    var riskError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(riskStocks.joinToString(","), refresh) {
+        val client = model.client ?: return@LaunchedEffect
+        try {
+            risk = client.calendar(7, riskStocks.ifEmpty { null }, top = true)
+            riskError = null
+        } catch (e: AltimException.Unauthorized) {
+            model.sessionLost()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            riskError = e.message ?: "Calendrier indisponible"
+        }
+    }
+    val riskDays = risk?.let { r -> Calendar.riskDays(r.events, r.from, held, watched, 7, Calendar.failedDays(r)) }
+
     val ui = AgendaUi(
         report, error, loading, days, filter, mine, stocks,
         onDays = { days = it },
@@ -133,6 +155,7 @@ fun AgendaPane(model: AppModel, modifier: Modifier, header: @Composable () -> Un
     PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier) {
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { header() }
+            item { RiskWeekCard(riskDays, riskError) }
             agendaItems(ui)
         }
     }

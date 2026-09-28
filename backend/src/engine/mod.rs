@@ -1,5 +1,7 @@
 //! Pure engines, ported line for line from `web/src/engine/*.ts` (the web app keeps using the TypeScript ones).
 pub mod alerts;
+pub mod anomalies;
+pub mod ask;
 pub mod backtest;
 pub mod brief;
 pub mod decision;
@@ -7,15 +9,20 @@ pub mod decision_types;
 pub mod fibonacci;
 pub mod format;
 pub mod guard;
+pub mod guidance;
 pub mod history;
 pub mod macro_ctx;
 pub mod metrics;
 pub mod news;
+pub mod news_summary;
+pub mod opportunities;
 pub mod reliability;
 pub mod screener;
 pub mod signal;
+pub mod strategies;
 pub mod structure;
 pub mod synthesis;
+pub mod why;
 
 use serde::{Deserialize, Serialize};
 

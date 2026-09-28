@@ -9,13 +9,14 @@ import {
 } from "./paper-ui";
 
 /** "Mes avoirs réels" / "Simulation" switch, at the top of both screens. */
-export function PortfolioTabs({ active }: { active: "real" | "paper" }) {
+export function PortfolioTabs({ active }: { active: "real" | "paper" | "journal" }) {
   return (
-    <nav className="portfolio-tabs" aria-label="Portefeuille">
+    <nav className="portfolio-tabs three" aria-label="Portefeuille">
       <a href="/app/avoirs" onClick={onLink} className={active === "real" ? "on" : ""} aria-current={active === "real" ? "page" : undefined}>Mes avoirs réels</a>
       <a href="/app/simulation" onClick={onLink} className={active === "paper" ? "on" : ""} aria-current={active === "paper" ? "page" : undefined}>
         Simulation <small>(sans argent réel)</small>
       </a>
+      <a href="/app/journal" onClick={onLink} className={active === "journal" ? "on" : ""} aria-current={active === "journal" ? "page" : undefined}>Journal</a>
     </nav>
   );
 }

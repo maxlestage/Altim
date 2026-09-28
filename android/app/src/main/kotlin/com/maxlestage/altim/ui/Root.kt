@@ -167,7 +167,7 @@ fun MainTabs(model: AppModel) {
             Tab.SELECTION -> SelectionScreen(model, m, open)
             Tab.HOLDINGS -> HoldingsScreen(model, m, open)
             Tab.ALERTS -> AlertsScreen(model, m, open)
-            Tab.NEWS -> NewsScreen(model, m)
+            Tab.NEWS -> NewsScreen(model, m, open)
             }
         }
         stack.lastOrNull()?.let { top ->

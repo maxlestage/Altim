@@ -5,8 +5,11 @@ import { backtest, trackRecord, type BacktestResult } from "../engine/backtest";
 import { formatPrice } from "../market";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot, type ZonesReport } from "./api";
 import { GuardCard } from "./GuardCard";
+import { WhyCard } from "./WhyCard";
+import { AnomaliesCard } from "./AnomaliesCard";
 import { ZonesCard } from "./ZonesCard";
 import { DcaCard } from "./DcaCard";
+import { StrategiesCard } from "./StrategiesCard";
 import { PositionCard } from "./ToolCards";
 import { NoteCard } from "./NoteCard";
 import { zoneState } from "../engine/fibonacci";
@@ -212,6 +215,9 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {zonesReport ? <ZonesCard report={zonesReport} price={price} horizon={horizon} /> : data && <div className="skeleton" aria-label="Chargement des zones d'achat" />}
 
       {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
+      <AnomaliesCard symbol={symbol} kind={kind} />
+
+      <WhyCard symbol={symbol} kind={kind} />
 
       <PositionCard
         symbol={symbol}
@@ -228,6 +234,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       <NoteCard id={`${kind}:${symbol}`} symbol={symbol} />
 
       <DcaCard symbol={symbol} kind={kind} />
+      <StrategiesCard symbol={symbol} kind={kind} />
 
       {data && (
         <div className="asset-grid">

@@ -26,6 +26,15 @@ enum LocalStore {
         try? data.write(to: directory.appendingPathComponent("\(name).json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
     }
 
+    /// Raw content of a saved file (to tell an unreadable file from a missing one).
+    static func data(_ name: String) -> Data? {
+        try? Data(contentsOf: directory.appendingPathComponent("\(name).json"))
+    }
+
+    static func write(_ data: Data, _ name: String) {
+        try? data.write(to: directory.appendingPathComponent("\(name).json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+    }
+
     static func remove(_ name: String) {
         try? FileManager.default.removeItem(at: directory.appendingPathComponent("\(name).json"))
     }

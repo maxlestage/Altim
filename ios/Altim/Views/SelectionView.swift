@@ -17,6 +17,8 @@ struct SelectionView: View {
         @Bindable var model = model
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                OpportunitiesLink()
+
                 Picker("Marché", selection: $model.selectionMarket) {
                     Text("Actions").tag(Kind.stock)
                     Text("Cryptos").tag(Kind.crypto)

@@ -59,6 +59,8 @@ public struct NewsReport: Codable, Sendable {
     public var top: [String]
     public var digest: Digest
     public var sources: [Source]
+    /// The day's important events (at most 5); absent from an older server.
+    public var summary: [StorySummary]?
 
     public var topItems: [NewsItem] { top.compactMap { id in items.first { $0.id == id } } }
 }

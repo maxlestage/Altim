@@ -27,7 +27,14 @@ export interface Plan {
   target3?: number | null; reward3Pct?: number | null; target3Source?: string | null;
 }
 export interface Condition { text: string; level: number | null }
-export interface Scenario { kind: ScenarioKind; title: string; condition: string; consequence: string; level: number | null }
+export type CheckState = "met" | "unmet" | "unknown";
+/** A scenario condition checked on the current data (daily candles, closed). */
+export interface ScenarioCheck { text: string; state: CheckState; detail: string }
+export interface Scenario {
+  kind: ScenarioKind; title: string; condition: string; consequence: string; level: number | null;
+  /** Added later (absent from older answers): 3 conditions (bull, bear) or 2 (neutral), how many are met, the one unfolding. */
+  conditions?: ScenarioCheck[]; met?: number; unfolding?: boolean;
+}
 export interface WhyNot { risks: string[]; uncertainty: Uncertainty; invalidation: string[] }
 export interface EarningsDate { date: number; estimated: boolean }
 export interface EarningsSurprise { quarter: string; eps: number; consensus: number; surprisePct: number }
@@ -119,6 +126,30 @@ export interface Structure {
   breakout: Breakout | null; marketStructure: MarketStructure | null; relative: RelativeStrength[]; relativeNote: string | null;
 }
 
+// Guidance (added fields, absent from older answers): never changes the verdict.
+export type NoTradeCode =
+  | "volatility" | "liquidity" | "spread" | "earnings" | "announcement" | "event" | "trendless" | "weakSignal" | "degraded" | "marketClosed";
+export interface NoTradeReason { code: NoTradeCode | (string & {}); label: string; detail: string }
+/** "Quand ne PAS trader": `headline` empty when not active; `unchecked`: checks without data. */
+export interface NoTrade { active: boolean; headline: string; reasons: NoTradeReason[]; unchecked: string[] }
+export type ActionZoneKind = "invalidation" | "exit" | "buy" | "wait" | "profit";
+/** A band of the ladder, USD (from = to for a single level). */
+export interface ActionZone { kind: ActionZoneKind; label: string; from: number; to: number; note: string }
+/** `zones` ascending by price; `here`: kind of the zone holding the price (null between zones or outside). */
+export interface ActionZones { price: number; zones: ActionZone[]; here: ActionZoneKind | null; hereText: string }
+export interface Unfolding { kind: ScenarioKind; title: string; met: number; total: number; text: string }
+/** kind "level": value is a price (USD); "volume": a daily volume in units of the asset; else value null. */
+export interface Invalidator { kind: "level" | "volume" | "event" | "condition"; text: string; value: number | null }
+export interface CounterArgument { favourable: number; unfavourable: number; text: string; familiesText: string; invalidators: Invalidator[] }
+export interface SnapshotLevel { price: number; touches: number }
+export interface SnapshotNews { title: string; tone: "positive" | "negative" | "neutral"; time: number }
+/** Compact numbers kept to explain a later change of the signal. */
+export interface DecisionSnapshot {
+  price: number | null; composite: number | null; families: { key: string; label: string; score: number | null }[];
+  momentum: number | null; relativeVolume: number | null; rsi: number | null; adx: number | null;
+  nearestSupport: SnapshotLevel | null; nearestResistance: SnapshotLevel | null; newsScore: number | null; topNews: SnapshotNews | null;
+}
+
 export interface Decision {
   symbol: string; kind: Kind; name: string; asOf: number; price: number | null;
   mode: "informational" | "personal" | (string & {});
@@ -133,6 +164,7 @@ export interface Decision {
   marketRegime?: MarketRegime | null; horizon?: HorizonClass | null; structure?: Structure | null;
   /** Next 7 days' events (economy, central banks; a stock's earnings, dividends, splits); null: calendar not loaded. */
   events?: CalendarEvent[] | null;
+  noTrade?: NoTrade; actionZones?: ActionZones | null; unfolding?: Unfolding | null; counterArgument?: CounterArgument; snapshot?: DecisionSnapshot;
 }
 
 // ---------- Runtime check (a wrong answer shows an error instead of a broken card) ----------
@@ -173,6 +205,14 @@ export function parseDecision(raw: unknown): Decision {
   const st = d.structure as Structure | null | undefined;
   if (st != null && (!Array.isArray(st.levels) || !Array.isArray(st.relative))) throw bad("structure");
   if (d.events != null && !Array.isArray(d.events)) throw bad("events");
+  const nt = d.noTrade as NoTrade | null | undefined;
+  if (nt != null && (!Array.isArray(nt.reasons) || !Array.isArray(nt.unchecked))) throw bad("noTrade");
+  const az = d.actionZones as ActionZones | null | undefined;
+  if (az != null && (!Array.isArray(az.zones) || typeof az.price !== "number")) throw bad("actionZones");
+  const ca = d.counterArgument as CounterArgument | null | undefined;
+  if (ca != null && !Array.isArray(ca.invalidators)) throw bad("counterArgument");
+  const sn = d.snapshot as DecisionSnapshot | null | undefined;
+  if (sn != null && !Array.isArray(sn.families)) throw bad("snapshot");
   return d as unknown as Decision;
 }
 

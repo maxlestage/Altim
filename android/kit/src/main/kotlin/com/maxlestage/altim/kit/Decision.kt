@@ -155,6 +155,17 @@ data class Decision(
     val events: List<CalendarEvent>? = null,
     /** The answer has the `events` field: null then means "calendar not verified", not an older server. */
     val eventsKnown: Boolean = false,
+    // Guidance (added later, absent from older answers): never changes the verdict.
+    /** "Quand ne PAS trader": what makes now a bad moment whatever the verdict. */
+    val noTrade: NoTrade? = null,
+    /** The plan as a price ladder with the current price's place; null without a plan. */
+    val actionZones: ActionZones? = null,
+    /** The scenario whose conditions are the most met (ties: the neutral one). */
+    val unfolding: Unfolding? = null,
+    /** Favourable vs unfavourable reasons and what could invalidate the scenario. */
+    val counterArgument: CounterArgument? = null,
+    /** Compact numbers kept on the phone to explain a later change of the signal. */
+    val snapshot: DecisionSnapshot? = null,
 ) {
     /** The rating's words when the server gives it, else the verdict's. */
     val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel
@@ -322,6 +333,10 @@ data class Decision(
         val condition: String = "",
         val consequence: String = "",
         val level: Double? = null,
+        /** Added later: 3 conditions (bull, bear) or 2 (neutral) checked on the current data, how many are met, the one unfolding. */
+        val conditions: List<ScenarioCheck> = emptyList(),
+        val met: Int = 0,
+        val unfolding: Boolean = false,
     )
 
     @Serializable

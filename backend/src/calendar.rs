@@ -888,6 +888,27 @@ pub struct Wants {
 /// The calendar of the next `days` days (today included, Paris time). `symbols`: when given, earnings, dividends and
 /// splits of these symbols only; otherwise those of the largest US companies.
 pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) -> Calendar {
+    calendar_inner(days, symbols, wants, false).await
+}
+
+/// Whether a company event (earnings, dividend, split) stays: with `symbols`, those of the symbols (plus, with `top`,
+/// those of the largest companies); without, the largest companies only. `top_set`: the Nasdaq ranking when read,
+/// else a stock's earnings count as large from 10 bn $ of market cap (and dividends and splits all stay).
+pub fn keep_company(e: &CalendarEvent, cap: Option<f64>, symbols: Option<&HashSet<String>>, top: bool, top_set: Option<&HashSet<String>>) -> bool {
+    let sym = e.symbol.as_deref().map(norm_symbol).unwrap_or_default();
+    if symbols.is_some_and(|s| s.contains(&sym)) {
+        return true;
+    }
+    if symbols.is_some() && !top {
+        return false;
+    }
+    match top_set {
+        Some(t) => t.contains(&sym),
+        None => e.kind != EventKind::Earnings || cap.is_some_and(|c| c >= 10e9),
+    }
+}
+
+async fn calendar_inner(days: u32, symbols: Option<&[String]>, wants: Wants, top_too: bool) -> Calendar {
     let days = days.clamp(1, MAX_DAYS);
     let now = now_ms();
     let today = today_paris(now);
@@ -907,7 +928,7 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
         }
     }
     let ranks = async {
-        if wants.companies && symbols.is_none() {
+        if wants.companies && (symbols.is_none() || top_too) {
             crate::universe::stock_universe()
                 .await
                 .ok()
@@ -916,6 +937,7 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
             None
         }
     };
+    let wanted: Option<HashSet<String>> = symbols.map(|s| s.iter().map(|x| norm_symbol(x)).collect());
     let deadline = tokio::time::Instant::now() + DEADLINE;
     let fetch = futures::stream::iter(jobs.into_iter().map(|(job, day)| async move {
         // Polled at least once: a late load is started (and cached) even when the answer cannot wait for it.
@@ -939,16 +961,11 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
                     if e.day < ymd(from) || e.day > ymd(to) {
                         continue;
                     }
-                    // Unfiltered: largest US companies only (the Nasdaq ranking, else the earnings row's own cap).
-                    if symbols.is_none() && matches!(e.kind, EventKind::Earnings | EventKind::Dividend | EventKind::Split) {
-                        let sym = e.symbol.as_deref().map(norm_symbol).unwrap_or_default();
-                        let big = match &top {
-                            Some(t) => t.contains(&sym),
-                            None => e.kind != EventKind::Earnings || cap.is_some_and(|c| c >= 10e9),
-                        };
-                        if !big {
-                            continue;
-                        }
+                    // The symbols asked and / or the largest US companies (the Nasdaq ranking, else the earnings row's own cap).
+                    if matches!(e.kind, EventKind::Earnings | EventKind::Dividend | EventKind::Split)
+                        && !keep_company(e, *cap, wanted.as_ref(), top_too, top.as_ref())
+                    {
+                        continue;
                     }
                     // Splits and IPOs come back on several days: one event each.
                     let key = (e.kind, e.day.clone(), e.symbol.clone(), e.title.clone(), e.time.clone());
@@ -965,10 +982,6 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
         }
     }
     merge_official(&mut events, official);
-    let mut events = match symbols {
-        Some(s) => filter_symbols(events, s),
-        None => events,
-    };
     sort_events(&mut events);
     let sources = status
         .into_iter()
@@ -977,8 +990,8 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
             SourceStatus { name: job.source().into(), ok: failed.is_empty(), failed, error }
         })
         .collect();
-    let mut not_covered = not_covered(symbols.is_some() || !wants.companies);
-    if wants.companies && symbols.is_none() && top.is_none() {
+    let mut not_covered = not_covered((symbols.is_some() && !top_too) || !wants.companies);
+    if wants.companies && (symbols.is_none() || top_too) && top.is_none() {
         not_covered.push(
             "Classement des capitalisations indisponible : résultats des sociétés de plus de 10 Md$, dividendes et splits sans filtre de taille."
                 .into(),
@@ -990,6 +1003,12 @@ pub async fn calendar_with(days: u32, symbols: Option<&[String]>, wants: Wants) 
 /// `/api/calendar`: everything, earnings / dividends / splits of `symbols` when given.
 pub async fn calendar(days: u32, symbols: Option<&[String]>) -> Calendar {
     calendar_with(days, symbols, Wants { companies: true, ipo: true }).await
+}
+
+/// `/api/calendar?top=1&symbols=…`: the company events of `symbols` and those of the largest companies together (the
+/// Agenda's risk view needs both: the user's own stocks, even small, and the large caps).
+pub async fn calendar_top(days: u32, symbols: Option<&[String]>) -> Calendar {
+    calendar_inner(days, symbols, Wants { companies: true, ipo: true }, true).await
 }
 
 /// For the decision's event veto: high-importance macro and central bank events plus the stock's own earnings,
@@ -1071,6 +1090,24 @@ mod tests {
         let kept = filter_symbols(events, &["aapl".into(), "BRK-B".into()]);
         let syms: Vec<_> = kept.iter().map(|e| e.symbol.clone().unwrap_or_default()).collect();
         assert_eq!(syms, vec!["AAPL", "BRK/B", "", "OURA"]);
+    }
+
+    #[test]
+    fn company_events_kept() {
+        let small = ev(EventKind::Earnings, Importance::High, Some("OURA"), 0, None);
+        let big = ev(EventKind::Earnings, Importance::High, Some("MSFT"), 0, None);
+        let div = ev(EventKind::Dividend, Importance::Medium, Some("KO"), 0, None);
+        let top: HashSet<String> = ["MSFT".to_string()].into();
+        let mine: HashSet<String> = ["OURA".to_string()].into();
+        // Unfiltered: the ranking decides, else the cap for earnings (dividends all stay).
+        assert!(keep_company(&big, None, None, false, Some(&top)) && !keep_company(&small, None, None, false, Some(&top)));
+        assert!(keep_company(&small, Some(12e9), None, false, None) && !keep_company(&small, Some(2e9), None, false, None));
+        assert!(keep_company(&div, None, None, false, None));
+        // Symbols only: the user's small stock, not the large one.
+        assert!(keep_company(&small, None, Some(&mine), false, Some(&top)) && !keep_company(&big, None, Some(&mine), false, Some(&top)));
+        // Symbols and the largest companies together (the risk view).
+        assert!(keep_company(&small, None, Some(&mine), true, Some(&top)) && keep_company(&big, None, Some(&mine), true, Some(&top)));
+        assert!(!keep_company(&div, None, Some(&mine), true, Some(&top)));
     }
 
     #[test]

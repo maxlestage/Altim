@@ -35,6 +35,12 @@ final class AppModel {
     var journal: [JournalEntry] { didSet { LocalStore.save(journal, "journal") } }
     /// Simulation (paper trading): a virtual portfolio stored on the iPhone only. No real money, no order ever placed.
     var paper: PaperState { didSet { LocalStore.save(paper, "paper") } }
+    /// Automatic trading journal: simulated purchases, real purchases and sales, reviewed later (iPhone only).
+    var tradeJournal: TradeJournalState { didSet { saveTradeJournal() } }
+    /// The saved trading journal could not be read: ignored, kept aside at the next write.
+    var tradeJournalError: String?
+    /// Decisions received during this session: the one "of the moment" for a journal entry.
+    @ObservationIgnored private var recentDecisions: [String: (decision: Decision, at: Date)] = [:]
     /// Positions just closed by the automatic check (stop / target), shown once in the Simulation view.
     var paperJustClosed: [PaperTrade] = []
     @ObservationIgnored private var checkingPaper = false
@@ -86,6 +92,10 @@ final class AppModel {
         // A saved simulation is used only when well-formed (the file can be edited by hand), like on the web.
         paper = LocalStore.load(PaperState.self, "paper").flatMap { Paper.isValid($0) ? $0 : nil }
             ?? Paper.new(capital: Paper.defaultCapital, now: Date().timeIntervalSince1970 * 1000)
+        // An unreadable journal is ignored with a message, never a crash (kept aside at the next write).
+        let savedJournal = TradeJournal.parseSaved(LocalStore.data("tradeJournal"))
+        tradeJournal = savedJournal.state
+        tradeJournalError = savedJournal.error
         lastAlertCheck = defaults.object(forKey: "lastAlertCheck") as? Date
         budget = defaults.double(forKey: "budget")
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
@@ -327,6 +337,7 @@ final class AppModel {
     @discardableResult
     func recordDecision(_ d: Decision, personal: Bool, now: Date = Date()) -> ConfigTransition? {
         let ms = now.timeIntervalSince1970 * 1000
+        recentDecisions["\(d.kind.rawValue):\(d.symbol)"] = (d, now)
         guard ms - d.asOf < 3_600_000 else { return nil }
         let r = ConfigChanges.apply(configChanges, d, personal: personal, now: ms)
         configChanges = r.state
@@ -338,6 +349,65 @@ final class AppModel {
     /// When the informational decision of this asset was last compared (nil: never).
     func lastDecisionCheck(_ a: Asset) -> Date? {
         configChanges.last[ConfigChanges.key(kind: a.kind, symbol: a.symbol, personal: false)].map { Date(timeIntervalSince1970: $0.at / 1000) }
+    }
+
+    // MARK: Trading journal
+
+    /// The decision seen on this iPhone for this asset, when recent enough to be "the one of the moment".
+    func recentDecision(_ a: Asset, now: Date = Date()) -> Decision? {
+        guard let c = recentDecisions[a.id] else { return nil }
+        let max = TradeJournal.decisionMaxAge
+        return now.timeIntervalSince(c.at) * 1000 <= max && now.timeIntervalSince1970 * 1000 - c.decision.asOf <= max ? c.decision : nil
+    }
+
+    /// Writes an entry and completes it in the background with the market data of that moment (macro stress, ATR,
+    /// relative volume, and the decision when none was loaded yet); a failed fetch only leaves the field unknown.
+    @discardableResult
+    func recordTrade(source: TradeJournalSource, side: TradeSide, asset: Asset, price: Double, quantity: Double?, amount: Double? = nil,
+                     stop: Double? = nil, targets: [Double?] = [], note: String = "", refId: String? = nil, decision: Decision? = nil) -> String? {
+        guard price.isFinite, price > 0 else { return nil }
+        let now = nowMs
+        let e = TradeJournal.create(.init(id: UUID().uuidString, now: now, source: source, side: side, symbol: asset.symbol, kind: asset.kind,
+                                          name: asset.name, price: price, quantity: quantity, amount: amount ?? quantity.map { $0 * price },
+                                          stop: stop, targets: targets, note: note, refId: refId, decision: decision ?? recentDecision(asset)))
+        tradeJournal = TradeJournal.add(tradeJournal, e)
+        Task { await enrichTrade(id: e.id, asset: asset, at: e.createdAt, hasDecision: e.decision != nil) }
+        return e.id
+    }
+
+    private func enrichTrade(id: String, asset: Asset, at: Double, hasDecision: Bool) async {
+        guard let client else { return }
+        let macro = try? await client.macro()
+        let candles = try? await client.candles(asset, interval: "1d")
+        var decision: Decision?
+        if !hasDecision { decision = try? await client.decision(asset: asset) }
+        guard let entry = tradeJournal.entries.first(where: { $0.id == id }) else { return }
+        var market = JournalMarket()
+        if let macro {
+            market.macroScore = macro.score
+            market.macroLevel = macro.level
+        }
+        if let c = candles?.candles, !c.isEmpty {
+            let m = TradeJournal.market(from: c, at: at)
+            market.atrPct = m.atrPct
+            if entry.market.relativeVolume == nil { market.relativeVolume = m.relativeVolume }
+        }
+        if let decision { market = market.merged(TradeJournal.market(from: decision)) }
+        if entry.market.regime == nil && market.regime == nil, let r = macro?.regime {
+            market.regime = r.kind.rawValue
+            market.regimeLabel = r.label
+        }
+        tradeJournal = TradeJournal.patch(tradeJournal, id: id, market: market, decision: decision.map { TradeJournal.snapshot($0) })
+    }
+
+    func setJournalNote(_ id: String, _ note: String) { tradeJournal = TradeJournal.patch(tradeJournal, id: id, note: note) }
+    func deleteJournalEntry(_ id: String) { tradeJournal = TradeJournal.remove(tradeJournal, id: id) }
+
+    private func saveTradeJournal() {
+        // The unreadable file is kept aside before being replaced.
+        if tradeJournalError != nil, let bad = LocalStore.data("tradeJournal") { LocalStore.write(bad, "tradeJournal.invalid") }
+        LocalStore.save(tradeJournal, "tradeJournal")
+        if tradeJournalError != nil { tradeJournalError = nil }
     }
 
     // MARK: Simulation (paper trading)

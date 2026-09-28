@@ -74,6 +74,57 @@ class CalendarTest {
         }
     }
 
+    @Test fun riskViewQuery() {
+        // Risk view: top=1 only with symbols (without, the calendar already keeps the largest companies).
+        assertEquals(mapOf("days" to "7", "symbols" to "AAPL", "top" to "1"), Calendar.query(7, listOf("AAPL"), true))
+        assertEquals(mapOf("days" to "7"), Calendar.query(7, null, true))
+    }
+
+    @Test fun riskCalendarOver7DaysWeekendIncluded() {
+        // KDP held (its dividend counts), MU watched (its earnings count as high).
+        val days = Calendar.riskDays(report.events, "2026-09-28", listOf("KDP"), listOf("MU"), 7, listOf("2026-10-03"))
+        assertEquals(listOf("Lun. 28 sept.", "Mar. 29 sept.", "Mer. 30 sept.", "Jeu. 1 oct.", "Ven. 2 oct.", "Sam. 3 oct.", "Dim. 4 oct."), days.map { it.label })
+        val m = Calendar.RiskLevel.MEDIUM
+        val h = Calendar.RiskLevel.HIGH
+        val l = Calendar.RiskLevel.LOW
+        assertEquals(listOf(m, m, h, h, m, l, l), days.map { it.level })
+        assertEquals(listOf(false, false, false, false, false, true, true), days.map { it.weekend })
+        assertEquals(listOf("Dividende KDP"), days[0].main)
+        // Other companies' earnings (large caps) and a central bank speech: 🟠; the others' dividends do not count.
+        assertEquals(listOf("Résultats CCL", "Prise de parole de la présidence de la BCE"), days[1].main)
+        assertTrue(days[1].events.none { it.event.symbol == "ERIC" })
+        assertEquals(listOf("Résultats MU"), days[2].main)
+        // US GDP and PCE (high); the UK's GDP (medium) is not among the main events.
+        assertEquals(listOf("PIB", "Inflation PCE"), days[3].main)
+        assertEquals(emptyList(), days[5].main)
+        assertTrue(days[5].incomplete)
+        assertTrue(days[5].unknown)
+        assertEquals("Sources incomplètes : risque non évalué", Calendar.riskText(days[5]))
+        assertEquals("Aucun événement majeur", Calendar.riskText(days[6]))
+        assertEquals("PIB · Inflation PCE", Calendar.riskText(days[3]))
+        assertTrue(!days[6].incomplete)
+    }
+
+    @Test fun riskRulePerEvent() {
+        fun ev(kind: String = "macro", category: String = "inflation", importance: String = "high", title: String = "Inflation (CPI)", symbol: String? = null, country: String? = null) =
+            CalendarEvent(0.0, "2026-10-06", null, kind, category, importance, title, country = country, symbol = symbol, source = "s", url = "https://x")
+        assertEquals(Calendar.RiskLevel.HIGH, Calendar.eventRisk(ev(), emptyList(), emptyList()))
+        assertEquals(Calendar.RiskLevel.HIGH, Calendar.eventRisk(ev(kind = "centralBank", category = "tauxDirecteurs"), emptyList(), emptyList()))
+        assertEquals(Calendar.RiskLevel.MEDIUM, Calendar.eventRisk(ev(category = "activite", importance = "medium"), emptyList(), emptyList()))
+        assertEquals(Calendar.RiskLevel.HIGH, Calendar.eventRisk(ev(kind = "earnings", category = "resultats", symbol = "BRK.B"), listOf("BRK-B"), emptyList()))
+        assertEquals(Calendar.RiskLevel.MEDIUM, Calendar.eventRisk(ev(kind = "earnings", category = "resultats", symbol = "NVDA"), emptyList(), emptyList()))
+        assertEquals(null, Calendar.eventRisk(ev(kind = "dividend", category = "dividende", symbol = "KO"), emptyList(), listOf("KO")))
+        assertEquals(Calendar.RiskLevel.MEDIUM, Calendar.eventRisk(ev(kind = "split", category = "split", symbol = "KO"), listOf("KO"), emptyList()))
+        assertEquals(null, Calendar.eventRisk(ev(kind = "ipo", category = "ipo", symbol = "OURA"), listOf("OURA"), emptyList()))
+        assertEquals("CPI", Calendar.shortTitle(ev()))
+        assertEquals("CPI (Allemagne)", Calendar.shortTitle(ev(country = "Allemagne")))
+        assertEquals("Confiance des consommateurs (Conference Board)", Calendar.shortTitle(ev(title = "Confiance des consommateurs (Conference Board)")))
+        assertEquals(
+            listOf("2026-10-01"),
+            Calendar.failedDays(report.copy(sources = listOf(CalendarReport.Source("a", false, listOf("2026-10-01", "2026-10"))))),
+        )
+    }
+
     @Test fun missingSourcesAreSaid() {
         val r = report.copy(sources = listOf(CalendarReport.Source("Nasdaq (calendrier économique)", false, listOf("2026-10-01", "2026-10-02"))))
         assertEquals("Sources incomplètes : Nasdaq (calendrier économique) (2 jours manquants).", Calendar.failedSources(r))

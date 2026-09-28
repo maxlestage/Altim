@@ -150,6 +150,11 @@ public struct Decision: Codable, Sendable {
         public var condition: String
         public var consequence: String
         public var level: Double?
+        /// Added later (absent from older answers): 3 conditions (bull, bear) or 2 (neutral), how many are met, and
+        /// whether this scenario is the one unfolding.
+        public var conditions: [ScenarioCheck]?
+        public var met: Int?
+        public var unfolding: Bool?
     }
 
     public enum Uncertainty: String, Codable, Sendable {
@@ -536,6 +541,15 @@ public struct Decision: Codable, Sendable {
     /// Events of the next 7 days that matter for this asset; nil: calendar not verified (or an older server, see
     /// `knowsEvents`); empty: nothing major.
     public var events: [CalendarEvent]?
+    // Guidance (added later, absent from older answers): never changes the verdict.
+    /// "Quand ne PAS trader".
+    public var noTrade: NoTrade?
+    public var actionZones: ActionZones?
+    /// The scenario unfolding now.
+    public var unfolding: Unfolding?
+    public var counterArgument: CounterArgument?
+    /// Compact numbers kept on the iPhone to explain a later change of the signal.
+    public var snapshot: DecisionSnapshot?
 
     /// A server that knows the rating also sends `events` (null when the calendar could not be verified): an answer
     /// without a rating comes from an older server, whose missing events mean nothing.

@@ -19,6 +19,7 @@ use crate::engine::fibonacci::{FibZone, fib_zones};
 use crate::engine::guard::{Direction, MacroContext, ShockLevel, Trend};
 use crate::engine::macro_ctx::{MacroLevel, MacroReport, macro_advice, macro_evidence};
 use crate::engine::news::{FeedItems, MAX_AGE_MS, NewsDigest, NewsItem, aggregate, news_digest, top_stories};
+use crate::engine::news_summary::{CachedMarket, StorySummary, summarize};
 use crate::engine::reliability::{Reliability, gate};
 use crate::engine::screener::{Horizon, spec};
 use crate::engine::signal::{Action, AnalyzeOptions, analyze};
@@ -142,6 +143,8 @@ pub fn warm_selections() {
                 for h in [Horizon::Mo1, Horizon::Mo3, Horizon::Mo6, Horizon::D7, Horizon::D14] {
                     let _ = selection(h, m).await;
                 }
+                // The opportunities scan reads the same (now cached) daily candles.
+                let _ = crate::opportunities::opportunities(m).await;
             }
         }
     });
@@ -388,6 +391,27 @@ pub struct NewsReport {
     pub top: Vec<String>,
     pub digest: NewsDigest,
     pub sources: Vec<SourceCount>,
+    /// The day's important events (at most 5), see `engine::news_summary`.
+    pub summary: Vec<StorySummary>,
+}
+
+/// What the server already holds for an asset id ("stock:AAPL"): its hourly candles and its guard's trend, from the
+/// cache only (the summary never triggers a fetch). Up to 2 h old.
+fn cached_market(id: &str) -> Option<CachedMarket> {
+    let (kind, symbol) = id.split_once(':')?;
+    let kind = Kind::parse(kind)?;
+    let snap = crate::cache::peek::<Snapshot>(&format!("snap:{}:{symbol}:{}", kind.as_str(), Interval::H1.as_str()), 2 * 3_600_000);
+    let guard = crate::cache::peek::<GuardReport>(&format!("guard:{}:{symbol}", kind.as_str()), 2 * 3_600_000);
+    if snap.is_none() && guard.is_none() {
+        return None;
+    }
+    Some(CachedMarket {
+        closes: snap.as_ref().map(|s| s.candles.iter().map(|c| (c.time, c.close)).collect()).unwrap_or_default(),
+        step_ms: Interval::H1.step(),
+        source: snap.as_ref().map(|s| s.source.clone()).unwrap_or_default(),
+        crypto: kind == Kind::Crypto,
+        trend: guard.map(|g| g.result.regime.trend),
+    })
 }
 
 /// News section of these assets (cached 5 minutes per list of assets).
@@ -411,7 +435,9 @@ pub async fn news_report(assets: &[Asset]) -> Result<Arc<NewsReport>> {
         let feeds: Vec<FeedItems> =
             fetched.results.iter().map(|r| FeedItems { category: r.feed.category, fallback: r.feed.fallback, items: &r.items }).collect();
         let items = aggregate(&feeds, &fetched.watch, now, MAX_AGE_MS);
+        let summary = summarize(&items, &feeds, &fetched.watch, now, &cached_market);
         Ok::<_, Error>(NewsReport {
+            summary,
             as_of: now,
             top: top_stories(&items, 5).into_iter().map(|i| i.id).collect(),
             digest: news_digest(&items, now),

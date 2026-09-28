@@ -1,0 +1,223 @@
+{
+ "asOf": 1790628461488,
+ "summary": [
+  {
+   "id": "1stqlgx",
+   "title": "Nvidia relève à un niveau record de 150 milliards de dollars son plafond de rachat d’actions",
+   "link": "https://news.google.com/rss/articles/CBMi2gFBVV95cUxNRndHTXdRS0hHOFU0RnlBTm42VlJxOWJhOUFVRUVPc2tJZ2tndndtYVNxdkd2Mm1MSDBRRXM4VkhUNmxJdmhCZFNnRDlSWHVNX1F3aUFYbVBUQTlMVXJYUlR2eHA4N0NaUDFuMHBCWTVkNV9fQmFFdEFvendDYnpkNUs0U0hqdHRSN2VUMDR4bnhLV2xoVTNJTTF1WWtWT216Q0RzOWZzcGN5QnhCOXJLQXAxNHB1QVhiTEhxSGlNbkhkOXFjNEJ4di1XX1BQRzlhMnlIei1UcXdGUQ?oc=5",
+   "source": "L'Orient-Le Jour",
+   "time": 1790620499000,
+   "category": "actifs",
+   "themes": [],
+   "alert": false,
+   "sources": 2,
+   "independentSources": 2,
+   "links": [
+    {
+     "source": "L'Orient-Le Jour",
+     "title": "Nvidia relève à un niveau record de 150 milliards de dollars son plafond de rachat d’actions",
+     "link": "https://news.google.com/rss/articles/CBMi2gFBVV95cUxNRndHTXdRS0hHOFU0RnlBTm42VlJxOWJhOUFVRUVPc2tJZ2tndndtYVNxdkd2Mm1MSDBRRXM4VkhUNmxJdmhCZFNnRDlSWHVNX1F3aUFYbVBUQTlMVXJYUlR2eHA4N0NaUDFuMHBCWTVkNV9fQmFFdEFvendDYnpkNUs0U0hqdHRSN2VUMDR4bnhLV2xoVTNJTTF1WWtWT216Q0RzOWZzcGN5QnhCOXJLQXAxNHB1QVhiTEhxSGlNbkhkOXFjNEJ4di1XX1BQRzlhMnlIei1UcXdGUQ?oc=5",
+     "time": 1790620499000,
+     "tone": "positive"
+    },
+    {
+     "source": "fr.qz.com",
+     "title": "Nvidia augmente son programme de rachat d'actions de 150 milliards de dollars, un record.",
+     "link": "https://news.google.com/rss/articles/CBMiiwFBVV95cUxPcXBmbENHTnhUYTd4Z3dDQzVHc091RE5jV2Fnem9DR2F4SmlyVUk2cWI4Q2dQR3VWQWZBcEdzNnpXa3V1QnBTTloyU01sT2ZBcG1JS0RtWVM3V1ptbVBvMVIwMU13MjkxeWw1djhEVjZXeVBjVUtuRWFOVzJFcy0ybU04SXlZTmJjVXNZ?oc=5",
+     "time": 1790600059000,
+     "tone": "positive"
+    }
+   ],
+   "assets": [
+    "stock:NVDA"
+   ],
+   "impact": "low",
+   "impactBasis": "measured",
+   "ruleImpact": "medium",
+   "impactPoints": 2,
+   "impactReasons": [
+    "2 sources indépendantes (+1)",
+    "Concerne NVDA (+1)",
+    "NVDA -0,4 % depuis la publication"
+   ],
+   "consensus": {
+    "agreement": "convergent",
+    "tone": "positive",
+    "negative": 0,
+    "positive": 2,
+    "neutral": 0
+   },
+   "moves": [
+    {
+     "asset": "stock:NVDA",
+     "fromTime": 1790620200000,
+     "fromPrice": 229.85000610351562,
+     "toTime": 1790627400000,
+     "toPrice": 228.8800048828125,
+     "changePct": -0.4220148770699983,
+     "source": "Yahoo Finance"
+    }
+   ],
+   "technical": [
+    {
+     "asset": "stock:NVDA",
+     "trend": "up",
+     "text": "Actualité positive dans une tendance technique haussière : les deux vont dans le même sens, sans garantie."
+    }
+   ]
+  },
+  {
+   "id": "l1i6zf",
+   "title": "Bitget says Bitcoin withdrawals are open after $387M hack, but ETH and USDT must wait",
+   "link": "https://news.google.com/rss/articles/CBMifEFVX3lxTE84aVhFajM0QWtRbVdJRjhONVpqSk5ZeHpLbWxHNWtRN1ZhNWhWTVNHOWdwQVBWWFBvN0FHRktBLUNvLTViMUVYZ2N3dloyMDZ0WUJtQ1NTeklieGhKamR3eDRKa3otS0VYUkpYZnJRVTJjMFd2SFZ6STRMSk4?oc=5",
+   "source": "CryptoSlate",
+   "time": 1790624125000,
+   "category": "actifs",
+   "themes": [],
+   "alert": false,
+   "sources": 1,
+   "independentSources": 1,
+   "links": [
+    {
+     "source": "CryptoSlate",
+     "title": "Bitget says Bitcoin withdrawals are open after $387M hack, but ETH and USDT must wait",
+     "link": "https://news.google.com/rss/articles/CBMifEFVX3lxTE84aVhFajM0QWtRbVdJRjhONVpqSk5ZeHpLbWxHNWtRN1ZhNWhWTVNHOWdwQVBWWFBvN0FHRktBLUNvLTViMUVYZ2N3dloyMDZ0WUJtQ1NTeklieGhKamR3eDRKa3otS0VYUkpYZnJRVTJjMFd2SFZ6STRMSk4?oc=5",
+     "time": 1790624125000,
+     "tone": "negative"
+    }
+   ],
+   "assets": [
+    "crypto:BTC"
+   ],
+   "impact": "low",
+   "impactBasis": "measured",
+   "ruleImpact": "medium",
+   "impactPoints": 2,
+   "impactReasons": [
+    "1 seule source (+0)",
+    "Piratage (+1)",
+    "Concerne BTC (+1)",
+    "BTC -0,8 % depuis la publication"
+   ],
+   "consensus": {
+    "agreement": "single",
+    "tone": "negative",
+    "negative": 1,
+    "positive": 0,
+    "neutral": 0
+   },
+   "moves": [
+    {
+     "asset": "crypto:BTC",
+     "fromTime": 1790622000000,
+     "fromPrice": 84036.75,
+     "toTime": 1790625600000,
+     "toPrice": 83387.7,
+     "changePct": -0.7723406723844084,
+     "source": "OKX"
+    }
+   ],
+   "technical": [
+    {
+     "asset": "crypto:BTC",
+     "trend": "up",
+     "text": "Actualité négative alors que la tendance technique est haussière : à surveiller."
+    }
+   ]
+  },
+  {
+   "id": "13zwjof",
+   "title": "Trump says US will win Iran war 'very soon'",
+   "link": "https://news.google.com/rss/articles/CBMimwFBVV95cUxOTG94TG8yOEo5eWNpRUFIUkMta1JRQ2RPZUJiTWxVbXdfdENtbmJxOXZOYUgxRTY5YUJ5eW92Z2tSUWtoVGVobXhhUk5CTkVBMW1rMndfR2FldUZud05YSkZuSFZRSmZQTU1xbmhSTFQyd3ozTk5LYVp1OGZzWGRvWWt6clZ1UzViY2JhMVVlODhvSFNTQno0Y1ZKOA?oc=5",
+   "source": "Reuters",
+   "time": 1790627193000,
+   "category": "monde",
+   "themes": [
+    "geopolitics"
+   ],
+   "alert": false,
+   "sources": 2,
+   "independentSources": 2,
+   "links": [
+    {
+     "source": "Reuters",
+     "title": "Trump says US will win Iran war 'very soon'",
+     "link": "https://news.google.com/rss/articles/CBMimwFBVV95cUxOTG94TG8yOEo5eWNpRUFIUkMta1JRQ2RPZUJiTWxVbXdfdENtbmJxOXZOYUgxRTY5YUJ5eW92Z2tSUWtoVGVobXhhUk5CTkVBMW1rMndfR2FldUZud05YSkZuSFZRSmZQTU1xbmhSTFQyd3ozTk5LYVp1OGZzWGRvWWt6clZ1UzViY2JhMVVlODhvSFNTQno0Y1ZKOA?oc=5",
+     "time": 1790627193000,
+     "tone": "neutral"
+    },
+    {
+     "source": "NBC News",
+     "title": "Trump says U.S. will ‘win’ Iran war ‘very soon’ as he rejects proposal to reopen Strait of Hormuz",
+     "link": "https://news.google.com/rss/articles/CBMi5AFBVV95cUxNYkxDQ2J6eGYtYThlb3E0UzJtUm5Wd283SWhYUTY4d2JDYXVTblhlOXRzV2hMbEFpa0JPS2czRmE1eUJnTmU0ZGhYbkZ0aVRYeEI3YXZ3b1FDelMyUFZPbE0zTjlYZkZRUnlFSGlDcjQ4NDlBa3dxWFc2MDdPdTFGMUtGLXUyWURPWjVJRDl2Yy1iUk45aDVTdlhWQTVGejl6bFBFM2x5eUlDd0twSmJKUXhEUTlpRDVJbGttOVR2NnVIS2F5MEtWdVFuNnBwbENEYVFDSzhCbWhxRWJnU3hhcURzTEw?oc=5",
+     "time": 1790628057000,
+     "tone": "neutral"
+    }
+   ],
+   "assets": [],
+   "impact": "low",
+   "impactBasis": "rule",
+   "ruleImpact": "low",
+   "impactPoints": 1,
+   "impactReasons": [
+    "2 sources indépendantes (+1)"
+   ],
+   "consensus": {
+    "agreement": "convergent",
+    "tone": "neutral",
+    "negative": 0,
+    "positive": 0,
+    "neutral": 2
+   },
+   "moves": [],
+   "technical": []
+  },
+  {
+   "id": "1kqx04q",
+   "title": "Cleveland-Cliffs va suspendre la production de son aciérie canadienne, invoquant les droits de douane, selon la CBC",
+   "link": "https://news.google.com/rss/articles/CBMid0FVX3lxTFBuR2VyQWdqcUdLckd5RnpVLWhVdVlDZzk0MmVMV1hwMkZ6MXNvQVNBZEMxWk0zMUw4Y05QUHJVbnZWSU9UNXJHdEcyQlUwblNJZFJ4Z1RvaWllM3d2d0ZHaEtVVUdWNklTQWNlMmV1bFBIOHY1U3Aw?oc=5",
+   "source": "TradingView",
+   "time": 1790625529000,
+   "category": "monde",
+   "themes": [
+    "trade"
+   ],
+   "alert": false,
+   "sources": 2,
+   "independentSources": 2,
+   "links": [
+    {
+     "source": "TradingView",
+     "title": "Cleveland-Cliffs va suspendre la production de son aciérie canadienne, invoquant les droits de douane, selon la CBC",
+     "link": "https://news.google.com/rss/articles/CBMid0FVX3lxTFBuR2VyQWdqcUdLckd5RnpVLWhVdVlDZzk0MmVMV1hwMkZ6MXNvQVNBZEMxWk0zMUw4Y05QUHJVbnZWSU9UNXJHdEcyQlUwblNJZFJ4Z1RvaWllM3d2d0ZHaEtVVUdWNklTQWNlMmV1bFBIOHY1U3Aw?oc=5",
+     "time": 1790625529000,
+     "tone": "neutral"
+    },
+    {
+     "source": "Boursorama",
+     "title": "Cleveland-Cliffs va suspendre la production de son aciérie canadienne, invoquant les droits de douane, selon l",
+     "link": "https://news.google.com/rss/articles/CBMimwJBVV95cUxPZnlfczNGTGZ2YVhHb19GM3ZXR3QzekFkQUk5eko5MUZCcjljanZ3Y216RVJ5MUR1LWx3dTVNWFVKTkFMUDZtajY2LU9VSWp0LTdWVUp4ek9xWVVHTkg1R0RycFgzSGFDS0NSUHR1amNoUFJhcmxoc1RNdVg1NlNLSXl0eVZVMlpGTlFmTEdqdTJOVF9zSWhjSXhxV2N3VExvUGdXNHdQUTVmandBTG5CdHZEeklFNFFaQ0t2S19abTB0UkNhZ0xhbUdObTZmTmFia1R0WlZwclNRLVgzOHM5ODQ0OTlWSnZGQy1sM0tLT0Fmam1uaHFDTWZSQ3pINktfTVFiLV9lWTNqcU5NZ0NuWndBSjVNRlNTTmlB0gGgAkFVX3lxTE1LLWRMMjVXWGxab1huaUFZV2V4VTVkMTRZbUFLRkk2cGJYdjZHNE41dFA0cXRPZ0ZZUUlCM212TkNZeWoxTTVIdkp6akFxbmV1S0R4dnJ1bmhNSGZwUDJ6MGRoUzhlOHJBQlRFTWF0dEpFbWIxUndRel8yNEx5Yk5RLVRUQllkMjZCX2Q5a01QcXJsblYzUmJxSFVfSGdSemV5a3pSeGpRdnVVMmNuNjVGVHRqd2M3dGVqRkFxa0hOS2VSLTFFd1IyZVhoNUFXT0hpa293Z19PYnh1TTlIazhVY2FKTTZETlh4X1JoQ2cybkVhYnNqYjFDZUhnS0NKM1REa29YNFpFT2N6T09Pb2RuSTJTSmEyNmtaQUZwSWI3aw?oc=5",
+     "time": 1790625529000,
+     "tone": "neutral"
+    }
+   ],
+   "assets": [],
+   "impact": "low",
+   "impactBasis": "rule",
+   "ruleImpact": "low",
+   "impactPoints": 1,
+   "impactReasons": [
+    "2 sources indépendantes (+1)"
+   ],
+   "consensus": {
+    "agreement": "convergent",
+    "tone": "neutral",
+    "negative": 0,
+    "positive": 0,
+    "neutral": 2
+   },
+   "moves": [],
+   "technical": []
+  }
+ ]
+}

@@ -105,7 +105,108 @@ export function stockSymbols(items: { symbol: string; kind: string }[]): string[
   return [...new Set(items.filter((i) => i.kind === "stock").map((i) => i.symbol.toUpperCase()))].slice(0, 50);
 }
 
-/** No symbol (or none given): the whole calendar, filtered on the device when "Mes actifs" is on. */
-export function calendarUrl(days: number, symbols: string[] | null): string {
-  return `/api/calendar?days=${days}${symbols?.length ? `&symbols=${encodeURIComponent(symbols.join(","))}` : ""}`;
+/** No symbol (or none given): the whole calendar, filtered on the device when "Mes actifs" is on. `top`: the company
+ * events of `symbols` and of the largest companies together (the risk view). */
+export function calendarUrl(days: number, symbols: string[] | null, top = false): string {
+  return `/api/calendar?days=${days}${symbols?.length ? `&symbols=${encodeURIComponent(symbols.join(","))}` : ""}${top && symbols?.length ? "&top=1" : ""}`;
+}
+
+// ---------- Risk by day ----------
+
+/** 🔴 high, 🟠 medium, 🟢 low. */
+export type RiskLevel = "high" | "medium" | "low";
+export const RISK_ICON: Record<RiskLevel, string> = { high: "🔴", medium: "🟠", low: "🟢" };
+export const RISK_LABEL: Record<RiskLevel, string> = { high: "Risque élevé", medium: "Risque modéré", low: "Risque faible" };
+
+/** The categories whose high-importance releases make a 🔴 day. */
+const MAJOR: CalendarCategory[] = ["tauxDirecteurs", "inflation", "emploi", "pib"];
+
+/** Risk of one event, null when it does not count (IPOs, other companies' dividends and splits).
+ * - 🔴: a high-importance central bank decision / inflation (CPI) / jobs / GDP release, or the earnings of a stock the
+ *   user holds or watches;
+ * - 🟠: the other macro and central bank events, the earnings of other companies (the calendar keeps the largest US
+ *   ones only), a dividend or split of a held stock. */
+export function eventRisk(e: CalendarEvent, held: string[], watched: string[]): RiskLevel | null {
+  const sym = e.symbol ? norm(e.symbol) : "";
+  const isHeld = !!sym && held.some((s) => norm(s) === sym);
+  const isMine = isHeld || (!!sym && watched.some((s) => norm(s) === sym));
+  switch (e.kind) {
+    case "macro":
+    case "centralBank":
+      return e.importance === "high" && MAJOR.includes(e.category) ? "high" : "medium";
+    case "earnings":
+      return isMine ? "high" : "medium";
+    case "dividend":
+    case "split":
+      return isHeld ? "medium" : null;
+    default:
+      return null;
+  }
+}
+
+/** Short name of an event for the risk row: "CPI", "Décision de taux de la Fed", "Résultats AAPL"… */
+export function shortTitle(e: CalendarEvent): string {
+  if (e.kind === "earnings" && e.symbol) return `Résultats ${e.symbol}`;
+  if (e.kind === "dividend" && e.symbol) return `Dividende ${e.symbol}`;
+  if (e.kind === "split" && e.symbol) return `Split ${e.symbol}`;
+  // The acronym in brackets when there is one ("Inflation (CPI)" → "CPI"), else the whole title.
+  const paren = e.kind === "macro" ? /\(([^)]*[A-Z]{2,}[^)]*)\)\s*$/.exec(e.title)?.[1] : undefined;
+  const name = paren ?? e.title;
+  return e.country && e.country !== "États-Unis" && e.kind === "macro" ? `${name} (${e.country})` : name;
+}
+
+export type RiskDay = {
+  /** "YYYY-MM-DD". */
+  day: string;
+  /** "Lun. 28 sept." */
+  label: string;
+  weekend: boolean;
+  level: RiskLevel;
+  /** Short names of the events at the day's level, in the calendar's order, without repeats. */
+  main: string[];
+  /** Every event that counts, with its risk. */
+  events: { event: CalendarEvent; risk: RiskLevel }[];
+  /** A source could not be read for this day: 🟢 is then not asserted. */
+  incomplete: boolean;
+};
+
+const RANK: Record<RiskLevel, number> = { low: 0, medium: 1, high: 2 };
+
+function addDays(day: string, n: number): string {
+  const [y = 1970, m = 1, d = 1] = day.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
+/** "Lun. 28 sept." (a calendar day, read without time zone). */
+export function riskDayLabel(day: string): string {
+  const [y = 1970, m = 1, d = 1] = day.split("-").map(Number);
+  const s = new Intl.DateTimeFormat("fr-FR", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(y, m - 1, d)));
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/** The `n` days from `from` ("YYYY-MM-DD", the report's first day, Paris time), weekends included, each with its
+ * risk: the highest of its events' (`eventRisk`), 🟢 when none counts. `failed`: days a source could not read. */
+export function riskDays(
+  events: CalendarEvent[],
+  from: string,
+  mine: { held: string[]; watched: string[] },
+  n = 7,
+  failed: string[] = [],
+): RiskDay[] {
+  return Array.from({ length: n }, (_, i) => {
+    const day = addDays(from, i);
+    const dow = new Date(`${day}T12:00:00Z`).getUTCDay();
+    const counted = events
+      .filter((e) => e.day === day)
+      .map((event) => ({ event, risk: eventRisk(event, mine.held, mine.watched) }))
+      .filter((x): x is { event: CalendarEvent; risk: RiskLevel } => x.risk !== null);
+    const level = counted.reduce<RiskLevel>((l, x) => (RANK[x.risk] > RANK[l] ? x.risk : l), "low");
+    const main = [...new Set(counted.filter((x) => x.risk === level).map((x) => shortTitle(x.event)))];
+    return { day, label: riskDayLabel(day), weekend: dow === 0 || dow === 6, level, main, events: counted, incomplete: failed.includes(day) };
+  });
+}
+
+/** Days a source could not read ("YYYY-MM-DD" only: the IPO months do not change the risk). */
+export function failedDays(report: CalendarReport): string[] {
+  return [...new Set(report.sources.flatMap((s) => (s.failed ?? []).filter((d) => d.length === 10)))];
 }

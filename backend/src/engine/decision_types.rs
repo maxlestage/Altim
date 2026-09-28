@@ -12,6 +12,10 @@
 //! in hashes per second; times in ms since the epoch.
 use serde::{Deserialize, Serialize};
 
+pub use super::guidance::{
+    ActionZone, ActionZones, CheckState, CounterArgument, DecisionSnapshot, Invalidator, NoTrade, NoTradeReason, ScenarioCheck, SnapshotFamily,
+    SnapshotLevel, SnapshotNews, Unfolding,
+};
 pub use super::structure::Structure;
 pub use super::synthesis::{CompositeScore, Degraded, HorizonClass, MarketRegime, Rating};
 use crate::types::Kind;
@@ -194,6 +198,15 @@ pub struct Scenario {
     pub condition: String,
     pub consequence: String,
     pub level: Option<f64>,
+    /// Conditions checked on the current data (3 for the bullish and bearish ones, 2 for the neutral one).
+    #[serde(default)]
+    pub conditions: Vec<ScenarioCheck>,
+    /// Conditions met.
+    #[serde(default)]
+    pub met: usize,
+    /// The scenario being realised (see `Decision::unfolding`).
+    #[serde(default)]
+    pub unfolding: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -618,4 +631,19 @@ pub struct Decision {
     /// earnings, dividends and splits); None when the calendar could not be loaded.
     #[serde(default)]
     pub events: Option<Vec<crate::calendar::CalendarEvent>>,
+    /// "Quand ne PAS trader": what makes now a bad moment whatever the verdict (never changes it).
+    #[serde(default)]
+    pub no_trade: NoTrade,
+    /// The plan as a price ladder with the current price's place; None without a plan.
+    #[serde(default)]
+    pub action_zones: Option<ActionZones>,
+    /// The scenario whose conditions are the most met (ties: the neutral one); None without scenarios.
+    #[serde(default)]
+    pub unfolding: Option<Unfolding>,
+    /// Favourable vs unfavourable reasons and what could invalidate the scenario.
+    #[serde(default)]
+    pub counter_argument: CounterArgument,
+    /// Compact numbers kept by the clients to explain a later change of the signal.
+    #[serde(default)]
+    pub snapshot: DecisionSnapshot,
 }

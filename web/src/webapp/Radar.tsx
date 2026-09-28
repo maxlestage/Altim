@@ -209,6 +209,12 @@ export function Radar() {
                     {shortDateTime(t.at)} · niveau {t.from.levelLabel} → {t.to.levelLabel} · configuration précédente vue le {shortDateTime(t.since)}
                     {t.personal ? " · mode personnel" : ""}
                   </small>
+                  {t.changes.length > 0 && (
+                    <>
+                      <br />
+                      <small>Pourquoi le signal a changé : {t.changes.join(" ; ")}.</small>
+                    </>
+                  )}
                   {t.missing.length > 0 && (
                     <>
                       <br />

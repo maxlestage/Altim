@@ -11,7 +11,10 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -50,7 +53,14 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.maxlestage.altim.kit.ActionZone
+import com.maxlestage.altim.kit.ActionZones
 import com.maxlestage.altim.kit.Bias
+import com.maxlestage.altim.kit.ConfigChanges
+import com.maxlestage.altim.kit.ConfigTransition
+import com.maxlestage.altim.kit.CounterArgument
+import com.maxlestage.altim.kit.Guidance
+import com.maxlestage.altim.kit.NoTrade
 import com.maxlestage.altim.kit.Calendar
 import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.kit.Kind
@@ -117,21 +127,21 @@ private const val FLAT_TAX = 30.0
 
 /** "Décision" card of the asset page: loading, error or the decision itself. */
 @Composable
-fun DecisionCard(state: Loadable<Decision>, held: Boolean, onSimulate: (() -> Unit)? = null, retry: () -> Unit) {
+fun DecisionCard(state: Loadable<Decision>, held: Boolean, change: ConfigTransition? = null, onSimulate: (() -> Unit)? = null, retry: () -> Unit) {
     when (state) {
         is Loadable.Loading -> Card(title = "Décision") {
             Caption(if (held) "Mode personnel : calcul avec votre prix d'achat et vos pondérations…" else "Mode informationnel…")
             Loading()
         }
         is Loadable.Failed -> Card(title = "Décision") { ErrorBox(state.message, retry) }
-        is Loadable.Loaded -> DecisionView(state.value, onSimulate = onSimulate)
+        is Loadable.Loaded -> DecisionView(state.value, onSimulate = onSimulate, change = change)
     }
 }
 
 /** The whole decision: verdict first, then the reasons, what would change it, and the details folded. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit)? = null) {
+fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit)? = null, change: ConfigTransition? = null) {
     val color = levelColor(d.level)
     // The 6-level rating is the headline when the server gives it (older answers: the verdict).
     val rating = d.rating
@@ -166,7 +176,10 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         d.degraded?.takeIf { it.active }?.let { g ->
             Notice(g.headline + g.reasons.joinToString("") { "\n• $it" }, Tone.BAD)
         }
+        // "Quand ne pas trader": compact banner near the top (the detail is in its section).
+        d.noTrade?.takeIf { it.active }?.let { NoTradeBanner(it) }
         if (d.headline.isNotBlank()) Text(d.headline, fontSize = 14.sp, color = Color.White.copy(alpha = 0.92f))
+        change?.let { ChangeBlock(it) }
         d.price?.let { Caption("Prix analysé : ${Format.price(it)} · ${Format.date(d.asOf, time = true)}") }
 
         Meter("Confiance du modèle", d.confidence, if (d.confidence >= 65) Tone.GOOD else if (d.confidence >= 40) Tone.WARN else Tone.BAD)
@@ -183,6 +196,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         d.score?.let { ScoreBlock(it) }
 
         d.plan?.let { PlanBlock(it, d.horizon) } ?: Caption("Pas de plan d'entrée : aucun niveau d'achat net pour l'instant.")
+        d.actionZones?.let { ActionLadder(it) }
 
         // Paper trading: follow this decision with virtual money to see whether it holds (no order placed).
         onSimulate?.let {
@@ -197,6 +211,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         Bullets("Pourquoi attendre ?", d.whyWait)
         Conditions("Pour passer en ACHAT", d.toBuy)
         Conditions("Pour passer en VENTE", d.toSell)
+        d.counterArgument?.let { CounterBlock(it) }
 
         d.position?.let { p ->
             Section("Sorties progressives", "${p.exits.size} étape${if (p.exits.size > 1) "s" else ""}", expanded || p.exits.any { it.now }) {
@@ -207,6 +222,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
                 Caption("Le reste de la position est conservé. Altim ne passe aucun ordre.")
             }
         }
+        d.noTrade?.let { n -> Section("Quand ne pas trader", Guidance.noTradeBadge(n), expanded) { NoTradeList(n) } }
         if (d.families.isNotEmpty()) {
             val available = d.families.count { it.status != FamilyStatus.UNAVAILABLE }
             Section("Familles d'indicateurs", "$available/${d.families.size} disponibles", expanded) { d.families.forEach { FamilyDetail(it) } }
@@ -239,7 +255,12 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         d.setup?.takeIf { it.steps.isNotEmpty() }?.let { s ->
             Section("Setup : ${s.name}", "${s.met}/${s.total}", expanded) { s.steps.forEachIndexed { i, st -> StepRow(i + 1, st) } }
         }
-        if (d.scenarios.isNotEmpty()) Section("Scénarios", "${d.scenarios.size}", expanded) { d.scenarios.forEach { ScenarioRow(it) } }
+        if (d.scenarios.isNotEmpty()) {
+            Section("Scénarios", d.unfolding?.let { "en cours : ${it.kind.label}" } ?: "${d.scenarios.size}", expanded) {
+                d.unfolding?.let { Text(it.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f)) }
+                d.scenarios.forEach { ScenarioRow(it) }
+            }
+        }
         if (d.pros.isNotEmpty() || d.cons.isNotEmpty()) {
             Section("Points favorables et défavorables", "${d.pros.size} / ${d.cons.size}", expanded) {
                 Bullets("Points favorables", d.pros, "+", AltimColors.buy)
@@ -518,15 +539,179 @@ private fun StepRow(n: Int, s: Decision.Step) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ScenarioRow(s: Decision.Scenario) {
     val c = when (s.kind) { ScenarioKind.BULL -> AltimColors.buy; ScenarioKind.NEUTRAL -> AltimColors.warning; ScenarioKind.BEAR -> AltimColors.sell }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(s.title.ifBlank { "Scénario ${s.kind.label}" }, color = c, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier.fillMaxWidth()
+            .then(if (s.unfolding) Modifier.clip(shape).background(AltimColors.cyan.copy(alpha = 0.05f)).border(1.dp, AltimColors.cyan, shape).padding(10.dp) else Modifier)
+            .semantics { if (s.unfolding) stateDescription = "scénario en cours" },
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text(s.title.ifBlank { "Scénario ${s.kind.label}" }, color = c, fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            Guidance.scenarioCount(s)?.let { Text(it, style = mono(12.sp), color = if (s.unfolding) AltimColors.cyan else AltimColors.textSecondary) }
+        }
         Text("Si ${s.condition.replaceFirstChar { it.lowercase() }} → ${s.consequence}", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
         s.level?.let { Caption("Niveau à surveiller : ${px(it)}") }
+        s.conditions.forEach { k ->
+            val tint = when (k.state) { "met" -> AltimColors.buy; "unmet" -> AltimColors.orange; else -> AltimColors.textSecondary }
+            HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+            Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("${Guidance.checkIcon(k.state)} ${Guidance.checkLabel(k.state)}", fontSize = 12.sp, color = tint, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(92.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(k.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+                    if (k.detail.isNotBlank()) Caption(k.detail)
+                }
+            }
+        }
     }
 }
+
+// ---------- Guidance: when not to trade, action zones, counter-argument, why the signal changed ----------
+
+/** Compact banner near the top: the headline and the reasons' names (the detail is in its section). */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun NoTradeBanner(n: NoTrade) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(AltimColors.warning.copy(alpha = 0.1f)).border(1.dp, AltimColors.warning.copy(alpha = 0.4f), shape).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(n.headline, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.semantics { contentDescription = "Raisons" }) {
+            n.reasons.forEach { r ->
+                Text(
+                    r.label, fontSize = 12.sp, color = Color.White.copy(alpha = 0.9f),
+                    modifier = Modifier.clip(CircleShape).border(1.dp, AltimColors.warning.copy(alpha = 0.45f), CircleShape).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoTradeList(n: NoTrade) {
+    if (n.reasons.isNotEmpty()) {
+        n.reasons.forEach { r ->
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(r.label) }
+                    append(" — ${r.detail}")
+                },
+                fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f),
+            )
+        }
+    } else {
+        Text("Aucune raison mesurée de s'abstenir maintenant, ce qui ne garantit rien pour la suite.", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+    }
+    if (n.unchecked.isNotEmpty()) Caption("Non vérifié faute de données : ${n.unchecked.joinToString(" ; ")}.")
+    Caption("Volatilité, liquidité, écart achat/vente, résultats (avant et 1 à 2 séances après), annonces, marché sans direction, signal faible ou dégradé, séance de Wall Street (actions). N'interdit rien : signale un mauvais moment.")
+}
+
+private fun zoneColor(kind: String): Color = when (kind) {
+    "invalidation" -> Color(0xFFFF6B82)
+    "exit" -> AltimColors.orange
+    "buy" -> AltimColors.buy
+    "profit" -> AltimColors.cyan
+    else -> Color(0xFFC7D0E6)
+}
+
+/** Vertical ladder, highest price at the top; bands in the kind's colour, the price marked where it sits. */
+@Composable
+fun ActionLadder(z: ActionZones) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SubTitle("Zones d'action")
+        Text(z.hereText, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Column(Modifier.fillMaxWidth().semantics { contentDescription = "Zones d'action, du prix le plus haut au plus bas" }) {
+            Guidance.ladder(z).forEach { row ->
+                when (row) {
+                    is Guidance.LadderRow.Marker -> Text(
+                        row.text, style = mono(12.sp, FontWeight.Bold), color = AltimColors.warning,
+                        modifier = Modifier.fillMaxWidth().border(1.dp, AltimColors.warning.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
+                    )
+                    is Guidance.LadderRow.Zone -> ZoneRung(row.zone, row.here, z.price)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ZoneRung(zone: ActionZone, here: Boolean, price: Double) {
+    val c = zoneColor(zone.kind)
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min)
+            .then(if (here) Modifier.clip(RoundedCornerShape(topEnd = 10.dp, bottomEnd = 10.dp)).background(Color.White.copy(alpha = 0.05f)) else Modifier)
+            .padding(vertical = 6.dp)
+            .semantics(mergeDescendants = true) { if (here) stateDescription = "vous êtes ici" },
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        // Band: a bar for a zone, a thin line for the single invalidation level.
+        Box(Modifier.width(6.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
+            Box(
+                Modifier.width(6.dp).then(if (zone.kind == "invalidation") Modifier.height(2.dp) else Modifier.fillMaxHeight())
+                    .clip(RoundedCornerShape(3.dp)).background(c.copy(alpha = 0.8f)),
+            )
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(zone.label, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = c)
+            Text(Guidance.zoneRange(zone), style = mono(12.sp), color = Color.White)
+            if (here) Text("◀ vous êtes ici · ${Guidance.usd(price)}", style = mono(12.sp, FontWeight.Bold), color = AltimColors.warning)
+            if (zone.note.isNotBlank()) Caption(zone.note)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CounterBlock(c: CounterArgument) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        SubTitle("Contre-argument")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(buildAnnotatedString { append("🟢 Raisons favorables : "); withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("${c.favourable}") } }, fontSize = 14.sp, color = Color.White)
+            Text(buildAnnotatedString { append("🔴 Raisons défavorables : "); withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("${c.unfavourable}") } }, fontSize = 14.sp, color = Color.White)
+        }
+        if (c.familiesText.isNotBlank()) Caption(c.familiesText)
+        if (c.invalidators.isNotEmpty()) {
+            Text("Points qui pourraient invalider le scénario", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            c.invalidators.forEach { i ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("•", color = AltimColors.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(i.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f), modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+/** "Pourquoi le signal a changé depuis le 28/09 à 14:02": what the measurements say changed. */
+@Composable
+fun ChangeBlock(t: ConfigTransition) {
+    val shape = RoundedCornerShape(12.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(AltimColors.cyan.copy(alpha = 0.04f)).border(1.dp, AltimColors.cyan.copy(alpha = 0.35f), shape)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        SubTitle("Pourquoi le signal a changé depuis le ${Format.shortDateTime(t.since)}")
+        Text(ConfigChanges.changeSummary(t), fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+        if (t.changes.isNotEmpty()) {
+            t.changes.forEach { line ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("•", color = AltimColors.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(line, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f), modifier = Modifier.weight(1f))
+                }
+            }
+        } else {
+            Caption("Mesures de la décision précédente non enregistrées (vue avant cette version) : changement non détaillé.")
+        }
+    }
+}
+
 
 @Composable
 private fun ExitRow(e: Decision.Exit) {

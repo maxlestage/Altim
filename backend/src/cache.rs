@@ -109,6 +109,18 @@ where
     }
 }
 
+/// The value cached under `key` if one is there and younger than `max_age_ms`, without ever loading it (for
+/// summaries that use only what other routes already fetched).
+pub fn peek<T: Send + Sync + 'static>(key: &str, max_age_ms: i64) -> Option<Arc<T>> {
+    let typed = format!("{key}#{}", std::any::type_name::<T>());
+    let store = STORE.lock().unwrap();
+    let e = store.map.get(&typed)?;
+    if now_ms() - e.at > max_age_ms {
+        return None;
+    }
+    e.value.clone()?.downcast::<T>().ok()
+}
+
 pub fn clear_cache() {
     STORE.lock().unwrap().map.clear();
 }
@@ -138,5 +150,9 @@ mod tests {
         let s = cached::<String, _, _>("t:dedup", 60_000, || async { Ok("texte".to_string()) }).await.unwrap();
         assert_eq!(*s, "texte");
         assert_eq!(*cached::<u32, _, _>("t:dedup", 60_000, || async { Ok(7) }).await.unwrap(), 42);
+        // Peek: only what is there, of the right type, never a load.
+        assert_eq!(peek::<u32>("t:dedup", 60_000).as_deref(), Some(&42));
+        assert!(peek::<u64>("t:dedup", 60_000).is_none());
+        assert!(peek::<u32>("t:absent", 60_000).is_none());
     }
 }
