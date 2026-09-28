@@ -16,10 +16,21 @@ data class PriceTarget(
     val price: Double,
     val created: Long = System.currentTimeMillis(),
     val triggered: Long? = null,
+    /** Move alert: notify when the price moves by at least this many % (up or down) from [price], the reference. */
+    val move: Double? = null,
 ) {
-    val label: String get() = "${if (above) "Au-dessus de" else "En dessous de"} ${Format.price(price)}"
+    val label: String
+        get() = move?.let { "Variation de ±${Format.plain(it, 1).removeSuffix(",0")} % (depuis ${Format.price(price)})" }
+            ?: "${if (above) "Au-dessus de" else "En dessous de"} ${Format.price(price)}"
 
-    fun isReached(current: Double) = if (above) current >= price else current <= price
+    fun isReached(current: Double) = when {
+        move != null -> price > 0 && kotlin.math.abs(current / price - 1) * 100 >= move
+        above -> current >= price
+        else -> current <= price
+    }
+
+    /** Re-armed: a move alert starts again from the current price. */
+    fun rearmed(current: Double?): PriceTarget = copy(triggered = null, price = if (move != null && current != null && current > 0) current else price)
 
     companion object {
         /** Armed targets reached at the given prices (key "kind:SYMBOL"): the updated list and those just reached. */

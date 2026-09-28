@@ -179,6 +179,8 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                     }
                 }
             }
+            NoteCard(asset)
+            PositionCard(model, asset, model.live.price(asset)?.price ?: zones.value?.price ?: signal?.price, zones.value?.zones.orEmpty())
             DcaCard(model, asset)
             Caption("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
         }

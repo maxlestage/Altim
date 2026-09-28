@@ -3,6 +3,7 @@ import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import { AssetPicker } from "./AssetPicker";
 import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type HorizonPref, type WatchItem } from "./store";
 import { Segmented } from "./ui";
+import { onLink } from "./router";
 import { HORIZONS } from "../engine/fibonacci";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
@@ -74,6 +75,12 @@ export function Settings() {
         ))}
         <p className="muted small">Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.</p>
         <button className="link-btn" onClick={() => setState({ risk: DEFAULT_RISK })}>Valeurs recommandées</button>
+      </div>
+
+      <div className="card">
+        <h2 className="card-title">Comprendre</h2>
+        <p className="muted small">Signal, zone d'achat, stop, volatilité, flat tax… les mots d'Altim expliqués simplement.</p>
+        <a href="/app/lexique" onClick={onLink} className="btn btn-ghost">Ouvrir le lexique</a>
       </div>
 
       <div className="card">
