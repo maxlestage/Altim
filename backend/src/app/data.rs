@@ -9,9 +9,12 @@ use indexmap::IndexMap;
 use serde::Serialize;
 use serde_json::Value;
 
+use super::extras::extras;
 use crate::cache::cached;
 use crate::engine::Evidence;
 use crate::engine::alerts::{AlertInput, AlertMacro, AlertShock, AlertSignal, AlertTrend, AlertZone, BuyAlert, buy_alert};
+use crate::engine::decision::{DecisionInput, ExposureInput, HoldingSeries, MarketInputs, decide};
+use crate::engine::decision_types::Decision;
 use crate::engine::fibonacci::{FibZone, fib_zones};
 use crate::engine::guard::{Direction, MacroContext, ShockLevel, Trend};
 use crate::engine::macro_ctx::{MacroLevel, MacroReport, macro_advice, macro_evidence};
@@ -26,7 +29,7 @@ use crate::live::us_market_open;
 use crate::market::{Consensus, Snapshot, long_daily, snapshot};
 use crate::quotes::{ConsensusQuote, QUOTE_SOURCES, consensus_quotes, make_asset};
 use crate::screener::{ScreenResult, Verified, screen};
-use crate::types::{Asset, Interval, Kind};
+use crate::types::{Asset, Candle, Interval, Kind};
 use crate::universe::{UniverseEntry, crypto_universe, search_all, stock_universe, universe};
 
 /// Only closed candles are analysed: a snapshot changes at most once per candle.
@@ -503,3 +506,106 @@ pub async fn sentiment(symbol: &str, kind: Kind) -> Sentiment {
 
 /// `movers` input: the last daily close of each asset (`kind:symbol` → close).
 pub type Closes = HashMap<String, Option<f64>>;
+
+// ---------- Decision ----------
+
+/// One line of the user's portfolio (`weights=SYM:kind:pct`): used for one computation, never stored nor logged.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Weight {
+    pub symbol: String,
+    pub kind: Kind,
+    pub pct: f64,
+}
+
+/// Name of an asset from the universe (its symbol when unknown).
+async fn asset_name(symbol: &str, kind: Kind) -> String {
+    let list = universe(kind).await.ok();
+    list.as_ref().and_then(|l| l.iter().find(|e| e.0 == symbol).map(|e| e.1.clone())).unwrap_or_else(|| make_asset(symbol, kind, None).name)
+}
+
+/// The user's exposure inputs: every line's long daily history and the factor's (Bitcoin, or the S&P 500 via SPY).
+async fn exposure_input(kind: Kind, weights: &[Weight]) -> Option<ExposureInput> {
+    if weights.is_empty() {
+        return None;
+    }
+    let (fs, factor) = match kind {
+        Kind::Crypto => ("BTC", "Bitcoin"),
+        Kind::Stock => ("SPY", "S&P 500"),
+    };
+    let (f, lines) = tokio::join!(long(fs, kind), join_all(weights.iter().map(|w| async move { (w, long(&w.symbol, w.kind).await.ok()) })));
+    let f = f.ok()?;
+    Some(ExposureInput {
+        factor: factor.into(),
+        factor_symbol: fs.into(),
+        factor_daily: f.candles.clone(),
+        holdings: lines
+            .into_iter()
+            .filter_map(|(w, h)| h.map(|h| HoldingSeries { symbol: w.symbol.clone(), kind: w.kind, weight: w.pct, daily: h.candles.clone() }))
+            .collect(),
+    })
+}
+
+/// Decision for one asset (`/api/decision`). Every input is cached on its own (candles, zones, guard, macro, news,
+/// extras); the personal parts (average cost, weights) are only used for this answer, never in a cache key.
+pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: &[Weight]) -> Result<Decision> {
+    let name = asset_name(symbol, kind).await;
+    let (h1, h4, d, hist, z, g, news, expo) = tokio::join!(
+        snap(symbol, kind, Interval::H1),
+        snap(symbol, kind, Interval::H4),
+        snap(symbol, kind, Interval::D1),
+        long(symbol, kind),
+        zones(symbol, kind),
+        guard_for(symbol, kind),
+        crate::guard::news(symbol, kind, &name),
+        exposure_input(kind, weights),
+    );
+    let (h4, d) = (h4?, d?);
+    let (h1, hist, z, g) = (h1.ok(), hist.ok(), z.ok(), g.ok());
+    let price = z.as_ref().and_then(|z| z.price);
+    let long_candles: Vec<Candle> = hist.as_ref().map(|h| h.candles.clone()).unwrap_or_default();
+    let ex = {
+        let s = symbol.to_string();
+        let daily = if long_candles.len() > d.candles.len() { long_candles.clone() } else { d.candles.clone() };
+        cached(&format!("extras:{}:{symbol}", kind.as_str()), 600_000, || async move { Ok::<_, Error>(extras(&s, kind, price, &daily).await) })
+            .await
+            .ok()
+    };
+    let (fundamentals, liquidity, track) = ex.map(|e| (*e).clone()).unwrap_or((None, None, None));
+    let reliability = if h4.reliability.score < d.reliability.score { h4.reliability.clone() } else { d.reliability.clone() };
+    let mut issues = d.quality.issues.clone();
+    issues.extend(h4.quality.issues.iter().filter(|i| !d.quality.issues.contains(i)).cloned());
+    let macro_ctx = z.as_ref().and_then(|z| z.macro_ctx.as_ref());
+    let inputs = g.as_ref().map(|g| &g.inputs);
+    let input = DecisionInput {
+        symbol,
+        kind,
+        name: &name,
+        now: now_ms(),
+        price,
+        h1: h1.as_ref().map(|s| s.candles.as_slice()).unwrap_or(&[]),
+        h4: &h4.candles,
+        daily: &d.candles,
+        long: &long_candles,
+        reliability,
+        quality_issues: issues,
+        agreeing: d.agreeing,
+        sources: d.sources.len(),
+        zone_evidence: z.as_ref().map(|z| z.zones.iter().filter_map(|x| x.zone.evidence.map(|e| (x.zone.horizon, e))).collect()).unwrap_or_default(),
+        guard: g.as_ref().map(|g| &g.result),
+        macro_report: macro_ctx.map(|m| &m.report),
+        macro_evidence: macro_ctx.and_then(|m| m.evidence),
+        market: MarketInputs {
+            fear_greed: inputs.and_then(|i| i.fear_greed),
+            funding_rate: inputs.and_then(|i| i.funding_rate),
+            social_bullish: inputs.and_then(|i| i.social_bullish),
+            social_sample: inputs.map_or(0.0, |i| i.social_sample),
+            news: Some(news),
+        },
+        fundamentals,
+        liquidity,
+        track,
+        cost,
+        exposure: expo,
+    };
+    Ok(decide(&input))
+}

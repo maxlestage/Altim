@@ -92,7 +92,7 @@ public final class AltimClient: Sendable {
     }
 
     /// Paths whose last answer is kept for the offline mode (not the search nor the login).
-    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief"]
+    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision"]
     /// Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error.
     nonisolated(unsafe) static var retryDelays: [Double] = [0.5, 1.5]
 
@@ -230,6 +230,10 @@ public final class AltimClient: Sendable {
 
     func getAlerts(_ assets: [Asset]) async throws -> [BuyAlert] {
         try await get("/api/alerts", ["symbols": Self.list(assets)])
+    }
+
+    func getDecision(_ query: [String: String]) async throws -> Decision {
+        try await get("/api/decision", query)
     }
 
     public func selection(_ h: Horizon, kind: Kind) async throws -> SelectionResult {
