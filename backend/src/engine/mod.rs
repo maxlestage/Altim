@@ -1,4 +1,6 @@
 //! Pure engines, ported line for line from `web/src/engine/*.ts` (the web app keeps using the TypeScript ones).
+pub mod guard;
+pub mod macro_ctx;
 pub mod reliability;
 pub mod signal;
 
