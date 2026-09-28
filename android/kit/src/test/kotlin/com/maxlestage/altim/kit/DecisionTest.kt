@@ -133,6 +133,187 @@ class DecisionTest {
         assertNull(Decision.cost(holdings, Asset("SOL", Kind.CRYPTO, "Solana")))
     }
 
+    /** Older answers (before the P/S, ROIC, valuation history… fields) still parse, with the new fields empty. */
+    @Test fun olderAnswersKeepParsing() {
+        val a = assertIs<Fundamentals.Stock>(AltimJson.decodeFromString(Decision.serializer(), sample("decision-aapl.json")).fundamentals)
+        assertNull(a.ps)
+        assertNull(a.valuationHistory)
+        assertNull(a.peers)
+        assertEquals("", a.guidance)
+        assertFalse(a.roicTaxStatutory)
+        val b = AltimJson.decodeFromString(Decision.serializer(), sample("decision-btc.json"))
+        val c = assertIs<Fundamentals.Crypto>(b.fundamentals)
+        assertFalse(c.devActivityKnown)
+        assertNull(c.stablecoins)
+        val t = assertNotNull(b.track)
+        assertFalse(t.hasDetails)
+        assertNull(t.regimes)
+        assertTrue(t.biasNotes.isEmpty())
+    }
+
+    /** A real answer of the current server (Apple, 28/09/2026): every added field, as the server writes it. */
+    @Test fun stockFundamentalsAndTrackDetails() {
+        val d = AltimJson.decodeFromString(Decision.serializer(), sample("decision-aapl-v2.json"))
+        val f = assertIs<Fundamentals.Stock>(d.fundamentals)
+        assertEquals(10.58, f.ps)
+        assertEquals(45.93, f.pb)
+        assertEquals(84.1, f.roic)
+        assertEquals(17.3, f.roicTaxRate)
+        assertFalse(f.roicTaxStatutory)
+        assertEquals(1_782_518_400_000.0, f.periodEnd)
+        assertEquals(1_785_456_000_000.0, f.filedAt)
+        assertEquals("3571", f.sector?.sic)
+        val h = assertNotNull(f.valuationHistory)
+        assertEquals(1255, h.per?.days)
+        assertEquals(94.0, h.per?.percentile)
+        assertEquals(5.04, h.ps?.min)
+        assertEquals(99.0, h.ps?.percentile)
+        val p = assertNotNull(f.peers)
+        assertEquals(listOf("DELL", "IBM", "SMCI", "HPQ", "OMCL", "OSS"), p.peers.map { it.symbol })
+        assertEquals(26.35, p.medianPer)
+        assertNull(p.peers[1].operatingMargin)
+        assertTrue(f.valuationVerdict!!.startsWith("Valorisation élevée"))
+        assertTrue(f.guidance.contains("non disponibles"))
+        val t = assertNotNull(d.track)
+        assertTrue(t.hasDetails)
+        assertEquals(0.0059, t.spreadPct)
+        assertTrue(t.spreadMeasured)
+        assertEquals(0.1, t.avgR)
+        assertEquals(1194, t.testedBars)
+        assertEquals(listOf("bull", "bear", "range", "crisis", "unknown"), t.regimes!!.map { it.regime })
+        assertNull(t.regimes!![1].winRate)
+        assertEquals(5, t.biasNotes.size)
+    }
+
+    @Test fun ratingScoreRegimeHorizonStructure() {
+        val d = AltimJson.decodeFromString(Decision.serializer(), sample("decision-aapl-v2.json"))
+        assertEquals(Rating.HOLD, d.rating)
+        assertEquals("ATTENDRE", d.headlineLabel)
+        val s = assertNotNull(d.score)
+        assertEquals(24.0, s.value)
+        assertEquals(listOf("tech", "mom", "fund", "sent", "news", "macro"), s.factors.map { it.key })
+        assertNull(s.factors[3].value)
+        assertEquals(listOf("Sentiment"), s.missing)
+        assertFalse(d.degraded!!.active)
+        assertEquals(RegimeKind.NEUTRAL, d.marketRegime?.kind)
+        assertEquals(3, d.marketRegime?.reasons?.size)
+        assertEquals("mediumTerm", d.horizon?.kind)
+        val plan = assertNotNull(d.plan)
+        assertEquals(36.8, plan.reward3Pct)
+        assertTrue(plan.target3Source!!.startsWith("Projection"))
+        val st = assertNotNull(d.structure)
+        assertEquals(70.0, st.score)
+        assertEquals(Bias.BULLISH, st.ichimoku?.bias)
+        assertEquals(16, st.supertrend?.bars)
+        assertEquals(11, st.levels.size)
+        assertEquals("fake", st.breakout?.kind)
+        assertEquals(listOf("SPY", "QQQ"), st.relative.map { it.symbol })
+        assertEquals(3, st.relative[0].periods.size)
+        // The calendar was not verified here: events null, but the field is there.
+        assertTrue(d.eventsKnown)
+        assertNull(d.events)
+        // The calendar check is one veto among the others (any code is shown as given).
+        val a = d.vetoes.first { it.code == "announcement" }
+        assertEquals("Annonce économique dans les 48 h", a.label)
+        assertFalse(a.verifiable)
+        assertEquals(16, d.vetoes.size)
+        // Older answers: no rating, no score, no events field.
+        val old = AltimJson.decodeFromString(Decision.serializer(), sample("decision-btc.json"))
+        assertNull(old.rating)
+        assertEquals(old.verdictLabel, old.headlineLabel)
+        assertNull(old.score)
+        assertNull(old.structure)
+        assertFalse(old.eventsKnown)
+        assertNull(old.plan!!.target3)
+        // An unknown rating or bias falls back instead of failing the whole answer.
+        val odd = AltimJson.decodeFromString(Decision.serializer(), sample("decision-btc.json").replaceFirst("{", "{\"rating\":\"moon\",\"events\":[],"))
+        assertNull(odd.rating)
+        assertEquals(emptyList(), odd.events)
+        assertTrue(odd.eventsKnown)
+    }
+
+    @Test fun macroRegime() {
+        val m = AltimJson.decodeFromString(
+            MacroInfo.serializer(),
+            """{"score":30,"level":"tense","regime":{"kind":"riskOff","label":"Risk-off","benchmark":"S&P 500 (SPY)","reasons":["VIX 31"]}}""",
+        )
+        assertEquals(RegimeKind.RISK_OFF, m.regime?.kind)
+        assertNull(AltimJson.decodeFromString(MacroInfo.serializer(), """{"score":3,"level":"calm"}""").regime)
+    }
+
+    @Test fun scoreWeights() {
+        // Same cases as web/test/decision.test.ts ("composite score weights").
+        assertNull(ScoreWeights.DEFAULT.param())
+        val w = ScoreWeights.DEFAULT.copy(tech = 50, macro = 0)
+        assertEquals("tech:50,mom:18,fund:20,sent:10,news:10,macro:0", w.param())
+        assertEquals(ScoreWeights(100, 0, 13, 10, 10, 10), ScoreWeights.parse("""{"tech":140,"mom":-3,"fund":12.6,"sent":"x"}"""))
+        assertEquals(ScoreWeights.DEFAULT, ScoreWeights.parse(null))
+        assertEquals(ScoreWeights.DEFAULT, ScoreWeights.parse("""{"tech":0,"mom":0,"fund":0,"sent":0,"news":0,"macro":0}"""))
+        assertEquals("+34", signedScore(34.4))
+        assertEquals("−12", signedScore(-12.0))
+    }
+
+    @Test fun scoreWeightsSentOnlyWhenCustom() = runBlocking {
+        val server = MockWebServer().apply { start() }
+        try {
+            val client = AltimClient(server.url("/"), null)
+            val btc = Asset("BTC", Kind.CRYPTO, "Bitcoin")
+            server.enqueue(MockResponse.Builder().code(200).body(sample("decision-btc.json")).build())
+            client.decision(btc, scoreWeights = ScoreWeights.DEFAULT)
+            assertNull(server.takeRequest().url.queryParameter("w"))
+            server.enqueue(MockResponse.Builder().code(200).body(sample("decision-btc.json")).build())
+            client.decision(btc, scoreWeights = ScoreWeights.DEFAULT.copy(tech = 50, macro = 0))
+            assertEquals("tech:50,mom:18,fund:20,sent:10,news:10,macro:0", server.takeRequest().url.queryParameter("w"))
+        } finally {
+            server.close()
+        }
+    }
+
+    /** Real answers with the calendar verified: 7 events, the announcement check active; Bitcoin's degraded signal. */
+    @Test fun eventsAndDegradedSignal() {
+        val a = AltimJson.decodeFromString(Decision.serializer(), sample("decision-aapl-events.json"))
+        val ev = assertNotNull(a.events)
+        assertEquals(7, ev.size)
+        assertEquals("Croissance (PIB)", ev[0].title)
+        assertEquals("2026-09-30", ev[0].day)
+        val v = a.vetoes.first { it.code == "announcement" }
+        assertTrue(v.active)
+        assertTrue(v.detail.startsWith("Croissance (PIB)"))
+        val b = AltimJson.decodeFromString(Decision.serializer(), sample("decision-btc-v2.json"))
+        val g = assertNotNull(b.degraded)
+        assertTrue(g.active)
+        assertTrue(g.headline.startsWith("⚠️ Signal dégradé"))
+        assertEquals(1, g.reasons.size)
+        assertNull(b.structure?.nearestResistance)
+    }
+
+    @Test fun cryptoDevActivityAndStablecoins() {
+        val d = AltimJson.decodeFromString(Decision.serializer(), sample("decision-btc-v2.json"))
+        val f = assertIs<Fundamentals.Crypto>(d.fundamentals)
+        // The field is there, null: "non disponible" is said (not hidden as for an older answer).
+        assertTrue(f.devActivityKnown)
+        assertNull(f.devActivity)
+        val s = assertNotNull(f.stablecoins)
+        assertEquals("Tous réseaux", s.scope)
+        assertEquals(313_077_011_773.0, s.total)
+        assertEquals(1.36, s.change30dPct)
+        assertNull(f.chainStablecoins)
+        assertTrue(f.notCovered.contains("baleines"))
+        // The figures of CoinGecko's developer data (backend/tests/decision_data.rs), on Ethereum's chain.
+        val eth = AltimJson.decodeFromString(
+            FundamentalsSerializer,
+            """{"kind":"crypto","unlocks":"","source":"x","devActivity":{"repo":null,"commits4w":97,"pullRequestsMerged":11200,"contributors":850,"stars":48000,""" +
+                """"additions4w":5210,"deletions4w":3120,"smartContractPlatform":true,"source":"CoinGecko"},""" +
+                """"chainStablecoins":{"scope":"Ethereum","date":1790553600000,"total":148452954020,"change7d":null,"change7dPct":null,"change30d":null,"change30dPct":-0.18,"source":"DefiLlama (stablecoins)"}}""",
+        )
+        val e = assertIs<Fundamentals.Crypto>(eth)
+        assertTrue(e.devActivityKnown)
+        assertEquals(97.0, e.devActivity?.commits4w)
+        assertTrue(e.devActivity!!.smartContractPlatform)
+        assertEquals("Ethereum", e.chainStablecoins?.scope)
+        assertEquals(-0.18, e.chainStablecoins?.change30dPct)
+    }
+
     @Test fun requestAndOfflineCache() = runBlocking {
         val server = MockWebServer().apply { start() }
         val dir = Files.createTempDirectory("altim-decision").toFile()

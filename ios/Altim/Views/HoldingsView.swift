@@ -7,6 +7,10 @@ struct HoldingsView: View {
     @Environment(AppModel.self) private var model
     @State private var quotes: [String: Double] = [:]
     @State private var signals: [String: RadarRow] = [:]
+    /// Daily candles of the held assets and of the benchmarks (Bitcoin, S&P 500 via SPY): betas, clusters, ATR, today.
+    @State private var daily: [String: [Candle]] = [:]
+    /// The market data (quotes and candles) was read at least once: the dangers can be measured and kept.
+    @State private var marketLoaded = false
     @State private var editing: Holding?
     @State private var adding = false
     @State private var error: String?
@@ -33,8 +37,31 @@ struct HoldingsView: View {
         .sheet(item: $editing) { HoldingForm(holding: $0) }
     }
 
+    /// Risk beyond the summary: stress scenarios through the betas, limits of the settings, dangerous positions.
+    private struct RiskView {
+        var portfolio: RiskPortfolio
+        var betas: [String: BetaEstimate]
+        var stress: [StressResult]
+        var limits: [LimitCheck]
+        var dangers: [Danger]
+        var dailyLossReached: Bool { limits.contains { $0.code == "daily_loss" && $0.level == .danger } }
+    }
+
+    private func riskView(_ prices: [String: Double]) -> RiskView? {
+        guard marketLoaded, !model.holdings.isEmpty else { return nil }
+        let p = RiskPortfolio(holdings: model.holdings, prices: prices, daily: daily)
+        let betas = RiskEngine.betas(p, daily: daily)
+        let today = RiskEngine.dailyChange(p, daily: daily, now: Date().timeIntervalSince1970 * 1000)
+        return RiskView(portfolio: p, betas: betas, stress: RiskEngine.stressTest(p, betas: betas),
+                        limits: RiskEngine.checkLimits(p, model.risk, clusters: RiskEngine.clusters(p, daily: daily), daily: today),
+                        dangers: RiskEngine.dangerousPositions(p, model.risk, daily: daily))
+    }
+
     private var realList: some View {
+        let prices = self.prices
         let portfolio = Portfolio(holdings: model.holdings, prices: prices)
+        let risk = riskView(prices)
+        let dangerById = Dictionary((risk?.dangers ?? []).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return List {
             Section { PortfolioModePicker(mode: $mode) }.listRowBackground(Color.clear)
             if model.holdings.isEmpty {
@@ -51,13 +78,19 @@ struct HoldingsView: View {
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
                 if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
+                if let risk, risk.dailyLossReached {
+                    Section { Notice(text: RiskEngine.dailyLossReached, tone: .bad) }.listRowBackground(Color.clear)
+                }
+                if let risk, !risk.dangers.isEmpty {
+                    Section { DangerNotice(dangers: risk.dangers) }.listRowBackground(Color.clear)
+                }
                 Section { HistoryCard() }.listRowBackground(Color.clear)
                 Section { RebalanceCard(portfolio: portfolio) }.listRowBackground(Color.clear)
                 Section { SaleCard(portfolio: portfolio) }.listRowBackground(Color.clear)
                 Section { ProjectionCard(start: portfolio.total) }.listRowBackground(Color.clear)
                 Section {
                     ForEach(portfolio.lines) { line in
-                        NavigationLink(value: line.holding.asset) { lineView(line) }
+                        NavigationLink(value: line.holding.asset) { lineView(line, danger: dangerById[line.id.uuidString]) }
                             .swipeActions(edge: .trailing) {
                                 Button(role: .destructive) { model.holdings.removeAll { $0.id == line.id } } label: { Label("Supprimer", systemImage: "trash") }
                                 Button { editing = line.holding } label: { Label("Modifier", systemImage: "pencil") }.tint(Theme.violet)
@@ -67,11 +100,16 @@ struct HoldingsView: View {
                 } header: {
                     HStack { Text("Lignes · signal 1 jour"); Spacer(); LiveBadge() }
                 } footer: {
-                    Text("Glissez une ligne vers la gauche pour la modifier ou la supprimer. Vos avoirs restent sur cet iPhone.")
+                    Text("Glissez une ligne vers la gauche pour la modifier ou la supprimer (et saisir votre stop). Vos avoirs restent sur cet iPhone.")
+                }
+                if let risk {
+                    Section { LimitsCard(checks: risk.limits) }.listRowBackground(Color.clear)
+                    Section { StressCard(portfolio: risk.portfolio, results: risk.stress, betas: risk.betas) }.listRowBackground(Color.clear)
                 }
             }
         }
         .listStyle(.insetGrouped)
+        .onChange(of: dangerKey(risk?.dangers), initial: true) { _, _ in saveDangers(risk?.dangers) }
         .task(id: model.holdings.map(\.asset.id).joined(separator: ",")) { await load() }
         .refreshable { await load() }
     }
@@ -118,7 +156,41 @@ struct HoldingsView: View {
         .glassCard()
     }
 
-    private func lineView(_ line: PortfolioLine) -> some View {
+    /// Kept for the Radar only once the market data is read (the ids and reasons, not the prices, decide a change).
+    private func dangerKey(_ d: [Danger]?) -> String {
+        guard let d else { return model.holdings.isEmpty ? "empty" : "" }
+        return d.map { "\($0.id):\($0.reasons.map(\.code.rawValue).joined(separator: "+"))" }.joined(separator: ",")
+    }
+
+    private func saveDangers(_ d: [Danger]?) {
+        if model.holdings.isEmpty {
+            if model.dangers?.items.isEmpty == false { model.dangers = DangerState(at: Date().timeIntervalSince1970 * 1000, items: []) }
+        } else if let d {
+            model.dangers = DangerState(at: Date().timeIntervalSince1970 * 1000, items: d)
+        }
+    }
+
+    private func lineView(_ line: PortfolioLine, danger: Danger?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            lineRow(line)
+            if let danger {
+                VStack(alignment: .leading, spacing: 3) {
+                    Label("Position devenue dangereuse", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption.weight(.semibold)).foregroundStyle(Theme.sell)
+                    ForEach(danger.reasons, id: \.code) { r in
+                        Text("• \(r.text)").font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            if let stop = line.holding.stop {
+                Text(RiskText.userStop(stop, price: line.price)).font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func lineRow(_ line: PortfolioLine) -> some View {
         let h = line.holding
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
@@ -151,6 +223,25 @@ struct HoldingsView: View {
             self.error = error.localizedDescription
         }
         if let rows = await r { signals = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }) }
+        await loadDaily(client, assets: assets)
+    }
+
+    /// Daily candles of each held asset and of the benchmarks not held (a failed one is simply missing: beta 1 said).
+    private func loadDaily(_ client: AltimClient, assets: [Asset]) async {
+        var all = assets
+        for kind in Set(assets.map(\.kind)) {
+            let ref = RiskEngine.benchmark(kind).asset
+            if !all.contains(where: { $0.id == ref.id }) { all.append(ref) }
+        }
+        let fetched = await withTaskGroup(of: (String, [Candle]?).self) { group in
+            for a in all { group.addTask { (a.id, try? await client.candles(a, interval: "1d").candles) } }
+            var out: [String: [Candle]] = [:]
+            for await (id, c) in group { if let c, !c.isEmpty { out[id] = c } }
+            return out
+        }
+        guard !Task.isCancelled else { return }
+        daily = fetched
+        marketLoaded = !quotes.isEmpty || !fetched.isEmpty
     }
 }
 
@@ -173,6 +264,7 @@ struct HoldingForm: View {
     @State private var results: [SearchItem] = []
     @State private var quantity = ""
     @State private var average = ""
+    @State private var stopText = ""
     @State private var current: Double?
 
     var body: some View {
@@ -214,6 +306,11 @@ struct HoldingForm: View {
                 } footer: {
                     Text("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
                 }
+                Section {
+                    TextField("Mon stop en $ (facultatif)", text: $stopText).keyboardType(.decimalPad)
+                } footer: {
+                    Text("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
+                }
             }
             .scrollContentBackground(.hidden)
             .background(AppBackground())
@@ -230,6 +327,7 @@ struct HoldingForm: View {
                 asset = holding.asset
                 quantity = Format.quantity(holding.quantity)
                 average = holding.averagePrice.map { Format.quantity($0) } ?? ""
+                stopText = holding.stop.map { Format.quantity($0) } ?? ""
             }
         }
         .presentationDetents([.large])
@@ -243,16 +341,18 @@ struct HoldingForm: View {
 
     private var valid: Bool {
         guard asset != nil, let q = Self.number(quantity), q > 0 else { return false }
+        guard stopText.trimmingCharacters(in: .whitespaces).isEmpty || (Self.number(stopText) ?? -1) > 0 else { return false }
         return average.isEmpty || (Self.number(average) ?? -1) > 0
     }
 
     private func save() {
         guard let asset, let q = Self.number(quantity) else { return }
         let avg = average.isEmpty ? nil : Self.number(average)
+        let stop = stopText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Self.number(stopText)
         if let holding, let i = model.holdings.firstIndex(where: { $0.id == holding.id }) {
-            model.holdings[i] = Holding(id: holding.id, asset: asset, quantity: q, averagePrice: avg)
+            model.holdings[i] = Holding(id: holding.id, asset: asset, quantity: q, averagePrice: avg, stop: stop)
         } else {
-            model.holdings.append(Holding(asset: asset, quantity: q, averagePrice: avg))
+            model.holdings.append(Holding(asset: asset, quantity: q, averagePrice: avg, stop: stop))
         }
         dismiss()
     }

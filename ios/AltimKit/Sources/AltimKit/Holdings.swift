@@ -7,12 +7,22 @@ public struct Holding: Codable, Sendable, Identifiable, Hashable {
     public var quantity: Double
     /// Average purchase price in dollars (optional: without it, no gain / loss).
     public var averagePrice: Double?
+    /// Stop set by the user (USD), optional: "position devenue dangereuse" alerts. Absent from older saved lines.
+    public var stop: Double?
 
-    public init(id: UUID = UUID(), asset: Asset, quantity: Double, averagePrice: Double?) {
+    public init(id: UUID = UUID(), asset: Asset, quantity: Double, averagePrice: Double?, stop: Double? = nil) {
         self.id = id
         self.asset = asset
         self.quantity = quantity
         self.averagePrice = averagePrice
+        self.stop = stop.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+    }
+
+    /// The optional stop is dropped when it is not a positive number (the line itself stays), like the web.
+    public var cleaned: Holding {
+        var h = self
+        if let s = stop, !(s.isFinite && s > 0) { h.stop = nil }
+        return h
     }
 }
 

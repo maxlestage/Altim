@@ -201,6 +201,8 @@ public struct MacroInfo: Codable, Sendable {
     public var values: [String: Value]
     public var asOf: Double?
     public var evidence: Evidence?
+    /// Risk-on / risk-off / neutre (macro stress and the S&P 500 trend); absent from older servers.
+    public var regime: Decision.MarketRegime?
 
     public var levelLabel: String { ["tense": "Tendu", "high": "Très tendu"][level] ?? "Calme" }
     public var tone: Tone { level == "high" ? .bad : level == "tense" ? .warn : .good }

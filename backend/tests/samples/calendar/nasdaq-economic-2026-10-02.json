@@ -1,0 +1,67 @@
+{
+ "data": {
+  "asOf": "Mon, Sep 28, 2026",
+  "headers": {
+   "gmt": "Time",
+   "country": "Country",
+   "eventName": "Event",
+   "actual": "Actual",
+   "consensus": "Consensus",
+   "previous": "Previous",
+   "description": "Description"
+  },
+  "rows": [
+   {
+    "gmt": "04:00",
+    "country": "Euro Zone",
+    "eventName": "HCOB Eurozone Manufacturing PMI",
+    "actual": "&nbsp;",
+    "consensus": "52.7",
+    "previous": "52.7",
+    "description": "The Manufacturing Purchasing Managers&#039; Index (PMI) measures the activity level of purchasing managers in the manufacturing sector. A reading above 50 indicates expansion in the sector; below 50 indicates contraction. Traders watch these surveys closely as purchasing managers usually have early access to data about their company’s performance, which can be a leading indicator of overall economic performance.&lt;BR/&gt;&lt;BR/&gt;A higher than expected reading should be taken as positive/bullish for the EUR, while a lower than expected reading should be taken as negative/bearish for the EUR."
+   },
+   {
+    "gmt": "08:30",
+    "country": "United States",
+    "eventName": "Continuing Jobless Claims",
+    "actual": "&nbsp;",
+    "consensus": " ",
+    "previous": "1,719K",
+    "description": "Continuing Jobless Claims measures the number of unemployed individuals who qualify for benefits under unemployment insurance.&lt;BR/&gt;&lt;BR/&gt;A higher than expected reading should be taken as negative/bearish for the USD, while a lower than expected reading should be taken as positive/bullish for the USD."
+   },
+   {
+    "gmt": "08:30",
+    "country": "United States",
+    "eventName": "Initial Jobless Claims",
+    "actual": "&nbsp;",
+    "consensus": "199K",
+    "previous": "197K",
+    "description": "Initial Jobless Claims measures the number of individuals who filed for unemployment insurance for the first time during the past week. This is the earliest U.S. economic data, but the market impact varies from week to week.&lt;BR/&gt;&lt;BR/&gt;A higher than expected reading should be taken as negative/bearish for the USD, while a lower than expected reading should be taken as positive/bullish for the USD."
+   },
+   {
+    "gmt": "10:00",
+    "country": "United States",
+    "eventName": "Fed Waller Speaks",
+    "actual": "&nbsp;",
+    "consensus": " ",
+    "previous": "&nbsp;",
+    "description": ""
+   },
+   {
+    "gmt": "10:00",
+    "country": "United States",
+    "eventName": "ISM Manufacturing PMI",
+    "actual": "&nbsp;",
+    "consensus": "55.0",
+    "previous": "54.6",
+    "description": "The Institute of Supply Management (ISM) Manufacturing Purchasing Managers Index (PMI) Report on Business is based on data compiled from monthly replies to questions asked of purchasing and supply executives in over 400 industrial companies. For each of the indicators measured (New Orders, Backlog of Orders, New Export Orders, Imports, Production, Supplier Deliveries, Inventories, Customers Inventories, Employment, and Prices), this report shows the percentage reporting each response, the net difference between the number of responses in the positive economic direction and the negative economic direction and the diffusion index. Responses are raw data and are never changed. &lt;br/&gt;&lt;br/&gt;The diffusion index includes the percent of positive responses plus one-half of those responding the same (considered positive). The resulting single index number is then seasonally adjusted to allow for the effects of repetitive intra-year variations resulting primarily from normal differences in weather conditions, various institutional arrangements, and differences attributable to non-moveable holidays. All seasonal adjustment factors are supplied by the U.S. Department of Commerce and are subject annually to relatively minor changes when conditions warrant them. &lt;BR/&gt;&lt;BR/&gt;The PMI is a composite index based on the seasonally adjusted diffusion indices for five of the indicators with varying weights: New Orders --30% Production --25% Employment --20% Supplier Deliveries --15% and Inventories -- 10%. &lt;br/&gt;&lt;br/&gt;A higher than expected reading should be taken as positive/bullish for the USD, while a lower than expected reading should be taken as negative/bearish for the USD."
+   }
+  ]
+ },
+ "message": null,
+ "status": {
+  "rCode": 200,
+  "bCodeMessage": null,
+  "developerMessage": null
+ }
+}

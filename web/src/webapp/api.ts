@@ -2,7 +2,8 @@
 import type { Candle } from "../engine/signal";
 import type { Kind, QualityReport, Reliability } from "../engine/reliability";
 import type { Interval, WatchItem } from "./store";
-import { decisionUrl, parseDecision, type PersonalInput } from "./decision";
+import { decisionUrl, parseDecision, type MarketRegime, type PersonalInput, type ScoreWeights } from "./decision";
+import { calendarUrl, type CalendarReport } from "./calendar";
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -27,7 +28,7 @@ export type GuardReport = import("../engine/guard").GuardResult & {
   macro: MacroInfo | null;
 };
 
-export type MacroInfo = import("../engine/macro").MacroReport & { evidence?: import("../engine/guard").Evidence | null };
+export type MacroInfo = import("../engine/macro").MacroReport & { evidence?: import("../engine/guard").Evidence | null; regime?: MarketRegime | null };
 export type ZonesReport = {
   symbol: string; kind: Kind; price: number | null; asOf: number;
   zones: (import("../engine/fibonacci").FibZone & { macroNote: string | null })[];
@@ -123,7 +124,10 @@ export const api = {
   alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
   /** Decision for one asset; `personal` (average cost, portfolio weights) only for a held asset, never stored by the server. */
-  decision: (symbol: string, kind: Kind, personal?: PersonalInput | null) => get<unknown>(decisionUrl(symbol, kind, personal)).then(parseDecision),
+  decision: (symbol: string, kind: Kind, personal?: PersonalInput | null, scoreWeights?: ScoreWeights | null) =>
+    get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights)).then(parseDecision),
+  /** Agenda: economy, central banks, earnings, dividends, splits, IPOs; `symbols` limits the company events. */
+  calendar: (days: number, symbols: string[] | null) => get<CalendarReport>(calendarUrl(days, symbols)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

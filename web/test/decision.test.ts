@@ -4,8 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import btcRaw from "../../backend/tests/samples/decision-btc.json";
 import aaplRaw from "../../backend/tests/samples/decision-aapl.json";
 import {
-  averageCost, cacheDecision, cachedDecision, count, decisionUrl, exitText, familyTone, hashRate, longDate, NNBSP, num, parseDecision, pct,
-  portfolioWeights, recentVerdict, riskRewardText, sortVetoes, summaryFamilies, usd, usdCompact, weightsParam, type Decision,
+  averageCost, cacheDecision, cachedDecision, count, decisionUrl, DEFAULT_SCORE_WEIGHTS, exitText, familyTone, hashRate, longDate, NNBSP, num,
+  parseDecision, pct, portfolioWeights, recentVerdict, riskRewardText, sanitizeScoreWeights, scoreWeightsParam, signedScore, sortVetoes,
+  summaryFamilies, usd, usdCompact, weightsParam, type Decision, type Structure,
 } from "../src/webapp/decision";
 import { DecisionView } from "../src/webapp/DecisionCard";
 
@@ -147,5 +148,74 @@ describe("card render (static markup)", () => {
       expect(h).toContain(s);
     }
     expect(h).not.toContain("Pourquoi attendre ?");
+  });
+});
+
+describe("composite score weights", () => {
+  test("defaults are not sent; custom weights are, as whole numbers 0 – 100", () => {
+    expect(scoreWeightsParam(DEFAULT_SCORE_WEIGHTS)).toBeNull();
+    expect(scoreWeightsParam(null)).toBeNull();
+    const w = { ...DEFAULT_SCORE_WEIGHTS, tech: 50, macro: 0 };
+    expect(scoreWeightsParam(w)).toBe("tech:50,mom:18,fund:20,sent:10,news:10,macro:0");
+    expect(decisionUrl("BTC", "crypto", null, w)).toBe(`/api/decision?symbol=BTC&kind=crypto&w=${encodeURIComponent("tech:50,mom:18,fund:20,sent:10,news:10,macro:0")}`);
+    expect(decisionUrl("BTC", "crypto", null, DEFAULT_SCORE_WEIGHTS)).toBe("/api/decision?symbol=BTC&kind=crypto");
+  });
+  test("stored values are cleaned; all at 0 falls back on the defaults", () => {
+    expect(sanitizeScoreWeights({ tech: 140, mom: -3, fund: 12.6, sent: "x" })).toEqual({ tech: 100, mom: 0, fund: 13, sent: 10, news: 10, macro: 10 });
+    expect(sanitizeScoreWeights(undefined)).toEqual(DEFAULT_SCORE_WEIGHTS);
+    expect(sanitizeScoreWeights({ tech: 0, mom: 0, fund: 0, sent: 0, news: 0, macro: 0 })).toEqual(DEFAULT_SCORE_WEIGHTS);
+    expect(signedScore(34.4)).toBe("+34");
+    expect(signedScore(-12)).toBe("−12");
+  });
+});
+
+describe("rating, score, degraded signal and structure", () => {
+  const structure: Structure = {
+    timeframe: "Bougies journalières clôturées", score: 40,
+    ichimoku: { tenkan: 173, kijun: 164.5, senkouA: 142.75, senkouB: 125.5, futureA: 168.75, futureB: 150, position: "above", tkCross: null, tkCrossBars: null, bias: "bullish", reading: "Prix au-dessus du nuage Ichimoku, Tenkan au-dessus de la Kijun" },
+    supertrend: { direction: "up", level: 160, bars: 6, bias: "bullish", reading: "Supertrend haussier depuis 6 bougies (niveau 160,00 $)" },
+    donchian: null,
+    vwap: { value: 170, bars: 20, deviationPct: 2, bias: "bullish", reading: "Prix au-dessus du VWAP glissant sur 20 bougies" },
+    volumeProfile: { poc: 150, valueAreaHigh: 160, valueAreaLow: 140, bars: 120, bins: 24, bias: "bullish", reading: "Prix au-dessus de la zone de valeur", note: "Approximation à partir des bougies : …" },
+    pivots: { pivot: 170, r1: 175, r2: 180, s1: 165, s2: 160, from: 0, reading: "Prix entre le pivot et R1" },
+    levels: [{ price: 180, touches: 3, kind: "resistance", distancePct: 3.2 }], nearestSupport: null,
+    nearestResistance: { price: 180, touches: 3, kind: "resistance", distancePct: 3.2 }, levelsReading: "Résistance la plus proche 180,00 $ (3 contacts, +3,2 %)",
+    breakout: { kind: "fake", side: "up", level: 180, volumeRatio: 1.1, bias: "bearish", reading: "Fausse cassure : la résistance 180,00 $ a été dépassée puis le prix a refermé en dessous" },
+    marketStructure: null,
+    relative: [{ benchmark: "S&P 500 (SPY)", symbol: "SPY", periods: [{ label: "1 mois", days: 30, assetPct: 5, benchmarkPct: 2, diff: 3 }], correlation: 0.4, bias: "neutral", reading: "En ligne avec le S&P 500 (SPY)" }],
+    relativeNote: null,
+  };
+  const full = (): Decision => parseDecision({
+    ...clone(btcRaw),
+    rating: "strongBuy", ratingLabel: "ACHAT FORT",
+    score: {
+      value: 34, label: "Plutôt favorable", missing: ["Fondamentaux"], custom: false, text: "Score composite +34 sur 5 facteur(s) mesuré(s).",
+      factors: [
+        { key: "tech", label: "Technique", weight: 32, applied: 40, value: 20, contribution: 8, sources: ["trend", "structure"] },
+        { key: "fund", label: "Fondamentaux", weight: 20, applied: 0, value: null, contribution: null, sources: [] },
+      ],
+    },
+    degraded: { active: true, headline: "⚠️ Signal dégradé — Le modèle détecte des signaux contradictoires. Aucune entrée privilégiée actuellement.", reasons: ["Familles contradictoires"] },
+    marketRegime: { kind: "riskOn", label: "Risk-on", benchmark: "S&P 500", reasons: ["Stress macro 10/100 (calme)"] },
+    horizon: { kind: "swing", label: "Swing", atrDistance: 3.7, detail: "Plan sur bougies journalières, objectif 1 à 3,7 ATR de l'entrée : swing" },
+    plan: { ...clone(btcRaw).plan, target3: 123456, reward3Pct: 42, target3Source: "Niveau touché 3 fois au-dessus de l'objectif 2" },
+    structure,
+  });
+  test("added fields decode, and are checked when present", () => {
+    expect(full().rating).toBe("strongBuy");
+    expect(() => parseDecision({ ...clone(btcRaw), rating: "moon" })).toThrow("rating");
+    expect(() => parseDecision({ ...clone(btcRaw), structure: { levels: null } })).toThrow("structure");
+    // Older answers (no added field) still decode.
+    expect(btc().rating).toBeUndefined();
+  });
+  test("card: rating first, degraded banner, score bars, target 3, horizon, structure section", () => {
+    const h = renderToStaticMarkup(createElement(DecisionView, { d: full() }));
+    for (const s of ["ACHAT FORT", "Verdict du plan", "Signal dégradé", "Familles contradictoires", "Score composite", "+34", "non mesuré", "Objectif 3",
+      "123", "Swing", "Structure technique", "Ichimoku (9, 26, 52)", "Supertrend haussier depuis 6 bougies", "Canal de Donchian (20)",
+      "Non disponible : historique trop court", "Profil de volume (approximation)", "Approximation à partir des bougies", "Fausse cassure",
+      "Force relative contre S&amp;P 500 (SPY)", "Risk-on", "haussier"]) {
+      expect(h).toContain(s);
+    }
+    expect(h.indexOf("ACHAT FORT")).toBeLessThan(h.indexOf("Verdict du plan"));
   });
 });

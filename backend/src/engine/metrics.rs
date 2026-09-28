@@ -1,13 +1,41 @@
 //! Track record of the signal on one asset for `/api/decision`: the backtest of `backtest.rs` (unchanged, walk
 //! forward: the signal is computed on the closed candle i and executed at the open of i + 1), with a slippage
-//! assumption added on top of its fees, then the usual trade and risk statistics.
-use super::backtest::{BacktestResult, FEE_RATE, backtest_default};
+//! assumption added on top of its fees, a spread cost (half the bid/ask spread paid on each side: measured when the
+//! decision has it, else a stated default), then the usual trade and risk statistics, the expectancy, the R multiples
+//! and the results by market regime.
+use serde::{Deserialize, Serialize};
+
+use super::backtest::{BacktestResult, FEE_RATE, LOOKBACK, REWARD_RISK, RegimeStat, WARMUP, backtest_with_risk, regime_split, trade_stats};
 use super::decision_types::Track;
 use crate::js::fr;
 use crate::types::{Candle, Kind};
 
 /// Slippage assumed on each side of a trade, fraction (0.05 %).
 pub const SLIPPAGE: f64 = 0.0005;
+/// Bid/ask spread assumed without a measure (%, full spread): large cryptos 0.02 %, large-cap stocks 0.01 %.
+pub const SPREAD_CRYPTO: f64 = 0.02;
+pub const SPREAD_STOCK: f64 = 0.01;
+
+/// Extra fields of the track record (flattened into `Track`; absent from older answers: defaults).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TrackDetails {
+    /// Full bid/ask spread used (%): half of it is paid on the buy, half on the sell.
+    pub spread_pct: f64,
+    /// true: measured on the order book at the time of the decision; false: default assumption.
+    pub spread_measured: bool,
+    pub spread_note: String,
+    /// Average win × win rate − |average loss| × loss rate, % per trade, costs included.
+    pub expectancy: Option<f64>,
+    /// Average of (trade return ÷ initial risk to the stop).
+    pub avg_r: Option<f64>,
+    /// Results by market regime on the signal candle (bull, bear, range, crisis, and unknown when it has trades).
+    pub regimes: Vec<RegimeStat>,
+    /// Daily candles tested (after the warm-up).
+    pub tested_bars: usize,
+    /// How the test avoids flattering itself (French sentences).
+    pub bias_notes: Vec<String>,
+}
 
 fn round_to(x: f64, d: i32) -> f64 {
     let p = 10f64.powi(d);
@@ -24,23 +52,28 @@ fn month_year(ms: i64) -> String {
     }
 }
 
+/// "0,005 %" (three decimals at most).
+fn pct3(x: f64) -> String {
+    format!("{} %", fr(x, 0, 3))
+}
+
 fn pct_fr(x: f64) -> String {
     format!("{}{} %", if x < 0.0 { "−" } else { "" }, fr(x.abs(), 0, 1))
 }
 
-/// Trade return (%) once the slippage is paid on the buy and on the sell.
-fn with_slippage(return_percent: f64) -> f64 {
-    ((1.0 + return_percent / 100.0) * (1.0 - SLIPPAGE) / (1.0 + SLIPPAGE) - 1.0) * 100.0
+/// Trade return (%) once a cost `side` (fraction) is paid on the buy and on the sell.
+fn with_costs(return_percent: f64, side: f64) -> f64 {
+    ((1.0 + return_percent / 100.0) * (1.0 - side) / (1.0 + side) - 1.0) * 100.0
 }
 
-/// Equity curve with the slippage: every entry costs 1/(1 + s), every exit (1 − s), from the bar where it happens.
-fn adjusted_curve(r: &BacktestResult) -> Vec<f64> {
+/// Equity curve with the costs: every entry costs 1/(1 + s), every exit (1 − s), from the bar where it happens.
+fn adjusted_curve(r: &BacktestResult, side: f64) -> Vec<f64> {
     r.equity
         .iter()
         .map(|p| {
             let entries = r.trades.iter().filter(|t| t.entry_time <= p.time).count() as i32;
             let exits = r.trades.iter().filter(|t| t.exit_time <= p.time).count() as i32;
-            p.equity * (1.0 + SLIPPAGE).powi(-entries) * (1.0 - SLIPPAGE).powi(exits)
+            p.equity * (1.0 + side).powi(-entries) * (1.0 - side).powi(exits)
         })
         .collect()
 }
@@ -61,14 +94,23 @@ fn ratios(curve: &[f64], per_year: f64) -> (Option<f64>, Option<f64>) {
     (sharpe, sortino)
 }
 
-/// Track record on daily candles (oldest first). None when there are too few candles for the backtest (it needs
-/// its 60-candle warm-up plus at least one candle to test).
+/// Track record on daily candles (oldest first), with the default spread of the asset class. None when there are
+/// too few candles for the backtest (it needs its 60-candle warm-up plus at least one candle to test).
 pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
-    let r = backtest_default(candles_daily);
+    track_with_spread(candles_daily, kind, None)
+}
+
+/// Same, with the spread measured at the time of the decision (%, full spread) when there is one.
+pub fn track_with_spread(candles_daily: &[Candle], kind: Kind, measured_spread: Option<f64>) -> Option<Track> {
+    let (r, risks) = backtest_with_risk(candles_daily, FEE_RATE, LOOKBACK, REWARD_RISK, WARMUP);
     if r.equity.is_empty() {
         return None;
     }
-    let returns: Vec<f64> = r.trades.iter().map(|t| with_slippage(t.return_percent)).collect();
+    let measured = measured_spread.filter(|s| s.is_finite() && *s >= 0.0);
+    let spread = measured.unwrap_or(if kind == Kind::Crypto { SPREAD_CRYPTO } else { SPREAD_STOCK });
+    // Cost paid on each side: slippage + half the spread.
+    let side = SLIPPAGE + spread / 100.0 / 2.0;
+    let returns: Vec<f64> = r.trades.iter().map(|t| with_costs(t.return_percent, side)).collect();
     let wins: Vec<f64> = returns.iter().copied().filter(|x| *x > 0.0).collect();
     let losses: Vec<f64> = returns.iter().copied().filter(|x| *x <= 0.0).collect();
     let mean = |v: &[f64]| (!v.is_empty()).then(|| round_to(v.iter().sum::<f64>() / v.len() as f64, 2));
@@ -80,7 +122,7 @@ pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
         streak = if *x <= 0.0 { streak + 1 } else { 0 };
         losing_streak = losing_streak.max(streak);
     }
-    let curve = adjusted_curve(&r);
+    let curve = adjusted_curve(&r, side);
     let (sharpe, sortino) = ratios(&curve, if kind == Kind::Crypto { 365.0 } else { 252.0 });
     let mut peak = 0.0f64;
     let mut max_dd = 0.0f64;
@@ -96,7 +138,21 @@ pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
 
     let mut note =
         vec!["Chaque décision ne voit que les bougies déjà clôturées : signal calculé à la clôture, exécuté à l'ouverture suivante.".to_string()];
-    note.push(format!("Frais de {} et glissement de {} par ordre inclus.", pct_fr(FEE_RATE * 100.0), fr(SLIPPAGE * 100.0, 2, 2) + " %"));
+    let spread_note = if measured.is_some() {
+        format!("Écart achat/vente mesuré sur le carnet d'ordres : {} (moitié payée à l'achat, moitié à la vente).", pct3(spread))
+    } else {
+        format!(
+            "Hypothèse : écart achat/vente de {} ({}), faute de mesure ; moitié payée à l'achat, moitié à la vente.",
+            pct3(spread),
+            if kind == Kind::Crypto { "typique des grandes cryptos, plus large sur les petites" } else { "typique des grandes actions américaines" }
+        )
+    };
+    note.push(format!(
+        "Frais de {}, glissement de {} et demi-écart achat/vente de {} par ordre inclus.",
+        pct_fr(FEE_RATE * 100.0),
+        pct3(SLIPPAGE * 100.0),
+        pct3(spread / 2.0)
+    ));
     if n == 0 {
         note.push("Aucun signal d'achat complet sur la période : rien à mesurer.".into());
     } else {
@@ -115,6 +171,38 @@ pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
     }
     note.push("Le passé ne garantit pas l'avenir.".into());
 
+    let tested_bars = r.equity.len();
+    let stats = trade_stats(&returns, &risks);
+    let bias_notes = vec![
+        "Signal calculé sur la bougie journalière clôturée, exécuté à l'ouverture suivante : aucune donnée future.".to_string(),
+        format!(
+            "Coûts payés à chaque ordre : frais {}, glissement {}, demi-écart achat/vente {}.",
+            pct3(FEE_RATE * 100.0),
+            pct3(SLIPPAGE * 100.0),
+            pct3(spread / 2.0)
+        ),
+        "Paramètres fixes, ceux du signal en direct : aucune optimisation sur la période testée.".to_string(),
+        "Régime de marché lu sur la bougie du signal, avec les seules données connues ce jour-là.".to_string(),
+        format!(
+            "Échantillon : {n} trade{} sur {tested_bars} bougies journalières{}.",
+            if n > 1 { "s" } else { "" },
+            if n < 30 { " (moins de 30 : peu significatif)" } else { "" }
+        ),
+    ];
+    let details = TrackDetails {
+        spread_pct: round_to(spread, 4),
+        spread_measured: measured.is_some(),
+        spread_note,
+        expectancy: stats.expectancy.map(|x| round_to(x, 2)),
+        avg_r: stats.avg_r.map(|x| round_to(x, 2)),
+        regimes: regime_split(candles_daily, &r.trades, &returns)
+            .into_iter()
+            .map(|g| RegimeStat { win_rate: g.win_rate.map(|x| round_to(x, 1)), avg_return: g.avg_return.map(|x| round_to(x, 2)), ..g })
+            .collect(),
+        tested_bars,
+        bias_notes,
+    };
+
     Some(Track {
         period: format!("{} – {} (bougies journalières)", month_year(r.equity[0].time), month_year(r.equity[r.equity.len() - 1].time)),
         trades: n,
@@ -131,6 +219,7 @@ pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
         slippage_pct: round_to(SLIPPAGE * 100.0, 4),
         losing_streak,
         note: note.join(" "),
+        details,
     })
 }
 
@@ -141,7 +230,7 @@ mod tests {
     #[test]
     fn slippage_and_ratios_by_hand() {
         // 1.10 × 0.9995 / 1.0005 − 1
-        assert!((with_slippage(10.0) - 9.890_054_972_513_74).abs() < 1e-9);
+        assert!((with_costs(10.0, SLIPPAGE) - 9.890_054_972_513_74).abs() < 1e-9);
         // Daily returns alternately 0 % and +1 % (40 of them): mean 0.005, sample deviation 0.005 × √(40/39).
         let mut curve = vec![1.0];
         for i in 0..40 {

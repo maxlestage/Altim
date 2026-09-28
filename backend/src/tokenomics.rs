@@ -1,6 +1,7 @@
 //! Token and network figures for `/api/decision`: supply and valuation (CoinGecko), BTC dominance (CoinGecko,
 //! CoinPaprika when it is rate-limited), TVL and fees (DefiLlama, free endpoints only), perpetual funding and open
-//! interest (OKX, shared with the guard), Bitcoin activity (blockchain.com).
+//! interest (OKX, shared with the guard), Bitcoin activity (blockchain.com), developer activity (CoinGecko, else the
+//! project's GitHub repository), stablecoins in circulation (DefiLlama).
 //!
 //! Each figure is checked (positive, plausible, consistent with the others) and dropped otherwise: blockchain.com
 //! for instance has published a negative `total_fees_btc`. Token unlocks are only sold by paid sources: never given.
@@ -10,7 +11,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use crate::cache::cached;
-use crate::engine::decision_types::CryptoFundamentals;
+use crate::engine::decision_types::{CryptoFundamentals, DevActivity, StablecoinFlows};
 use crate::fundamentals::{num, round_to};
 use crate::http::{Error, Result, get_json_with};
 
@@ -18,6 +19,7 @@ const HOUR: i64 = 3_600_000;
 const TIMEOUT: Duration = Duration::from_secs(12);
 
 pub const UNLOCKS_PAID: &str = "Non vérifiable : les déblocages de jetons ne sont publiés que par des sources payantes";
+pub const NOT_COVERED: &str = "Non couverts, faute de source gratuite et vérifiable : déblocages de jetons (DefiLlama les réserve à son offre payante), activité des gros portefeuilles (« baleines ») et flux entrant ou sortant des plateformes d'échange (Glassnode, CryptoQuant, Nansen : payants), concentration des jetons par portefeuille, liquidations (données agrégées payantes), rendement du staking (aucune correspondance fiable entre l'actif et un pool de staking)";
 pub const UNLOCKS_BTC: &str = "Sans objet : le bitcoin n'a pas de déblocage de jetons (émission fixée par le protocole, 21 millions au plus)";
 
 async fn get(url: &str) -> Result<Value> {
@@ -175,6 +177,109 @@ pub mod parse {
         num(d.get("total30d")).filter(|v| *v >= 0.0)
     }
 
+    /// CoinGecko `/coins/{id}?developer_data=true`: `developer_data` (the public API stopped returning it,
+    /// checked 28/09/2026: read when present). None when every figure is missing.
+    pub fn developer(d: &Value) -> Option<DevActivity> {
+        let dev = d.get("developer_data")?;
+        let n = |k: &str| num(dev.get(k)).filter(|v| *v >= 0.0);
+        let ad = dev.get("code_additions_deletions_4_weeks");
+        let a = DevActivity {
+            repo: None,
+            commits4w: n("commit_count_4_weeks"),
+            pull_requests_merged: n("pull_requests_merged"),
+            contributors: n("pull_request_contributors"),
+            stars: n("stars"),
+            additions4w: num(ad.and_then(|x| x.get("additions"))).map(f64::abs),
+            deletions4w: num(ad.and_then(|x| x.get("deletions"))).map(f64::abs),
+            smart_contract_platform: smart_contract_platform(d),
+            source: "CoinGecko".into(),
+        };
+        (a.commits4w.is_some() || a.pull_requests_merged.is_some() || a.stars.is_some()).then_some(a)
+    }
+
+    /// CoinGecko classifies the coin as a smart-contract platform (`categories`).
+    pub fn smart_contract_platform(d: &Value) -> bool {
+        d.get("categories").and_then(Value::as_array).is_some_and(|c| c.iter().any(|x| x.as_str() == Some("Smart Contract Platform")))
+    }
+
+    /// The project's first GitHub repository declared at CoinGecko (`links.repos_url.github`) → "owner/name".
+    pub fn github_repo(d: &Value) -> Option<String> {
+        d.pointer("/links/repos_url/github")?.as_array()?.iter().filter_map(Value::as_str).find_map(|u| {
+            let path = u.trim().trim_end_matches('/').strip_prefix("https://github.com/")?;
+            let mut it = path.split('/');
+            let (owner, name) = (it.next()?, it.next()?);
+            let ok = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+            (ok(owner) && ok(name) && it.next().is_none()).then(|| format!("{owner}/{name}"))
+        })
+    }
+
+    /// GitHub `/repos/{repo}`: stars (None for an archived repository: no longer developed there).
+    pub fn github_stars(d: &Value) -> Option<f64> {
+        if d.get("archived").and_then(Value::as_bool) == Some(true) {
+            return None;
+        }
+        num(d.get("stargazers_count")).filter(|v| *v >= 0.0)
+    }
+
+    /// GitHub `/repos/{repo}/stats/commit_activity`: 52 weeks of commits, oldest first → the last 4 weeks (the
+    /// current one included).
+    pub fn github_commits4w(d: &Value) -> Option<f64> {
+        let weeks = d.as_array().filter(|a| a.len() >= 4)?;
+        weeks[weeks.len() - 4..].iter().map(|w| num(w.get("total"))).sum()
+    }
+
+    /// GitHub `/repos/{repo}/stats/code_frequency`: [week, additions, −deletions] per week → last 4 weeks' lines
+    /// added and deleted.
+    pub fn github_lines4w(d: &Value) -> Option<(f64, f64)> {
+        let weeks = d.as_array().filter(|a| a.len() >= 4)?;
+        let mut sum = (0.0, 0.0);
+        for w in &weeks[weeks.len() - 4..] {
+            let w = w.as_array().filter(|w| w.len() >= 3)?;
+            sum.0 += num(w.get(1))?.abs();
+            sum.1 += num(w.get(2))?.abs();
+        }
+        Some(sum)
+    }
+
+    /// GitHub `/search/issues?q=repo:{repo}+is:pr+is:merged`: `total_count`.
+    pub fn github_merged(d: &Value) -> Option<f64> {
+        if d.get("incomplete_results").and_then(Value::as_bool) == Some(true) {
+            return None;
+        }
+        num(d.get("total_count")).filter(|v| *v >= 0.0)
+    }
+
+    /// DefiLlama `stablecoincharts/{all|chain}`: daily {date (s), totalCirculatingUSD: {peggedUSD, peggedEUR…}}.
+    /// Total = sum of every peg's USD value; changes against the value 7 and 30 days before the last day.
+    pub fn stablecoins(d: &Value, scope: &str) -> Option<StablecoinFlows> {
+        let mut days: Vec<(i64, f64)> = d
+            .as_array()?
+            .iter()
+            .filter_map(|e| {
+                let t = num(e.get("date"))? as i64;
+                let total: f64 = e.get("totalCirculatingUSD")?.as_object()?.values().filter_map(|v| num(Some(v))).sum();
+                (total > 0.0).then_some((t, total))
+            })
+            .collect();
+        days.sort_by_key(|x| x.0);
+        let (last_t, last) = *days.last()?;
+        let change = |n: i64| {
+            let (_, before) = days.iter().find(|(t, _)| *t == last_t - n * 86_400)?;
+            Some((round_to(last - before, 0), round_to((last / before - 1.0) * 100.0, 2)))
+        };
+        let (w, m) = (change(7), change(30));
+        Some(StablecoinFlows {
+            scope: scope.to_string(),
+            date: last_t * 1000,
+            total: round_to(last, 0),
+            change7d: w.map(|x| x.0),
+            change7d_pct: w.map(|x| x.1),
+            change30d: m.map(|x| x.0),
+            change30d_pct: m.map(|x| x.1),
+            source: "DefiLlama (stablecoins)".into(),
+        })
+    }
+
     /// blockchain.com `/stats`: transactions per day and hash rate (H/s; the API gives GH/s). Implausible values
     /// are dropped.
     pub fn blockchain(d: &Value) -> (Option<f64>, Option<f64>) {
@@ -199,17 +304,98 @@ async fn gecko_id(symbol: &str) -> Option<String> {
     .and_then(|v| (*v).clone())
 }
 
-async fn coin(id: &str) -> Option<Coin> {
+/// What CoinGecko's coin page gives besides the market data: developer activity (when published), the main GitHub
+/// repository, whether it is a smart-contract platform.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct GeckoProject {
+    dev: Option<DevActivity>,
+    repo: Option<String>,
+    platform: bool,
+}
+
+/// One CoinGecko request for both (it limits requests hard).
+async fn gecko_coin(id: &str) -> Option<Arc<(Coin, GeckoProject)>> {
     let id = id.to_string();
     cached(&format!("gecko:coin:{id}"), 6 * HOUR, move || async move {
         let url = format!(
-            "https://api.coingecko.com/api/v3/coins/{id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=false&sparkline=false"
+            "https://api.coingecko.com/api/v3/coins/{id}?localization=false&tickers=false&market_data=true&community_data=false&developer_data=true&sparkline=false"
         );
-        Ok(parse::coin(&get(&url).await?))
+        let d = get(&url).await?;
+        let project = GeckoProject { dev: parse::developer(&d), repo: parse::github_repo(&d), platform: parse::smart_contract_platform(&d) };
+        Ok((parse::coin(&d), project))
     })
     .await
     .ok()
-    .map(|c| *c)
+}
+
+async fn github(path: &str) -> Result<Value> {
+    get_json_with(&format!("https://api.github.com/{path}"), &[("User-Agent", crate::guard::UA), ("Accept", "application/vnd.github+json")], TIMEOUT)
+        .await
+}
+
+/// Developer activity of a GitHub repository (public API, no key: 60 requests per hour, hence the day's cache).
+/// Each figure is optional: GitHub answers HTTP 202 while it computes the statistics (retried on the next request).
+async fn github_activity(repo: &str, platform: bool) -> Option<DevActivity> {
+    let r = repo.to_string();
+    cached(&format!("github:activity:{r}"), 24 * HOUR, move || async move {
+        let q = crate::guard::encode_uri_component(&format!("repo:{r} is:pr is:merged"));
+        let paths = [
+            format!("repos/{r}"),
+            format!("repos/{r}/stats/commit_activity"),
+            format!("repos/{r}/stats/code_frequency"),
+            format!("search/issues?q={q}&per_page=1"),
+        ];
+        let (meta, commits, lines, merged) = tokio::join!(github(&paths[0]), github(&paths[1]), github(&paths[2]), github(&paths[3]));
+        let lines = lines.ok().as_ref().and_then(parse::github_lines4w);
+        let a = DevActivity {
+            repo: Some(r.clone()),
+            commits4w: commits.ok().as_ref().and_then(parse::github_commits4w),
+            pull_requests_merged: merged.ok().as_ref().and_then(parse::github_merged),
+            contributors: None,
+            stars: meta.as_ref().ok().and_then(parse::github_stars),
+            additions4w: lines.map(|l| l.0),
+            deletions4w: lines.map(|l| l.1),
+            smart_contract_platform: platform,
+            source: format!("GitHub (dépôt {r})"),
+        };
+        // An archived or unreachable repository: nothing verifiable.
+        if meta.is_err() || (a.stars.is_none() && a.commits4w.is_none()) {
+            return Err(Error("GitHub indisponible".into()));
+        }
+        Ok(a)
+    })
+    .await
+    .ok()
+    .map(|a| (*a).clone())
+}
+
+/// CoinGecko's developer data, else the project's main GitHub repository.
+async fn dev_activity(project: Option<&GeckoProject>) -> Option<DevActivity> {
+    let p = project?;
+    if let Some(d) = &p.dev {
+        return Some(d.clone());
+    }
+    github_activity(p.repo.as_deref()?, p.platform).await
+}
+
+/// Stablecoins in circulation, all chains or one (`chain`: DefiLlama's chain name), cached 6 h (the full history is
+/// ≈ 1.3 MB: only the result is kept).
+async fn stablecoins(chain: Option<&str>) -> Option<StablecoinFlows> {
+    let path = chain.unwrap_or("all").to_string();
+    cached(&format!("llama:stablecoins:{path}"), 6 * HOUR, move || async move {
+        let url = format!("https://stablecoins.llama.fi/stablecoincharts/{}", crate::guard::encode_uri_component(&path));
+        let d = get_json_with(&url, &[("User-Agent", crate::guard::UA)], Duration::from_secs(30)).await?;
+        let scope = if path == "all" { "Tous réseaux" } else { path.as_str() };
+        parse::stablecoins(&d, scope).ok_or_else(|| Error("stablecoins illisibles".into()))
+    })
+    .await
+    .ok()
+    .map(|s| (*s).clone())
+}
+
+/// DefiLlama's name of the chain whose native coin is `gecko`.
+async fn chain_name(gecko: &str) -> Option<String> {
+    llama().await.ok()?.chains.iter().find(|c| c.0 == gecko).map(|c| c.1.clone())
 }
 
 /// CoinPaprika tickers (all coins, one call, cached 1 h): the fallback for market cap and supply.
@@ -343,7 +529,32 @@ pub fn assemble(
         hash_rate: if is_btc { network.1 } else { None },
         unlocks: if is_btc { UNLOCKS_BTC } else { UNLOCKS_PAID }.to_string(),
         source: sources.join(", "),
+        dev_activity: None,
+        stablecoins: None,
+        chain_stablecoins: None,
+        not_covered: NOT_COVERED.to_string(),
     }
+}
+
+/// Adds developer activity and stablecoin flows (market-wide, and the asset's chain) with their sources.
+pub fn with_onchain(
+    mut f: CryptoFundamentals,
+    dev: Option<DevActivity>,
+    all: Option<StablecoinFlows>,
+    chain: Option<StablecoinFlows>,
+) -> CryptoFundamentals {
+    let mut sources: Vec<String> = if f.source.is_empty() { vec![] } else { vec![f.source.clone()] };
+    if let Some(d) = &dev {
+        sources.push(format!("activité de développement : {}", d.source));
+    }
+    if all.is_some() || chain.is_some() {
+        sources.push("DefiLlama (stablecoins)".into());
+    }
+    f.source = sources.join(", ");
+    f.dev_activity = dev;
+    f.stablecoins = all;
+    f.chain_stablecoins = chain;
+    f
 }
 
 /// Fundamentals of a crypto. Each source is optional (CoinGecko's HTTP 429 only empties its fields); an error only
@@ -352,13 +563,24 @@ pub async fn crypto_fundamentals(symbol: &str) -> Result<CryptoFundamentals> {
     let base = symbol.trim().to_uppercase();
     let is_btc = base == "BTC";
     let gecko = gecko_id(&base).await;
-    let (coin, dom, llama, pos, network) = tokio::join!(
+    let (gecko_page, all_stable, chain) = tokio::join!(
         async {
-            let from_gecko = match &gecko {
-                Some(id) => coin(id).await.filter(|c| c.market_cap.is_some() || c.circulating.is_some()),
+            match &gecko {
+                Some(id) => gecko_coin(id).await,
                 None => None,
-            };
-            match from_gecko {
+            }
+        },
+        stablecoins(None),
+        async {
+            match &gecko {
+                Some(id) => chain_name(id).await,
+                None => None,
+            }
+        },
+    );
+    let (coin, dom, llama, pos, network, dev, chain_stable) = tokio::join!(
+        async {
+            match gecko_page.as_ref().map(|g| g.0).filter(|c| c.market_cap.is_some() || c.circulating.is_some()) {
                 Some(c) => Some(c),
                 None => paprika(&base).await,
             }
@@ -372,6 +594,13 @@ pub async fn crypto_fundamentals(symbol: &str) -> Result<CryptoFundamentals> {
         },
         crate::guard::positioning(&base),
         async { if is_btc { bitcoin_network().await } else { (None, None) } },
+        dev_activity(gecko_page.as_ref().map(|g| &g.1)),
+        async {
+            match &chain {
+                Some(c) => stablecoins(Some(c)).await,
+                None => None,
+            }
+        },
     );
     let funding = pos.as_ref().and_then(|p| p.funding_rate);
     let oi = pos.as_ref().and_then(|p| p.open_interest.last().copied());
@@ -379,5 +608,5 @@ pub async fn crypto_fundamentals(symbol: &str) -> Result<CryptoFundamentals> {
     if f.source.is_empty() {
         return Err(Error(format!("aucune source n'a répondu pour {base} (CoinGecko, DefiLlama, OKX)")));
     }
-    Ok(f)
+    Ok(with_onchain(f, dev, all_stable, chain_stable))
 }

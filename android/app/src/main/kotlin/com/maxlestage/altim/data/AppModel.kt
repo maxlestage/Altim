@@ -16,7 +16,14 @@ import com.maxlestage.altim.kit.JournalEntry
 import com.maxlestage.altim.kit.PriceTarget
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.BuyAlert
+import com.maxlestage.altim.kit.ConfigChanges
+import com.maxlestage.altim.kit.ConfigTransition
 import com.maxlestage.altim.kit.Credentials
+import com.maxlestage.altim.kit.Danger
+import com.maxlestage.altim.kit.Decision
+import com.maxlestage.altim.kit.PortfolioRisk
+import com.maxlestage.altim.kit.RiskSettings
+import com.maxlestage.altim.kit.ScoreWeights
 import com.maxlestage.altim.kit.FileResponseCache
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Horizon
@@ -64,7 +71,19 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     var watchlist by mutableStateOf(load(ListSerializer(Asset.serializer()), "watchlist") ?: Asset.defaults)
         private set
-    var holdings by mutableStateOf(load(ListSerializer(Holding.serializer()), "holdings") ?: emptyList())
+    var holdings by mutableStateOf(load(ListSerializer(Holding.serializer()), "holdings")?.map { it.cleaned() } ?: emptyList())
+        private set
+    /** Limits of Réglages → Prudence des conseils, checked in Mes avoirs (same defaults as the web app). */
+    var risk by mutableStateOf(load(RiskSettings.serializer(), "risk")?.sanitized() ?: RiskSettings.DEFAULT)
+        private set
+    /** Weights of the decision's composite score (Réglages → Score composite), sent only when not the defaults. */
+    var scoreWeights by mutableStateOf(ScoreWeights.parse(prefs.getString("scoreWeights", null)))
+        private set
+    /** Configuration changes of the decisions seen on this phone (validated when read back; damaged = empty). */
+    var configChanges by mutableStateOf(ConfigChanges.parse(prefs.getString(ConfigChanges.KEY, null)))
+        private set
+    /** Last "positions devenues dangereuses" measured on Mes avoirs, shown on the Radar with their time. */
+    var dangers by mutableStateOf(PortfolioRisk.parseDangers(prefs.getString("dangers.v1", null)))
         private set
     /** Budget in dollars for the Sélection tab (0 = not set). */
     var budget by mutableStateOf(prefs.getFloat("budget", 0f).toDouble())
@@ -145,6 +164,40 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     fun updateBudget(v: Double) {
         budget = v
         prefs.edit().putFloat("budget", v.toFloat()).apply()
+    }
+
+    fun updateScoreWeights(w: ScoreWeights) {
+        scoreWeights = w
+        save(ScoreWeights.serializer(), "scoreWeights", w)
+    }
+
+    fun updateRisk(r: RiskSettings) {
+        risk = r.sanitized()
+        save(RiskSettings.serializer(), "risk", risk)
+    }
+
+    /**
+     * Every decision received goes through the configuration diff (verdict or level changed since the last one seen
+     * for this asset and mode). A cached answer served offline is not a new sighting.
+     */
+    fun recordDecision(d: Decision, personal: Boolean = d.isPersonal, now: Double = System.currentTimeMillis().toDouble()): ConfigTransition? {
+        if (offlineSince != null) return null
+        val u = ConfigChanges.apply(configChanges, d, personal, now)
+        configChanges = u.state
+        prefs.edit().putString(ConfigChanges.KEY, ConfigChanges.encode(u.state)).apply()
+        return u.transition
+    }
+
+    fun clearTransitions() {
+        configChanges = configChanges.copy(transitions = emptyList())
+        prefs.edit().putString(ConfigChanges.KEY, ConfigChanges.encode(configChanges)).apply()
+    }
+
+    /** Kept for the Radar with the time they were measured (Mes avoirs, once its market data is loaded). */
+    fun saveDangers(items: List<Danger>, now: Double = System.currentTimeMillis().toDouble()) {
+        val state = PortfolioRisk.DangerState(1, now, items)
+        dangers = state
+        prefs.edit().putString("dangers.v1", PortfolioRisk.encodeDangers(items, now)).apply()
     }
 
     fun updateSelection(market: Kind = selectionMarket, horizon: Horizon = selectionHorizon) {
@@ -364,6 +417,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     fun updateHoldings(list: List<Holding>) {
         holdings = list
+        if (list.isEmpty()) saveDangers(emptyList())
         save(ListSerializer(Holding.serializer()), "holdings", list)
     }
 

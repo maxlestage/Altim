@@ -148,6 +148,12 @@ async fn decision_parameter_validation() {
         ("/api/decision?symbol=BTC&weights=BTC:crypto:60,ETH:crypto:60", "weights invalide"),
         ("/api/decision?symbol=BTC&weights=BTC:forex:10", "kind invalide"),
         ("/api/decision?symbol=BTC&weights=..%2Fx:crypto:10", "symbole invalide"),
+        ("/api/decision?symbol=BTC&w=tech", "w invalide"),
+        ("/api/decision?symbol=BTC&w=risk:10", "w invalide"),
+        ("/api/decision?symbol=BTC&w=tech:101", "w invalide"),
+        ("/api/decision?symbol=BTC&w=tech:2.5", "w invalide"),
+        ("/api/decision?symbol=BTC&w=tech:10,tech:20", "w invalide"),
+        ("/api/decision?symbol=BTC&w=tech:0,mom:0,fund:0,sent:0,news:0,macro:0", "w invalide"),
     ] {
         let (s, h, b) = get(path).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{path}");

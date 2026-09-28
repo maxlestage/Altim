@@ -8,6 +8,8 @@ struct NewsView: View {
     @State private var error: String?
     @AppStorage("news.filter") private var filter = "all"
     @AppStorage("news.frenchOnly") private var frenchOnly = false
+    /// "articles" or "agenda", remembered like the web's Actu sub-tab.
+    @AppStorage("news.view") private var view = "articles"
 
     private static let filters = [("all", "Tout"), ("actifs", "Mes actifs"), ("monde", "Monde"), ("marches", "Marchés"), ("crypto", "Crypto")]
 
@@ -22,7 +24,20 @@ struct NewsView: View {
     }
 
     var body: some View {
+        Group {
+            if view == "agenda" {
+                AgendaView(view: $view)
+            } else {
+                articles
+            }
+        }
+        .altimScreen()
+        .navigationTitle("Actualités")
+    }
+
+    private var articles: some View {
         List {
+            Section { NewsViewPicker(view: $view) }.listRowBackground(Color.clear)
             Section {
                 Text(report.map { r in "\(r.items.count) articles de \(r.sources.filter(\.ok).count) sources sur 48 h, mis à jour \(NewsItem.ago(r.asOf))." } ?? "Chargement des sources…")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
@@ -80,8 +95,6 @@ struct NewsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .altimScreen()
-        .navigationTitle("Actualités")
         .overlay { if report == nil && error == nil { ProgressView("Lecture d'une vingtaine de sources…") } }
         .refreshable { await load() }
         .task(id: assets.map(\.id).joined(separator: ",")) {
@@ -105,6 +118,19 @@ struct NewsView: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// "Articles / Agenda" at the top of the Actu tab.
+struct NewsViewPicker: View {
+    @Binding var view: String
+
+    var body: some View {
+        Picker("Vue", selection: $view) {
+            Text("Articles").tag("articles")
+            Text("Agenda").tag("agenda")
+        }
+        .pickerStyle(.segmented)
     }
 }
 
