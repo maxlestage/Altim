@@ -37,7 +37,7 @@ Ouvrez `https://www.heroku.com/deploy?template=https://github.com/maxlestage/alt
 
 Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
 
-Aucun buildpack à configurer : Heroku détecte une app Node.js et Bun est installé automatiquement comme dépendance npm.
+Aucun buildpack à configurer : Heroku construit l'image du `Dockerfile` (pile « container », voir `heroku.yml`) : l'application web est compilée avec Bun, le serveur avec Rust, et seule l'image finale (≈ 150 Mo) est lancée. Le workflow passe automatiquement une ancienne app Node.js sur la pile « container » ; avec l'intégration GitHub de Heroku (option C), faites-le une fois dans un terminal : `heroku stack:set container -a VOTRE-APP`.
 
 ### Source WSJ / MarketWatch (facultatif)
 

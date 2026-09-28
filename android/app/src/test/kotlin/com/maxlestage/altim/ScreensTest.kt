@@ -94,7 +94,7 @@ class ScreensTest {
         waitFor("Retracement 38,2 %", 90_000)
         waitFor("Tendance de fond", 90_000)
         waitFor("sources en accord", 90_000)
-        waitFor("Tout investi le", 90_000)
+        waitFor("investis le", 90_000)
         waitFor("Taille de position")
         waitFor("Mes notes · BTC")
         // No holding yet: the capital is typed, like a user would.

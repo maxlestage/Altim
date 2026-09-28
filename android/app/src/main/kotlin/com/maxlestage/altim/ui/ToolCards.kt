@@ -312,13 +312,13 @@ fun SaleCard(portfolio: Portfolio) {
 /** What the portfolio plus a monthly contribution would become, under three yearly returns (hypotheses). */
 @Composable
 fun ProjectionCard(start: Double) {
-    var monthlyText by rememberSaveable { mutableStateOf("200") }
+    var monthlyText by rememberSaveable { mutableStateOf("0") }
     var years by rememberSaveable { mutableIntStateOf(10) }
     val monthly = Format.parse(monthlyText) ?: 0.0
     val runs = Tools.PROJECTION_RATES.map { it to Tools.projection(start, monthly, years, it) }
     val paid = runs.first().second.last().paid
     Card(title = "Projection") {
-        NumberField("Versement chaque mois", monthlyText, "$", Modifier.fillMaxWidth()) { monthlyText = it }
+        NumberField("Versement chaque mois, facultatif", monthlyText, "$", Modifier.fillMaxWidth()) { monthlyText = it }
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(5, 10, 20).forEachIndexed { i, v ->
                 SegmentedButton(
@@ -329,7 +329,7 @@ fun ProjectionCard(start: Double) {
                 ) { Text("$v ans") }
             }
         }
-        KeyValue("Aujourd'hui ${usd0(start)} + versements", "${usd0(paid)} versés")
+        KeyValue(if (monthly > 0) "Aujourd'hui ${usd0(start)} + versements" else "Vos avoirs aujourd'hui, sans rien ajouter", usd0(paid) + if (monthly > 0) " versés" else "")
         runs.forEach { (rate, points) ->
             val end = points.last().value
             KeyValue("Si ${rate.roundToInt()} % par an", "${usd0(end)} (${if (end - paid >= 0) "+" else "−"}${usd0(abs(end - paid))})", if (end - paid > 0) Tone.GOOD else null)

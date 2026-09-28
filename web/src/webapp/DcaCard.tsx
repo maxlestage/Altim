@@ -9,18 +9,25 @@ const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits:
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const date = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
-/** "If I had invested 100 $ every month": regular purchases replayed on the real daily closes of the asset. */
+/** One purchase repeats nothing: its "next purchase" is far beyond any period. */
+const ONCE = 100_000;
+
+/**
+ * "If I had invested 1 000 $": one purchase by default (the user does not want to spend every month), regular
+ * purchases as an option, replayed on the real daily closes of the asset.
+ */
 export function DcaCard({ symbol, kind }: { symbol: string; kind: "crypto" | "stock" }) {
-  const [amountText, setAmountText] = useState("100");
-  const [every, setEvery] = useState<"7" | "30">("30");
-  const [period, setPeriod] = useState<"365" | "730">("365");
+  const [amountText, setAmountText] = useState("1000");
+  const [every, setEvery] = useState<"once" | "7" | "30">("once");
+  const [period, setPeriod] = useState<"182" | "365" | "730">("365");
+  const once = every === "once";
   const [closes, setCloses] = useState<Close[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     setCloses(null);
-    api.history([{ symbol, kind }], Number(period) as 365 | 730)
+    api.history([{ symbol, kind }], period === "730" ? 730 : 365)
       .then((r) => alive && (setCloses(r.series.find((s) => s.symbol === symbol && s.kind === kind)?.closes ?? []), setError(null)))
       .catch((e) => alive && setError(e instanceof Error ? e.message : "Historique indisponible"));
     return () => {
@@ -29,32 +36,34 @@ export function DcaCard({ symbol, kind }: { symbol: string; kind: "crypto" | "st
   }, [symbol, kind, period]);
 
   const amount = Number(amountText.replace(/\s/g, "").replace(",", "."));
-  const r = useMemo(() => (closes && amount > 0 ? simulateDca(closes, amount, Number(every), Number(period)) : null), [closes, amount, every, period]);
+  const r = useMemo(() => (closes && amount > 0 ? simulateDca(closes, amount, once ? ONCE : Number(every), Number(period)) : null), [closes, amount, every, period]);
 
   return (
     <div className="card dca-card">
-      <h2 className="card-title">Si j'avais investi régulièrement</h2>
+      <h2 className="card-title">Si j'avais investi</h2>
       <label className="field">
-        <span>Montant par achat ($)</span>
+        <span>{once ? "Montant investi ($)" : "Montant par achat ($)"}</span>
         <input inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
       </label>
-      <Segmented label="Fréquence" value={every} options={[["7", "Chaque semaine"], ["30", "Chaque mois"]]} onChange={setEvery} />
-      <Segmented label="Depuis" value={period} options={[["365", "1 an"], ["730", "2 ans"]]} onChange={setPeriod} />
+      <Segmented label="Achat" value={every} options={[["once", "Une fois"], ["7", "Chaque semaine"], ["30", "Chaque mois"]]} onChange={setEvery} />
+      <Segmented label="Depuis" value={period} options={[["182", "6 mois"], ["365", "1 an"], ["730", "2 ans"]]} onChange={setPeriod} />
       {error && <p className="notice warn">⚠ {error}</p>}
       {!closes && !error && <p className="muted small">Chargement de l'historique…</p>}
       {closes && !r && <p className="muted small">{amount > 0 ? `Pas assez d'historique pour ${symbol} sur cette période.` : "Indiquez un montant."}</p>}
       {r && (
         <>
           <p className="kv">
-            <span>{r.buys} achats · {usd(r.invested)} investis</span>
+            <span>{once ? `${usd(r.invested)} investis le ${date(r.first)}` : `${r.buys} achats · ${usd(r.invested)} investis`}</span>
             <b className={r.gain >= 0 ? "up" : "down"}>{usd(r.value)} ({pct(r.gain)})</b>
           </p>
           <DcaChart r={r} />
-          <p className="kv small"><span>Tout investi le {date(r.first)}</span><b className={r.lumpSum.gain >= 0 ? "up" : "down"}>{usd(r.lumpSum.value)} ({pct(r.lumpSum.gain)})</b></p>
-          <p className="kv small"><span>Prix moyen payé</span><b>{formatPrice(r.averagePrice)} $</b></p>
+          {!once && <p className="kv small"><span>Tout investi le {date(r.first)}</span><b className={r.lumpSum.gain >= 0 ? "up" : "down"}>{usd(r.lumpSum.value)} ({pct(r.lumpSum.gain)})</b></p>}
+          <p className="kv small"><span>{once ? "Prix d'achat" : "Prix moyen payé"}</span><b>{formatPrice(r.averagePrice)} $</b></p>
           <p className="kv small"><span>Prix à la dernière clôture</span><b>{formatPrice(r.lastPrice)} $</b></p>
           <p className="muted small">
-            {r.lumpSum.gain > r.gain
+            {once
+              ? "Un seul achat, à la clôture de ce jour-là."
+              : r.lumpSum.gain > r.gain
               ? "Sur cette période, tout acheter le premier jour a mieux rendu : le prix a surtout monté."
               : r.lumpSum.gain < r.gain
                 ? "Sur cette période, étaler les achats a mieux rendu : ils ont profité des baisses."
