@@ -22,7 +22,7 @@ struct SettingsView: View {
                             Task { denied = !(await BuyNotifications.enable(model)) }
                         } else {
                             model.alertsEnabled = false
-                            BuyNotifications.schedule(enabled: false)
+                            BuyNotifications.schedule(enabled: model.needsChecks)
                         }
                     }
                 ))

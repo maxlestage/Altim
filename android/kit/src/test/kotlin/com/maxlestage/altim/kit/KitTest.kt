@@ -85,16 +85,27 @@ class AlertTest {
     @Test fun trackerNotifiesOnlyOnChange() {
         fun a(s: String, buy: Boolean, strong: Boolean = false, key: String) = BuyAlert(s, Kind.CRYPTO, buy = buy, strong = strong, key = key)
         var t = AlertTracker()
+        var clock = 0L
         fun step(items: List<BuyAlert>, onlyStrong: Boolean = false): List<String> {
-            val (next, out) = t.newAlerts(items, onlyStrong)
+            val (next, out) = t.newAlerts(items, onlyStrong, clock)
             t = next
             return out.map { it.symbol }
         }
         assertEquals(listOf("BTC"), step(listOf(a("BTC", true, key = "signal"), a("ETH", false, key = ""))))
         assertEquals(emptyList(), step(listOf(a("BTC", true, key = "signal"))), "same situation: no repeat")
-        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, true, "signal+zone:medium"))), "the zone is reached")
+        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, true, "signal+zone:medium"))), "the zone is reached: new reason")
+        assertEquals(emptyList(), step(listOf(a("BTC", true, key = "zone:medium"))), "a reason already notified")
+        // The price flickers at the edge of the zone: no notification storm.
+        clock += 60_000
         assertEquals(emptyList(), step(listOf(a("BTC", false, key = ""))))
-        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, key = "signal"))), "buyable again after a pause")
+        clock += 60_000
+        assertEquals(emptyList(), step(listOf(a("BTC", true, key = "signal"))), "back within minutes: already notified")
+        // Really gone for more than 6 hours, then buyable again: a new opportunity.
+        clock += 60_000
+        step(listOf(a("BTC", false, key = "")))
+        clock += AlertTracker.COOLDOWN_MS + 1
+        step(listOf(a("BTC", false, key = "")))
+        assertEquals(listOf("BTC"), step(listOf(a("BTC", true, key = "signal"))), "buyable again after a real pause")
         t = AlertTracker()
         assertEquals(emptyList(), step(listOf(a("SOL", true, key = "signal")), onlyStrong = true))
         assertEquals(listOf("SOL"), step(listOf(a("SOL", true, true, "signal+zone:long")), onlyStrong = true))

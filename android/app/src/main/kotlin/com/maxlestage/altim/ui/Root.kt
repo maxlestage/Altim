@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
@@ -91,6 +92,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     RADAR("Radar", Icons.Filled.Radar),
     SELECTION("Sélection", Icons.AutoMirrored.Filled.List),
     HOLDINGS("Mes avoirs", Icons.Filled.Work),
+    ALERTS("Alertes", Icons.Filled.NotificationsActive),
     SETTINGS("Réglages", Icons.Filled.Settings),
 }
 
@@ -142,6 +144,7 @@ fun MainTabs(model: AppModel) {
             Tab.RADAR -> RadarScreen(model, m, open)
             Tab.SELECTION -> SelectionScreen(model, m, open)
             Tab.HOLDINGS -> HoldingsScreen(model, m, open)
+            Tab.ALERTS -> AlertsScreen(model, m, open)
             Tab.SETTINGS -> SettingsScreen(model, m)
             }
         }

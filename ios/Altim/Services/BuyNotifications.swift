@@ -17,7 +17,7 @@ enum BuyNotifications {
             guard let refresh = task as? BGAppRefreshTask else { return task.setTaskCompleted(success: false) }
             let work = Task { @MainActor in
                 let ok = await run(model())
-                schedule(enabled: model().alertsEnabled)
+                schedule(enabled: model().needsChecks)
                 refresh.setTaskCompleted(success: ok)
             }
             refresh.expirationHandler = { work.cancel() }
@@ -32,34 +32,43 @@ enum BuyNotifications {
         try? BGTaskScheduler.shared.submit(request)
     }
 
+    /// Permission for a price alert (the buy alerts may stay off).
+    static func authorize() async -> Bool {
+        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge])) ?? false
+    }
+
     /// Asks the permission (first time only) and turns the checks on.
     static func enable(_ model: AppModel) async -> Bool {
         let center = UNUserNotificationCenter.current()
         let granted = (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
         model.alertsEnabled = granted
-        schedule(enabled: granted)
+        schedule(enabled: model.needsChecks)
         if granted { await run(model) }
         return granted
     }
 
     /// App in the foreground: a check at most every 15 minutes.
     static func foregroundCheck(_ model: AppModel) async {
-        guard model.alertsEnabled else { return }
+        guard model.needsChecks else { return }
         if let last = lastForegroundCheck, Date().timeIntervalSince(last) < 15 * 60 { return }
         lastForegroundCheck = Date()
         await run(model)
-        schedule(enabled: true)
+        schedule(enabled: model.needsChecks)
     }
 
     /// One check: new alerts notified, the Watch and the Live Activity refreshed. False on failure (network…).
     @discardableResult
     static func run(_ model: AppModel) async -> Bool {
-        guard model.alertsEnabled || WatchBridge.shared.isPaired else { return true }
+        guard model.needsChecks || WatchBridge.shared.isPaired else { return true }
         do {
-            guard let fresh = try await model.checkAlerts() else { return false }
+            guard let result = try await model.checkAlerts() else { return false }
             WatchBridge.shared.send(model.lastAlerts, checked: model.lastAlertCheck)
             LiveActivities.shared.refresh(with: model.lastAlerts)
-            if model.alertsEnabled { await post(fresh) }
+            if model.alertsEnabled { await post(result.buy) }
+            for (t, price) in result.targets {
+                await add(id: "altim.target.\(t.id)", title: "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Format.price(t.price))",
+                          body: "Prix actuel \(Format.price(price)) : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.", asset: t.asset.id)
+            }
             return true
         } catch {
             return false

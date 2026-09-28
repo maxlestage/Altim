@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -52,7 +53,11 @@ class ScreensTest {
         val server = System.getenv("ALTIM_SERVER")
         assumeTrue("ALTIM_SERVER absent : test des écrans ignoré", server != null)
         val store = MemoryStore()
-        val model = AppModel(ApplicationProvider.getApplicationContext(), store)
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        // The user accepted the notifications (Android 13+ asks once); the background checks use a test WorkManager.
+        org.robolectric.Shadows.shadowOf(app).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        androidx.work.testing.WorkManagerTestInitHelper.initializeTestWorkManager(app)
+        val model = AppModel(app, store)
         model.updateBiometricLock(false)
         compose.setContent { AltimTheme { Root(model) } }
 
@@ -116,9 +121,34 @@ class ScreensTest {
         check(model.holdings.single().quantity == 0.5)
         shot("6-avoirs")
 
-        // 7. Settings.
+        // 7. Price alert from the Bitcoin page, then the Alerts tab.
+        compose.onAllNodes(hasText("Radar")).onFirst().performClick()
+        compose.onAllNodes(hasText("Bitcoin")).onFirst().performClick()
+        waitFor("Retracement 38,2 %", 90_000)
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Alerte de prix")).performClick()
+        waitFor("Alerte de prix · BTC")
+        compose.onNode(hasText("Passe au-dessus")).performClick()
+        val field = compose.onAllNodes(hasSetTextAction()).onFirst()
+        field.performTextClearance()
+        field.performTextInput("1000000")
+        compose.onNode(hasText("Créer l'alerte")).performClick()
+        check(model.priceTargets.single().above && model.priceTargets.single().price == 1_000_000.0)
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Retour")).performClick()
+        compose.onAllNodes(hasText("Alertes")).onFirst().performClick()
+        waitFor("Achetables maintenant")
+        waitFor("au-dessus de 1", 30_000)
+        compose.waitUntil(90_000) {
+            compose.onAllNodes(hasText("ACHAT POSSIBLE", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodes(hasText("ACHAT CONSEILLÉ", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodes(hasText("Rien d'achetable", substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        waitFor("Prix actuel", 30_000)
+        compose.waitForIdle()
+        shot("7-alertes")
+
+        // 8. Settings.
         compose.onAllNodes(hasText("Réglages")).onFirst().performClick()
         waitFor("Se déconnecter")
-        shot("7-reglages")
+        shot("8-reglages")
     }
 }
