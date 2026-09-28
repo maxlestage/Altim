@@ -2,6 +2,7 @@ package com.maxlestage.altim.data
 
 import android.content.Context
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.maxlestage.altim.BuildConfig
@@ -22,6 +23,17 @@ import com.maxlestage.altim.kit.Horizon
 import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.kit.NewsAlertTracker
 import com.maxlestage.altim.kit.NewsItem
+import com.maxlestage.altim.kit.OpenOrder
+import com.maxlestage.altim.kit.Paper
+import com.maxlestage.altim.kit.PaperResult
+import com.maxlestage.altim.kit.PaperState
+import com.maxlestage.altim.kit.PaperTrade
+import com.maxlestage.altim.kit.checkExits
+import com.maxlestage.altim.kit.closePosition
+import com.maxlestage.altim.kit.decodePaper
+import com.maxlestage.altim.kit.encodePaper
+import com.maxlestage.altim.kit.newPaper
+import com.maxlestage.altim.kit.openPosition
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -79,6 +91,18 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     var priceTargets by mutableStateOf(load(ListSerializer(PriceTarget.serializer()), "priceTargets") ?: emptyList())
         private set
     var journal by mutableStateOf(load(ListSerializer(JournalEntry.serializer()), "journal") ?: emptyList())
+        private set
+
+    /**
+     * Simulation (paper trading): virtual portfolio, no real money, no order placed. Stored on this phone like the
+     * holdings; a damaged saved state is ignored (a fresh 10 000 $ simulation starts instead).
+     */
+    var paper by mutableStateOf(decodePaper(prefs.getString("paper", null)) ?: newPaper(Paper.DEFAULT_CAPITAL, System.currentTimeMillis().toDouble()))
+        private set
+    /** Positions just closed by their stop or target (shown once in the Simulation part). */
+    var paperJustClosed by mutableStateOf<List<PaperTrade>>(emptyList())
+    /** Incremented each time the app comes back to the foreground (the Simulation part checks its exits again). */
+    var resumeCount by mutableIntStateOf(0)
         private set
 
     /** Asset to open, from a tapped notification. */
@@ -317,6 +341,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     }
 
     fun willEnterForeground() {
+        resumeCount++
         val t = lastBackground
         lastBackground = null
         if (phase == Phase.READY && biometricLock && t != null && System.currentTimeMillis() - t > 120_000) phase = Phase.LOCKED
@@ -340,6 +365,58 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     fun updateHoldings(list: List<Holding>) {
         holdings = list
         save(ListSerializer(Holding.serializer()), "holdings", list)
+    }
+
+    // ---------- Simulation (paper trading) ----------
+
+    private fun storePaper(s: PaperState) {
+        paper = s
+        prefs.edit().putString("paper", encodePaper(s)).apply()
+    }
+
+    /** Simulated purchase (nothing is sent anywhere): the engine's French error when refused. */
+    fun paperBuy(order: OpenOrder): String? {
+        val r: PaperResult = openPosition(paper, order, System.currentTimeMillis().toDouble())
+        if (r.error == null) storePaper(r.state)
+        return r.error
+    }
+
+    fun paperSell(id: String, price: Double): String? {
+        val r = closePosition(paper, id, price, System.currentTimeMillis().toDouble())
+        if (r.error == null) storePaper(r.state)
+        return r.error
+    }
+
+    fun paperReset(capital: Double) {
+        paperJustClosed = emptyList()
+        storePaper(newPaper(capital, System.currentTimeMillis().toDouble()))
+    }
+
+    /**
+     * Automatic exits: daily candles of the open positions that have a stop or a target, then the engine's rule
+     * (day after the purchase, stop first, gap at the open). An asset whose candles fail is simply checked next time.
+     */
+    suspend fun checkPaperExits(): List<PaperTrade> {
+        val c = client ?: return emptyList()
+        val watched = paper.positions.filter { it.stop != null || it.target != null }.map { it.asset }.distinctBy { it.id }
+        if (watched.isEmpty()) return emptyList()
+        val candles = watched.mapNotNull { a ->
+            try {
+                a.id to c.candles(a, "1d").candles
+            } catch (e: AltimException.Unauthorized) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+        }.toMap()
+        persistSession()
+        // The state may have changed during the calls (a manual sale): the rule runs on the current one.
+        val r = checkExits(paper, candles)
+        if (r.closed.isNotEmpty()) {
+            storePaper(r.state)
+            paperJustClosed = paperJustClosed + r.closed
+        }
+        return r.closed
     }
 
     private fun <T> save(serializer: kotlinx.serialization.KSerializer<T>, key: String, value: T) {
