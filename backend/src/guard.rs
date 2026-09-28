@@ -342,7 +342,7 @@ pub fn build_report(
         guard(&GuardInput { kind, daily, h4, h1, positioning: pos, sentiment: Some(sent), news: Some(items), vix: Some(v), macro_ctx: mac, now });
     let day: Vec<&NewsItem> = items.iter().filter(|n| n.time >= now - 86_400_000 && n.time <= now).collect();
     let mut headlines: Vec<NewsItem> = day.iter().map(|n| (*n).clone()).collect();
-    headlines.sort_by(|a, b| b.time.cmp(&a.time));
+    headlines.sort_by_key(|a| std::cmp::Reverse(a.time));
     headlines.truncate(5);
     GuardReport {
         result,

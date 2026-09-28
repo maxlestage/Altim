@@ -548,7 +548,7 @@ pub fn aggregate(feeds: &[FeedItems], assets: &[WatchAsset], now: i64, max_age_m
             }
         })
         .collect();
-    items.sort_by(|a, b| b.time.cmp(&a.time));
+    items.sort_by_key(|a| std::cmp::Reverse(a.time));
     let mut count = [0usize; 4];
     items.retain(|i| {
         let c = &mut count[i.category as usize];
@@ -596,7 +596,7 @@ pub fn news_digest(items: &[NewsItem], now: i64) -> NewsDigest {
         .map(|(t, label)| DigestTheme { theme: *t, label: (*label).into(), count: day.iter().filter(|i| i.themes.contains(t)).count() })
         .filter(|t| t.count > 0)
         .collect();
-    themes.sort_by(|a, b| b.count.cmp(&a.count));
+    themes.sort_by_key(|a| std::cmp::Reverse(a.count));
     let tone_count = |t: NewsTone| day.iter().filter(|i| i.tone == t).count();
     NewsDigest {
         total: day.len(),

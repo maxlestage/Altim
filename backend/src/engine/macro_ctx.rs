@@ -408,7 +408,7 @@ pub fn headline_themes(items: &[NewsItem], now: i64) -> HeadlineThemes {
         })
         .filter(|t| t.count > 0)
         .collect();
-    themes.sort_by(|a, b| b.count.cmp(&a.count));
+    themes.sort_by_key(|a| std::cmp::Reverse(a.count));
     let last12: Vec<&&NewsItem> = recent.iter().filter(|n| n.time >= now - 12 * 3_600_000 && !QUESTION.is_match(&n.title)).collect();
     let found: Vec<&str> = ESCALATION.iter().filter(|(r, _)| last12.iter().any(|n| r.is_match(&n.title))).map(|(_, t)| *t).collect();
     let factors = if found.is_empty() {
