@@ -3,4 +3,5 @@ pub mod cache;
 pub mod engine;
 pub mod http;
 pub mod js;
+pub mod news;
 pub mod types;

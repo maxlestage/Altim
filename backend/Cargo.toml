@@ -17,6 +17,7 @@ chrono-tz = "0.10.4"
 futures = "0.3.34"
 hex = "0.4.3"
 hmac = "0.13.0"
+icu_normalizer = "2.3.0"
 indexmap = { version = "2", features = ["serde"] }
 percent-encoding = "2.3.2"
 rand = "0.10.3"
@@ -33,6 +34,7 @@ tower = "0.5.3"
 tower-http = { version = "0.7.1", features = ["fs", "compression-full", "set-header", "timeout"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+url = "2.5.8"
 
 [profile.release]
 lto = "thin"
