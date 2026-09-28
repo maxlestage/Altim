@@ -46,6 +46,9 @@ object Format {
 
     fun plain(v: Double, digits: Int = 2): String = number(v, 0, digits)
 
+    /** Exactly [digits] decimals: 12,30 (French, narrow no-break space between thousands). */
+    fun fixed(v: Double, digits: Int): String = number(v, digits, digits)
+
     /** Quantity of units: up to 8 decimals for cryptos, no trailing zeros. */
     fun quantity(v: Double): String = number(v, 0, 8)
 

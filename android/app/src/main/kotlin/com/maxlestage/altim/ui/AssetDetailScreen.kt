@@ -47,6 +47,7 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Candle
+import com.maxlestage.altim.kit.ConfigChanges
 import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.kit.FibZone
 import com.maxlestage.altim.kit.Format
@@ -151,7 +152,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 PriceTargetCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
             }
             Header(model, asset, signal, zones.value)
-            DecisionCard(decision, held, onSimulate = { simulateOpen = true }) { decisionReload++ }
+            DecisionCard(decision, held, change = decision.value?.let { ConfigChanges.latestChange(model.configChanges.transitions, it) }, onSimulate = { simulateOpen = true }) { decisionReload++ }
             simulated?.let { Notice(it, Tone.GOOD) }
             Card {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
@@ -202,6 +203,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 is Loadable.Failed -> Card(title = "Garde-fou marché") { ErrorBox(g.message) { reload++ } }
                 is Loadable.Loaded -> GuardCard(g.value)
             }
+            WhyCard(model, asset)
             (guard.value?.macro ?: zones.value?.macro)?.let { MacroCard(it) }
             guard.value?.inputs?.headlines?.takeIf { it.isNotEmpty() }?.let { news ->
                 Card(title = "Actualités (24 h)") {
@@ -216,6 +218,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             NoteCard(asset)
             PositionCard(model, asset, model.live.price(asset)?.price ?: zones.value?.price ?: signal?.price, zones.value?.zones.orEmpty())
             DcaCard(model, asset)
+            StrategiesCard(model, asset)
             Caption("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
         }
     }

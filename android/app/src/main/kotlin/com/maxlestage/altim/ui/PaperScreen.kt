@@ -457,13 +457,14 @@ fun SimulateSheet(model: AppModel, asset: Asset, decision: Decision, price: Doub
     var stop by remember { mutableStateOf(decision.plan?.stop?.let { Format.plain(it, 8) } ?: "") }
     var target by remember { mutableStateOf(decision.plan?.target1?.let { Format.plain(it, 8) } ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
+    var note by remember { mutableStateOf("") }
     val against = decision.verdict != Verdict.BUY && decision.verdict != Verdict.BUY_ZONE
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = AltimColors.surface) {
         SimulateForm(
             asset = asset, decision = decision, price = price, cash = paper.cash, against = against,
-            amount = amount, stop = stop, target = target, error = error,
-            onAmount = { amount = it }, onStop = { stop = it }, onTarget = { target = it }, onCancel = onDismiss,
+            amount = amount, stop = stop, target = target, error = error, note = note,
+            onAmount = { amount = it }, onStop = { stop = it }, onTarget = { target = it }, onNote = { note = it.take(1000) }, onCancel = onDismiss,
         ) {
             val a = Format.parse(amount)
             val s = if (stop.isBlank()) null else Format.parse(stop)
@@ -474,10 +475,10 @@ fun SimulateSheet(model: AppModel, asset: Asset, decision: Decision, price: Doub
                 target.isNotBlank() && t == null -> "Objectif invalide."
                 else -> {
                     val snapshot = PaperDecision(decision.verdict.serialName, decision.verdictLabel, decision.confidence, decision.asOf)
-                    model.paperBuy(OpenOrder(UUID.randomUUID().toString(), asset.symbol, asset.kind, asset.name, price ?: Double.NaN, a, s, t, snapshot))
+                    model.paperBuy(OpenOrder(UUID.randomUUID().toString(), asset.symbol, asset.kind, asset.name, price ?: Double.NaN, a, s, t, snapshot), decision, note)
                 }
             }
-            if (error == null) onDone("Achat simulé de ${usd(a)} de ${asset.symbol} enregistré : Mes avoirs → Simulation.")
+            if (error == null) onDone("Achat simulé de ${usd(a)} de ${asset.symbol} enregistré : Mes avoirs → Simulation. Inscrit au journal.")
         }
     }
 }
@@ -497,6 +498,8 @@ fun SimulateForm(
     onAmount: (String) -> Unit,
     onStop: (String) -> Unit,
     onTarget: (String) -> Unit,
+    note: String = "",
+    onNote: (String) -> Unit = {},
     onCancel: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -526,6 +529,7 @@ fun SimulateForm(
         val t = Format.parse(target)
         if (entry != null && s != null && s >= entry) Notice("Stop au-dessus du prix d'achat : il sera ignoré.", Tone.WARN)
         if (entry != null && t != null && t <= entry) Notice("Objectif sous le prix d'achat : il sera ignoré.", Tone.WARN)
+        JournalNoteField(note, onNote)
         error?.let { Notice(it, Tone.BAD) }
         NeonButton("SIMULER L'ACHAT", enabled = price != null, onClick = onConfirm)
         TextButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) { Text("Annuler", color = AltimColors.cyan) }

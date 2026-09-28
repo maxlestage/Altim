@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
+import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.NewsItem
 import com.maxlestage.altim.kit.NewsReport
 import com.maxlestage.altim.kit.Tone
@@ -61,7 +62,7 @@ private val FILTERS = listOf("all" to "Tout", "actifs" to "Mes actifs", "monde" 
 /** News tab: every feed in one place, stories told by several sources merged, the user's assets first. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun NewsScreen(model: AppModel, modifier: Modifier) {
+fun NewsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit = {}) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("altim.news", Context.MODE_PRIVATE) }
     var report by remember { mutableStateOf<NewsReport?>(null) }
@@ -110,6 +111,8 @@ fun NewsScreen(model: AppModel, modifier: Modifier) {
             }
             error?.let { e -> item { ErrorBox(e) { refresh++ } } }
             if (r == null && error == null) item { Loading("Lecture d'une vingtaine de sources…") }
+
+            r?.summary?.let { s -> item { NewsSummaryCard(s, open) } }
 
             if (r != null && filter == "all") {
                 val top = r.topItems
