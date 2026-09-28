@@ -25,6 +25,7 @@ struct AssetDetailView: View {
                 signalCard
                 zonesCard
                 guardCard
+                AnomaliesCard(asset: asset)
                 WhyCard(asset: asset)
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
