@@ -4,7 +4,7 @@
 mod common;
 
 use altim::engine::backtest::backtest_default;
-use altim::engine::metrics::{SLIPPAGE, track};
+use altim::engine::metrics::{SLIPPAGE, SPREAD_CRYPTO, SPREAD_STOCK, track, track_with_spread};
 use altim::fundamentals::{self, Street, assemble, filed, parse as sec};
 use altim::liquidity::{self, parse as book, spread_pct, traded};
 use altim::tokenomics::{self, Coin, UNLOCKS_BTC, UNLOCKS_PAID, parse as tok};
@@ -254,8 +254,13 @@ fn track_on_real_candles() {
         let t = track(&input.candles, kind).unwrap();
         let r = backtest_default(&input.candles);
         assert_eq!(t.trades, r.trades.len());
-        // Fully invested each time: the final equity is the product of the trade returns, slippage included.
-        let product = r.trades.iter().fold(1.0, |acc, x| acc * (1.0 + x.return_percent / 100.0) * (1.0 - SLIPPAGE) / (1.0 + SLIPPAGE));
+        // Fully invested each time: the final equity is the product of the trade returns, slippage and half the
+        // default spread included on each side.
+        let spread = if kind == Kind::Crypto { SPREAD_CRYPTO } else { SPREAD_STOCK };
+        assert_eq!((t.details.spread_pct, t.details.spread_measured), (spread, false));
+        assert!(t.details.spread_note.starts_with("Hypothèse"));
+        let side = SLIPPAGE + spread / 200.0;
+        let product = r.trades.iter().fold(1.0, |acc, x| acc * (1.0 + x.return_percent / 100.0) * (1.0 - side) / (1.0 + side));
         assert!(close(t.total_return, (product - 1.0) * 100.0, 0.01), "{sym} {} {}", t.total_return, (product - 1.0) * 100.0);
         assert!(t.total_return <= r.total_return_percent + 1e-9, "le glissement ne peut qu'enlever");
         assert!(t.max_drawdown <= 0.0);
@@ -267,6 +272,22 @@ fn track_on_real_candles() {
         if let Some(l) = t.avg_loss {
             assert!(l <= 0.0);
         }
+        // Expectancy = win rate × average win − loss rate × |average loss| (rounded inputs: loose tolerance).
+        if let (Some(e), Some(w), Some(l)) = (t.details.expectancy, t.avg_win, t.avg_loss) {
+            let p = t.win_rate / 100.0;
+            assert!(close(e, p * w + (1.0 - p) * l, 0.05), "{sym} espérance {e}");
+        }
+        assert!(t.details.avg_r.is_some() == (t.trades > 0));
+        // Every trade lands in exactly one regime; the four main regimes are always listed.
+        assert_eq!(t.details.regimes.iter().map(|g| g.trades).sum::<usize>(), t.trades);
+        assert!(t.details.regimes.len() >= 4);
+        assert!(t.details.regimes.iter().all(|g| g.low_sample == (g.trades < 5)));
+        assert_eq!(t.details.tested_bars, r.equity.len());
+        assert!(t.details.bias_notes.iter().any(|n| n.contains("aucune optimisation")));
+        // A measured spread replaces the assumption and can only cost more when it is wider.
+        let wide = track_with_spread(&input.candles, kind, Some(0.5)).unwrap();
+        assert!(wide.details.spread_measured && wide.details.spread_note.contains("mesuré"));
+        assert!(wide.total_return <= t.total_return + 1e-9);
         println!("{sym} : {t:?}");
     }
     assert_eq!(track(&common::find("BTC", "long").unwrap().candles[..50], Kind::Crypto), None);

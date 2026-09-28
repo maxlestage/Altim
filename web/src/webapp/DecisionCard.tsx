@@ -6,6 +6,7 @@ import {
   pct, recentVerdict, riskRewardText, SCENARIO_UI, shortDateTime, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL, usd, usdCompact,
   type CryptoFundamentals, type Decision, type Family, type PersonalInput, type StockFundamentals,
 } from "./decision";
+import { TrackDetails } from "./TrackDetails";
 import { SimulateBuy } from "./PaperOrder";
 
 // ---------- Small building blocks ----------
@@ -392,6 +393,7 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
               />
               {d.track.trades < 30 && <p className="notice warn small">Moins de 30 trades : échantillon trop petit pour conclure.</p>}
               <p className="small">{d.track.note}</p>
+              <TrackDetails track={d.track} />
             </>
           ) : <p className="muted small">Pas assez d'historique pour mesurer ce signal sur cet actif.</p>}
         </Section>

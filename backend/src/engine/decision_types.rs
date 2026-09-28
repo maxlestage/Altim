@@ -328,6 +328,9 @@ pub struct Track {
     /// Longest losing streak (trades).
     pub losing_streak: usize,
     pub note: String,
+    /// Spread cost, expectancy, R multiples, results by market regime (fields at this level in the JSON).
+    #[serde(flatten, default)]
+    pub details: super::metrics::TrackDetails,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

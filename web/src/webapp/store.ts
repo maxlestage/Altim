@@ -101,10 +101,17 @@ function loadHoldings(): HoldingsState {
     const raw = localStorage.getItem(HOLDINGS_KEY);
     if (raw) {
       const p = JSON.parse(raw) as HoldingsState;
-      if (p.version === 1 && Array.isArray(p.holdings)) return { ...p, holdings: p.holdings.filter(isValidHolding) };
+      if (p.version === 1 && Array.isArray(p.holdings)) return { ...p, holdings: p.holdings.filter(isValidHolding).map(cleanStop) };
     }
   } catch {}
   return { version: 1, cash: 0, holdings: [], updatedAt: 0 };
+}
+
+/** The optional stop is dropped when it is not a positive number (the line itself stays). */
+export function cleanStop(h: Holding): Holding {
+  if (h.stop === undefined || (Number.isFinite(h.stop) && h.stop > 0)) return h;
+  const { stop: _, ...rest } = h;
+  return rest;
 }
 
 export function isValidHolding(h: unknown): h is Holding {
@@ -173,7 +180,7 @@ export function importHoldings(json: string): string | null {
   try {
     const p = JSON.parse(json) as Partial<HoldingsState>;
     if (!Array.isArray(p.holdings)) return "Fichier invalide.";
-    const holdings = p.holdings.filter(isValidHolding);
+    const holdings = p.holdings.filter(isValidHolding).map(cleanStop);
     setHoldings({ holdings, cash: Number.isFinite(p.cash) && (p.cash as number) >= 0 ? (p.cash as number) : 0 });
     return null;
   } catch {

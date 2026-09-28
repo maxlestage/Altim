@@ -3,7 +3,9 @@
 mod common;
 use std::collections::HashMap;
 
-use altim::engine::backtest::{self, BacktestResult, backtest, backtest_default, track_record};
+use altim::engine::backtest::{
+    self, BacktestResult, backtest, backtest_default, backtest_with_risk, regime_at, regime_split, track_record, trade_stats,
+};
 use altim::engine::brief::{BriefBuy, MarketLevel, Mover, PriceNow, headline, movers};
 use altim::engine::history::{Close, HistoryLine, portfolio_history};
 use altim::engine::news::{
@@ -41,6 +43,36 @@ fn parity_backtest() {
         };
         let out = json!({ "r": r, "track": track_record(&r) });
         assert_same(&to_value(&out), &c.output, &format!("backtest {a}"));
+    }
+}
+
+#[test]
+fn parity_backtest_stats() {
+    let cases = golden("backtest-stats");
+    assert!(cases.len() >= 15);
+    for c in cases {
+        let a = &c.args;
+        if a["symbol"] == "none" {
+            let out = json!({ "stats": trade_stats(&[], &[]), "mixed": trade_stats(&[2.0, -1.0, 0.0, 3.5], &[1.0, 0.0, 2.0]) });
+            assert_same(&to_value(&out), &c.output, "backtest-stats constantes");
+            continue;
+        }
+        let i = find(a["symbol"].as_str().unwrap(), a["interval"].as_str().unwrap()).unwrap();
+        let (r, risks) = backtest_with_risk(&i.candles, backtest::FEE_RATE, backtest::LOOKBACK, backtest::REWARD_RISK, backtest::WARMUP);
+        assert_eq!(r, backtest_default(&i.candles));
+        assert_eq!(risks.len(), r.trades.len());
+        let returns: Vec<f64> = r.trades.iter().map(|t| t.return_percent).collect();
+        let net: Vec<f64> = returns.iter().map(|x| (1.0 + x / 100.0) * (1.0 - 0.0006) / (1.0 + 0.0006) * 100.0 - 100.0).collect();
+        let candles = altim::engine::signal::sanitize(&i.candles);
+        let regimes: Vec<_> = (0..candles.len()).map(|k| regime_at(&candles, k)).collect();
+        let out = json!({
+            "risks": risks,
+            "stats": trade_stats(&returns, &risks),
+            "statsNet": trade_stats(&net, &risks),
+            "split": regime_split(&i.candles, &r.trades, &net),
+            "regimes": regimes,
+        });
+        assert_same(&to_value(&out), &c.output, &format!("backtest-stats {a}"));
     }
 }
 

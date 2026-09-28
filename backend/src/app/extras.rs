@@ -12,5 +12,6 @@ pub async fn extras(symbol: &str, kind: Kind, price: Option<f64>, daily: &[Candl
         }
     };
     let (fundamentals, liquidity) = tokio::join!(fundamentals, crate::liquidity::liquidity(symbol, kind, daily));
-    (fundamentals, Some(liquidity), crate::engine::metrics::track(daily, kind))
+    let track = crate::engine::metrics::track_with_spread(daily, kind, liquidity.spread_pct);
+    (fundamentals, Some(liquidity), track)
 }

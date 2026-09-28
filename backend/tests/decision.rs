@@ -596,6 +596,7 @@ fn extras_fill_the_families_and_vetoes() {
             slippage_pct: 0.05,
             losing_streak: 3,
             note: "test".into(),
+            details: Default::default(),
         });
     });
     let fam = |k: &str| d.families.iter().find(|f| f.key == k).unwrap();
@@ -701,6 +702,7 @@ fn track(total: f64, hold: f64, win: f64, trades: usize) -> Track {
         slippage_pct: 0.05,
         losing_streak: 5,
         note: "test".into(),
+        details: Default::default(),
     }
 }
 

@@ -4,6 +4,7 @@
  * Pure functions (no React, no fetch) so they are tested with `bun test`.
  */
 import type { Kind } from "../engine/reliability";
+import { recordConfiguration } from "./config-changes";
 
 export type Verdict = "buy" | "buyZone" | "wait" | "noPosition" | "trim" | "sell";
 export type Level = "strong" | "moderate" | "waiting" | "highRisk" | "exit";
@@ -48,6 +49,9 @@ export interface Track {
   period: string; trades: number; winRate: number; avgWin: number | null; avgLoss: number | null; profitFactor: number | null;
   sharpe: number | null; sortino: number | null; maxDrawdown: number; totalReturn: number; buyAndHold: number;
   feesPct: number; slippagePct: number; losingStreak: number; note: string;
+  // Added later (absent from older answers): spread cost, expectancy, R multiples, results by market regime.
+  spreadPct?: number; spreadMeasured?: boolean; spreadNote?: string; expectancy?: number | null; avgR?: number | null;
+  regimes?: import("../engine/backtest").RegimeStat[]; testedBars?: number; biasNotes?: string[];
 }
 export interface Exit { kind: ExitKind; share: number; trigger: string; price: number | null; now: boolean }
 export interface Position { cost: number; pnlPct: number | null; advice: string; exits: Exit[] }
@@ -304,6 +308,7 @@ export function cacheDecision(d: Decision, personal: boolean, now = Date.now(), 
   if (!s) return;
   const all = readAll(s);
   all[`${d.kind}:${d.symbol}`] = { at: now, personal, decision: d };
+  recordConfiguration(d, personal, now, s);
   const keep = Object.entries(all).sort((a, b) => b[1].at - a[1].at).slice(0, CACHE_MAX);
   try {
     s.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(keep)));

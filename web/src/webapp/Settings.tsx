@@ -10,6 +10,8 @@ const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: n
   { key: "riskPerTradePercent", label: "Risque accepté par idée", min: 0.25, max: 5, step: 0.25, unit: " %" },
   { key: "maxPositionPercent", label: "Taille max d'une ligne", min: 5, max: 100, step: 5, unit: " %" },
   { key: "minRiskReward", label: "Gain/risque min", min: 1, max: 5, step: 0.25, unit: "" },
+  { key: "dailyLossLimitPercent", label: "Perte max du jour", min: 0.5, max: 10, step: 0.5, unit: " %" },
+  { key: "maxCryptoPercent", label: "Part crypto max", min: 0, max: 100, step: 5, unit: " %" },
 ];
 
 export function Settings() {
@@ -74,6 +76,10 @@ export function Settings() {
           </div>
         ))}
         <p className="muted small">Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.</p>
+        <p className="muted small">
+          Perte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui.
+          Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).
+        </p>
         <button className="link-btn" onClick={() => setState({ risk: DEFAULT_RISK })}>Valeurs recommandées</button>
       </div>
 
