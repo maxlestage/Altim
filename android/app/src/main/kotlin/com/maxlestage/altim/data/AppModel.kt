@@ -20,6 +20,8 @@ import com.maxlestage.altim.kit.FileResponseCache
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Horizon
 import com.maxlestage.altim.kit.Kind
+import com.maxlestage.altim.kit.NewsAlertTracker
+import com.maxlestage.altim.kit.NewsItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +30,7 @@ import okhttp3.HttpUrl
 
 /** App state: server access, lock, watch list and holdings (stored on the phone only). Same as the iPhone AppModel. */
 class AppModel(context: Context, private val secure: SecretStore = SecureStore(context)) {
+    private val appContext = context.applicationContext
     enum class Phase { SETUP, LOCKED, READY }
 
     private val prefs = context.getSharedPreferences("altim", Context.MODE_PRIVATE)
@@ -64,6 +67,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     var alertsStrongOnly by mutableStateOf(prefs.getBoolean("alertsStrongOnly", false))
         private set
+    /** News alerts (Réglages): serious escalation, or a story about one of my assets told by at least 3 sources. */
+    var newsAlertsEnabled by mutableStateOf(prefs.getBoolean("newsAlertsEnabled", false))
+        private set
     /** Time of the last background check and what it found (shown in Réglages). */
     var lastAlertCheck by mutableStateOf(prefs.getLong("lastAlertCheck", 0L).takeIf { it > 0 })
         private set
@@ -77,6 +83,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     /** Asset to open, from a tapped notification. */
     var pendingOpen by mutableStateOf<Asset?>(null)
+    /** A news notification was tapped: the Actu tab opens. */
+    var pendingNews by mutableStateOf(false)
 
     /** Offline mode: date of the data shown when the server cannot be reached (null = online). */
     var offlineSince by mutableStateOf<Long?>(null)
@@ -125,11 +133,18 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         alertsEnabled = enabled
         alertsStrongOnly = strongOnly
         prefs.edit().putBoolean("alertsEnabled", enabled).putBoolean("alertsStrongOnly", strongOnly).apply()
+        BuyWidget.refresh(context)
         BuyAlerts.schedule(context, needsChecks)
     }
 
-    /** The background check runs for the buy alerts or for at least one armed price alert. */
-    val needsChecks: Boolean get() = alertsEnabled || priceTargets.any { it.triggered == null }
+    fun updateNewsAlerts(context: Context, enabled: Boolean) {
+        newsAlertsEnabled = enabled
+        prefs.edit().putBoolean("newsAlertsEnabled", enabled).apply()
+        BuyAlerts.schedule(context, needsChecks)
+    }
+
+    /** The background check runs for the buy alerts, the news alerts or at least one armed price alert. */
+    val needsChecks: Boolean get() = alertsEnabled || newsAlertsEnabled || priceTargets.any { it.triggered == null }
 
     fun addTarget(context: Context, t: PriceTarget) = setTargets(context, priceTargets + t)
     fun removeTarget(context: Context, id: String) = setTargets(context, priceTargets.filterNot { it.id == id })
@@ -147,7 +162,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     }
 
     /** What one background check found: new buy alerts and price alerts just reached (with the price). */
-    data class CheckResult(val buy: List<BuyAlert>, val targets: List<Pair<PriceTarget, Double>>)
+    data class CheckResult(val buy: List<BuyAlert>, val targets: List<Pair<PriceTarget, Double>>, val news: List<NewsItem> = emptyList())
 
     /**
      * One check of the buy alerts (background worker): the server's rule applied to the watch list and the holdings;
@@ -164,7 +179,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
             val (next, newOnes) = tracker.newAlerts(items, alertsStrongOnly)
             fresh = newOnes
             lastBuyable = items.count { it.buy }
-            prefs.edit().putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next)).putInt("lastBuyable", lastBuyable).apply()
+            prefs.edit().putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next)).putInt("lastBuyable", lastBuyable)
+                .putString(BuyWidget.KEY_ITEMS, AltimJson.encodeToString(ListSerializer(BuyAlert.serializer()), items.filter { it.buy }))
+                .apply()
         }
         // Price alerts: consensus quotes of the assets that still have an armed threshold.
         val armed = priceTargets.filter { it.triggered == null }
@@ -182,10 +199,28 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
             journal = AlertJournal.add(entries, journal)
             save(ListSerializer(JournalEntry.serializer()), "journal", journal)
         }
+        val news = if (newsAlertsEnabled) checkNews(c, now) else emptyList()
         lastAlertCheck = now
         prefs.edit().putLong("lastAlertCheck", now).apply()
         persistSession()
-        return CheckResult(fresh, fired)
+        BuyWidget.refresh(appContext)
+        return CheckResult(fresh, fired, news)
+    }
+
+    /** News to notify (NewsAlertTracker): a feed that fails does not stop the buy and price alerts. */
+    private suspend fun checkNews(c: AltimClient, now: Long): List<NewsItem> {
+        val mine = (watchlist + holdings.map { it.asset }).distinctBy { it.id }
+        val report = try {
+            c.news(mine)
+        } catch (e: AltimException.Unauthorized) {
+            throw e
+        } catch (_: Exception) {
+            return emptyList()
+        }
+        val tracker = prefs.getString("newsTracker", null)?.let { runCatching { AltimJson.decodeFromString(NewsAlertTracker.serializer(), it) }.getOrNull() } ?: NewsAlertTracker()
+        val (next, fresh) = tracker.newAlerts(report.items, mine.map { it.id }.toSet(), now)
+        prefs.edit().putString("newsTracker", AltimJson.encodeToString(NewsAlertTracker.serializer(), next)).apply()
+        return fresh
     }
 
     /** From a tapped notification: "crypto:BTC" → the asset to open. */
@@ -245,7 +280,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         offlineSince = null
         client?.logout()
         secure.clear()
-        prefs.edit().remove("openServer").apply()
+        prefs.edit().remove("openServer").remove(BuyWidget.KEY_ITEMS).remove("newsTracker").remove("lastAlertCheck").apply()
+        lastAlertCheck = null
+        BuyWidget.refresh(appContext)
         client = null
         user = null
         phase = Phase.SETUP

@@ -418,3 +418,19 @@
 .tone-bar .neg { background: #ff3b5c; } .tone-bar .neu { background: rgba(255, 255, 255, 0.25); } .tone-bar .pos { background: #38ff87; }
 .news-sources { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; }
 .news .chip { display: inline-flex; width: auto; margin: 0; padding: 2px 8px; font-family: inherit; font-size: 11px; background: none; }
+
+/* Portfolio history: one axis (% since the first day), thin lines, crosshair and tooltip on hover or touch. */
+.history-card .segmented { margin: 4px 0 10px; }
+.history-chart { position: relative; margin: 6px 0 4px; touch-action: pan-y; }
+.history-chart svg { width: 100%; height: auto; display: block; overflow: visible; }
+.history-chart path { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.history-chart path.bench { stroke-width: 1.5; opacity: 0.9; }
+.history-chart .zero { stroke: rgba(255, 255, 255, 0.18); stroke-dasharray: 3 3; stroke-width: 1; }
+.history-chart .cross { stroke: rgba(255, 255, 255, 0.35); stroke-width: 1; }
+.history-chart .dot { stroke: #0b0f1f; stroke-width: 2; }
+.history-chart .axis { fill: var(--muted); font-size: 9px; font-family: inherit; }
+.history-read { margin: 0 0 6px; color: var(--muted); min-height: 2.6em; }
+.history-read b { color: var(--text); }
+.history-legend { list-style: none; padding: 0; margin: 4px 0 8px; display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.history-legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+.history-legend b { color: var(--text, #fff); font-weight: 600; }

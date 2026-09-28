@@ -121,6 +121,13 @@ fun MainTabs(model: AppModel) {
         stacks.getValue(Tab.RADAR).add(a)
         model.pendingOpen = null
     }
+    // Tapped news notification: the Actu tab.
+    LaunchedEffect(model.pendingNews) {
+        if (!model.pendingNews) return@LaunchedEffect
+        settingsOpen = false
+        tab = Tab.NEWS
+        model.pendingNews = false
+    }
 
     Scaffold(
         containerColor = Color.Transparent,

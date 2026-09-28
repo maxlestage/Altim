@@ -28,6 +28,7 @@ struct HoldingsView: View {
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
                 if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
+                Section { HistoryCard() }.listRowBackground(Color.clear)
                 Section {
                     ForEach(portfolio.lines) { line in
                         NavigationLink(value: line.holding.asset) { lineView(line) }
