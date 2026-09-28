@@ -78,7 +78,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -216,6 +216,18 @@ class AltimClient(
     /** Daily closes of these assets over 30, 90, 365 or 730 days, plus Bitcoin and SPY (the quantities stay on the phone). */
     suspend fun history(assets: List<Asset>, days: Int): HistoryResponse =
         get("/api/history", mapOf("days" to days.toString()) + (if (assets.isEmpty()) emptyMap() else mapOf("symbols" to list(assets.distinctBy { it.id }.take(20)))), HistoryResponse.serializer())
+
+    /**
+     * Decision on one asset. Informational without arguments; personal with the user's average [cost] and the
+     * portfolio [weights] (percentages from [Decision.weights], never quantities nor amounts): the server uses them
+     * for this answer only and keeps nothing.
+     */
+    suspend fun decision(a: Asset, cost: Double? = null, weights: String? = null): Decision {
+        val q = mutableMapOf("symbol" to a.symbol, "kind" to a.kind.raw)
+        cost?.takeIf { it.isFinite() && it > 0 }?.let { q["cost"] = Decision.number(it, 8) }
+        weights?.takeIf { it.isNotBlank() }?.let { q["weights"] = it }
+        return get("/api/decision", q, Decision.serializer())
+    }
 
     suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
         if (assets.isEmpty()) emptyList()
