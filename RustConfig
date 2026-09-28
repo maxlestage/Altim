@@ -1,0 +1,5 @@
+# Heroku Rust buildpack (emk/rust): the server lives in backend/ ; the binary ends up in backend/target/release/altim.
+# VERSION is read by the buildpack only (a rust-toolchain file would also pin local and CI builds).
+VERSION=1.98.1
+BUILD_PATH=backend
+RUST_CARGO_BUILD_FLAGS="--release --locked --bin altim"

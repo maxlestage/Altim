@@ -1,6 +1,6 @@
 # Altim
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur **Rust + Axum**, déployés sur Heroku (conteneur Docker), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur **Rust + Axum**, déployés sur Heroku (buildpacks Bun et Rust), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
