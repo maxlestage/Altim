@@ -2,9 +2,9 @@ name: Web
 
 on:
   push:
-    paths: ["web/**", "package.json", "package-lock.json", "bun.lock", "Procfile", ".github/workflows/web.yml"]
+    paths: ["web/**", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "package.json", "package-lock.json", "bun.lock", "Procfile", ".github/workflows/web.yml"]
+    paths: ["web/**", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -22,41 +22,3 @@ jobs:
       - run: cd web && bun run typecheck
       - run: cd web && bun test
       - run: bun run build
-      - name: Test du serveur de production
-        run: |
-          PORT=3000 bun run start &
-          sleep 2
-          curl -fsS localhost:3000/health
-          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/app | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/index-'
-          curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w "%{http_code}" | grep -q 404
-          curl -sS "localhost:3000/api/candles?base=../x&interval=1h" -o /dev/null -w "%{http_code}" | grep -q 400
-
-  heroku:
-    name: Build façon Heroku (Node.js seul, sans Bun préinstallé)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Même séquence que le buildpack heroku/nodejs
-        run: |
-          # Heroku has no Bun: remove any system Bun from the PATH so only the npm one is used.
-          if command -v bun; then export PATH=$(echo "$PATH" | tr ':' '\n' | grep -vxF "$(dirname "$(command -v bun)")" | paste -sd:); fi
-          echo "PATH=$PATH" >> "$GITHUB_ENV"
-          ! command -v bun
-          NODE_ENV=production npm ci --include=dev
-          npm run build
-          npm prune --omit=dev
-      - name: Démarrage avec le Procfile
-        run: |
-          PORT=3000 NODE_ENV=production npm start &
-          sleep 3
-          curl -fsS localhost:3000/health
-          # Private access, fail closed: without the ALTIM_* variables nothing is served, everything leads to the login page.
-          test "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' localhost:3000/app/reglages)" = "302 http://localhost:3000/login?next=%2Fapp%2Freglages"
-          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3000/api/tickers)" = "401"
-          curl -fsS localhost:3000/login | grep -q "Accès privé non configuré"

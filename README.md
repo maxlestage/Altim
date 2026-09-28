@@ -1,6 +1,6 @@
 # Altim
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur Express sur Bun, déployés sur Heroku, et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur **Rust + Axum**, déployés sur Heroku (conteneur Docker), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -8,7 +8,8 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 
 | Dossier | Rôle |
 |---|---|
-| `web` | Site vitrine + **application web `/app`** (React + TS), serveur **Express sur Bun**, mobile first, **multi-source**, **API garde-fou pour bots** |
+| `web` | Site vitrine + **application web `/app`** (React + TS), mobile first |
+| `backend` | Serveur **Rust + Axum** : API **multi-source**, prix en direct, accès privé, **API garde-fou pour bots**, sert le site |
 | `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
 | `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |
 | `android` | **Application Android native** (Kotlin, Jetpack Compose, Android 11+), à parité avec l'iPhone |
@@ -69,7 +70,14 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 - **Tests** : `./gradlew :kit:test` (38 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir et son historique, alerte de prix, Actu, Réglages (plus le widget et les alertes actualité sur les vrais flux), avec une capture de chaque écran dans `android/app/build/screens`.
 - **CI** : tests du noyau, lint, build Debug (APK de test téléchargeable dans l'onglet Actions) et Release minifié ; le workflow « Android APK signé » produit l'APK à installer (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
-### Serveur (Express sur Bun)
+### Serveur (Rust + Axum)
+
+Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien serveur Express sur Bun, route pour route : mêmes adresses, mêmes réponses JSON, mêmes textes, mêmes en-têtes de sécurité, mêmes sessions (les connexions ouvertes et les apps déjà connectées restent valides). Il consomme environ 16 Mo de mémoire au lieu de 180 Mo.
+
+- **Moteurs** (signal, fiabilité, Fibonacci, garde-fou, macro, sélection, actualités, alertes, point du jour…) portés ligne à ligne depuis `web/src/engine` (que l'application web continue d'utiliser) : **plus de 4 000 cas de parité** calculés par les moteurs TypeScript sur de vraies bougies (BTC, ETH, SOL, DOGE, AAPL, NVDA, SPY, toutes unités de temps) et comparés champ par champ, textes français compris (`bun parity/golden.ts`, puis `cargo test`).
+- **Vérifié de bout en bout** : réponses comparées au serveur TypeScript route par route, audit des données contre des références indépendantes, vrais écrans Android (Robolectric) et noyau iPhone connectés au serveur Rust.
+- **Corrigé au passage** : l'ancien serveur rangeait les titres du garde-fou et la page Actu sous la même clé de cache (`news:crypto:BTC`), d'où une erreur 502 sur `/api/guard` selon l'ordre des visites ; le cache Rust inclut le type dans la clé.
+
 
 | Route | Rôle |
 |---|---|
@@ -370,7 +378,7 @@ On n'achète pas au même endroit selon qu'on investit pour quelques jours ou po
 
 ## Accès privé
 
-Le site, l'application et l'API sont réservés à leur propriétaire (`web/server/auth.ts`). Les secrets vivent uniquement dans les variables d'environnement Heroku, jamais dans le code :
+Le site, l'application et l'API sont réservés à leur propriétaire (`backend/src/auth.rs`). Les secrets vivent uniquement dans les variables d'environnement Heroku, jamais dans le code :
 
 | Variable | Rôle |
 |---|---|
@@ -492,8 +500,10 @@ Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence profes
 ## Tests
 
 ```bash
-cd web && bun test && bun run typecheck                        # moteur, conseils, garde-fou, consensus, prix en direct, serveur
-cd web && ALTIM_LIVE=1 bun test test/sources-live.test.ts     # toutes les sources × unités de temps + flux temps réel, en réel
+cd web && bun test && bun run typecheck                                  # moteurs et écrans de l'application web
+cd backend && cargo test                                                 # serveur : parité avec les moteurs TS, routes, sources, accès privé
+cd backend && cargo test --test sources_live -- --ignored               # toutes les sources × unités de temps + flux temps réel, en réel
+cd backend && cargo run --release   # puis, dans web : bun scripts/audit.ts   # audit des données contre des références indépendantes
 ```
 
 Références vérifiées : RSI de Wilder (exemple StockCharts), parseurs construits à partir de réponses réelles de chaque source.

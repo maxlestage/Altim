@@ -44,4 +44,5 @@ jobs:
         with:
           name: Altim-apk
           path: ${{ runner.temp }}/Altim.apk
-      - run: echo "### ✅ APK signé prêt : onglet Summary → Artifacts → Altim-apk" >> "$GITHUB_STEP_SUMMARY"
+      - run: |
+          echo "### ✅ APK signé prêt : onglet Summary → Artifacts → Altim-apk" >> "$GITHUB_STEP_SUMMARY"

@@ -47,10 +47,18 @@ private fun dollars(v: Double) = String.format(Locale.FRANCE, "%,.0f", v).replac
 private val LONG_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.FRANCE).withZone(ZoneOffset.UTC)
 
 /** "If I had invested 100 $ every month": regular purchases replayed on the real daily closes of the asset. */
+/** One purchase repeats nothing: its "next purchase" is far beyond any period. */
+private const val ONCE = 100_000
+
+/**
+ * "If I had invested 1 000 $": one purchase by default (not everybody wants to spend every month), regular
+ * purchases as an option, replayed on the real daily closes of the asset.
+ */
 @Composable
 fun DcaCard(model: AppModel, asset: Asset) {
-    var amountText by rememberSaveable { mutableStateOf("100") }
-    var every by rememberSaveable { mutableIntStateOf(30) }
+    var amountText by rememberSaveable { mutableStateOf("1000") }
+    var every by rememberSaveable { mutableIntStateOf(ONCE) }
+    val once = every == ONCE
     var days by rememberSaveable { mutableIntStateOf(365) }
     var closes by remember(asset.id) { mutableStateOf<List<Pair<Long, Double>>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -58,7 +66,7 @@ fun DcaCard(model: AppModel, asset: Asset) {
         val client = model.client ?: return@LaunchedEffect
         closes = null
         try {
-            closes = client.history(listOf(asset), days).byId[asset.id].orEmpty()
+            closes = client.history(listOf(asset), if (days == 730) 730 else 365).byId[asset.id].orEmpty()
             error = null
         } catch (e: AltimException.Unauthorized) {
             model.sessionLost()
@@ -69,31 +77,37 @@ fun DcaCard(model: AppModel, asset: Asset) {
     val amount = Format.parse(amountText) ?: 0.0
     val r = closes?.let { if (amount > 0) DcaResult.simulate(it, amount, every, days) else null }
 
-    Card(title = "Si j'avais investi régulièrement") {
+    Card(title = "Si j'avais investi") {
         OutlinedTextField(
             value = amountText,
             onValueChange = { amountText = it },
-            label = { Text("Montant par achat") },
+            label = { Text(if (once) "Montant investi" else "Montant par achat") },
             suffix = { Text("$") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AltimColors.cyan, cursorColor = AltimColors.cyan),
         )
-        Choice(listOf(7 to "Chaque semaine", 30 to "Chaque mois"), every) { every = it }
-        Choice(listOf(365 to "1 an", 730 to "2 ans"), days) { days = it }
+        Choice(listOf(ONCE to "Une fois", 7 to "Chaque semaine", 30 to "Chaque mois"), every) { every = it }
+        Choice(listOf(182 to "6 mois", 365 to "1 an", 730 to "2 ans"), days) { days = it }
         when {
             error != null -> Notice(error!!, Tone.BAD)
             closes == null -> Loading("Chargement de l'historique…")
             r == null -> Caption(if (amount > 0) "Pas assez d'historique pour ${asset.symbol} sur cette période." else "Indiquez un montant.")
             else -> {
-                KeyValue("${r.buys} achats · ${dollars(r.invested)} investis", "${dollars(r.value)} (${signed(r.gain)})", if (r.gain >= 0) Tone.GOOD else Tone.BAD)
+                val firstDay = LONG_DAY.format(Instant.ofEpochMilli(r.first))
+                KeyValue(
+                    if (once) "${dollars(r.invested)} investis le $firstDay" else "${r.buys} achats · ${dollars(r.invested)} investis",
+                    "${dollars(r.value)} (${signed(r.gain)})",
+                    if (r.gain >= 0) Tone.GOOD else Tone.BAD,
+                )
                 DcaChart(r)
-                KeyValue("Tout investi le ${LONG_DAY.format(Instant.ofEpochMilli(r.first))}", "${dollars(r.lumpValue)} (${signed(r.lumpGain)})", if (r.lumpGain >= 0) Tone.GOOD else Tone.BAD)
-                KeyValue("Prix moyen payé", Format.price(r.averagePrice))
+                if (!once) KeyValue("Tout investi le $firstDay", "${dollars(r.lumpValue)} (${signed(r.lumpGain)})", if (r.lumpGain >= 0) Tone.GOOD else Tone.BAD)
+                KeyValue(if (once) "Prix d'achat" else "Prix moyen payé", Format.price(r.averagePrice))
                 KeyValue("Prix à la dernière clôture", Format.price(r.lastPrice))
                 Caption(
                     when {
+                        once -> "Un seul achat, à la clôture de ce jour-là."
                         r.lumpGain > r.gain -> "Sur cette période, tout acheter le premier jour a mieux rendu : le prix a surtout monté."
                         r.lumpGain < r.gain -> "Sur cette période, étaler les achats a mieux rendu : ils ont profité des baisses."
                         else -> "Sur cette période, les deux façons d'investir reviennent au même."

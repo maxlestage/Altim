@@ -1,12 +1,20 @@
 /**
- * Generates the private-access values to put in Heroku → Settings → Config Vars (see server/auth.ts).
+ * Generates the private-access values to put in Heroku → Settings → Config Vars (checked by backend/src/auth.rs).
  *   bun run secrets                     random password (shown once, only its hash goes to Heroku)
  *   bun run secrets -- --user max       choose the login name
  *   bun run secrets -- --password "…"   hash a password of your choice (16 characters minimum)
  * Nothing is written to disk: copy the values, keep the password in a password manager.
  */
 import { randomBytes } from "node:crypto";
-import { toBase32 } from "../server/auth";
+
+/** RFC 4648 base32 without padding (the 2FA secret, as authenticator apps expect it). */
+const B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function toBase32(buf: Buffer): string {
+  let bits = "", out = "";
+  for (const b of buf) bits += b.toString(2).padStart(8, "0");
+  for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, "0"), 2)];
+  return out;
+}
 
 const arg = (name: string) => {
   const i = process.argv.indexOf(`--${name}`);

@@ -16,9 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
         with:
-          bun-version-file: .bun-version
-      - run: bun install --frozen-lockfile
-      - name: Toutes les sources, toutes les unités de temps, flux temps réel (données réelles)
-        run: cd web && ALTIM_LIVE=1 bun test test/sources-live.test.ts
+          workspaces: backend
+      - name: Toutes les sources, toutes les unités de temps, cours, flux temps réel, séries macro (données réelles)
+        run: cd backend && cargo test --locked --test sources_live -- --ignored --nocapture
