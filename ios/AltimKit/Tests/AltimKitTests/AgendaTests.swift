@@ -78,6 +78,60 @@ final class AgendaTests: XCTestCase {
         XCTAssertEqual(url?.absoluteString, "https://altim.example/api/calendar?days=30&symbols=AAPL,BRK-B")
     }
 
+    func testRiskQuery() {
+        // Risk view: top=1 only with symbols (without, the calendar already keeps the largest companies).
+        XCTAssertEqual(Agenda.query(days: 7, symbols: ["AAPL"], top: true), ["days": "7", "symbols": "AAPL", "top": "1"])
+        XCTAssertEqual(Agenda.query(days: 7, symbols: nil, top: true), ["days": "7"])
+    }
+
+    func testRiskCalendarSevenDaysWeekendIncluded() throws {
+        let r = try report()
+        // KDP held (its dividend counts), MU watched (its earnings count as high).
+        let days = Agenda.riskDays(r.events, from: "2026-09-28", held: ["KDP"], watched: ["MU"], n: 7, failed: ["2026-10-03"])
+        XCTAssertEqual(days.map(\.label), ["Lun. 28 sept.", "Mar. 29 sept.", "Mer. 30 sept.", "Jeu. 1 oct.", "Ven. 2 oct.", "Sam. 3 oct.", "Dim. 4 oct."])
+        XCTAssertEqual(days.map(\.level), [.medium, .medium, .high, .high, .medium, .low, .low])
+        XCTAssertEqual(days.map(\.weekend), [false, false, false, false, false, true, true])
+        XCTAssertEqual(days[0].main, ["Dividende KDP"])
+        // Other companies' earnings (large caps) and a central bank speech: 🟠; the others' dividends do not count.
+        XCTAssertEqual(days[1].main, ["Résultats CCL", "Prise de parole de la présidence de la BCE"])
+        XCTAssertFalse(days[1].events.contains { $0.event.symbol == "ERIC" })
+        XCTAssertEqual(days[2].main, ["Résultats MU"])
+        // US GDP and PCE (high); the UK's GDP (medium) is not among the main events.
+        XCTAssertEqual(days[3].main, ["PIB", "Inflation PCE"])
+        XCTAssertEqual(days[5].main, [])
+        XCTAssertTrue(days[5].incomplete)
+        XCTAssertTrue(days[5].unknown)
+        XCTAssertFalse(days[6].incomplete)
+        XCTAssertEqual(Agenda.riskText(days[5]), "Sources incomplètes : risque non évalué")
+        XCTAssertEqual(Agenda.riskText(days[6]), "Aucun événement majeur")
+        XCTAssertEqual(Agenda.riskText(days[3]), "PIB · Inflation PCE")
+    }
+
+    func testRiskRulePerEvent() throws {
+        func ev(kind: String = "macro", category: String = "inflation", importance: String = "high", title: String = "Inflation (CPI)",
+                symbol: String? = nil, country: String? = nil) throws -> CalendarEvent {
+            var o: [String: Any] = ["date": 0, "day": "2026-10-06", "kind": kind, "category": category, "importance": importance, "title": title,
+                                    "source": "s", "url": "https://x"]
+            if let symbol { o["symbol"] = symbol }
+            if let country { o["country"] = country }
+            return try JSONDecoder().decode(CalendarEvent.self, from: JSONSerialization.data(withJSONObject: o))
+        }
+        XCTAssertEqual(Agenda.eventRisk(try ev(), held: [], watched: []), .high)
+        XCTAssertEqual(Agenda.eventRisk(try ev(kind: "centralBank", category: "tauxDirecteurs"), held: [], watched: []), .high)
+        XCTAssertEqual(Agenda.eventRisk(try ev(category: "activite", importance: "medium"), held: [], watched: []), .medium)
+        XCTAssertEqual(Agenda.eventRisk(try ev(kind: "earnings", category: "resultats", symbol: "BRK.B"), held: ["BRK-B"], watched: []), .high)
+        XCTAssertEqual(Agenda.eventRisk(try ev(kind: "earnings", category: "resultats", symbol: "NVDA"), held: [], watched: []), .medium)
+        XCTAssertNil(Agenda.eventRisk(try ev(kind: "dividend", category: "dividende", symbol: "KO"), held: [], watched: ["KO"]))
+        XCTAssertEqual(Agenda.eventRisk(try ev(kind: "split", category: "split", symbol: "KO"), held: ["KO"], watched: []), .medium)
+        XCTAssertNil(Agenda.eventRisk(try ev(kind: "ipo", category: "ipo", symbol: "OURA"), held: ["OURA"], watched: []))
+        XCTAssertEqual(Agenda.shortTitle(try ev()), "CPI")
+        XCTAssertEqual(Agenda.shortTitle(try ev(country: "Allemagne")), "CPI (Allemagne)")
+        XCTAssertEqual(Agenda.shortTitle(try ev(title: "Confiance des consommateurs (Conference Board)")), "Confiance des consommateurs (Conference Board)")
+        var r = try report()
+        r.sources = [CalendarReport.Source(name: "a", ok: false, failed: ["2026-10-01", "2026-10"], error: nil)]
+        XCTAssertEqual(Agenda.failedDays(r), ["2026-10-01"])
+    }
+
     func testUnknownKindStillDecodes() throws {
         let json = #"{"date":0,"day":"2026-10-01","kind":"conference","category":"autre","importance":"medium","title":"X","source":"Source","url":"https://x.example"}"#
         let e = try JSONDecoder().decode(CalendarEvent.self, from: Data(json.utf8))

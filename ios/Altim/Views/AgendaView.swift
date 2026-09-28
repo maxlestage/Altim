@@ -29,6 +29,10 @@ struct AgendaView: View {
         let failed = report?.sources.filter { !$0.ok } ?? []
         List {
             Section { NewsViewPicker(view: $view) }.listRowBackground(Color.clear)
+            Section {
+                RiskWeekCard(held: Agenda.stockSymbols(model.holdings.map(\.asset)), watched: Agenda.stockSymbols(model.watchlist))
+            }
+            .listRowBackground(Color.clear)
             Section { controls }.listRowBackground(Color.clear)
             if let error { Section { Notice(text: error, tone: .warn) }.listRowBackground(Color.clear) }
             if !failed.isEmpty {
@@ -130,6 +134,83 @@ struct AgendaView: View {
             report = try await client.calendar(days: days, symbols: asked)
             error = nil
             model.persistSession()
+        } catch AltimError.unauthorized {
+            model.sessionLost()
+        } catch is CancellationError {
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+}
+
+/// Risk of the next 7 days, one stacked row per day (weekends included): its own request, with the user's stocks and
+/// the largest companies together (`top=1`), whatever the list's filters. Same rule and texts as the web (Agenda.tsx
+/// `RiskWeek`); the level is written out and carried by its emoji, never by the colour alone.
+struct RiskWeekCard: View {
+    @Environment(AppModel.self) private var model
+    let held: [String]
+    let watched: [String]
+    @State private var report: CalendarReport?
+    @State private var error: String?
+
+    private var stocks: [String] {
+        var seen = Set<String>()
+        return Array((held + watched).filter { seen.insert($0).inserted }.prefix(50))
+    }
+
+    var body: some View {
+        let days = report.map { Agenda.riskDays($0.events, from: $0.from, held: held, watched: watched, n: 7, failed: Agenda.failedDays($0)) } ?? []
+        Card(title: "Calendrier de risque · 7 jours") {
+            if let error { Notice(text: error, tone: .warn) }
+            if report == nil && error == nil {
+                Text("Chargement…").font(.caption).foregroundStyle(Theme.textSecondary)
+            }
+            ForEach(days) { d in dayRow(d) }
+            DisclosureGroup("Règle") {
+                Text(Agenda.riskRule).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 4)
+            }
+            .font(.footnote)
+            .tint(.white)
+        }
+        .task(id: stocks.joined(separator: ",")) { await load() }
+    }
+
+    private func color(_ d: Agenda.RiskDay) -> Color {
+        if d.unknown { return Theme.textSecondary }
+        switch d.level {
+        case .high: return Theme.sell
+        case .medium: return Theme.warning
+        case .low: return Theme.buy
+        }
+    }
+
+    private func dayRow(_ d: Agenda.RiskDay) -> some View {
+        let label = d.unknown ? "Risque non évalué" : d.level.label
+        return VStack(alignment: .leading, spacing: 3) {
+            WrapLayout(spacing: 6) {
+                Text(d.label).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                if d.weekend { TagChip(text: "week-end") }
+                Text(d.unknown ? "⚪" : d.level.icon).font(.footnote).accessibilityLabel(label)
+            }
+            Text(Agenda.riskText(d)).font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            if d.incomplete && !d.unknown {
+                Text("Sources incomplètes ce jour-là.").font(.caption2).foregroundStyle(Theme.textSecondary)
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(color(d).opacity(0.08)))
+        .overlay(alignment: .leading) { Rectangle().fill(color(d).opacity(0.7)).frame(width: 3) }
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        do {
+            report = try await client.calendar(days: 7, symbols: stocks.isEmpty ? nil : stocks, top: true)
+            error = nil
         } catch AltimError.unauthorized {
             model.sessionLost()
         } catch is CancellationError {

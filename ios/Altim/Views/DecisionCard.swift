@@ -15,6 +15,7 @@ struct DecisionCard: View {
     var body: some View {
         Card(title: "Décision", glow: DecisionStyle.color(headlineLevel)) {
             verdict
+            if let t = ConfigChanges.latestChange(model.configChanges.transitions, decision) { ChangeBlockView(transition: t) }
             Meter(label: "Confiance", value: decision.confidence, tone: decision.confidence >= 65 ? .good : decision.confidence >= 40 ? .warn : .bad)
             Text(decision.confidenceText).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             lights
@@ -22,12 +23,14 @@ struct DecisionCard: View {
             if let r = decision.marketRegime { RegimeLine(regime: r) }
             if let s = decision.score { ScoreBlock(score: s) }
             if let plan = decision.plan { planView(plan) }
+            if let z = decision.actionZones { ActionLadderView(zones: z) }
             if !decision.whyWait.isEmpty {
                 section("Pourquoi attendre ?")
                 bullets(decision.whyWait)
             }
             conditions("Pour passer en ACHAT", decision.toBuy)
             conditions("Pour passer en VENTE", decision.toSell)
+            if let c = decision.counterArgument { CounterBlockView(counter: c) }
             if let p = decision.position { positionView(p) }
             if let e = decision.exposure { exposureView(e) }
             details
@@ -81,6 +84,7 @@ struct DecisionCard: View {
                     .font(.footnote).fixedSize(horizontal: false, vertical: true)
             }
             if let dg = decision.degraded, dg.active { DegradedBanner(degraded: dg) }
+            if let nt = decision.noTrade, nt.active { NoTradeBanner(noTrade: nt) }
             Text(decision.headline).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             if decision.blocked {
                 Notice(text: "Achat interdit pour l'instant : " + decision.vetoes.filter(\.active).map(\.label).joined(separator: ", ") + ".", tone: .bad)
@@ -206,6 +210,12 @@ struct DecisionCard: View {
     }
 
     @ViewBuilder private var details: some View {
+        if let nt = decision.noTrade {
+            DisclosureGroup("Quand ne pas trader · \(nt.badge)") {
+                NoTradeList(noTrade: nt).padding(.top, 6)
+            }
+            .tint(.white)
+        }
         DisclosureGroup(familiesTitle) {
             VStack(alignment: .leading, spacing: 10) {
                 ForEach(decision.families) { familyDetail($0) }
@@ -250,8 +260,11 @@ struct DecisionCard: View {
         }
         .tint(.white)
         if !decision.scenarios.isEmpty {
-            DisclosureGroup("Scénarios") {
+            DisclosureGroup("Scénarios" + (DecisionGuidance.scenariosBadge(decision).map { " · \($0)" } ?? "")) {
                 VStack(alignment: .leading, spacing: 8) {
+                    if let u = decision.unfolding {
+                        Text(u.text).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+                    }
                     ForEach(Array(decision.scenarios.enumerated()), id: \.offset) { item in scenarioRow(item.element) }
                 }
                 .padding(.top, 6)
@@ -377,13 +390,29 @@ struct DecisionCard: View {
 
     private func scenarioRow(_ s: Decision.Scenario) -> some View {
         let tone: Tone = s.kind == .bull ? .good : s.kind == .bear ? .bad : .warn
+        let unfolding = s.unfolding == true
         return VStack(alignment: .leading, spacing: 2) {
-            Text(s.title).font(.footnote.weight(.semibold)).foregroundStyle(Theme.color(tone))
+            ViewThatFits(in: .horizontal) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("\(s.kind.icon) \(s.title)").font(.footnote.weight(.semibold)).foregroundStyle(Theme.color(tone))
+                    Spacer(minLength: 6)
+                    if let count = DecisionGuidance.scenarioCount(s) { Text(count).font(.caption.monospacedDigit()).foregroundStyle(unfolding ? Theme.cyan : Theme.textSecondary) }
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(s.kind.icon) \(s.title)").font(.footnote.weight(.semibold)).foregroundStyle(Theme.color(tone))
+                    if let count = DecisionGuidance.scenarioCount(s) { Text(count).font(.caption.monospacedDigit()).foregroundStyle(unfolding ? Theme.cyan : Theme.textSecondary) }
+                }
+            }
             Text("Si \(DecisionStyle.lowerFirst(s.condition)) → \(s.consequence)")
                 .font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             if let l = s.level { Text("Niveau à surveiller : \(Format.price(l))").font(.caption.monospacedDigit()).foregroundStyle(Theme.textSecondary) }
+            if let checks = s.conditions, !checks.isEmpty { ScenarioChecksView(checks: checks) }
         }
+        .padding(unfolding ? 8 : 0)
+        .background(unfolding ? Theme.cyan.opacity(0.05) : Color.clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(unfolding ? Theme.cyan : Color.clear, lineWidth: 1))
         .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(unfolding ? .isSelected : [])
     }
 
     // MARK: Fundamentals

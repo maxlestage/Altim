@@ -14,13 +14,15 @@ struct HoldingsView: View {
     @State private var editing: Holding?
     @State private var adding = false
     @State private var error: String?
-    /// 0 = real holdings, 1 = simulation (paper trading).
+    /// 0 = real holdings, 1 = simulation (paper trading), 2 = journal.
     @State private var mode = 0
 
     var body: some View {
         Group {
             if mode == 1 {
                 PaperView(mode: $mode)
+            } else if mode == 2 {
+                JournalView(mode: $mode)
             } else {
                 realList
             }
@@ -105,6 +107,7 @@ struct HoldingsView: View {
                 if let risk {
                     Section { LimitsCard(checks: risk.limits) }.listRowBackground(Color.clear)
                     Section { StressCard(portfolio: risk.portfolio, results: risk.stress, betas: risk.betas) }.listRowBackground(Color.clear)
+                    Section { WhatIfCard(portfolio: risk.portfolio, daily: daily) }.listRowBackground(Color.clear)
                 }
             }
         }
@@ -266,6 +269,10 @@ struct HoldingForm: View {
     @State private var average = ""
     @State private var stopText = ""
     @State private var current: Double?
+    /// Inscribe the purchase or sale in the trading journal (a first entry of holdings is usually past purchases:
+    /// not journaled unless asked; later additions and edits are).
+    @State private var journal = true
+    @State private var note = ""
 
     var body: some View {
         NavigationStack {
@@ -311,6 +318,12 @@ struct HoldingForm: View {
                 } footer: {
                     Text("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
                 }
+                if let text = journalText {
+                    Section {
+                        Toggle(isOn: $journal) { Text(text).font(.footnote).fixedSize(horizontal: false, vertical: true) }.tint(Theme.cyan)
+                        if journal { JournalNoteField(text: $note) }
+                    }
+                }
             }
             .scrollContentBackground(.hidden)
             .background(AppBackground())
@@ -323,6 +336,7 @@ struct HoldingForm: View {
             .task(id: query) { await search() }
             .task(id: asset?.id) { await quote() }
             .onAppear {
+                if holding == nil && asset == nil && quantity.isEmpty { journal = !model.holdings.isEmpty }
                 guard let holding, asset == nil else { return }
                 asset = holding.asset
                 quantity = Format.quantity(holding.quantity)
@@ -345,14 +359,38 @@ struct HoldingForm: View {
         return average.isEmpty || (Self.number(average) ?? -1) > 0
     }
 
+    /// Purchase or sale this edit records (nil: nothing to write in the journal).
+    private var change: TradeJournal.HoldingChange? {
+        guard valid, let asset, let q = Self.number(quantity) else { return nil }
+        let avg = average.isEmpty ? nil : Self.number(average)
+        let live = current ?? model.live.price(asset)?.price
+        guard let holding else { return (avg ?? live).map { TradeJournal.HoldingChange(side: .buy, quantity: q, price: $0, implied: false) } }
+        return TradeJournal.holdingChange(before: (holding.quantity, holding.averagePrice), after: (q, avg), livePrice: live)
+    }
+
+    private var journalText: String? {
+        guard let c = change, let asset else { return nil }
+        if holding == nil { return "Achats faits aujourd'hui : les inscrire au journal" }
+        return "\(c.side == .buy ? "Achat" : "Vente") de \(Format.quantity(c.quantity)) \(asset.symbol) à \(Format.price(c.price))\(c.implied ? " (déduit du nouveau PRU)" : " (cours actuel)") : l'inscrire au journal"
+    }
+
     private func save() {
         guard let asset, let q = Self.number(quantity) else { return }
         let avg = average.isEmpty ? nil : Self.number(average)
         let stop = stopText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Self.number(stopText)
+        let change = self.change
         if let holding, let i = model.holdings.firstIndex(where: { $0.id == holding.id }) {
             model.holdings[i] = Holding(id: holding.id, asset: asset, quantity: q, averagePrice: avg, stop: stop)
+            if journal, let c = change {
+                model.recordTrade(source: .real, side: c.side, asset: asset, price: c.price, quantity: c.quantity, stop: c.side == .buy ? stop : nil,
+                                  note: note, refId: holding.id.uuidString)
+            }
         } else {
-            model.holdings.append(Holding(asset: asset, quantity: q, averagePrice: avg, stop: stop))
+            let line = Holding(asset: asset, quantity: q, averagePrice: avg, stop: stop)
+            model.holdings.append(line)
+            if journal, let c = change {
+                model.recordTrade(source: .real, side: .buy, asset: asset, price: c.price, quantity: c.quantity, stop: stop, note: note, refId: line.id.uuidString)
+            }
         }
         dismiss()
     }

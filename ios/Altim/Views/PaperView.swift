@@ -1,7 +1,7 @@
 import SwiftUI
 import AltimKit
 
-/// "Réel / Simulation" at the top of Mes avoirs.
+/// "Réel / Simulation / Journal" at the top of Mes avoirs.
 struct PortfolioModePicker: View {
     @Binding var mode: Int
 
@@ -9,6 +9,7 @@ struct PortfolioModePicker: View {
         Picker("Portefeuille", selection: $mode) {
             Text("Réel").tag(0)
             Text("Simulation").tag(1)
+            Text("Journal").tag(2)
         }
         .pickerStyle(.segmented)
     }
@@ -361,6 +362,7 @@ struct PaperBuySheet: View {
     @State private var amount = ""
     @State private var stop = ""
     @State private var target = ""
+    @State private var note = ""
     @State private var error: String?
 
     private var asset: Asset { Asset(symbol: decision.symbol, kind: decision.kind, name: decision.name) }
@@ -401,6 +403,9 @@ struct PaperBuySheet: View {
                     Text("Sortie automatique")
                 } footer: {
                     Text("Pré-remplis avec le stop et l'objectif 1 du plan. Vérifiés sur les bougies journalières à partir du lendemain ; un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
+                }
+                Section {
+                    JournalNoteField(text: $note)
                 }
                 if let error {
                     Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear)
@@ -452,6 +457,10 @@ struct PaperBuySheet: View {
         if let e = model.paperBuy(order) {
             error = e
         } else {
+            if let pos = model.paper.positions.last {
+                model.recordTrade(source: .paper, side: .buy, asset: asset, price: pos.entry, quantity: pos.quantity, amount: pos.invested,
+                                  stop: pos.stop, targets: [pos.target], note: note, refId: pos.id, decision: decision)
+            }
             dismiss()
         }
     }

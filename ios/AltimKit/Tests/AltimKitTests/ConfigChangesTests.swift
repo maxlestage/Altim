@@ -75,7 +75,7 @@ final class ConfigChangesTests: XCTestCase {
 
     func testDamagedStorageDropped() throws {
         XCTAssertEqual(ConfigChanges.parse(Data("{nope".utf8)), ConfigState())
-        XCTAssertEqual(ConfigChanges.parse(Data(#"{"version":2,"last":{},"transitions":[]}"#.utf8)), ConfigState())
+        XCTAssertEqual(ConfigChanges.parse(Data(#"{"version":3,"last":{},"transitions":[]}"#.utf8)), ConfigState())
         XCTAssertEqual(ConfigChanges.parse(nil), ConfigState())
         let d = try btc()
         let good = ConfigChanges.apply(ConfigChanges.apply(ConfigState(), d, personal: false, now: 1).state, with(d, verdict: .sell), personal: false, now: 2).state
@@ -92,5 +92,97 @@ final class ConfigChangesTests: XCTestCase {
         var unknown = good
         unknown.transitions[0].to.verdict = .unknown
         XCTAssertTrue(ConfigChanges.parse(try JSONEncoder().encode(unknown)).transitions.isEmpty)
+    }
+
+    // MARK: Why the signal changed (web "why the signal changed")
+
+    func m(price: Double? = 342, composite: Double? = 24, families: [SignalMetrics.Family]? = nil, relVolume: Double? = 1.4, rsi: Double? = 62,
+           support: SignalMetrics.Level? = SignalMetrics.Level(price: 335.61, touches: 2),
+           resistance: SignalMetrics.Level? = SignalMetrics.Level(price: 344.95, touches: 2),
+           newsScore: Double? = 0, topNews: SignalMetrics.News? = nil) -> SignalMetrics {
+        SignalMetrics(price: price, composite: composite,
+                      families: families ?? [.init(key: "trend", label: "Tendance", score: 50), .init(key: "momentum", label: "Momentum", score: 40),
+                                             .init(key: "news", label: "Actualités", score: 0)],
+                      relVolume: relVolume, rsi: rsi, support: support, resistance: resistance, newsScore: newsScore, topNews: topNews)
+    }
+
+    func testEveryMeasuredChangeToldMostTellingFirst() {
+        let next = m(composite: 6,
+                     families: [.init(key: "trend", label: "Tendance", score: 45), .init(key: "momentum", label: "Momentum", score: 22),
+                                .init(key: "news", label: "Actualités", score: nil)],
+                     relVolume: 0.7, rsi: 48, resistance: SignalMetrics.Level(price: 344.9, touches: 3),
+                     topNews: SignalMetrics.News(title: "Apple cuts iPhone orders", tone: "negative"))
+        XCTAssertEqual(ConfigChanges.explainChange(m(), next), [
+            "Score composite +24 → +6",
+            "Momentum −18 pts (+40 → +22)",
+            "Actualités : plus mesuré(e) (données indisponibles)",
+            "Volume en baisse (1,4× → 0,7× la moyenne)",
+            "RSI 62 → 48",
+            "Résistance 344,90\u{202F}$ confirmée (touchée 3 fois)",
+            "Actualité négative : « Apple cuts iPhone orders »",
+        ])
+    }
+
+    func testLevelsBrokenOrCrossedSmallMovesIgnored() {
+        XCTAssertEqual(ConfigChanges.explainChange(m(), m(price: 330, composite: 22, rsi: 58)), ["Support 335,61\u{202F}$ cassé (prix 330\u{202F}$)"])
+        XCTAssertEqual(ConfigChanges.explainChange(m(), m(price: 346, resistance: SignalMetrics.Level(price: 360, touches: 2))),
+                       ["Résistance 344,95\u{202F}$ franchie (prix 346\u{202F}$)"])
+        XCTAssertEqual(ConfigChanges.explainChange(m(), m()), [])
+    }
+
+    func testTransitionCarriesExplanationRatingChangeAloneIsATransition() throws {
+        let d = try btc()
+        func scored(_ value: Double, rating: Decision.Rating, label: String) -> Decision {
+            var x = d
+            x.rating = rating
+            x.ratingLabel = label
+            x.score = Decision.CompositeScore(value: value, label: "", factors: [], missing: [], custom: false, text: "")
+            return x
+        }
+        let s = ConfigChanges.apply(ConfigState(), scored(24, rating: .buy, label: "ACHAT"), personal: false, now: 1).state
+        XCTAssertEqual(s.last.values.first?.metrics?.families.count, d.families.count)
+        let t = try XCTUnwrap(ConfigChanges.apply(s, scored(-30, rating: .hold, label: "ATTENDRE"), personal: false, now: 2).transition)
+        XCTAssertEqual(t.title, "🚨 BTC — changement de configuration : note ACHAT → note ATTENDRE")
+        // Older decision without `snapshot`: the measurements are read from the decision itself.
+        XCTAssertEqual(t.changes, ["Score composite +24 → −30"])
+    }
+
+    /// Data saved by the previous version of the app (version 1) is migrated; damaged measurements alone are dropped.
+    func testVersionOneMigratedDamagedMeasurementsDropped() throws {
+        let v1 = #"""
+        {"version":1,"last":{"crypto:BTC:i":{"verdict":"wait","level":"waiting","label":"ATTENDRE","levelLabel":"Attente","missing":[],"triggers":[],"at":1}},
+         "transitions":[{"symbol":"BTC","kind":"crypto","name":"Bitcoin","personal":false,"at":2,"since":1,
+           "from":{"verdict":"buy","level":"moderate","label":"ACHETER","levelLabel":"Signal modéré"},
+           "to":{"verdict":"wait","level":"waiting","label":"ATTENDRE","levelLabel":"Attente"},"missing":[],"triggers":[]}]}
+        """#
+        let p = ConfigChanges.parse(Data(v1.utf8))
+        XCTAssertEqual(p.version, 2)
+        XCTAssertNil(p.last["crypto:BTC:i"]?.metrics)
+        XCTAssertEqual(p.transitions.first?.changes, [])
+        XCTAssertEqual(p.transitions.count, 1)
+        let bad = v1.replacingOccurrences(of: #""version":1"#, with: #""version":2"#)
+            .replacingOccurrences(of: #""triggers":[],"at":1}"#, with: #""triggers":[],"at":1,"metrics":{"price":"x"}}"#)
+        let q = ConfigChanges.parse(Data(bad.utf8))
+        XCTAssertEqual(Array(q.last.keys), ["crypto:BTC:i"])
+        XCTAssertNil(q.last["crypto:BTC:i"]?.metrics)
+        // A migrated baseline (no measurements) gives a transition without explanation, never a made-up one.
+        let t = try XCTUnwrap(ConfigChanges.apply(p, with(try btc(), verdict: .buy, label: "ACHETER"), personal: false, now: 3).transition)
+        XCTAssertEqual(t.changes, [])
+        // Saved again as version 2 and read back the same.
+        let saved = ConfigChanges.apply(p, try btc(), personal: false, now: 3).state
+        XCTAssertEqual(saved.version, 2)
+        XCTAssertEqual(try JSONDecoder().decode(ConfigState.self, from: JSONEncoder().encode(saved)), saved)
+    }
+
+    func testDecisionCardFindsTheChangeThatLedToIt() throws {
+        let d = try btc()
+        let s = ConfigChanges.apply(ConfigState(), d, personal: false, now: 1).state
+        let next = with(d, verdict: .buyZone, level: .moderate)
+        let state = ConfigChanges.apply(s, next, personal: false, now: 2).state
+        XCTAssertEqual(ConfigChanges.latestChange(state.transitions, next)?.since, 1)
+        XCTAssertNil(ConfigChanges.latestChange(state.transitions, d))
+        var personal = next
+        personal.mode = "personal"
+        XCTAssertNil(ConfigChanges.latestChange(state.transitions, personal))
     }
 }
