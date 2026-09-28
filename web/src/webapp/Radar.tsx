@@ -3,6 +3,7 @@ import { api, INTERVAL_LABEL, type BuyAlert, type MacroInfo, type RadarRow, type
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval } from "./store";
 import { BriefCard } from "./BriefCard";
+import { CompareCard } from "./ToolCards";
 import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { formatPrice } from "../market";
@@ -18,6 +19,35 @@ export function Radar() {
   const [buyable, setBuyable] = useState<BuyAlert[] | null>(null);
   const busy = useRef(false);
   const live = useLive(watchlist);
+  // Order of the list: the user's own, the largest moves first, or the strongest buy signals first (remembered).
+  const [sort, setSort] = useState<"mine" | "change" | "signal">(() => {
+    try {
+      const s = localStorage.getItem("altim.radar.sort");
+      return s === "change" || s === "signal" ? s : "mine";
+    } catch {
+      return "mine";
+    }
+  });
+  const chooseSort = (s: "mine" | "change" | "signal") => {
+    setSort(s);
+    try {
+      localStorage.setItem("altim.radar.sort", s);
+    } catch {
+      /* private browsing: not remembered */
+    }
+  };
+  const sorted = sort === "mine"
+    ? watchlist
+    : [...watchlist].sort((a, b) => {
+        const ra = rows[assetKey(a)];
+        const rb = rows[assetKey(b)];
+        if (sort === "change") {
+          const ca = live.ticks[assetKey(a)]?.change ?? ra?.change ?? null;
+          const cb = live.ticks[assetKey(b)]?.change ?? rb?.change ?? null;
+          return Math.abs(cb ?? -1) - Math.abs(ca ?? -1);
+        }
+        return (rb?.signal?.score ?? -1000) - (ra?.signal?.score ?? -1000);
+      });
 
   const refresh = useCallback(async () => {
     if (busy.current || !watchlist.length) return;
@@ -146,8 +176,11 @@ export function Radar() {
         </div>
       )}
 
+      {watchlist.length > 1 && (
+        <Segmented label="Trier le radar" value={sort} options={[["mine", "Mon ordre"], ["change", "Variation"], ["signal", "Signal"]]} onChange={chooseSort} />
+      )}
       <ul className="asset-list">
-        {watchlist.map((w) => {
+        {sorted.map((w) => {
           const r = rows[assetKey(w)];
           const t = live.ticks[assetKey(w)];
           // The sparkline ends on the live price: the chart moves with the market.
@@ -180,6 +213,8 @@ export function Radar() {
           Votre radar est vide. <a href="/app/reglages" onClick={onLink} className="link">Ajouter des actifs</a>
         </p>
       )}
+
+      {watchlist.length >= 2 && <CompareCard assets={watchlist} />}
     </section>
   );
 }

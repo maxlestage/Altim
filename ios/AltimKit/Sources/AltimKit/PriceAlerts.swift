@@ -10,20 +10,37 @@ public struct PriceTarget: Codable, Sendable, Identifiable, Hashable {
     public var price: Double
     public var created: Date
     public var triggered: Date?
+    /// Move alert: notify when the price moves by at least this many % (up or down) from `price`, the reference.
+    public var move: Double?
 
-    public init(id: UUID = UUID(), asset: Asset, above: Bool, price: Double, created: Date = Date(), triggered: Date? = nil) {
+    public init(id: UUID = UUID(), asset: Asset, above: Bool, price: Double, created: Date = Date(), triggered: Date? = nil, move: Double? = nil) {
         self.id = id
         self.asset = asset
         self.above = above
         self.price = price
         self.created = created
         self.triggered = triggered
+        self.move = move
     }
 
-    public var label: String { "\(above ? "Au-dessus de" : "En dessous de") \(Format.price(price))" }
+    public var label: String {
+        if let move { return "Variation de ±\(Format.plain(move, digits: 1)) % (depuis \(Format.price(price)))" }
+        return "\(above ? "Au-dessus de" : "En dessous de") \(Format.price(price))"
+    }
 
     /// Reached at this price?
-    public func isReached(by current: Double) -> Bool { above ? current >= price : current <= price }
+    public func isReached(by current: Double) -> Bool {
+        if let move { return price > 0 && abs(current / price - 1) * 100 >= move }
+        return above ? current >= price : current <= price
+    }
+
+    /// Re-armed: a move alert starts again from the current price.
+    public func rearmed(at current: Double?) -> PriceTarget {
+        var t = self
+        t.triggered = nil
+        if move != nil, let current, current > 0 { t.price = current }
+        return t
+    }
 
     /// Armed targets reached at the given prices (key "kind:SYMBOL"): returns the updated list and those just reached.
     public static func evaluate(_ targets: [PriceTarget], prices: [String: Double], now: Date = Date()) -> (targets: [PriceTarget], fired: [(PriceTarget, Double)]) {

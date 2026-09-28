@@ -98,6 +98,7 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             }
             Caption("Demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés par une clé du Keystore Android propre à ce téléphone, et exclus des sauvegardes.")
         }
+        GlossaryCard()
         Card(title = "Données") {
             KeyValue("Sources de prix", "40 (23 crypto, 17 actions)")
             KeyValue("Prix en direct", "7 bourses crypto, actions toutes les 5 s")

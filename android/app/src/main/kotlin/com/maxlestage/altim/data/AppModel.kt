@@ -148,7 +148,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     fun addTarget(context: Context, t: PriceTarget) = setTargets(context, priceTargets + t)
     fun removeTarget(context: Context, id: String) = setTargets(context, priceTargets.filterNot { it.id == id })
-    fun rearmTarget(context: Context, id: String) = setTargets(context, priceTargets.map { if (it.id == id) it.copy(triggered = null) else it })
+    /** Re-arms an alert (a move alert starts again from the current price). */
+    fun rearmTarget(context: Context, id: String, current: Double? = null) = setTargets(context, priceTargets.map { if (it.id == id) it.rearmed(current) else it })
 
     private fun setTargets(context: Context?, list: List<PriceTarget>) {
         priceTargets = list

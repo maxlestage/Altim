@@ -84,6 +84,9 @@ struct SettingsView: View {
             } footer: {
                 Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés dans le trousseau de cet iPhone, jamais sauvegardés dans iCloud.")
             }
+            Section("Comprendre") {
+                NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
+            }
             Section("Données") {
                 KeyValue(key: "Sources de prix", value: "40 (23 crypto, 17 actions)")
                 KeyValue(key: "Prix en direct", value: "7 bourses crypto, actions toutes les 5 s")

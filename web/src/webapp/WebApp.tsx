@@ -7,6 +7,7 @@ import { Settings } from "./Settings";
 import { MyHoldings } from "./MyHoldings";
 import { Selection } from "./Selection";
 import { News } from "./News";
+import { Glossary } from "./Glossary";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
@@ -41,6 +42,7 @@ export function WebApp() {
   else if (path === "/app/selection") screen = <Selection />;
   else if (path === "/app/reglages") screen = <Settings />;
   else if (path === "/app/actu") screen = <News />;
+  else if (path === "/app/lexique") screen = <Glossary />;
   else screen = <Radar />;
 
   const active = asset ? "/app" : TABS.find((t) => t.href === path)?.href ?? "/app";

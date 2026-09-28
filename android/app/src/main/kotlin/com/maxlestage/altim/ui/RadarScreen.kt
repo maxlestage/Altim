@@ -183,6 +183,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                 item {
                     Caption("Le signal est une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
+                if (model.watchlist.size >= 2) item { CompareCard(model) }
             }
         }
     }
