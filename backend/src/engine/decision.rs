@@ -1939,10 +1939,10 @@ fn imminent_events<'a>(inp: &'a DecisionInput) -> Vec<&'a CalendarEvent> {
         .collect()
 }
 
-/// "Décision de la Fed (États-Unis) le 30/09 à 20:00".
+/// "Décision de la Fed, États-Unis, le 30/09 à 20:00".
 fn event_text(e: &CalendarEvent) -> String {
     let day = e.day.get(8..10).zip(e.day.get(5..7)).map(|(d, m)| format!("{d}/{m}")).unwrap_or_else(|| e.day.clone());
-    let country = e.country.as_ref().map(|c| format!(" ({c})")).unwrap_or_default();
+    let country = e.country.as_ref().map(|c| format!(", {c},")).unwrap_or_default();
     let time = match &e.time {
         Some(t) if t.contains(':') => format!(" à {t}"),
         Some(t) => format!(" {t}"),

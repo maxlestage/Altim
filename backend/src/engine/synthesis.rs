@@ -251,6 +251,11 @@ pub struct Degraded {
 }
 
 pub const DEGRADED_HEADLINE: &str = "⚠️ Signal dégradé — Le modèle détecte des signaux contradictoires. Aucune entrée privilégiée actuellement.";
+/// Headlines when nothing contradicts itself but the data or the signal's record can't be trusted: the headline
+/// names the actual cause (the reasons list gives the detail).
+pub const DEGRADED_DATA_HEADLINE: &str = "⚠️ Signal dégradé — Données peu fiables. Aucune entrée privilégiée actuellement.";
+pub const DEGRADED_RECORD_HEADLINE: &str =
+    "⚠️ Signal dégradé — Le signal n'a pas fait ses preuves sur cet actif. Aucune entrée privilégiée actuellement.";
 /// Families on each side from which the evidence contradicts itself.
 pub const CONTRADICTION_FAMILIES: usize = 3;
 /// Technique and fundamentals both beyond this score, on opposite sides: conflict.
@@ -284,10 +289,18 @@ pub fn degraded(fams: &[Family], score: &CompositeScore, unreliable: Option<Stri
             ));
         }
     }
+    let headline = if !reasons.is_empty() {
+        DEGRADED_HEADLINE
+    } else if unreliable.is_some() {
+        DEGRADED_DATA_HEADLINE
+    } else if signal_lost.is_some() {
+        DEGRADED_RECORD_HEADLINE
+    } else {
+        ""
+    };
     reasons.extend(unreliable);
     reasons.extend(signal_lost);
-    let active = !reasons.is_empty();
-    Degraded { active, headline: if active { DEGRADED_HEADLINE.into() } else { String::new() }, reasons }
+    Degraded { active: !reasons.is_empty(), headline: headline.into(), reasons }
 }
 
 // ---------- Market regime ----------
@@ -559,7 +572,9 @@ mod tests {
         let d = degraded(&calm, &composite(&calm, None, None), None, None);
         assert!(!d.active && d.headline.is_empty() && d.reasons.is_empty());
         let d = degraded(&calm, &composite(&calm, None, None), Some("Données peu fiables".into()), None);
-        assert!(d.active);
+        assert!(d.active && d.headline == DEGRADED_DATA_HEADLINE, "the headline names the actual cause");
+        let d = degraded(&calm, &composite(&calm, None, None), None, Some("Le signal a perdu de l'argent".into()));
+        assert!(d.active && d.headline == DEGRADED_RECORD_HEADLINE);
     }
 
     fn report(score: f64, vix: f64) -> MacroReport {

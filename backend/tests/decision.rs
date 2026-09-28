@@ -9,7 +9,7 @@ use altim::engine::guard::{GuardInput, GuardResult, NewsItem, guard};
 use altim::engine::macro_ctx::{MacroFactor, MacroLevel, MacroReport, MacroValue, MacroValues};
 use altim::engine::reliability::{Reliability, assess_quality, reliability};
 use altim::engine::structure::Benchmark;
-use altim::engine::synthesis::{DEGRADED_HEADLINE, Rating, RegimeKind, ScoreWeights};
+use altim::engine::synthesis::{DEGRADED_DATA_HEADLINE, DEGRADED_HEADLINE, DEGRADED_RECORD_HEADLINE, Rating, RegimeKind, ScoreWeights};
 use altim::types::{Candle, DAY_MS, Interval, Kind};
 use common::{INPUTS, find, now};
 
@@ -133,7 +133,7 @@ fn assert_coherent(d: &Decision, what: &str) {
     assert_eq!(d.rating_label, d.rating.label(), "{what}");
     if d.degraded.active {
         assert!(!matches!(d.rating, Rating::StrongBuy | Rating::Buy), "{what}: degraded but {:?}", d.rating);
-        assert_eq!(d.degraded.headline, DEGRADED_HEADLINE);
+        assert!([DEGRADED_HEADLINE, DEGRADED_DATA_HEADLINE, DEGRADED_RECORD_HEADLINE].contains(&d.degraded.headline.as_str()), "{what}");
         assert!(!d.degraded.reasons.is_empty());
     } else {
         assert!(d.degraded.headline.is_empty() && d.degraded.reasons.is_empty(), "{what}");
@@ -386,7 +386,7 @@ fn a_scheduled_announcement_turns_a_buy_into_a_wait() {
     .unwrap();
     let d = decide_on(&s, |i| i.events = Some(vec![fed.clone()]));
     let v = d.vetoes.iter().find(|v| v.code == "announcement").unwrap();
-    assert!(v.active && v.detail.contains("Décision de la Fed sur les taux (États-Unis) le 01/10 à 20:00"), "{}", v.detail);
+    assert!(v.active && v.detail.contains("Décision de la Fed sur les taux, États-Unis, le 01/10 à 20:00"), "{}", v.detail);
     assert_eq!(d.verdict, Verdict::Wait, "a matter of timing, not a reason to stay out");
     assert_eq!(d.events.as_ref().map(|e| e.len()), Some(1));
     // Without a calendar: said, never taken as "nothing announced".
