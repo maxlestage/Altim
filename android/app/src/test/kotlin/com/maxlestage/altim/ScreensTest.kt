@@ -85,6 +85,7 @@ class ScreensTest {
             listOf("ACHAT", "ATTENDRE", "VENTE").any { compose.onAllNodes(hasText(it, substring = true)).fetchSemanticsNodes().isNotEmpty() }
         }
         compose.waitUntil(30_000) { model.live.lastTick != null }
+        waitFor("Point du jour", 120_000)
         compose.waitForIdle()
         shot("3-radar")
 
@@ -93,6 +94,7 @@ class ScreensTest {
         waitFor("Retracement 38,2 %", 90_000)
         waitFor("Tendance de fond", 90_000)
         waitFor("sources en accord", 90_000)
+        waitFor("Tout investi le", 90_000)
         compose.waitForIdle()
         shot("4-fiche-btc")
         compose.onNode(hasText("Retour", substring = false).or(androidx.compose.ui.test.hasContentDescription("Retour"))).performClick()

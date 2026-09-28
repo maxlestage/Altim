@@ -78,7 +78,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -209,7 +209,11 @@ class AltimClient(
     suspend fun news(assets: List<Asset>): NewsReport =
         get("/api/news", if (assets.isEmpty()) emptyMap() else mapOf("symbols" to list(assets.take(20))), NewsReport.serializer())
 
-    /** Daily closes of these assets over 30, 90 or 365 days, plus Bitcoin and SPY (the quantities stay on the phone). */
+    /** "Point du jour" of these assets (the watch list and the holdings). */
+    suspend fun brief(assets: List<Asset>): Brief =
+        get("/api/brief", mapOf("symbols" to list(assets.distinctBy { it.id }.take(20))), Brief.serializer())
+
+    /** Daily closes of these assets over 30, 90, 365 or 730 days, plus Bitcoin and SPY (the quantities stay on the phone). */
     suspend fun history(assets: List<Asset>, days: Int): HistoryResponse =
         get("/api/history", mapOf("days" to days.toString()) + (if (assets.isEmpty()) emptyMap() else mapOf("symbols" to list(assets.distinctBy { it.id }.take(20)))), HistoryResponse.serializer())
 

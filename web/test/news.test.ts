@@ -114,7 +114,12 @@ describe("regroupement et classement", () => {
     expect(paris).toMatchObject({ lang: "fr", tone: "positive" });
     expect(paris.themes).toContain("monetary");
     expect(out.find((i) => i.source === "C")!.alert).toBe(true);
-    expect(topStories(out)[0]!.alert).toBe(true);
+    // An escalation told by one source only stays off the front page; hedged titles are not escalations.
+    expect(topStories(out).length).toBe(0);
+    const hedged = aggregate([{ category: "monde", items: [item("Les agents IA pourraient déclencher un bank run, selon cet économiste", "X"), item("AI agents could trigger a bank run", "Y")] }], [], now);
+    expect(hedged.every((i) => !i.alert)).toBe(true);
+    const war = aggregate([{ category: "monde", items: [item("Russia declares war on neighbour, markets slide", "A"), item("Russia declares war on its neighbour as markets slide", "B"), item("Fed holds interest rates steady as inflation cools", "C"), item("Fed holds interest rates steady while inflation cools", "D")] }], [], now);
+    expect(topStories(war)[0]!.alert).toBe(true);
     const w = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"];
     const distinct = (i: number) => `${w[i % 10]} ${w[Math.floor(i / 10)]}token ${i}x${w[(i * 3) % 10]}chain news`;
     const many = aggregate([{ category: "crypto", items: Array.from({ length: 100 }, (_, i) => item(distinct(i), `S${i}`, i / 10)) }], [], now);

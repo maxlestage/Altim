@@ -26,6 +26,7 @@ Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
 - **Le conseil d'Altim** sur chaque actif : *Achat envisageable* (avec zone d'entrée, stop, objectif et **montant prudent** calculé sur votre patrimoine), *Attendre*, *À éviter*, ou *Pas de conseil* si les sources sont en désaccord. Si vous détenez déjà l'actif, le conseil devient celui de votre ligne : *Conserver*, *Renforcer possible*, *Alléger* (avec le montant), *Protéger* ou *Vendre ou protéger*.
 - **Catalogue complet** : toutes les cryptos listées en USD/USDT sur OKX, Coinbase, Kraken, KuCoin et Gate (≈ 2 000, classées par capitalisation CoinGecko) et toutes les actions et ETF cotés aux États-Unis (≈ 11 600, annuaire officiel Nasdaq Trader, classés par capitalisation). Parcours par catégorie ou recherche par symbole ou nom (`/api/universe`).
 - **Mes avoirs** : vous renseignez en une fois plusieurs cryptos et plusieurs actions (actif, quantité, prix d'achat moyen), plus vos liquidités. Les données sont **gardées dans le navigateur (localStorage)**, avec export/import JSON. Altim en déduit tout : patrimoine et plus-values au prix de consensus, répartition crypto/actions/liquidités, et pour chaque ligne une recommandation expliquée (*Vendre ou protéger*, *Protéger*, *Alléger*, *Renforcer possible*, *Conserver*, ou *Données insuffisantes*) avec le stop de protection conseillé. S'y ajoutent les risques du portefeuille : volatilité, perte possible sur une mauvaise journée (VaR 95 %), perte si les stops sont touchés, concentration, diversification effective et corrélation. Carte **Évolution de mes lignes** : voir [Historique](#historique-du-portefeuille).
+- **Point du jour** en tête du Radar et **Si j'avais investi régulièrement** sur chaque fiche : voir [Point du jour et simulateur](#point-du-jour-et-investissement-programmé).
 - **Actu** : toute l'actualité utile au même endroit (voir [Actualités](#actualités-onglet-actu)).
 - **Réglages** : radar, prudence des conseils (risque accepté par idée, taille maximale d'une ligne).
 
@@ -47,6 +48,7 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 - **Live Activity et Dynamic Island** : sur la fiche d'un actif, « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island (en direct quand l'app tourne, à chaque vérification en arrière-plan sinon) ; activable dans Réglages.
 - **Onglet Alertes** : les actifs achetables maintenant (même règle que les notifications), vos **alertes de prix** (« préviens-moi si BTC passe sous 80 000 $ », une notification puis réarmable, bouton cloche sur la fiche) et le **journal des alertes** : chaque notification reçue avec son prix et ce qu'elle a donné depuis, et un résumé honnête (part des alertes d'achat en hausse, variation moyenne, sans frais ni règle de sortie).
 - **Apple Watch** : les actifs achetables et leurs raisons, envoyés par l'iPhone (la montre ne détient ni mot de passe ni session) ; les notifications de l'iPhone arrivent au poignet.
+- **Point du jour** (en tête du Radar) et **simulateur d'investissement programmé** (fiche d'un actif) : voir [plus bas](#point-du-jour-et-investissement-programmé).
 - **Alertes actualité** (Réglages) : voir [Actualités](#actualités-onglet-actu). Une notification ouvre l'onglet Actu.
 - **Onglet Actu** : la même section Actualités que le site (à la une, ce qui domine, rubriques, articles en français seulement) ; un article s'ouvre chez sa source. Les Réglages passent sous la roue dentée du Radar.
 - **Hors ligne** : voir [Solidité](#solidité-réseau-coupé-serveur-en-panne).
@@ -60,10 +62,10 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 - **Sécurité** : mot de passe et session chiffrés en AES-256-GCM par une clé du **Keystore Android** propre au téléphone (non exportable) ; sauvegardes cloud et transferts d'appareil désactivés ; HTTPS obligatoire (HTTP seulement pour un serveur local ou l'émulateur). Empreinte, visage ou code de l'écran à l'ouverture et après 2 minutes en arrière-plan. La clé du mot de passe ne fonctionne que téléphone déverrouillé ; l'aperçu des apps récentes est masqué.
 - **Notifications « achat possible »** : toutes les 15 minutes (WorkManager), même règle que l'iPhone, sans répétition, résumé au-delà de 3 ; touche → fiche de l'actif.
 - **Onglet Alertes** : achetables maintenant, alertes de prix (carte « Alerte de prix » sur la fiche d'un actif) et journal des alertes avec la variation depuis chaque notification, comme sur iPhone.
-- **Onglet Actu**, **alertes actualité**, **historique de mes lignes** et **mode hors ligne** comme sur iPhone ; Réglages sous la roue dentée du Radar.
+- **Point du jour**, **simulateur d'investissement programmé**, **onglet Actu**, **alertes actualité**, **historique de mes lignes** et **mode hors ligne** comme sur iPhone ; Réglages sous la roue dentée du Radar.
 - **Widget d'écran d'accueil** « Achetables maintenant » : les actifs achetables à la dernière vérification (symbole, prix, conseillé ou possible) et l'heure de cette vérification ; mis à jour toutes les 15 minutes avec les notifications d'achat. Aucune quantité ni montant de vos avoirs n'y apparaît ; il est vidé à la déconnexion.
 - **Sans rafale** : un actif n'est oublié qu'après 6 h sans être achetable et une raison déjà notifiée ne revient pas, même quand le prix hésite au bord d'une zone (iPhone et Android).
-- **Tests** : `./gradlew :kit:test` (28 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir et son historique, alerte de prix, Actu, Réglages (plus le widget et les alertes actualité sur les vrais flux), avec une capture de chaque écran dans `android/app/build/screens`.
+- **Tests** : `./gradlew :kit:test` (31 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir et son historique, alerte de prix, Actu, Réglages (plus le widget et les alertes actualité sur les vrais flux), avec une capture de chaque écran dans `android/app/build/screens`.
 - **CI** : tests du noyau, lint, build Debug (APK de test téléchargeable dans l'onglet Actions) et Release minifié ; le workflow « Android APK signé » produit l'APK à installer (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ### Serveur (Express sur Bun)
@@ -78,7 +80,8 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 | `GET /api/zones?symbol=BTC&kind=crypto` | **Zones d'achat** court / moyen / long terme (Fibonacci), vérifiées sur l'historique, avec le contexte macro |
 | `GET /api/macro` | **Contexte macro et géopolitique** : VIX, S&P 500, pétrole, or, dollar, taux, actualités d'escalade |
 | `GET /api/alerts?symbols=…` | **« Puis-je acheter ? »** pour les notifications des apps : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou plus bas cassé ; une clé de situation évite les notifications répétées |
-| `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90 ou 365 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
+| `GET /api/brief?symbols=…` | **Point du jour** : contexte de marché, actifs achetables (règle des notifications), variations depuis la dernière clôture, sujets à la une |
+| `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90, 365 ou 730 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
 | `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
 
 ## Actualités (onglet « Actu »)
@@ -109,6 +112,17 @@ Carte **« Évolution de mes lignes »** dans Mes avoirs (web, iPhone, Android),
 - pire recul depuis un sommet, meilleure et pire journée ; toucher ou survoler la courbe affiche la valeur du jour ;
 - **limites affichées** : vos achats et ventes passés ne sont pas connus, ce n'est donc pas la performance de votre compte ; les liquidités ne sont pas comptées ; si un actif a un historique plus court, la courbe commence plus tard au lieu d'inventer un gain.
 - Le serveur ne reçoit que les symboles ; les quantités restent dans le navigateur ou le téléphone. Même calcul sur les trois plateformes, vérifié sur les mêmes vraies clôtures (ETH + AAPL sur 90 jours : +45,5 %, Bitcoin +40,3 %, pire recul −6,8 %).
+
+## Point du jour et investissement programmé
+
+**Point du jour** (en tête du Radar, web, iPhone, Android), actualisé toutes les 5 minutes :
+
+- une phrase : contexte de marché (calme, tendu, tension élevée, d'après le contexte macro), nombre d'actifs **achetables** de votre radar et de vos avoirs (signal 4 h à l'achat ou prix dans une zone d'achat Fibonacci, sans blocage : la règle des notifications, donc parfois « achetable » alors que le badge du radar, qui ne montre que le signal, dit ATTENDRE) et les plus fortes variations ;
+- les sujets du moment, les plus fortes variations **depuis la dernière clôture journalière** (touchez pour ouvrir l'actif) et les sujets à la une (repris par au moins 2 sources).
+
+**« Si j'avais investi régulièrement »** (fiche de chaque actif) : X $ chaque semaine ou chaque mois depuis 1 an ou 2 ans, rejoué sur les vraies clôtures journalières, comparé à la même somme investie en une fois le premier jour, avec le prix moyen payé. Sans frais ni impôts ; le passé ne dit pas ce qui arrivera. 2 ans au plus : les sources crypto ne gardent qu'environ 1 000 jours d'historique. Exemple réel (BTC, 100 $ par mois depuis septembre 2025) : 1 300 $ → 1 388 $ (+6,8 %), contre −23 % investis en une fois.
+
+**À la une plus prudente** : un titre au conditionnel ou une opinion (« pourrait déclencher une panique bancaire », « could », « selon cet économiste ») n'est plus une escalade, et un sujet n'est à la une que s'il est repris par au moins 2 sources (cas réel rencontré).
 
 ## Solidité : réseau coupé, serveur en panne
 

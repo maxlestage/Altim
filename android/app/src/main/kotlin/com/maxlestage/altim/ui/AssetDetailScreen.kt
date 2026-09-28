@@ -179,6 +179,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                     }
                 }
             }
+            DcaCard(model, asset)
             Caption("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
         }
     }
