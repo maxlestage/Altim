@@ -86,6 +86,35 @@ pub fn parse_weights(v: Option<&str>) -> ApiResult<Vec<super::data::Weight>> {
     Ok(out)
 }
 
+/// Number of days of a window (`days=`): absent or empty → `default`, otherwise an integer from 1 to `max`.
+pub fn parse_days(v: Option<&str>, default: u32, max: u32) -> ApiResult<u32> {
+    let Some(v) = v.filter(|s| !s.trim().is_empty()) else { return Ok(default) };
+    let n = js_number(v);
+    if n.is_finite() && n.fract() == 0.0 && n >= 1.0 && n <= f64::from(max) { Ok(n as u32) } else { bad(format!("days invalide (1 à {max})")) }
+}
+
+/// Maximum number of symbols in `symbols=` of the calendar.
+pub const MAX_SYMBOLS: usize = 50;
+
+/// Stock symbols (`symbols=AAPL,NVDA`, a ":stock" suffix accepted, ":crypto" entries ignored: no company events).
+/// Absent or empty → None (no filter).
+pub fn parse_symbol_list(v: Option<&str>) -> ApiResult<Option<Vec<String>>> {
+    let Some(v) = v.filter(|s| !s.trim().is_empty()) else { return Ok(None) };
+    let items: Vec<&str> = v.split(',').filter(|s| !s.trim().is_empty()).collect();
+    if items.len() > MAX_SYMBOLS {
+        return bad(format!("symbols invalide : {MAX_SYMBOLS} au plus"));
+    }
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        let (sym, kind) = item.split_once(':').unwrap_or((item, "stock"));
+        match parse_kind(Some(kind.trim()))? {
+            Kind::Crypto => continue,
+            Kind::Stock => out.push(parse_symbol(Some(sym), Kind::Stock)?),
+        }
+    }
+    Ok(Some(out))
+}
+
 /// `Math.floor(Number(v) || fallback)` for the paging parameters.
 pub fn int_or(v: Option<&str>, fallback: f64) -> f64 {
     let n = v.map(js_number).unwrap_or(f64::NAN);
@@ -130,5 +159,14 @@ mod tests {
         assert_eq!(int_or(Some("7.9"), 20.0), 7.0);
         assert_eq!(js_number(" 12 "), 12.0);
         assert!(js_number("12px").is_nan());
+        assert_eq!(parse_days(None, 14, 30).unwrap(), 14);
+        assert_eq!(parse_days(Some("30"), 14, 30).unwrap(), 30);
+        assert!(parse_days(Some("31"), 14, 30).is_err());
+        assert!(parse_days(Some("2.5"), 14, 30).is_err());
+        assert!(parse_days(Some("0"), 14, 30).is_err());
+        assert_eq!(parse_symbol_list(Some("aapl,BRK-B:stock,BTC:crypto")).unwrap(), Some(vec!["AAPL".into(), "BRK-B".into()]));
+        assert_eq!(parse_symbol_list(Some("")).unwrap(), None);
+        assert!(parse_symbol_list(Some("../x")).is_err());
+        assert!(parse_symbol_list(Some(&vec!["A"; 51].join(","))).is_err());
     }
 }

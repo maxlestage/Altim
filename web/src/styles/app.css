@@ -628,3 +628,26 @@
   .paper-table thead th { color: var(--muted); font-weight: 500; font-size: 12px; }
   .paper-table td::before { content: none; }
 }
+
+/* Agenda (Actualités → Agenda): chips wrap, never a horizontal scroll at 320 px. */
+.agenda { display: grid; gap: 12px; margin-top: 12px; min-width: 0; }
+.agenda .segmented { margin: 8px 0; }
+.agenda-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.agenda-chips .chip.pick { min-height: 36px; white-space: normal; }
+.agenda-chips .chip.pick.on { border-color: var(--cyan); color: var(--cyan); }
+.agenda-day { display: grid; gap: 8px; min-width: 0; }
+.agenda-day .section-label { margin: 4px 0 0; }
+.agenda-item { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); display: grid; gap: 6px; min-width: 0; }
+.agenda-item.high { border-color: rgba(255, 59, 92, 0.35); }
+.agenda-item p { margin: 0; overflow-wrap: anywhere; }
+.agenda-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.agenda-title { overflow-wrap: anywhere; min-width: 0; }
+.agenda-time { flex: none; font-family: var(--mono); color: var(--muted); }
+.agenda-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; align-self: center; }
+.agenda-dot.high { background: var(--sell); box-shadow: 0 0 8px rgba(255, 59, 92, 0.6); }
+.agenda-dot.medium { background: #ffc733; }
+.agenda-figures { display: flex; flex-wrap: wrap; gap: 4px 14px; overflow-wrap: anywhere; }
+.agenda-note { color: #ffc733; }
+.agenda-source { overflow-wrap: anywhere; justify-self: start; }
+.agenda .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.agenda-gaps { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; }

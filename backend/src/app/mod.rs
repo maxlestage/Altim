@@ -37,7 +37,7 @@ use crate::types::{Asset, DAY_MS, Kind};
 use crate::universe::{search_universe, universe};
 use data::*;
 use error::{ApiError, ApiResult, bad};
-use validate::{int_or, js_number, parse_cost, parse_interval, parse_kind, parse_symbol, parse_weights};
+use validate::{int_or, js_number, parse_cost, parse_days, parse_interval, parse_kind, parse_symbol, parse_symbol_list, parse_weights};
 
 type Q = Query<HashMap<String, String>>;
 
@@ -338,6 +338,14 @@ async fn decision_route(Query(p): Q) -> ApiResult<Response> {
     Ok(json_of(&decision_for(&symbol, kind, cost, &weights).await?))
 }
 
+/// Upcoming events (economy, central banks, earnings, dividends, splits, IPOs) over `days` days (14 by default, 30
+/// at most); with `symbols=AAPL,NVDA`, earnings, dividends and splits of these stocks only.
+async fn calendar_route(Query(p): Q) -> ApiResult<Response> {
+    let days = parse_days(q(&p, "days"), crate::calendar::DEFAULT_DAYS, crate::calendar::MAX_DAYS)?;
+    let symbols = parse_symbol_list(q(&p, "symbols"))?;
+    Ok(json_of(&crate::calendar::calendar(days, symbols.as_deref()).await))
+}
+
 async fn sentiment_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(q(&p, "kind"))?;
     Ok(json_of(&sentiment(&parse_symbol(q(&p, "symbol"), kind)?, kind).await))
@@ -382,6 +390,7 @@ pub fn api(state: AppState) -> Router {
         .route("/macro", get(macro_route))
         .route("/sentiment", get(sentiment_route))
         .route("/decision", get(decision_route))
+        .route("/calendar", get(calendar_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))

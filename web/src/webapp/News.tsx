@@ -4,6 +4,11 @@ import { Segmented } from "./ui";
 import { assetKey, useAppState, useHoldings } from "./store";
 import type { NewsCategory, NewsItem } from "../engine/news";
 import { THEME_LABEL } from "../engine/news";
+import { Agenda } from "./Agenda";
+
+type View = "articles" | "agenda";
+const VIEWS: [View, string][] = [["articles", "Articles"], ["agenda", "Agenda"]];
+const VIEW_KEY = "altim.news.view";
 
 type Filter = "all" | NewsCategory;
 const FILTERS: [Filter, string][] = [
@@ -62,6 +67,21 @@ export function News() {
     }
   });
   const [frenchOnly, setFrenchOnly] = useState(false);
+  const [view, setView] = useState<View>(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) === "agenda" ? "agenda" : "articles";
+    } catch {
+      return "articles";
+    }
+  });
+  const chooseView = (v: View) => {
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* private browsing: not remembered */
+    }
+  };
 
   const assets = useMemo(() => {
     const all = [...watchlist, ...holdings.map((h) => ({ symbol: h.symbol, kind: h.kind }))];
@@ -69,6 +89,7 @@ export function News() {
   }, [watchlist, holdings]);
 
   useEffect(() => {
+    if (view !== "articles") return;
     let alive = true;
     const load = () =>
       api.news(assets).then((r) => {
@@ -82,7 +103,7 @@ export function News() {
       alive = false;
       clearInterval(id);
     };
-  }, [assets]);
+  }, [assets, view]);
 
   const choose = (f: Filter) => {
     setFilter(f);
@@ -103,11 +124,16 @@ export function News() {
         <div>
           <h1>Actualités</h1>
           <p className="muted small">
-            {report ? `${report.items.length} articles de ${upSources} sources sur 48 h, mis à jour ${ago(report.asOf)}.` : "Chargement des sources…"}
+            {view === "agenda"
+              ? "Les événements à venir, chacun avec sa source."
+              : report ? `${report.items.length} articles de ${upSources} sources sur 48 h, mis à jour ${ago(report.asOf)}.` : "Chargement des sources…"}
           </p>
         </div>
       </header>
 
+      <Segmented label="Vue" value={view} options={VIEWS} onChange={chooseView} />
+
+      {view === "agenda" ? <Agenda /> : <>
       {error && <p className="notice warn">⚠ {error}</p>}
 
       {top.length > 0 && filter === "all" && (
@@ -158,6 +184,7 @@ export function News() {
           <p className="muted">Les titres sont affichés tels que publiés (non traduits) ; les liens ouvrent l'article chez sa source.</p>
         </details>
       )}
+      </>}
     </section>
   );
 }

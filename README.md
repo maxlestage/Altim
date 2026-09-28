@@ -93,6 +93,7 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90, 365 ou 730 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
 | `GET /api/decision?symbol=BTC&kind=crypto[&cost=…&weights=…]` | **Décision** : verdict, familles, interdictions d'achat, configuration, plan, scénarios, pourquoi pas, fondamentaux, historique du signal, sorties progressives |
 | `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
+| `GET /api/calendar?days=14[&symbols=AAPL,NVDA]` | **Agenda** : publications économiques majeures, décisions des banques centrales, résultats, dividendes, splits et introductions en bourse des 1 à 30 prochains jours, avec la source de chaque événement, l'état de chaque source et ce qui n'est pas couvert |
 
 ## Actualités (onglet « Actu »)
 
@@ -113,6 +114,24 @@ Dans Réglages, « Me prévenir des actualités importantes » : une notificatio
 - ou un sujet sur **un actif de votre radar ou de vos avoirs** est repris par **au moins 3 sources**.
 
 Un même sujet raconté par plusieurs médias ne prévient qu'une fois (même article, ou titre aux mêmes mots, mémorisé 48 h). Au-delà de 2 sujets à la fois, une seule notification résume.
+
+### Agenda (Actu → Agenda, web)
+
+Les événements à venir, groupés par jour (« Aujourd'hui », « Demain », « mer. 30 sept. »), en heures de Paris, sur 7, 14 ou 30 jours. Filtres Tout / Macro / Banques centrales / Résultats / Dividendes / Splits / IPO, et **Mes actifs** (résultats, dividendes et splits des actions du radar et des avoirs, plus l'économie et les banques centrales, qui concernent aussi les cryptos). Point rouge : importance haute ; point jaune : moyenne.
+
+**Sources** (gratuites, sans clé) :
+
+| Événements | Source |
+|---|---|
+| Publications économiques (inflation CPI / PCE / PPI / HICP, emploi, PIB, ISM, ventes au détail, confiance) et décisions de taux | Nasdaq, calendrier économique (`api.nasdaq.com/api/calendar/economicevents`), jour par jour. États-Unis et zone euro ; Allemagne, France, Royaume-Uni, Japon et Chine pour leurs publications majeures seulement. Réel, consensus et précédent tels que publiés. |
+| Jours de décision de la Fed | Calendrier officiel du FOMC (federalreserve.gov), confirmé contre Nasdaq : en cas d'écart, la date officielle est retenue et l'écart est affiché (fin septembre 2026, Nasdaq annonçait la décision d'octobre le 29, la Fed le 28). |
+| Jours de décision de la BCE | Calendrier officiel du Conseil des gouverneurs (ecb.europa.eu) : réunions de politique monétaire seulement (jour 2 d'une réunion sur deux jours). |
+| Résultats, dividendes (date de détachement, montant, date de versement), splits et regroupements | Nasdaq (`calendar/earnings`, `calendar/dividends`, `calendar/splits`) ; sans « Mes actifs », limités aux 500 plus grandes capitalisations américaines (classement Nasdaq). |
+| Introductions en bourse | Nasdaq (`ipo/calendar`), à venir (date prévue, fourchette de prix) et prix fixés. |
+
+Chaque jour et chaque source sont gardés en cache séparément (15 min pour le jour même, 3 h pour les jours suivants, 24 h pour les calendriers officiels) ; une source ou un jour en panne est signalé (« Sources incomplètes ») sans bloquer le reste, et la réponse part au plus tard après 20 s. Les heures de Nasdaq sont celles de New York, converties en heure de Paris.
+
+**Non couvert** (affiché sous l'agenda) : déblocages de jetons (aucune source gratuite vérifiable), régulation crypto (suivie via l'actualité, pas de calendrier officiel), mises à jour des réseaux crypto, autres pays, confirmation officielle pour la Banque d'Angleterre, la Banque du Japon et la Banque populaire de Chine, sociétés hors marchés américains.
 
 ## Historique du portefeuille
 
