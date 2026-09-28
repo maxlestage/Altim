@@ -10,11 +10,19 @@
     "typescript",
     "trading"
   ],
-  "stack": "container",
+  "stack": "heroku-24",
   "formation": {
     "web": {
       "quantity": 1,
       "size": "basic"
     }
-  }
+  },
+  "buildpacks": [
+    {
+      "url": "https://github.com/jakeg/heroku-buildpack-bun"
+    },
+    {
+      "url": "emk/rust"
+    }
+  ]
 }

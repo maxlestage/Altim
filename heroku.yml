@@ -1,4 +1,0 @@
-# Heroku builds the Dockerfile (container stack): Rust server + web app. The Dockerfile's CMD starts it on $PORT.
-build:
-  docker:
-    web: Dockerfile
