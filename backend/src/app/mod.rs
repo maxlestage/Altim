@@ -2,8 +2,11 @@
 pub mod data;
 pub mod error;
 pub mod extras;
+pub mod scan;
+pub mod strategies;
 pub mod validate;
 pub mod web;
+pub mod why;
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -16,7 +19,7 @@ use axum::extract::{Query, Request, State};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use bytes::Bytes;
 use futures::StreamExt;
 use futures::future::join_all;
@@ -341,20 +344,34 @@ async fn decision_route(Query(p): Q) -> ApiResult<Response> {
     let cost = parse_cost(q(&p, "cost"))?;
     let weights = parse_weights(q(&p, "weights"))?;
     let score_weights = parse_score_weights(q(&p, "w"))?;
-    Ok(json_of(&decision_for(&symbol, kind, cost, &weights, score_weights).await?))
+    let d = decision_for(&symbol, kind, cost, &weights, score_weights).await?;
+    // « Pourquoi ça bouge ? » reuses the last informational decision (never a personal one).
+    why::remember_decision(&d);
+    Ok(json_of(&d))
 }
 
 /// Upcoming events (economy, central banks, earnings, dividends, splits, IPOs) over `days` days (14 by default, 30
-/// at most); with `symbols=AAPL,NVDA`, earnings, dividends and splits of these stocks only.
+/// at most); with `symbols=AAPL,NVDA`, earnings, dividends and splits of these stocks only; `top=1` keeps those of the
+/// largest companies too.
 async fn calendar_route(Query(p): Q) -> ApiResult<Response> {
     let days = parse_days(q(&p, "days"), crate::calendar::DEFAULT_DAYS, crate::calendar::MAX_DAYS)?;
     let symbols = parse_symbol_list(q(&p, "symbols"))?;
+    if q(&p, "top") == Some("1") {
+        return Ok(json_of(&crate::calendar::calendar_top(days, symbols.as_deref()).await));
+    }
     Ok(json_of(&crate::calendar::calendar(days, symbols.as_deref()).await))
 }
 
 async fn sentiment_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(q(&p, "kind"))?;
     Ok(json_of(&sentiment(&parse_symbol(q(&p, "symbol"), kind)?, kind).await))
+}
+
+/// Strategy comparator of one asset: textbook strategies with fixed parameters on its daily history (cached 1 h).
+async fn strategies_route(Query(p): Q) -> ApiResult<Response> {
+    let kind = parse_kind(q(&p, "kind"))?;
+    let symbol = parse_symbol(q(&p, "symbol"), kind)?;
+    Ok(json_of(&*strategies::strategies_for(&symbol, kind).await?))
 }
 
 async fn unknown() -> Response {
@@ -397,6 +414,12 @@ pub fn api(state: AppState) -> Router {
         .route("/sentiment", get(sentiment_route))
         .route("/decision", get(decision_route))
         .route("/calendar", get(calendar_route))
+        .route("/strategies", get(strategies_route))
+        .route("/why", get(why::why_route))
+        // A few questions per minute and per address: each one costs an Anthropic API call.
+        .route("/ask", post(why::ask_route).layer(RateLimit::new(4, 60_000)))
+        .route("/opportunities", get(scan::opportunities_route))
+        .route("/anomalies", get(scan::anomalies_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))

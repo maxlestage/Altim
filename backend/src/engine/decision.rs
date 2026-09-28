@@ -24,6 +24,8 @@
 //! - technical structure (`structure.rs`, daily candles): Ichimoku and Supertrend agreeing add or remove 10 points
 //!   to the trend family, the nearest resistance and a fake breakout are cited in "pourquoi attendre", target 3 is
 //!   the next level beyond target 2;
+//! - "quand ne pas trader", action zones, watched scenarios, counter-argument and snapshot (`guidance.rs`) are built
+//!   from what is measured here and never change the verdict;
 //! - rating, composite score, "signal dégradé", market regime and horizon (`synthesis.rs`) summarise the decision
 //!   without changing the verdict.
 use serde::{Deserialize, Serialize};
@@ -33,6 +35,7 @@ use super::decision_types::*;
 use super::fibonacci::{FibZone, Horizon, Swing, Trend as SwingTrend, ZoneStatus, fib_zones, level, weekly};
 use super::format::format_price;
 use super::guard::{Direction, GuardResult, NewsItem, Regime, ShockLevel, Trend, divergence, news_tone, percentile_rank, regime};
+use super::guidance::{self, Observed};
 use super::macro_ctx::{MACRO, MacroLevel, MacroReport};
 use super::reliability::{Reliability, ReliabilityLevel, gate};
 use super::signal::{AnalyzeOptions, Candle, Signal, adx, analyze, atr, is_sell, rsi, sanitize, sma};
@@ -1926,6 +1929,79 @@ fn confidence(inp: &DecisionInput, fams: &[Family], verdict: Verdict) -> (f64, S
     (c, text, agreeing, avail.len())
 }
 
+// ---------- Guidance inputs ----------
+
+/// Average daily volume of the 20 sessions before the last one, and the last one ÷ that average (as the volume
+/// family); None without volume.
+fn volume_ratio(m: &Metrics) -> Option<(f64, f64)> {
+    let n = m.d.len();
+    if n < 21 || m.d[n - 21..].iter().all(|c| c.volume == 0.0) {
+        return None;
+    }
+    let avg = mean(&m.d[n - 21..n - 1].iter().map(|c| c.volume).collect::<Vec<_>>());
+    (avg > 0.0).then(|| (avg, m.d[n - 1].volume / avg))
+}
+
+/// What the scenario conditions are checked on: the current price and the last closed daily candle.
+fn observed(m: &Metrics) -> Observed {
+    let n = m.d.len();
+    Observed {
+        price: m.price,
+        last_close: m.d.last().map(|c| c.close),
+        rsi: m.rsi_d,
+        adx: m.adx_d,
+        volume_ratio: volume_ratio(m).map(|v| r2(v.1)),
+        up_day: (n >= 2).then(|| m.d[n - 1].close > m.d[n - 2].close),
+    }
+}
+
+/// Latest headline of 24 h naming the asset, a toned one (positive or negative) first.
+fn top_news(inp: &DecisionInput) -> Option<SnapshotNews> {
+    let items = inp.market.news.as_ref()?;
+    let (sym, name) = (inp.symbol.to_lowercase(), inp.name.to_lowercase());
+    let mut named: Vec<(&NewsItem, &'static str)> = items
+        .iter()
+        .filter(|n| n.time <= inp.now && n.time >= inp.now - DAY_MS)
+        .filter(|n| {
+            let t = n.title.to_lowercase();
+            t.contains(&name) || t.split(|c: char| !c.is_alphanumeric()).any(|w| w == sym)
+        })
+        .map(|n| {
+            let t = news_tone(std::iter::once(n));
+            (
+                n,
+                if t.negative > 0 {
+                    "negative"
+                } else if t.positive > 0 {
+                    "positive"
+                } else {
+                    "neutral"
+                },
+            )
+        })
+        .collect();
+    named.sort_by_key(|(n, tone)| (*tone == "neutral", std::cmp::Reverse(n.time)));
+    named.first().map(|(n, tone)| SnapshotNews { title: n.title.clone(), tone: (*tone).into(), time: n.time })
+}
+
+fn snapshot(inp: &DecisionInput, m: &Metrics, fams: &[Family], score: Option<f64>) -> DecisionSnapshot {
+    let fam = |k: &str| fams.iter().find(|f| f.key == k).and_then(|f| f.score);
+    let level = |l: &Option<super::structure::SrLevel>| l.as_ref().map(|l| SnapshotLevel { price: l.price, touches: l.touches });
+    DecisionSnapshot {
+        price: (m.price > 0.0).then_some(m.price),
+        composite: score,
+        families: fams.iter().map(|f| SnapshotFamily { key: f.key.clone(), label: f.label.clone(), score: f.score }).collect(),
+        momentum: fam("momentum"),
+        relative_volume: volume_ratio(m).map(|v| r2(v.1)),
+        rsi: m.rsi_d.map(r1),
+        adx: m.adx_d.map(r1),
+        nearest_support: level(&m.st.nearest_support),
+        nearest_resistance: level(&m.st.nearest_resistance),
+        news_score: fam("news"),
+        top_news: top_news(inp),
+    }
+}
+
 // ---------- Decision ----------
 
 /// High-importance macro and central bank announcements from one hour ago to 48 h ahead (the stock's earnings
@@ -2044,7 +2120,8 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     let headline = texts.headline();
     let why_wait = if verdict == Verdict::Buy { vec![] } else { texts.why_wait() };
     let (to_buy, to_sell) = (texts.to_buy(), texts.to_sell());
-    let scenarios = texts.scenarios();
+    let mut scenarios = texts.scenarios();
+    let unfolding = guidance::unfolding(&mut scenarios);
     let (mut pros, mut cons) = texts.pros_cons();
     if let Some(w) = expo.as_ref().and_then(|e| e.warning.clone()) {
         cons.insert(0, w);
@@ -2059,6 +2136,44 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     if let Some(w) = expo.as_ref().and_then(|e| e.warning.clone()) {
         why_not.risks.insert(0, w);
     }
+    // Guidance (never changes the verdict): when not to trade, the plan as a ladder, the counter-argument.
+    let calendar_earnings: Vec<i64> =
+        inp.events.iter().flatten().filter(|e| e.kind == EventKind::Earnings && e.symbol.as_deref() == Some(inp.symbol)).map(|e| e.date).collect();
+    let no_trade = guidance::no_trade(&guidance::NoTradeInput {
+        kind: inp.kind,
+        now: inp.now,
+        vetoes: &vetoes,
+        earnings: match &inp.fundamentals {
+            Some(Fundamentals::Stock(f)) => f.next_earnings.as_ref(),
+            _ => None,
+        },
+        calendar_earnings,
+        adx: m.adx_d,
+        swing: m.st.market_structure.as_ref().map(|s| s.trend),
+        range: m.regime.trend == Trend::Range,
+        score: score.value,
+        confidence: conf,
+        degraded: &degraded,
+        market_open: (inp.kind == Kind::Stock).then(|| crate::live::us_market_open(inp.now)),
+    });
+    let action_zones = plan.as_ref().map(|pl| guidance::action_zones(pl, m.price, m.atr_d, m.st.nearest_resistance.as_ref()));
+    let events: Option<Vec<CalendarEvent>> =
+        inp.events.as_ref().map(|es| es.iter().filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 7 * DAY_MS).cloned().collect());
+    let vol = volume_ratio(&m);
+    let counter_argument = guidance::counter_argument(&guidance::CounterInput {
+        pros: &pros,
+        cons: &cons,
+        families: &fams,
+        invalidation: &why_not.invalidation,
+        bullish: matches!(verdict, Verdict::Buy | Verdict::BuyZone) || (verdict == Verdict::Wait && pos.is_some()),
+        support: m.st.nearest_support.as_ref(),
+        resistance: m.st.nearest_resistance.as_ref(),
+        avg_volume: vol.map(|v| v.0),
+        volume_ratio: vol.map(|v| r2(v.1)),
+        volume_unit: if inp.kind == Kind::Stock { "actions" } else { inp.symbol },
+        events: events.iter().flatten().filter(|e| guidance::counter_event(e, inp.symbol)).map(event_text).collect(),
+    });
+    let snapshot = snapshot(inp, &m, &fams, score.value);
     let personal = inp.cost.is_some() || inp.exposure.is_some();
     let disclaimer = if personal {
         let what = match (inp.cost.is_some(), inp.exposure.is_some()) {
@@ -2112,10 +2227,12 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         market_regime,
         horizon,
         structure: Some(m.st.clone()),
-        events: inp
-            .events
-            .as_ref()
-            .map(|es| es.iter().filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 7 * DAY_MS).cloned().collect()),
+        events,
+        no_trade,
+        action_zones,
+        unfolding,
+        counter_argument,
+        snapshot,
     }
 }
 
@@ -2456,8 +2573,28 @@ impl Texts<'_> {
 
     fn scenarios(&self) -> Vec<Scenario> {
         let m = self.m;
-        let sc =
-            |kind, title: &str, condition: String, consequence: String, level| Scenario { kind, title: title.into(), condition, consequence, level };
+        let o = observed(m);
+        // Each scenario's conditions are checked between its support (stop, or the 60-session low) and the level to
+        // break (target 1, or the 200-day average / the 60-session high).
+        let (low, high) = match self.p {
+            Some(p) => (p.stop, p.target1),
+            None => {
+                let w = &m.d[m.d.len().saturating_sub(60)..];
+                let hi = w.iter().map(|c| c.high).fold(f64::NEG_INFINITY, f64::max);
+                let lo = w.iter().map(|c| c.low).fold(f64::INFINITY, f64::min);
+                (lo, m.sma200.filter(|s| *s > m.price).unwrap_or(hi))
+            }
+        };
+        let sc = |kind, title: &str, condition: String, consequence: String, level| Scenario {
+            kind,
+            title: title.into(),
+            condition,
+            consequence,
+            level,
+            conditions: guidance::scenario_checks(kind, low, high, &o),
+            met: 0,
+            unfolding: false,
+        };
         match self.p {
             Some(p) => vec![
                 sc(

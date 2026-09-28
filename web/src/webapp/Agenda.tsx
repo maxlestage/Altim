@@ -3,7 +3,7 @@ import { api } from "./api";
 import { Segmented } from "./ui";
 import { useAppState, useHoldings } from "./store";
 import {
-  AGENDA_FILTERS, CATEGORY_LABEL, dayLabel, filterEvents, groupByDay, stockSymbols,
+  AGENDA_FILTERS, CATEGORY_LABEL, RISK_ICON, RISK_LABEL, dayLabel, failedDays, filterEvents, groupByDay, riskDays, stockSymbols,
   type AgendaFilter, type CalendarEvent, type CalendarReport,
 } from "./calendar";
 
@@ -65,6 +65,65 @@ export function AgendaEvent({ e }: { e: CalendarEvent }) {
   );
 }
 
+/** Risk of the next 7 days, one stacked row per day (weekends included): its own request, with the user's stocks
+ * and the largest companies together (`top=1`), whatever the list's filters. */
+function RiskWeek({ held, watched }: { held: string[]; watched: string[] }) {
+  const [report, setReport] = useState<CalendarReport | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const stocks = useMemo(() => [...new Set([...held, ...watched])].slice(0, 50), [held, watched]);
+  const key = stocks.join(",");
+  useEffect(() => {
+    let alive = true;
+    api.calendar(7, key ? key.split(",") : null, true).then((r) => {
+      if (!alive) return;
+      setReport(r);
+      setError(null);
+    }).catch((e) => alive && setError(e instanceof Error ? e.message : "Calendrier indisponible"));
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+  const days = report ? riskDays(report.events, report.from, { held, watched }, 7, failedDays(report)) : [];
+  return (
+    <div className="card">
+      <h2 className="card-title">Calendrier de risque · 7 jours</h2>
+      {error && <p className="notice warn small">⚠ {error}</p>}
+      {!report && !error && <p className="muted small">Chargement…</p>}
+      {days.length > 0 && (
+        <ol className="risk-days">
+          {days.map((d) => {
+            const unknown = d.incomplete && d.level === "low";
+            const extra = d.main.length > 3 ? ` +${d.main.length - 3}` : "";
+            return (
+              <li key={d.day} className={`risk-day ${unknown ? "" : d.level}`}>
+                <div className="risk-day-head">
+                  <b>{d.label}</b>
+                  {d.weekend && <span className="chip muted">week-end</span>}
+                  <span role="img" aria-label={unknown ? "Risque non évalué" : RISK_LABEL[d.level]} title={unknown ? "Risque non évalué" : RISK_LABEL[d.level]}>
+                    {unknown ? "⚪" : RISK_ICON[d.level]}
+                  </span>
+                  <span className="risk-day-events">
+                    {unknown ? "Sources incomplètes : risque non évalué" : d.level === "low" ? "Aucun événement majeur" : d.main.slice(0, 3).join(" · ") + extra}
+                  </span>
+                </div>
+                {d.incomplete && !unknown && <span className="small muted">Sources incomplètes ce jour-là.</span>}
+              </li>
+            );
+          })}
+        </ol>
+      )}
+      <details className="small">
+        <summary>Règle</summary>
+        <p className="muted">
+          🔴 décision de taux d'une banque centrale, inflation (CPI), emploi ou PIB d'importance haute, ou résultats d'une action de vos avoirs ou de votre radar.
+          🟠 autres publications économiques et banques centrales, résultats des grandes capitalisations américaines, dividende ou split d'une action détenue.
+          🟢 aucun de ces événements. Heures et jours de Paris ; seules les sources de l'Agenda sont prises en compte (voir « Non couvert »).
+        </p>
+      </details>
+    </div>
+  );
+}
+
 /** Agenda: the coming days' economic releases, central bank decisions, earnings, dividends, splits and IPOs, each
  * with its source; what no free source covers is listed at the bottom. */
 export function Agenda() {
@@ -78,6 +137,8 @@ export function Agenda() {
   const [days, setDays] = useState<Days>("14");
 
   const stocks = useMemo(() => stockSymbols([...watchlist, ...holdings]), [watchlist, holdings]);
+  const held = useMemo(() => stockSymbols(holdings), [holdings]);
+  const watched = useMemo(() => stockSymbols(watchlist), [watchlist]);
   // "Mes actifs": the server gives these stocks' events (even small companies); without any stock, the whole
   // calendar is filtered on the device.
   const asked = mine && stocks.length > 0 ? stocks : null;
@@ -117,6 +178,7 @@ export function Agenda() {
 
   return (
     <div className="agenda">
+      <RiskWeek held={held} watched={watched} />
       <div className="card">
         <h2 className="card-title">Agenda</h2>
         <p className="muted small">

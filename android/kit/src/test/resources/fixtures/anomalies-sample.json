@@ -1,0 +1,15 @@
+{"symbol":"BTC","kind":"crypto","asOf":1790628721151,"price":80123.5,"session":1790553600000,
+"anomalies":[
+{"code":"openInterest","severity":"warning","triggered":true,"title":"Open interest +18,4 % en 24 h","value":18.4,"threshold":15,"unit":"%","measured":"+18,4 % (seuil ±15 %)","meaning":"Beaucoup de nouvelles positions à effet de levier en peu de temps : le prix peut ensuite bouger plus brutalement, dans un sens ou dans l'autre ; à confirmer par le funding et les liquidations.","source":"OKX (contrats perpétuels BTC-USDT)"},
+{"code":"volume","severity":"high","triggered":true,"title":"Volume ×5,3 par rapport à la moyenne 20 j","value":5.3,"threshold":3,"unit":"×","measured":"×5,3 (seuil ×3)","meaning":"Des échanges inhabituels sur une séance baissière peuvent signaler une information nouvelle (résultats, annonce) ou un gros intervenant, sans certitude sur la suite ; à confirmer par l'actualité du jour et la clôture des séances suivantes.","source":"Bougies journalières Bitstamp (séances closes)"}],
+"normal":[
+{"code":"zScore","severity":"normal","triggered":false,"title":"Écart à la moyenne 20 j : −1,2 σ","value":-1.2,"threshold":2.5,"unit":"σ","measured":"−1,2 σ (seuil ±2,5 σ)","meaning":"Rien d'inhabituel : sous le seuil d'alerte.","source":"Bougies journalières Bitstamp (séances closes)"},
+{"code":"funding","severity":"normal","triggered":false,"title":"Funding +0,0081 % par règlement","value":0.0081,"threshold":0.02,"unit":"%","measured":"+0,0081 % (habituel −0,0021 % à +0,0103 %)","meaning":"Rien d'inhabituel : sous le seuil d'alerte.","source":"OKX (contrats perpétuels BTC-USDT)"}],
+"derivatives":{"source":"OKX (contrats perpétuels BTC-USDT)",
+ "liquidations":{"longUsd":14389008,"shortUsd":5835591,"longCount":1486,"shortCount":764,"largest":{"usd":843414,"long":true,"price":79450.2,"time":1790600000000},"from":1790542321151,"to":1790628721151,"hours":24,"complete":true,"scope":"Contrats perpétuels BTC-USDT d'OKX uniquement, 24 dernières heures."},
+ "openInterest":{"usd":3060890723,"time":1790628000000,"change24h":18.4,"change7d":-3.1},
+ "funding":{"rate":0.0081,"p5":-0.0021,"p95":0.0103,"samples":100,"periodHours":8,"time":1790611200000},
+ "longShort":{"ratio":1.42,"p5":0.91,"p95":2.35,"samples":720},
+ "errors":[],
+ "notCovered":[{"label":"Baleines (gros portefeuilles)","reason":"aucune source gratuite et vérifiable (Whale Alert, Glassnode, Arkham : offres payantes)"},{"label":"Entrées et sorties des plateformes","reason":"aucune source gratuite et vérifiable (CryptoQuant, Glassnode : offres payantes)"},{"label":"Liquidations des autres plateformes","reason":"Binance et Bybit refusent ce serveur (HTTP 451 / 403) ; seules celles d'OKX sont lues"}]},
+"errors":[],"source":"Bougies journalières Bitstamp (séances closes)"}

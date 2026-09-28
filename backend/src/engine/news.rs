@@ -522,8 +522,6 @@ pub fn aggregate(feeds: &[FeedItems], assets: &[WatchAsset], now: i64, max_age_m
             let text = js_ci(&text);
             let title = js_ci(&n.title);
             let asset_ids: Vec<String> = matchers.iter().filter(|(_, m)| m.is_match(&n.title)).map(|(a, _)| a.id.clone()).collect();
-            let neg = NEGATIVE.is_match(&title);
-            let pos = POSITIVE.is_match(&title);
             let french_words = FRENCH.find_iter(&title).count();
             NewsItem {
                 id: hash(&n.link),
@@ -535,13 +533,7 @@ pub fn aggregate(feeds: &[FeedItems], assets: &[WatchAsset], now: i64, max_age_m
                 lang: if french_words >= 2 || ACCENTED.is_match(&n.title) { Lang::Fr } else { Lang::En },
                 category: if asset_ids.is_empty() { k.category } else { NewsCategory::Actifs },
                 themes: THEMES.iter().filter(|(_, r)| r.is_match(&text)).map(|(t, _)| *t).collect(),
-                tone: if neg && !pos {
-                    NewsTone::Negative
-                } else if pos && !neg {
-                    NewsTone::Positive
-                } else {
-                    NewsTone::Neutral
-                },
+                tone: tone_of(&n.title),
                 assets: asset_ids,
                 also_in: k.also_in.into_iter().take(8).collect(),
                 alert: ESCALATION.is_match(&title) && !HEDGED.is_match(&title),
@@ -556,6 +548,20 @@ pub fn aggregate(feeds: &[FeedItems], assets: &[WatchAsset], now: i64, max_age_m
         *c <= i.category.per_category()
     });
     items
+}
+
+/// Tone of a headline by keywords: negative or positive when only one kind of word is found, else neutral.
+pub fn tone_of(title: &str) -> NewsTone {
+    let title = js_ci(title);
+    let neg = NEGATIVE.is_match(&title);
+    let pos = POSITIVE.is_match(&title);
+    if neg && !pos {
+        NewsTone::Negative
+    } else if pos && !neg {
+        NewsTone::Positive
+    } else {
+        NewsTone::Neutral
+    }
 }
 
 /// "À la une": serious escalations first, then the stories told by the most sources (at least 2), recent first.

@@ -22,6 +22,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
@@ -78,7 +80,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -235,8 +237,28 @@ class AltimClient(
      * Agenda of the next [days] days (7, 14 or 30): economy, central banks, earnings, dividends, splits, IPOs.
      * [symbols] (stock symbols of the radar and holdings, 50 at most) limits the company events to these stocks.
      */
-    suspend fun calendar(days: Int, symbols: List<String>?): CalendarReport =
-        get("/api/calendar", Calendar.query(days, symbols), CalendarReport.serializer())
+    suspend fun calendar(days: Int, symbols: List<String>?, top: Boolean = false): CalendarReport =
+        get("/api/calendar", Calendar.query(days, symbols, top), CalendarReport.serializer())
+
+    /** Strategy comparator of one asset (fixed textbook parameters, daily history; cached one hour by the server). */
+    suspend fun strategies(a: Asset): StrategiesReport =
+        get("/api/strategies", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), StrategiesReport.serializer())
+
+    /** « Pourquoi ça bouge ? »: what was observed with today's move, from the server's cached sources. */
+    suspend fun why(a: Asset): WhyReport =
+        get("/api/why", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), WhyReport.serializer())
+
+    /**
+     * A question on the « Pourquoi ça bouge ? » data (POST /api/ask, only when the report says `askEnabled`): the server
+     * sends the question with only that data to its AI model; never the holdings.
+     */
+    suspend fun ask(a: Asset, question: String): AskAnswer {
+        val body = AltimJson.encodeToString(AskRequest.serializer(), AskRequest(a.symbol, a.kind.raw, question))
+            .toRequestBody("application/json; charset=utf-8".toMediaType())
+        val r = requestBuilder("/api/ask").post(body).header("Origin", origin).build()
+        val (status, text) = authorized(r)
+        return decode(AskAnswer.serializer(), text, status)
+    }
 
     suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
         if (assets.isEmpty()) emptyList()
@@ -247,6 +269,17 @@ class AltimClient(
         if (status == 202) return SelectionResult.Pending
         return SelectionResult.Ready(decode(SelectionReport.serializer(), body, status))
     }
+
+    /** "Opportunités du moment": 202 while the first scan runs (come back in 5 s), then the scan (cached 30 min by the server). */
+    suspend fun opportunities(kind: Kind): OpportunitiesResult {
+        val (status, body) = authorized(request("/api/opportunities", mapOf("kind" to kind.raw)))
+        if (status == 202 || (status == 200 && Opportunities.isPending(body))) return OpportunitiesResult.Pending
+        return OpportunitiesResult.Ready(decode(OpportunityReport.serializer(), body, status))
+    }
+
+    /** Unusual readings on one asset (volume, price/volume, z-score; OKX derivatives for a crypto). */
+    suspend fun anomalies(a: Asset): AnomalyReport =
+        get("/api/anomalies", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), AnomalyReport.serializer())
 
     /**
      * Live prices of these assets: last known price right away, then every change (several per second for cryptos,

@@ -4,6 +4,7 @@ import type { Kind, QualityReport, Reliability } from "../engine/reliability";
 import type { Interval, WatchItem } from "./store";
 import { decisionUrl, parseDecision, type MarketRegime, type PersonalInput, type ScoreWeights } from "./decision";
 import { calendarUrl, type CalendarReport } from "./calendar";
+import { strategiesUrl, type StrategiesReport } from "./strategies";
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -79,6 +80,8 @@ export type NewsReport = {
   top: string[];
   digest: { total: number; themes: { theme: string; label: string; count: number }[]; tone: { negative: number; positive: number; neutral: number } };
   sources: { name: string; ok: boolean; count: number; error?: string }[];
+  /** The day's important events (at most 5); absent from an older server. */
+  summary?: import("./news-summary").StorySummary[];
 };
 
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
@@ -127,8 +130,12 @@ export const api = {
   decision: (symbol: string, kind: Kind, personal?: PersonalInput | null, scoreWeights?: ScoreWeights | null) =>
     get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights)).then(parseDecision),
   /** Agenda: economy, central banks, earnings, dividends, splits, IPOs; `symbols` limits the company events. */
-  calendar: (days: number, symbols: string[] | null) => get<CalendarReport>(calendarUrl(days, symbols)),
+  calendar: (days: number, symbols: string[] | null, top = false) => get<CalendarReport>(calendarUrl(days, symbols, top)),
+  /** Strategy comparator of one asset (fixed textbook parameters, daily history). */
+  strategies: (symbol: string, kind: Kind) => get<StrategiesReport>(strategiesUrl(symbol, kind)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  opportunities: (kind: Kind) => get<import("../engine/opportunities").OpportunityReport | { pending: true }>(`/api/opportunities?kind=${kind}`),
+  anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 
 export const HIGHER: Record<Interval, Interval | null> = { "1h": "4h", "4h": "1d", "1d": null };

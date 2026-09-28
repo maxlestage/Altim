@@ -1,5 +1,8 @@
 package com.maxlestage.altim.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -75,6 +78,13 @@ import kotlin.math.floor
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
+    // "Opportunités du moment" opens over the selection (back returns to it; an asset opened from it stays on top).
+    var opportunities by rememberSaveable { mutableStateOf(false) }
+    if (opportunities) {
+        BackHandler(enabled = model.focus == null) { opportunities = false }
+        OpportunitiesScreen(model, modifier, open, onBack = { opportunities = false })
+        return
+    }
     var report by remember { mutableStateOf<SelectionReport?>(null) }
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -148,6 +158,8 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
                     }
                 }
             }
+
+            OpportunitiesLink { opportunities = true }
 
             error?.let { ErrorBox(it) { refresh++ } }
             val r = report
@@ -323,4 +335,19 @@ private fun PickCard(model: AppModel, c: Candidate, report: SelectionReport, amo
             }
         }
     }
+}
+
+/** "Opportunités du moment →" at the top of the selection (web Selection.tsx). */
+@Composable
+fun OpportunitiesLink(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append("Opportunités du moment →") }
+            append(" retournements, cassures, volumes anormaux, survendus, fondamentaux qui évoluent.")
+        },
+        fontSize = 13.sp, color = Color.White.copy(alpha = 0.85f),
+        modifier = Modifier.fillMaxWidth().clip(shape).background(AltimColors.cyan.copy(alpha = 0.06f))
+            .border(1.dp, AltimColors.cyan.copy(alpha = 0.4f), shape).clickable(role = Role.Button, onClick = onClick).padding(12.dp),
+    )
 }

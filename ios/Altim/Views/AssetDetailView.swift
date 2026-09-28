@@ -25,11 +25,14 @@ struct AssetDetailView: View {
                 signalCard
                 zonesCard
                 guardCard
+                AnomaliesCard(asset: asset)
+                WhyCard(asset: asset)
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
                 NoteCard(asset: asset)
                 PositionCard(asset: asset, price: model.live.price(asset)?.price ?? signal?.price ?? zones.value?.price, zones: zones.value?.zones ?? [])
                 DcaCard(asset: asset)
+                StrategiesCard(asset: asset)
                 Text("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }

@@ -14,6 +14,10 @@ import { atr, type Candle } from "./signal";
 /** Window of the beta (same as the correlations of `analyzePortfolio`) and minimum of shared daily returns. */
 export const BETA_DAYS = 90;
 export const MIN_BETA_DAYS = 30;
+/** "Et si… ?": one year of shared sessions, steadier than 90 days for a shock on one market. */
+export const WHATIF_BETA_DAYS = 250;
+/** Below this |correlation| the beta explains little of the line's moves: said next to the line. */
+export const WEAK_CORRELATION = 0.3;
 /** Benchmark of each asset class: Bitcoin for cryptos, the S&P 500 (via the SPY ETF) for stocks. */
 export const BENCHMARK: Record<Kind, { symbol: string; kind: Kind; label: string }> = {
   crypto: { symbol: "BTC", kind: "crypto", label: "Bitcoin" },
@@ -297,4 +301,138 @@ export function dangerousPositions(a: PortfolioAnalysis, s: RiskSettings, daily:
     if (reasons.length) out.push({ id: l.id, symbol: l.symbol, kind: l.kind, name: l.name, reasons });
   }
   return out;
+}
+
+// ---------- "Et si… ?": a shock on one market factor ----------
+
+export type FactorKey = "qqq" | "spy" | "btc";
+/** Factors of the simulator: the Nasdaq-100 (via the QQQ ETF), the S&P 500 (via SPY) and Bitcoin. */
+export const FACTORS: Record<FactorKey, { symbol: string; kind: Kind; label: string; name: string }> = {
+  qqq: { symbol: "QQQ", kind: "stock", label: "Nasdaq-100 (QQQ)", name: "le Nasdaq-100" },
+  spy: { symbol: "SPY", kind: "stock", label: "S&P 500 (SPY)", name: "le S&P 500" },
+  btc: { symbol: "BTC", kind: "crypto", label: "Bitcoin", name: "le Bitcoin" },
+};
+export const FACTOR_SHOCKS = [-5, -10, -20, -30, -50];
+
+export interface FactorBeta extends BetaEstimate {
+  /** Correlation of the daily returns with the factor (null: too few days). */
+  correlation: number | null;
+}
+
+const dayKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
+/**
+ * Beta of an asset to a factor on the days where BOTH have a daily close (no forward fill: a crypto's weekends do
+ * not become days where a stock "did not move"), returns between consecutive shared days, last `days` of them.
+ * Not estimated (estimated: false, beta 1 only as a placeholder) under MIN_BETA_DAYS shared returns.
+ */
+export function factorBeta(asset: Candle[], factor: Candle[], days = BETA_DAYS): FactorBeta {
+  const none: FactorBeta = { beta: 1, days: 0, estimated: false, correlation: null };
+  const fa = new Map(factor.filter((c) => c.close > 0).map((c) => [dayKey(c.time), c.close]));
+  const shared = [...new Map(asset.filter((c) => c.close > 0).map((c) => [dayKey(c.time), c.close])).entries()]
+    .filter(([d]) => fa.has(d))
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .slice(-(days + 1));
+  const x: number[] = [];
+  const y: number[] = [];
+  for (let i = 1; i < shared.length; i++) {
+    x.push(shared[i]![1] / shared[i - 1]![1] - 1);
+    y.push(fa.get(shared[i]![0])! / fa.get(shared[i - 1]![0])! - 1);
+  }
+  const n = x.length;
+  if (n < MIN_BETA_DAYS) return { ...none, days: n };
+  const mx = x.reduce((s, v) => s + v, 0) / n;
+  const my = y.reduce((s, v) => s + v, 0) / n;
+  let cov = 0;
+  let vx = 0;
+  let vy = 0;
+  for (let i = 0; i < n; i++) {
+    cov += (x[i]! - mx) * (y[i]! - my);
+    vx += (x[i]! - mx) ** 2;
+    vy += (y[i]! - my) ** 2;
+  }
+  if (!(vy > 0)) return { ...none, days: n };
+  return { beta: cov / vy, days: n, estimated: true, correlation: vx > 0 ? cov / Math.sqrt(vx * vy) : null };
+}
+
+export interface WhatIfLine {
+  key: string;
+  symbol: string;
+  name: string;
+  kind: Kind;
+  /** Value of the line in the simulated amount (USD). */
+  value: number;
+  /** % of the simulated amount. */
+  weight: number;
+  beta: number | null;
+  days: number;
+  correlation: number | null;
+  /** The line is the factor itself (beta 1 by definition). */
+  reference: boolean;
+  /** Move of the line (%), null when its beta could not be measured ("non couvert"). */
+  movePercent: number | null;
+  /** USD, positive = loss; null when not covered. */
+  loss: number | null;
+}
+
+export interface WhatIfResult {
+  factor: FactorKey;
+  shock: number;
+  /** Simulated amount: the portfolio's value, or the amount entered spread on the current weights. */
+  base: number;
+  scaled: boolean;
+  cash: number;
+  lines: WhatIfLine[];
+  /** Total loss of the covered lines (USD, positive = loss) and its share of `base`. */
+  loss: number;
+  lossPercent: number;
+  /** Value of the lines whose beta could not be measured (left out of the total, never guessed). */
+  uncoveredValue: number;
+  uncovered: string[];
+  worst: WhatIfLine | null;
+  /** Shortest and longest window of the betas used (days). */
+  minDays: number | null;
+  maxDays: number | null;
+}
+
+/**
+ * Each line moves by its beta to the factor × the shock (never below −100 %); cash does not move. Lines of the same
+ * asset are merged. With `amount` (> 0), the lines are rescaled to that amount on the current weights (cash included).
+ */
+export function whatIf(a: PortfolioAnalysis, factor: FactorKey, shock: number, betas: Record<string, FactorBeta | undefined>, amount?: number | null): WhatIfResult {
+  const f = FACTORS[factor];
+  const scaled = amount != null && Number.isFinite(amount) && amount > 0 && a.total > 0;
+  const k = scaled ? amount! / a.total : 1;
+  const base = scaled ? amount! : a.total;
+  const merged = new Map<string, { symbol: string; name: string; kind: Kind; value: number }>();
+  for (const l of a.lines) {
+    const key = `${l.kind}:${l.symbol}`;
+    const m = merged.get(key);
+    merged.set(key, { symbol: l.symbol, name: l.name, kind: l.kind, value: (m?.value ?? 0) + l.value * k });
+  }
+  const lines = [...merged.entries()]
+    .map(([key, m]): WhatIfLine => {
+      const reference = m.symbol === f.symbol && m.kind === f.kind;
+      const b = betas[key];
+      const beta = reference ? 1 : b?.estimated ? b.beta : null;
+      const movePercent = beta == null ? null : Math.max(-100, beta * shock);
+      return {
+        key, symbol: m.symbol, name: m.name, kind: m.kind, value: m.value, weight: base > 0 ? (m.value / base) * 100 : 0,
+        beta, days: reference ? 0 : b?.days ?? 0, correlation: reference ? 1 : b?.correlation ?? null, reference,
+        movePercent, loss: movePercent == null ? null : (-m.value * movePercent) / 100,
+      };
+    })
+    .sort((x, y) => (y.loss ?? -Infinity) - (x.loss ?? -Infinity) || y.value - x.value);
+  const covered = lines.filter((l) => l.loss != null);
+  const loss = covered.reduce((s, l) => s + l.loss!, 0);
+  const worst = covered.reduce<WhatIfLine | null>((w, l) => (l.loss! > 0 && (!w || l.loss! > w.loss!) ? l : w), null);
+  const measured = covered.filter((l) => !l.reference).map((l) => l.days);
+  return {
+    factor, shock, base, scaled, cash: a.cash * k, lines, loss, lossPercent: base > 0 ? (loss / base) * 100 : 0,
+    uncoveredValue: lines.filter((l) => l.loss == null).reduce((s, l) => s + l.value, 0),
+    uncovered: lines.filter((l) => l.loss == null).map((l) => l.symbol),
+    worst,
+    minDays: measured.length ? Math.min(...measured) : null,
+    maxDays: measured.length ? Math.max(...measured) : null,
+  };
 }
