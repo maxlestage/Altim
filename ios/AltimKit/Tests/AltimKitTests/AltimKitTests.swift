@@ -82,14 +82,67 @@ final class AlertTests: XCTestCase {
             BuyAlert(symbol: s, kind: .crypto, name: s, price: 1, buy: buy, strong: strong, key: key, title: s, body: "")
         }
         var t = AlertTracker()
-        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, key: "signal"), a("ETH", buy: false, key: "")], onlyStrong: false).map(\.symbol), ["BTC"])
-        XCTAssertTrue(t.newAlerts([a("BTC", buy: true, key: "signal")], onlyStrong: false).isEmpty, "same situation: no repeat")
-        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, strong: true, key: "signal+zone:medium")], onlyStrong: false).count, 1, "the zone is reached: new reason")
-        XCTAssertTrue(t.newAlerts([a("BTC", buy: false, key: "")], onlyStrong: false).isEmpty)
-        XCTAssertEqual(t.newAlerts([a("BTC", buy: true, key: "signal")], onlyStrong: false).count, 1, "buyable again after a pause")
-        var strongOnly = AlertTracker()
-        XCTAssertTrue(strongOnly.newAlerts([a("SOL", buy: true, key: "signal")], onlyStrong: true).isEmpty)
-        XCTAssertEqual(strongOnly.newAlerts([a("SOL", buy: true, strong: true, key: "signal+zone:long")], onlyStrong: true).count, 1)
+        var clock = Date(timeIntervalSince1970: 0)
+        func step(_ items: [BuyAlert], onlyStrong: Bool = false) -> [String] { t.newAlerts(items, onlyStrong: onlyStrong, now: clock).map(\.symbol) }
+        XCTAssertEqual(step([a("BTC", buy: true, key: "signal"), a("ETH", buy: false, key: "")]), ["BTC"])
+        XCTAssertEqual(step([a("BTC", buy: true, key: "signal")]), [], "same situation: no repeat")
+        XCTAssertEqual(step([a("BTC", buy: true, strong: true, key: "signal+zone:medium")]), ["BTC"], "the zone is reached: new reason")
+        XCTAssertEqual(step([a("BTC", buy: true, key: "zone:medium")]), [], "a reason already notified")
+        // The price flickers at the edge of the zone: no notification storm.
+        clock += 60
+        XCTAssertEqual(step([a("BTC", buy: false, key: "")]), [])
+        clock += 60
+        XCTAssertEqual(step([a("BTC", buy: true, key: "signal")]), [], "back within minutes: already notified")
+        // Really gone for more than 6 hours, then buyable again: a new opportunity.
+        clock += 60
+        _ = step([a("BTC", buy: false, key: "")])
+        clock += AlertTracker.cooldown + 1
+        _ = step([a("BTC", buy: false, key: "")])
+        XCTAssertEqual(step([a("BTC", buy: true, key: "signal")]), ["BTC"], "buyable again after a real pause")
+        t = AlertTracker()
+        XCTAssertEqual(step([a("SOL", buy: true, key: "signal")], onlyStrong: true), [])
+        XCTAssertEqual(step([a("SOL", buy: true, strong: true, key: "signal+zone:long")], onlyStrong: true), ["SOL"])
+    }
+}
+
+final class PriceAlertTests: XCTestCase {
+    let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+    let aapl = Asset(symbol: "AAPL", kind: .stock, name: "Apple")
+
+    func testTargetsFireOnceWhenReached() {
+        let below = PriceTarget(asset: btc, above: false, price: 80_000)
+        let above = PriceTarget(asset: aapl, above: true, price: 350)
+        var (list, fired) = PriceTarget.evaluate([below, above], prices: ["crypto:BTC": 84_000, "stock:AAPL": 341])
+        XCTAssertTrue(fired.isEmpty)
+        (list, fired) = PriceTarget.evaluate(list, prices: ["crypto:BTC": 79_900, "stock:AAPL": 350])
+        XCTAssertEqual(fired.map(\.0.asset.symbol).sorted(), ["AAPL", "BTC"])
+        XCTAssertEqual(fired.first { $0.0.asset.symbol == "BTC" }?.1, 79_900)
+        XCTAssertTrue(list.allSatisfy { $0.triggered != nil })
+        // Already triggered: never again, even further below.
+        XCTAssertTrue(PriceTarget.evaluate(list, prices: ["crypto:BTC": 70_000, "stock:AAPL": 400]).fired.isEmpty)
+        // No price: nothing happens.
+        XCTAssertTrue(PriceTarget.evaluate([below], prices: [:]).fired.isEmpty)
+        XCTAssertEqual(below.label, "En dessous de 80\u{202F}000,00 $")
+    }
+
+    func testJournalSummaryIsHonest() {
+        let now = Date()
+        let old = now.addingTimeInterval(-86_400)
+        let journal = AlertJournal.add([
+            JournalEntry(asset: btc, source: .buy, title: "BTC", price: 80_000, date: old),
+            JournalEntry(asset: aapl, source: .strongBuy, title: "AAPL", price: 400, date: old),
+            JournalEntry(asset: btc, source: .target, title: "cible", price: 80_000, date: old),
+            JournalEntry(asset: aapl, source: .buy, title: "trop récent", price: 300, date: now),
+        ], to: [])
+        XCTAssertEqual(journal.first?.title, "trop récent", "most recent first")
+        let s = AlertJournal.summary(journal, prices: ["crypto:BTC": 88_000, "stock:AAPL": 360], now: now)
+        // Targets and alerts younger than an hour are left out: BTC +10 %, AAPL −10 %.
+        XCTAssertEqual(s?.count, 2)
+        XCTAssertEqual(s?.up, 1)
+        XCTAssertEqual(s?.average ?? 99, 0, accuracy: 1e-9)
+        XCTAssertEqual(s?.upShare, 50)
+        XCTAssertNil(AlertJournal.summary([], prices: [:]))
+        XCTAssertEqual(AlertJournal.add(Array(repeating: journal[0], count: 300), to: []).count, AlertJournal.limit)
     }
 }
 

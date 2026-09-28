@@ -26,6 +26,9 @@ final class AppModel {
     /// Last alerts computed (Watch, Réglages) and when.
     var lastAlerts: [BuyAlert] = []
     var lastAlertCheck: Date? = nil
+    /// Price alerts chosen by the user ("sous 80 000 $") and the journal of the notifications received.
+    var priceTargets: [PriceTarget] { didSet { LocalStore.save(priceTargets, "priceTargets") } }
+    var journal: [JournalEntry] { didSet { LocalStore.save(journal, "journal") } }
     /// Asset to open, from a tapped notification.
     var pendingOpen: Asset? = nil
     /// Asset of the running Live Activity (its live price is followed to update it).
@@ -53,6 +56,8 @@ final class AppModel {
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
         liveActivityEnabled = defaults.object(forKey: "liveActivityEnabled") as? Bool ?? true
         lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
+        priceTargets = LocalStore.load([PriceTarget].self, "priceTargets") ?? []
+        journal = LocalStore.load([JournalEntry].self, "journal") ?? []
         lastAlertCheck = defaults.object(forKey: "lastAlertCheck") as? Date
         budget = defaults.double(forKey: "budget")
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
@@ -188,8 +193,52 @@ final class AppModel {
 
     /// One check of the buy alerts (background refresh, app opening): the server's rule applied to the watch list and
     /// the holdings; returns the alerts to notify (new or changed situation only), nil without access.
-    func checkAlerts() async throws -> [BuyAlert]? {
+    /// The background check runs for the buy alerts or for at least one armed price alert.
+    var needsChecks: Bool { alertsEnabled || priceTargets.contains { $0.triggered == nil } }
+
+    func addTarget(_ t: PriceTarget) {
+        priceTargets.append(t)
+        BuyNotifications.schedule(enabled: needsChecks)
+    }
+
+    func removeTarget(_ id: UUID) {
+        priceTargets.removeAll { $0.id == id }
+        BuyNotifications.schedule(enabled: needsChecks)
+    }
+
+    func rearmTarget(_ id: UUID) {
+        if let i = priceTargets.firstIndex(where: { $0.id == id }) { priceTargets[i].triggered = nil }
+        BuyNotifications.schedule(enabled: needsChecks)
+    }
+
+    /// What one check found: new buy alerts and price alerts just reached (with the price).
+    struct CheckResult {
+        var buy: [BuyAlert]
+        var targets: [(PriceTarget, Double)]
+    }
+
+    func checkAlerts() async throws -> CheckResult? {
         guard let client else { return nil }
+        let now = Date()
+        // Price alerts: consensus quotes of the assets that still have an armed threshold.
+        var reached: [(PriceTarget, Double)] = []
+        let armed = priceTargets.filter { $0.triggered == nil }
+        if !armed.isEmpty {
+            let unique = Array(Dictionary(armed.map { ($0.asset.id, $0.asset) }, uniquingKeysWith: { a, _ in a }).values)
+            let quotes = try await client.quotes(unique)
+            let result = PriceTarget.evaluate(priceTargets, prices: Dictionary(quotes.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a }), now: now)
+            reached = result.fired
+            if !reached.isEmpty { priceTargets = result.targets }
+        }
+        let fresh = try await checkBuyAlerts(client)
+        let entries = (alertsEnabled ? fresh : []).compactMap { a in
+            a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) }
+        } + reached.map { t, p in JournalEntry(asset: t.asset, source: .target, title: "\(t.asset.symbol) : \(t.label.lowercased())", price: p, date: now) }
+        if !entries.isEmpty { journal = AlertJournal.add(entries, to: journal) }
+        return CheckResult(buy: fresh, targets: reached)
+    }
+
+    private func checkBuyAlerts(_ client: AltimClient) async throws -> [BuyAlert] {
         // The asset followed in the Live Activity is checked too, even if it is neither on the radar nor held.
         let all = watchlist + holdings.map(\.asset) + [activityAsset].compactMap { $0 }
         let assets = Array(Dictionary(all.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }).values)
@@ -204,6 +253,8 @@ final class AppModel {
         persistSession()
         return fresh
     }
+
+    func clearJournal() { journal = [] }
 
     /// From a tapped notification: "crypto:BTC" → the asset to open.
     func open(assetID: String) {

@@ -9,7 +9,10 @@ import com.maxlestage.altim.kit.AccessMode
 import com.maxlestage.altim.kit.AltimClient
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.AltimJson
+import com.maxlestage.altim.kit.AlertJournal
 import com.maxlestage.altim.kit.AlertTracker
+import com.maxlestage.altim.kit.JournalEntry
+import com.maxlestage.altim.kit.PriceTarget
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Credentials
@@ -65,6 +68,12 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     var lastBuyable by mutableStateOf(prefs.getInt("lastBuyable", 0))
         private set
+    /** Price alerts chosen by the user ("sous 80 000 $") and the journal of the notifications received. */
+    var priceTargets by mutableStateOf(load(ListSerializer(PriceTarget.serializer()), "priceTargets") ?: emptyList())
+        private set
+    var journal by mutableStateOf(load(ListSerializer(JournalEntry.serializer()), "journal") ?: emptyList())
+        private set
+
     /** Asset to open, from a tapped notification. */
     var pendingOpen by mutableStateOf<Asset?>(null)
 
@@ -106,29 +115,67 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         alertsEnabled = enabled
         alertsStrongOnly = strongOnly
         prefs.edit().putBoolean("alertsEnabled", enabled).putBoolean("alertsStrongOnly", strongOnly).apply()
-        BuyAlerts.schedule(context, enabled)
+        BuyAlerts.schedule(context, needsChecks)
     }
+
+    /** The background check runs for the buy alerts or for at least one armed price alert. */
+    val needsChecks: Boolean get() = alertsEnabled || priceTargets.any { it.triggered == null }
+
+    fun addTarget(context: Context, t: PriceTarget) = setTargets(context, priceTargets + t)
+    fun removeTarget(context: Context, id: String) = setTargets(context, priceTargets.filterNot { it.id == id })
+    fun rearmTarget(context: Context, id: String) = setTargets(context, priceTargets.map { if (it.id == id) it.copy(triggered = null) else it })
+
+    private fun setTargets(context: Context?, list: List<PriceTarget>) {
+        priceTargets = list
+        save(ListSerializer(PriceTarget.serializer()), "priceTargets", list)
+        context?.let { BuyAlerts.schedule(it, needsChecks) }
+    }
+
+    fun clearJournal() {
+        journal = emptyList()
+        save(ListSerializer(JournalEntry.serializer()), "journal", journal)
+    }
+
+    /** What one background check found: new buy alerts and price alerts just reached (with the price). */
+    data class CheckResult(val buy: List<BuyAlert>, val targets: List<Pair<PriceTarget, Double>>)
 
     /**
      * One check of the buy alerts (background worker): the server's rule applied to the watch list and the holdings;
      * returns the alerts to notify (new or changed situation only), null without access.
      */
-    suspend fun checkAlerts(): List<BuyAlert>? {
+    suspend fun checkAlerts(): CheckResult? {
         val c = client ?: return null
-        val assets = (watchlist + holdings.map { it.asset }).distinctBy { it.id }
-        val items = c.alerts(assets)
-        val tracker = prefs.getString("alertTracker", null)?.let { runCatching { AltimJson.decodeFromString(AlertTracker.serializer(), it) }.getOrNull() } ?: AlertTracker()
-        val (next, fresh) = tracker.newAlerts(items, alertsStrongOnly)
         val now = System.currentTimeMillis()
+        var fresh = emptyList<BuyAlert>()
+        if (alertsEnabled) {
+            val assets = (watchlist + holdings.map { it.asset }).distinctBy { it.id }
+            val items = c.alerts(assets)
+            val tracker = prefs.getString("alertTracker", null)?.let { runCatching { AltimJson.decodeFromString(AlertTracker.serializer(), it) }.getOrNull() } ?: AlertTracker()
+            val (next, newOnes) = tracker.newAlerts(items, alertsStrongOnly)
+            fresh = newOnes
+            lastBuyable = items.count { it.buy }
+            prefs.edit().putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next)).putInt("lastBuyable", lastBuyable).apply()
+        }
+        // Price alerts: consensus quotes of the assets that still have an armed threshold.
+        val armed = priceTargets.filter { it.triggered == null }
+        var fired = emptyList<Pair<PriceTarget, Double>>()
+        if (armed.isNotEmpty()) {
+            val quotes = c.quotes(armed.map { it.asset }.distinctBy { it.id })
+            val (updated, reached) = PriceTarget.evaluate(priceTargets, quotes.associate { "${it.kind.raw}:${it.symbol}" to it.price }, now)
+            fired = reached
+            if (reached.isNotEmpty()) setTargets(null, updated)
+        }
+        val entries = fresh.mapNotNull { a ->
+            a.price?.let { JournalEntry(asset = a.asset, source = if (a.strong) JournalEntry.Source.STRONG_BUY else JournalEntry.Source.BUY, title = a.title, price = it, date = now) }
+        } + fired.map { (t, p) -> JournalEntry(asset = t.asset, source = JournalEntry.Source.TARGET, title = "${t.asset.symbol} : ${t.label.lowercase()}", price = p, date = now) }
+        if (entries.isNotEmpty()) {
+            journal = AlertJournal.add(entries, journal)
+            save(ListSerializer(JournalEntry.serializer()), "journal", journal)
+        }
         lastAlertCheck = now
-        lastBuyable = items.count { it.buy }
-        prefs.edit()
-            .putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next))
-            .putLong("lastAlertCheck", now)
-            .putInt("lastBuyable", lastBuyable)
-            .apply()
+        prefs.edit().putLong("lastAlertCheck", now).apply()
         persistSession()
-        return fresh
+        return CheckResult(fresh, fired)
     }
 
     /** From a tapped notification: "crypto:BTC" → the asset to open. */

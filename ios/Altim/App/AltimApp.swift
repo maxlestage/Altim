@@ -11,7 +11,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         let model = model
         BuyNotifications.register { model }
-        BuyNotifications.schedule(enabled: model.alertsEnabled)
+        BuyNotifications.schedule(enabled: model.needsChecks)
         notifications.open = { model.open(assetID: $0) }
         UNUserNotificationCenter.current().delegate = notifications
         WatchBridge.shared.refresh = { await BuyNotifications.run(model) }
@@ -102,6 +102,8 @@ struct MainTabs: View {
                 .tabItem { Label("Sélection", systemImage: "list.number") }
             NavigationStack { HoldingsView() }
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }
+            NavigationStack { AlertsView() }
+                .tabItem { Label("Alertes", systemImage: "bell.badge") }
             NavigationStack { SettingsView() }
                 .tabItem { Label("Réglages", systemImage: "gearshape") }
         }

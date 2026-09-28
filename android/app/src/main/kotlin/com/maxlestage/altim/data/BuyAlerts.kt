@@ -22,6 +22,8 @@ import com.maxlestage.altim.MainActivity
 import com.maxlestage.altim.R
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.BuyAlert
+import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.PriceTarget
 import java.util.concurrent.TimeUnit
 
 /**
@@ -54,6 +56,21 @@ object BuyAlerts {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
             NotificationManagerCompat.from(context).areNotificationsEnabled()
 
+    /** A price alert reached: "BTC en dessous de 80 000 $" with the price now. */
+    fun postTarget(context: Context, t: PriceTarget, price: Double) = post(
+        context,
+        BuyAlert(
+            symbol = t.asset.symbol,
+            kind = t.asset.kind,
+            name = t.asset.name,
+            price = price,
+            buy = true,
+            title = "${t.asset.symbol} ${if (t.above) "au-dessus de" else "en dessous de"} ${Format.price(t.price)}",
+            body = "Prix actuel ${Format.price(price)} : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.",
+        ),
+        tag = "target:${t.id}",
+    )
+
     /** Up to 3 alerts: one notification each; beyond, a single summary (the first check can find many at once). */
     fun postAll(context: Context, alerts: List<BuyAlert>) {
         if (alerts.size <= 3) return alerts.forEach { post(context, it) }
@@ -73,7 +90,7 @@ object BuyAlerts {
         )
     }
 
-    fun post(context: Context, alert: BuyAlert, openAsset: Boolean = true) {
+    fun post(context: Context, alert: BuyAlert, openAsset: Boolean = true, tag: String = alert.id) {
         if (!canNotify(context)) return
         val open = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -96,7 +113,7 @@ object BuyAlerts {
             .build()
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         try {
-            NotificationManagerCompat.from(context).notify(alert.id.hashCode(), n)
+            NotificationManagerCompat.from(context).notify(tag.hashCode(), n)
         } catch (_: SecurityException) {
             // Permission withdrawn in the meantime: nothing to post.
         }
@@ -106,9 +123,12 @@ object BuyAlerts {
 class AlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val model = (applicationContext as AltimApplication).model
-        if (!model.alertsEnabled) return Result.success()
+        if (!model.needsChecks) return Result.success()
         return try {
-            model.checkAlerts()?.let { BuyAlerts.postAll(applicationContext, it) }
+            model.checkAlerts()?.let { r ->
+                BuyAlerts.postAll(applicationContext, r.buy)
+                r.targets.forEach { (t, price) -> BuyAlerts.postTarget(applicationContext, t, price) }
+            }
             Result.success()
         } catch (e: AltimException.Unauthorized) {
             // Session expired and the password is locked (phone locked): the next run after unlocking will log in.

@@ -18,7 +18,7 @@ class AltimApplication : Application() {
         super.onCreate()
         model = AppModel(this)
         BuyAlerts.createChannel(this)
-        BuyAlerts.schedule(this, model.alertsEnabled)
+        BuyAlerts.schedule(this, model.needsChecks)
     }
 }
 

@@ -54,6 +54,12 @@ export type SelectionReport = {
   validation: import("../engine/screener").Validation | null;
 };
 
+/** "Can I buy now?" (/api/alerts): the rule of the notifications of the apps. */
+export type BuyAlert = {
+  symbol: string; kind: Kind; name: string; price: number | null; buy?: boolean; strong?: boolean;
+  reasons?: string[]; blockers?: string[]; cautions?: string[]; key?: string; title?: string; body?: string; error?: string;
+};
+
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
 
 async function get<T>(url: string): Promise<T> {
@@ -88,6 +94,7 @@ export const api = {
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   macro: () => get<MacroInfo>("/api/macro"),
+  alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };

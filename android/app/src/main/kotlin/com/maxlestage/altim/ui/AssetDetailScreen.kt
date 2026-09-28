@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.NotificationAdd
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.HorizontalDivider
@@ -69,6 +70,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
     var zones by remember(asset.id) { mutableStateOf<Loadable<ZonesReport>>(Loadable.Loading) }
     var guard by remember(asset.id) { mutableStateOf<Loadable<GuardReport>>(Loadable.Loading) }
     var reload by remember { mutableStateOf(0) }
+    var targetOpen by remember(asset.id) { mutableStateOf(false) }
 
     LaunchedEffect(asset.id, reload) {
         val client = model.client ?: return@LaunchedEffect
@@ -101,6 +103,9 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
             Text(asset.symbol, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            IconButton(onClick = { targetOpen = !targetOpen }) {
+                Icon(Icons.Filled.NotificationAdd, contentDescription = "Alerte de prix", tint = AltimColors.cyan)
+            }
             val watched = model.isWatched(asset)
             IconButton(onClick = { if (watched) model.unwatch(asset) else model.watch(asset) }) {
                 Icon(if (watched) Icons.Filled.Star else Icons.Filled.StarBorder, contentDescription = if (watched) "Retirer du radar" else "Ajouter au radar", tint = AltimColors.cyan)
@@ -110,6 +115,9 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (targetOpen) {
+                PriceTargetCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
+            }
             Header(model, asset, signal, zones.value)
             Card {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
