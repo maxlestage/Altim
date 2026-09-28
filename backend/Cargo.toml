@@ -38,3 +38,9 @@ tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 lto = "thin"
 codegen-units = 4
 strip = true
+
+[lints.clippy]
+# Nested `if let` read closer to the TypeScript they port.
+collapsible_if = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"

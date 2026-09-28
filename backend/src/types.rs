@@ -80,3 +80,13 @@ impl Interval {
 }
 
 pub const DAY_MS: i64 = 86_400_000;
+
+/// An asset shown by the app (`Asset` in quotes.ts).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct Asset {
+    pub symbol: String,
+    pub name: String,
+    pub kind: Kind,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gecko: Option<String>,
+}

@@ -54,13 +54,11 @@ pub fn number_to_string(x: f64) -> String {
     if x.fract() == 0.0 && x.abs() < 1e21 {
         return format!("{x:.0}");
     }
-    let s = format!("{x}");
-    // Rust never uses exponents in `{}`; JavaScript does below 1e-6.
+    // Rust never uses exponents in `{}`; JavaScript does below 1e-6 ("1.5e-7" in both).
     if x.abs() < 1e-6 {
-        let e = format!("{x:e}");
-        return e.replace("e-", "e-");
+        return format!("{x:e}");
     }
-    s
+    format!("{x}")
 }
 
 /// Shortest round-trip decimal digits of |x| and the position of the decimal point (`digits` × 10^(point − len)).

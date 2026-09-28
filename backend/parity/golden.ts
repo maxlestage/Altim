@@ -36,6 +36,25 @@ const HIGHER: Record<string, string | null> = { "1h": "4h", "4h": "1d", "1d": nu
   write("signal", cases);
 }
 
+// ---------- reliability ----------
+{
+  const { assessQuality, reliability, gate } = await import("../../web/src/engine/reliability");
+  const STEP: Record<string, number> = { "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000, long: 86_400_000 };
+  const cases = [];
+  for (const i of inputs) {
+    for (const cut of [0, 250]) {
+      const candles = i.candles.slice(cut);
+      const q = assessQuality(candles, STEP[i.interval]!, i.kind, NOW);
+      for (const [n, conflict] of [[1, false], [2, false], [3, false], [5, false], [4, true]] as const) {
+        const rel = reliability(q.score, n, conflict);
+        const s = analyze(candles);
+        cases.push({ args: { symbol: i.symbol, interval: i.interval, cut, n, conflict }, output: { q, rel, gated: s ? gate(s, rel, q.issues) : null } });
+      }
+    }
+  }
+  write("reliability", cases);
+}
+
 // Other engines: one file per module, imported here (parity/golden-*.ts).
 for (const m of ["engines-a", "engines-b", "server"]) {
   try {
@@ -44,3 +63,4 @@ for (const m of ["engines-a", "engines-b", "server"]) {
     if (!String(e).includes("Cannot find module")) throw e;
   }
 }
+
