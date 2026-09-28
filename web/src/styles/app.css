@@ -462,3 +462,97 @@
 .glossary dt { font-weight: 600; color: var(--text); }
 .glossary dd { margin: 3px 0 0; font-size: 14px; line-height: 1.5; }
 .note-card textarea { width: 100%; box-sizing: border-box; min-height: 90px; resize: vertical; padding: 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.15); background: rgba(255, 255, 255, 0.04); color: var(--text); font: inherit; font-size: 16px; }
+
+/* ---------- Décision (top of the asset page) ----------
+   Level colours on the dark card surface (#0c1021): buy 14.2:1, warn 12.1:1, waiting #c7d0e6 12.2:1,
+   high risk #ff9f43 9.3:1, sell text #ff6b82 6.9:1. Never colour alone: every level carries an icon and a word. */
+.decision { --lv: var(--cyan); display: grid; gap: 10px; min-width: 0; overflow-wrap: anywhere; border-color: color-mix(in srgb, var(--lv) 50%, transparent); box-shadow: 0 0 40px color-mix(in srgb, var(--lv) 12%, transparent); }
+.decision p { margin: 0; }
+.decision.lv-strong, .dec-mini.lv-strong { --lv: var(--buy); }
+.decision.lv-moderate, .dec-mini.lv-moderate { --lv: var(--warn); }
+.decision.lv-waiting, .dec-mini.lv-waiting { --lv: #c7d0e6; }
+.decision.lv-highRisk, .dec-mini.lv-highRisk { --lv: #ff9f43; }
+.decision.lv-exit, .dec-mini.lv-exit { --lv: #ff6b82; }
+.dec-date { font-size: 14px; }
+.dec-status .link-btn { padding: 0; min-height: 44px; }
+.dec-verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
+.dec-label { margin: 0; font-family: var(--display); font-size: clamp(24px, 7vw, 34px); line-height: 1.15; color: var(--lv); text-shadow: 0 0 18px color-mix(in srgb, var(--lv) 45%, transparent); }
+.dec-level-label { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; color: var(--lv); border: 1px solid currentColor; }
+.dec-confidence { flex: 1 1 220px; display: grid; gap: 4px; font-size: 14px; }
+.dec-confidence .weight-track i { background: var(--cyan); }
+.dec-mode { font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px dashed rgba(255, 255, 255, 0.18); color: var(--muted); }
+.dec-mode.personal { border: 1px solid rgba(125, 77, 255, 0.6); color: var(--text); }
+.dec-headline { font-size: 16px; font-weight: 600; line-height: 1.45; }
+.dec-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.dec-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.12); }
+.dec-chip small { font-size: 11px; }
+.tone-strong small, .dec-tag.tone-strong { color: var(--buy); }
+.tone-moderate small, .dec-tag.tone-moderate { color: var(--warn); }
+.tone-highRisk small, .dec-tag.tone-highRisk { color: #ff9f43; }
+.tone-exit small, .dec-tag.tone-exit { color: #ff6b82; }
+.tone-na small, .dec-tag.tone-na { color: var(--muted); }
+.dec-plan { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.dec-plan > div { display: grid; align-content: start; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); min-width: 0; }
+.dec-plan small { font-size: 11px; color: var(--muted); }
+.dec-plan b { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
+.dec-plan > div:first-child { grid-column: 1 / -1; }
+.dec-plan .rr-ok, .dec-plan .rr-ko { grid-column: 1 / -1; }
+.dec-plan .rr-ok { border-color: rgba(57, 255, 136, 0.45); }
+.dec-plan .rr-ko { border-color: rgba(255, 159, 67, 0.55); }
+.dec-plan .rr-ok small:last-child { color: var(--buy); }
+.dec-plan .rr-ko small:last-child { color: #ff9f43; }
+.dec-horizon { grid-column: 1 / -1; }
+.dec-block { display: grid; gap: 6px; }
+.decision h3 { margin: 0; font-size: 15px; font-family: var(--body); font-weight: 700; }
+.dec-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.dec-level { font-size: 12px; color: var(--cyan); white-space: nowrap; }
+.dec-position { padding: 12px; border-radius: 14px; border: 1px solid rgba(125, 77, 255, 0.5); background: rgba(125, 77, 255, 0.06); }
+.dec-exits { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dec-exits li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08); font-size: 14px; }
+.dec-exits li > div { display: grid; min-width: 0; }
+.dec-exits li.now { border-color: var(--warn); background: rgba(255, 199, 51, 0.08); }
+.dec-now { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--warn); white-space: nowrap; }
+.dec-sections { display: grid; gap: 8px; }
+.dec-section { border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.dec-section > summary { display: flex; justify-content: space-between; align-items: center; gap: 8px; min-height: 48px; padding: 8px 12px; cursor: pointer; list-style: none; font-weight: 600; }
+.dec-section > summary::-webkit-details-marker { display: none; }
+.dec-section > summary::after { content: "▾"; color: var(--cyan); flex: none; transition: transform 0.2s; }
+.dec-section[open] > summary::after { transform: rotate(180deg); }
+.dec-section > summary > span { flex: 1; min-width: 0; }
+.dec-section-badge { font-family: var(--mono); font-size: 11px; font-weight: 400; color: var(--muted); text-align: right; }
+.dec-section-body { display: grid; gap: 10px; padding: 0 12px 12px; min-width: 0; }
+.dec-families { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.dec-family { display: grid; gap: 4px; }
+.dec-family-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; }
+.dec-tag { font-size: 13px; }
+.dec-vetoes, .dec-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dec-vetoes li, .dec-steps li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 8px; align-items: start; padding: 6px 0; border-top: 1px solid rgba(255, 255, 255, 0.06); font-size: 14px; }
+.dec-vetoes li:first-child, .dec-steps li:first-child { border-top: 0; }
+.dec-vetoes li > div, .dec-steps li > div { display: grid; min-width: 0; }
+.dec-veto-mark, .dec-step-mark { font-family: var(--mono); font-size: 11px; font-weight: 700; }
+.dec-vetoes li.veto-active { padding: 8px; border-radius: 10px; background: rgba(255, 59, 92, 0.08); border: 1px solid rgba(255, 59, 92, 0.45); }
+.veto-active .dec-veto-mark { color: #ff6b82; }
+.veto-pass .dec-veto-mark, .step-ok .dec-step-mark { color: var(--buy); }
+.veto-unknown .dec-veto-mark, .step-unknown .dec-step-mark { color: var(--muted); }
+.step-no .dec-step-mark { color: #ff9f43; }
+.dec-scenarios { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.dec-scenarios li { display: grid; align-content: start; gap: 2px; padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); min-width: 0; }
+.sc-bull b { color: var(--buy); }
+.sc-neutral b { color: var(--cyan); }
+.sc-bear b { color: #ff6b82; }
+.dec-proscons { display: grid; gap: 12px; }
+.dec-proscons > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
+.dec-figures { margin: 0; display: grid; gap: 6px; }
+.dec-figures div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding-bottom: 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.05); }
+.dec-figures dt { color: var(--muted); font-size: 13px; min-width: 0; }
+.dec-figures dd { margin: 0 0 0 auto; font-size: 13px; text-align: right; min-width: 0; }
+.dec-estimated { color: var(--warn); font-weight: 400; }
+.dec-disclaimer { padding-top: 10px; border-top: 1px solid var(--line); color: var(--muted); }
+.dec-mini { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; color: var(--lv); border: 1px solid currentColor; white-space: nowrap; }
+@media (min-width: 720px) {
+  .dec-plan { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .dec-plan > div:first-child { grid-column: auto; }
+  .dec-plan .rr-ok, .dec-plan .rr-ko { grid-column: span 2; }
+  .dec-proscons { grid-template-columns: 1fr 1fr; }
+  .dec-scenarios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

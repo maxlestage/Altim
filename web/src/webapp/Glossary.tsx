@@ -16,6 +16,18 @@ export const GLOSSARY: [string, string][] = [
   ["Garde-fou marché", "Risque de choc (volatilité anormale, sauts de prix, VIX…) et de retournement : il réduit ou suspend les conseils d'achat quand le marché est dangereux."],
   ["Investissement programmé (DCA)", "Acheter le même montant à intervalle régulier : on achète plus quand c'est bas, moins quand c'est haut, sans chercher le bon moment."],
   ["PFU (flat tax)", "Prélèvement forfaitaire unique de 30 % sur les plus-values en France (12,8 % d'impôt + 17,2 % de prélèvements sociaux). Les pertes de l'année compensent les gains."],
+  ["Risque/rendement (gain/risque)", "Dans la carte Décision : gain jusqu'à l'objectif 1 divisé par la perte jusqu'au stop, depuis le prix d'entrée indiqué. Altim n'entre pas sous 2 : même à moitié de réussite, l'idée doit rester gagnante."],
+  ["Veto (interdiction d'achat)", "Une raison qui interdit d'acheter maintenant, quel que soit le reste : écart achat/vente trop grand, résultats imminents, chute brutale, tendance baissière… Toutes les vérifications sont listées, actives ou non, et celles sans source sont dites « non vérifiables »."],
+  ["Invalidation", "Le niveau ou l'événement qui prouve que le scénario était faux (souvent une clôture sous le plus bas du mouvement). Atteint, on sort : on n'attend pas que ça remonte."],
+  ["FDV", "Fully Diluted Valuation : prix × nombre maximal de jetons. Une capitalisation bien inférieure à la FDV veut dire que beaucoup de jetons restent à émettre et peuvent peser sur le prix."],
+  ["Profit factor", "Somme des gains divisée par la somme des pertes du signal sur le passé. Au-dessus de 1, il a gagné plus qu'il n'a perdu ; sous 1,3, la marge est mince une fois les frais comptés."],
+  ["Sharpe", "Rendement moyen divisé par la volatilité des rendements (annualisé). Au-dessus de 1 : correct ; il pénalise les hausses comme les baisses."],
+  ["Sortino", "Comme le Sharpe, mais ne compte que la volatilité des baisses : il ne pénalise pas les fortes hausses."],
+  ["Drawdown (pire recul)", "Plus forte baisse depuis un sommet, pour un actif ou pour le signal. Il dit ce qu'il aurait fallu supporter sans vendre."],
+  ["PER et PEG", "PER : prix de l'action divisé par le bénéfice par action (25 : on paie 25 années de bénéfice actuel). PEG : le PER divisé par la croissance du bénéfice ; autour de 1, le prix suit la croissance, bien au-dessus, il l'anticipe."],
+  ["EV/EBITDA", "Valeur de l'entreprise (capitalisation + dette nette) divisée par son résultat avant intérêts, impôts et amortissements. Compare des sociétés endettées ou non."],
+  ["TVL", "Total Value Locked : montant déposé dans les contrats d'un réseau ou d'un protocole (prêts, échanges). Mesure son usage, pas sa rentabilité."],
+  ["Funding (taux de financement)", "Sur les contrats perpétuels, paiement périodique entre acheteurs et vendeurs à effet de levier. Positif et élevé : la foule est très acheteuse à crédit, les baisses brutales deviennent plus probables."],
   ["Rééquilibrage", "Revenir à la répartition choisie (ex. 40 % crypto, 60 % actions) en vendant ce qui a trop monté et en achetant ce qui a pris du retard."],
 ];
 
