@@ -27,26 +27,43 @@ data class BuyAlert(
 }
 
 /**
- * Decides which alerts deserve a notification: only when an asset becomes buyable, or when the reason changes
- * (a zone is reached after a signal…). An asset that stops being buyable is forgotten, so its next buy opportunity
- * notifies again. Persisted between background checks.
+ * Decides which alerts deserve a notification: when an asset becomes buyable, or when a new reason appears (a zone is
+ * reached after a signal…). A price that hovers at the edge of a zone makes the verdict flicker: an asset is forgotten
+ * only after [COOLDOWN_MS] without being buyable, and a reason already notified never notifies again meanwhile.
+ * Persisted between background checks.
  */
 @Serializable
-data class AlertTracker(val notified: Map<String, String> = emptyMap()) {
-    fun newAlerts(items: List<BuyAlert>, onlyStrong: Boolean): Pair<AlertTracker, List<BuyAlert>> {
+data class AlertTracker(
+    /** Asset → every reason already notified ("signal+zone:medium"). */
+    val notified: Map<String, String> = emptyMap(),
+    /** Asset → since when it is no longer buyable. */
+    val lost: Map<String, Long> = emptyMap(),
+) {
+    companion object {
+        const val COOLDOWN_MS = 6 * 3_600_000L
+        private fun parts(key: String) = key.split("+").filter { it.isNotEmpty() }.toSet()
+    }
+
+    fun newAlerts(items: List<BuyAlert>, onlyStrong: Boolean, now: Long = System.currentTimeMillis()): Pair<AlertTracker, List<BuyAlert>> {
         val next = notified.toMutableMap()
+        val gone = lost.toMutableMap()
         val out = mutableListOf<BuyAlert>()
         for (it in items) {
             val wanted = it.buy && (!onlyStrong || it.strong)
             if (wanted) {
-                if (next[it.id] != it.key) {
-                    out += it
-                    next[it.id] = it.key
+                gone.remove(it.id)
+                val before = next[it.id]?.let(::parts)
+                val now2 = parts(it.key)
+                if (before == null || !before.containsAll(now2)) out += it
+                next[it.id] = ((before ?: emptySet()) + now2).sorted().joinToString("+")
+            } else if (!it.buy && next.containsKey(it.id)) {
+                val since = gone.getOrPut(it.id) { now }
+                if (now - since >= COOLDOWN_MS) {
+                    next.remove(it.id)
+                    gone.remove(it.id)
                 }
-            } else if (!it.buy) {
-                next.remove(it.id)
             }
         }
-        return AlertTracker(next) to out
+        return AlertTracker(next, gone) to out
     }
 }
