@@ -222,6 +222,8 @@ data class MacroInfo(
     val values: Map<String, Value> = emptyMap(),
     val asOf: Double? = null,
     val evidence: Evidence? = null,
+    /** Risk-on / risk-off / neutre (newer servers; absent before). */
+    val regime: MarketRegime? = null,
 ) {
     @Serializable data class Factor(val code: String, val points: Double, val text: String)
     @Serializable data class Theme(val theme: String, val label: String, val count: Int, val examples: List<String> = emptyList())

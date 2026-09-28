@@ -23,6 +23,7 @@ import com.maxlestage.altim.kit.Danger
 import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.kit.PortfolioRisk
 import com.maxlestage.altim.kit.RiskSettings
+import com.maxlestage.altim.kit.ScoreWeights
 import com.maxlestage.altim.kit.FileResponseCache
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Horizon
@@ -74,6 +75,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     /** Limits of Réglages → Prudence des conseils, checked in Mes avoirs (same defaults as the web app). */
     var risk by mutableStateOf(load(RiskSettings.serializer(), "risk")?.sanitized() ?: RiskSettings.DEFAULT)
+        private set
+    /** Weights of the decision's composite score (Réglages → Score composite), sent only when not the defaults. */
+    var scoreWeights by mutableStateOf(ScoreWeights.parse(prefs.getString("scoreWeights", null)))
         private set
     /** Configuration changes of the decisions seen on this phone (validated when read back; damaged = empty). */
     var configChanges by mutableStateOf(ConfigChanges.parse(prefs.getString(ConfigChanges.KEY, null)))
@@ -160,6 +164,11 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     fun updateBudget(v: Double) {
         budget = v
         prefs.edit().putFloat("budget", v.toFloat()).apply()
+    }
+
+    fun updateScoreWeights(w: ScoreWeights) {
+        scoreWeights = w
+        save(ScoreWeights.serializer(), "scoreWeights", w)
     }
 
     fun updateRisk(r: RiskSettings) {

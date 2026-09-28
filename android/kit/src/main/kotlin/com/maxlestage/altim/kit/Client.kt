@@ -222,10 +222,12 @@ class AltimClient(
      * portfolio [weights] (percentages from [Decision.weights], never quantities nor amounts): the server uses them
      * for this answer only and keeps nothing.
      */
-    suspend fun decision(a: Asset, cost: Double? = null, weights: String? = null): Decision {
+    suspend fun decision(a: Asset, cost: Double? = null, weights: String? = null, scoreWeights: ScoreWeights? = null): Decision {
         val q = mutableMapOf("symbol" to a.symbol, "kind" to a.kind.raw)
         cost?.takeIf { it.isFinite() && it > 0 }?.let { q["cost"] = Decision.number(it, 8) }
         weights?.takeIf { it.isNotBlank() }?.let { q["weights"] = it }
+        // Composite score weights (Réglages), only when not the defaults: the request stays the same otherwise.
+        scoreWeights?.param()?.let { q["w"] = it }
         return get("/api/decision", q, Decision.serializer())
     }
 

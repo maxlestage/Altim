@@ -198,6 +198,17 @@ class NewCardsTest {
         assertTrue(!cleared)
     }
 
+    /** Macro banner of the Radar with the market regime (/api/macro). */
+    @Test fun macroRegime() {
+        val m = AltimJson.decodeFromString(
+            com.maxlestage.altim.kit.MacroInfo.serializer(),
+            """{"score":30,"level":"tense","factors":[{"code":"vix","points":10,"text":"VIX au-dessus de 20"}],"regime":{"kind":"neutral","label":"Neutre","benchmark":"S&P 500 (SPY)","reasons":["Stress macro 30/100 (tendu)","VIX 16"]}}""",
+        )
+        screen { Column(Modifier.fillMaxWidth().padding(16.dp)) { com.maxlestage.altim.ui.MacroBanner(m) } }
+        expect("Contexte macro : Tendu", "Régime de marché : Neutre", "Stress macro 30/100 (tendu) · VIX 16")
+        fitsWidth()
+    }
+
     private val report = AltimJson.decodeFromString(CalendarReport.serializer(), File("../kit/src/test/resources/fixtures/calendar-sample.json").readText())
 
     /** Agenda of the real sample (28/09/2026), all kinds, then "Mes actifs" with Micron only. */
@@ -226,7 +237,8 @@ class NewCardsTest {
     }
 
     /** Réglages → Prudence des conseils: steppers within bounds, saved on this phone; the holding's stop is kept. */
-    @Test fun settingsAndStorage() {
+    @Test @Config(qualifiers = "w360dp-h5000dp-xhdpi")
+    fun settingsAndStorage() {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         app.getSharedPreferences("altim", Context.MODE_PRIVATE).edit().clear()
             .putString("holdings", """[{"id":"1","asset":{"symbol":"BTC","kind":"crypto","name":"Bitcoin"},"quantity":1,"averagePrice":10,"stop":-4},{"id":"2","asset":{"symbol":"ETH","kind":"crypto","name":"Ethereum"},"quantity":1,"stop":5}]""")
@@ -245,12 +257,19 @@ class NewCardsTest {
         assertEquals(2.5, model.risk.dailyLossLimitPercent, 0.0)
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/new-settings.png")
+        // Composite score weights: shown, changed, sent as w= only when custom.
+        expect("Score composite", "Technique", "tendance, volume, volatilité, structure", "32 %", "Total : 100 (ramené à 100 %).", "Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)")
+        model.updateScoreWeights(model.scoreWeights.with("tech", 50).with("macro", 0))
+        compose.waitForIdle()
+        expect("50 %", "Total : 108 (ramené à 100 %).")
+        assertEquals("tech:50,mom:18,fund:20,sent:10,news:10,macro:0", model.scoreWeights.param())
         // Kept after a restart, with the configuration changes seen meanwhile.
         val btc = decision("decision-btc.json")
         model.recordDecision(btc, false, 1.0)
         model.recordDecision(btc.copy(verdict = Verdict.BUY), false, 2.0)
         val again = AppModel(app, NewCardsMemory())
         assertEquals(65.0, again.risk.maxCryptoPercent, 0.0)
+        assertEquals(50, again.scoreWeights.tech)
         assertEquals(listOf(Verdict.BUY), again.configChanges.transitions.map { it.to.verdict })
         again.clearTransitions()
         assertTrue(AppModel(app, NewCardsMemory()).configChanges.transitions.isEmpty())

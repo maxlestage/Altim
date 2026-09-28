@@ -261,6 +261,27 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifi
     }
 }
 
+/** "Régime de marché : Risk-on — Stress macro 10/100 (calme) · …" (/api/macro and the zones' macro context). */
+@Composable
+fun RegimeText(r: com.maxlestage.altim.kit.MarketRegime) {
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = AltimColors.textSecondary))
+            append("Régime de marché : ")
+            pop()
+            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+            append(r.label.ifBlank { r.kind.label })
+            pop()
+            if (r.reasons.isNotEmpty()) {
+                pushStyle(androidx.compose.ui.text.SpanStyle(color = AltimColors.textSecondary))
+                append(" — ${r.reasons.joinToString(" · ")}")
+                pop()
+            }
+        },
+        fontSize = 12.sp, color = Color.White,
+    )
+}
+
 @Composable
 fun MacroBanner(macro: MacroInfo) {
     val c = AltimColors.of(macro.tone)
@@ -272,6 +293,7 @@ fun MacroBanner(macro: MacroInfo) {
             Text("Contexte macro : ${macro.levelLabel}", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Badge("${Math.round(macro.score)}/100", macro.tone)
         }
+        macro.regime?.let { RegimeText(it) }
         macro.factors.take(3).forEach { Text("• ${it.text}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f)) }
         Caption("Une zone d'achat peut céder si la situation mondiale se dégrade (guerre, crise, taux) : tailles réduites conseillées.")
     }

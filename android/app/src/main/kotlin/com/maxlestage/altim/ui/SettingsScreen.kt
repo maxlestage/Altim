@@ -16,6 +16,8 @@ import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -29,6 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,6 +43,7 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.data.BuyAlerts
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.RiskSettings
+import com.maxlestage.altim.kit.ScoreWeights
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.launch
 
@@ -98,6 +103,7 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             Caption("Toutes les 15 minutes : une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
         }
         RiskCard(model)
+        ScoreWeightsCard(model)
         Card(title = "Sécurité") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Verrouiller par empreinte, visage ou code", modifier = Modifier.weight(1f), fontSize = 15.sp)
@@ -172,3 +178,32 @@ private fun RiskCard(model: AppModel) {
 }
 
 private fun round2(v: Double) = Math.round(v * 100) / 100.0
+
+/** Weights of the composite score of the Décision card (sent as w= when not the defaults; the verdict never changes). */
+@Composable
+private fun ScoreWeightsCard(model: AppModel) {
+    val w = model.scoreWeights
+    Card(title = "Score composite") {
+        Caption("Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.")
+        ScoreWeights.FACTORS.forEach { f ->
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(f.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Caption(f.hint)
+                    }
+                    Text("${w[f.key]} %", style = mono(14.sp))
+                }
+                Slider(
+                    value = w[f.key].toFloat(),
+                    onValueChange = { model.updateScoreWeights(w.with(f.key, Math.round(it))) },
+                    valueRange = 0f..100f,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Poids ${f.label}" },
+                    colors = SliderDefaults.colors(thumbColor = AltimColors.cyan, activeTrackColor = AltimColors.cyan),
+                )
+            }
+        }
+        Caption("Total : ${w.total} (ramené à 100 %).${if (w.total == 0) " Tous à 0 : les poids par défaut sont utilisés." else ""}")
+        TextButton(onClick = { model.updateScoreWeights(ScoreWeights.DEFAULT) }) { Text("Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)", color = AltimColors.cyan) }
+    }
+}

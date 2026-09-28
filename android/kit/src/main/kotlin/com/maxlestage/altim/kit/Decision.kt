@@ -72,7 +72,42 @@ enum class ExitKind(val label: String) {
     @SerialName("macro") MACRO("macro"),
 }
 
+/** 6-level rating derived from the verdict, its level and the confidence (the verdict is unchanged). */
 @Serializable
+enum class Rating(val label: String, val emoji: String, val level: DecisionLevel) {
+    @SerialName("strongBuy") STRONG_BUY("ACHAT FORT", "🟢", DecisionLevel.STRONG),
+    @SerialName("buy") BUY("ACHAT", "🟢", DecisionLevel.STRONG),
+    @SerialName("hold") HOLD("ATTENDRE", "⚪", DecisionLevel.WAITING),
+    @SerialName("reduce") REDUCE("ALLÉGER", "🟠", DecisionLevel.HIGH_RISK),
+    @SerialName("sell") SELL("VENDRE", "🔴", DecisionLevel.EXIT),
+    @SerialName("strongSell") STRONG_SELL("VENTE FORTE", "🔴", DecisionLevel.EXIT),
+}
+
+/** Direction of a structure item: an arrow and a word, never colour alone. */
+@Serializable
+enum class Bias(val label: String, val arrow: String) {
+    @SerialName("bullish") BULLISH("haussier", "↗"),
+    @SerialName("neutral") NEUTRAL("neutre", "→"),
+    @SerialName("bearish") BEARISH("baissier", "↘"),
+}
+
+@Serializable
+enum class RegimeKind(val label: String, val emoji: String) {
+    @SerialName("riskOn") RISK_ON("Risk-on (appétit pour le risque)", "🟢"),
+    @SerialName("neutral") NEUTRAL("Neutre", "⚪"),
+    @SerialName("riskOff") RISK_OFF("Risk-off (aversion au risque)", "🔴"),
+}
+
+/** Risk-on / risk-off / neutre (macro stress and the benchmark's trend): /api/decision, /api/macro, zones' macro. */
+@Serializable
+data class MarketRegime(val kind: RegimeKind = RegimeKind.NEUTRAL, val label: String = "", val benchmark: String? = null, val reasons: List<String> = emptyList())
+
+/** "+34", "−12", "0" (scores −100 … +100). */
+fun signedScore(v: Double): String = "${if (v > 0) "+" else if (v < 0) "−" else ""}${Math.round(Math.abs(v))}"
+
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+@Serializable(with = DecisionSerializer::class)
+@kotlinx.serialization.KeepGeneratedSerializer
 data class Decision(
     val symbol: String,
     val kind: Kind? = null,
@@ -108,7 +143,116 @@ data class Decision(
     val exposure: Exposure? = null,
     val sources: List<DataSource> = emptyList(),
     val disclaimer: String = "",
+    // Added later (absent from older answers): summaries and technical structure.
+    val rating: Rating? = null,
+    val ratingLabel: String = "",
+    val score: CompositeScore? = null,
+    val degraded: Degraded? = null,
+    val marketRegime: MarketRegime? = null,
+    val horizon: HorizonClass? = null,
+    val structure: Structure? = null,
+    /** Next 7 days' events (economy, central banks; a stock's earnings, dividends, splits); null: see [eventsKnown]. */
+    val events: List<CalendarEvent>? = null,
+    /** The answer has the `events` field: null then means "calendar not verified", not an older server. */
+    val eventsKnown: Boolean = false,
 ) {
+    /** The rating's words when the server gives it, else the verdict's. */
+    val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel
+
+    @Serializable
+    data class ScoreFactor(
+        val key: String = "",
+        val label: String = "",
+        val weight: Double = 0.0,
+        /** Weight actually used, % (renormalised over the measured factors). */
+        val applied: Double = 0.0,
+        /** −100 … +100; null when not measured. */
+        val value: Double? = null,
+        val contribution: Double? = null,
+        val sources: List<String> = emptyList(),
+    )
+
+    @Serializable
+    data class CompositeScore(
+        val value: Double? = null,
+        val label: String = "",
+        val factors: List<ScoreFactor> = emptyList(),
+        val missing: List<String> = emptyList(),
+        val custom: Boolean = false,
+        val text: String = "",
+    )
+
+    @Serializable
+    data class Degraded(val active: Boolean = false, val headline: String = "", val reasons: List<String> = emptyList())
+
+    @Serializable
+    data class HorizonClass(val kind: String = "", val label: String = "", val atrDistance: Double = 0.0, val detail: String = "")
+
+    @Serializable
+    data class Ichimoku(
+        val tenkan: Double, val kijun: Double, val senkouA: Double, val senkouB: Double,
+        val futureA: Double? = null, val futureB: Double? = null,
+        val position: String = "", val tkCross: String? = null, val tkCrossBars: Int? = null,
+        val bias: Bias = Bias.NEUTRAL, val reading: String = "",
+    )
+
+    @Serializable
+    data class Supertrend(val direction: String = "", val level: Double = 0.0, val bars: Int = 0, val bias: Bias = Bias.NEUTRAL, val reading: String = "")
+
+    @Serializable
+    data class Donchian(val upper: Double, val lower: Double, val mid: Double, val breakout: String? = null, val bias: Bias = Bias.NEUTRAL, val reading: String = "")
+
+    @Serializable
+    data class Vwap(val value: Double = 0.0, val bars: Int = 0, val deviationPct: Double = 0.0, val bias: Bias = Bias.NEUTRAL, val reading: String = "")
+
+    @Serializable
+    data class VolumeProfile(
+        val poc: Double = 0.0, val valueAreaHigh: Double = 0.0, val valueAreaLow: Double = 0.0, val bars: Int = 0, val bins: Int = 0,
+        val bias: Bias = Bias.NEUTRAL, val reading: String = "", val note: String = "",
+    )
+
+    @Serializable
+    data class FloorPivots(val pivot: Double, val r1: Double, val r2: Double, val s1: Double, val s2: Double, val from: Double = 0.0, val reading: String = "")
+
+    @Serializable
+    data class SrLevel(val price: Double, val touches: Int = 0, val kind: String = "support", val distancePct: Double = 0.0)
+
+    @Serializable
+    data class Breakout(val kind: String = "none", val side: String? = null, val level: Double? = null, val volumeRatio: Double? = null, val bias: Bias = Bias.NEUTRAL, val reading: String = "")
+
+    @Serializable
+    data class MarketStructure(val trend: String = "", val highs: List<Double> = emptyList(), val lows: List<Double> = emptyList(), val bias: Bias = Bias.NEUTRAL, val reading: String = "")
+
+    @Serializable
+    data class RsPeriod(val label: String = "", val days: Int = 0, val assetPct: Double = 0.0, val benchmarkPct: Double = 0.0, val diff: Double = 0.0)
+
+    @Serializable
+    data class RelativeStrength(
+        val benchmark: String = "", val symbol: String = "", val periods: List<RsPeriod> = emptyList(), val correlation: Double? = null,
+        val bias: Bias = Bias.NEUTRAL, val reading: String = "",
+    )
+
+    /** Technical structure on the daily candles (Ichimoku, Supertrend, levels, breakouts, relative strength…). */
+    @Serializable
+    data class Structure(
+        val timeframe: String = "",
+        val score: Double? = null,
+        val ichimoku: Ichimoku? = null,
+        val supertrend: Supertrend? = null,
+        val donchian: Donchian? = null,
+        val vwap: Vwap? = null,
+        val volumeProfile: VolumeProfile? = null,
+        val pivots: FloorPivots? = null,
+        val levels: List<SrLevel> = emptyList(),
+        val nearestSupport: SrLevel? = null,
+        val nearestResistance: SrLevel? = null,
+        val levelsReading: String = "",
+        val breakout: Breakout? = null,
+        val marketStructure: MarketStructure? = null,
+        val relative: List<RelativeStrength> = emptyList(),
+        val relativeNote: String? = null,
+    )
+
     val isPersonal: Boolean get() = mode == "personal"
 
     /** The server's French label, or ours when it is missing. */
@@ -161,6 +305,11 @@ data class Decision(
         val minRiskReward: Double = 2.0,
         val acceptable: Boolean = false,
         val horizon: String = "",
+        /** Next level beyond target 2 (or target 2 + (target 2 − target 1)); absent from older answers. */
+        val target3: Double? = null,
+        val reward3Pct: Double? = null,
+        /** Where target 3 comes from ("Projection : …", "Niveau touché 3 fois …"). */
+        val target3Source: String? = null,
     )
 
     @Serializable
@@ -474,6 +623,15 @@ sealed interface Fundamentals {
 
     @Serializable
     data class Other(val kind: String = "") : Fundamentals
+}
+
+/** The decision, noting whether the answer has the `events` field at all (null is "not verified", absent is an older server). */
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+internal object DecisionSerializer : JsonTransformingSerializer<Decision>(Decision.generatedSerializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement {
+        val o = element as? JsonObject ?: return element
+        return JsonObject(o + ("eventsKnown" to JsonPrimitive(o.containsKey("events") || o["eventsKnown"] == JsonPrimitive(true))))
+    }
 }
 
 /** Crypto fundamentals, noting whether the answer has the `devActivity` field at all (null is not the same as absent). */

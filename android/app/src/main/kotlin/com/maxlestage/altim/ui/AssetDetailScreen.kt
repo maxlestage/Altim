@@ -80,7 +80,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
 
     // Personal mode when held: the average cost and the portfolio weights (percentages only) go with the request,
     // for this answer only; otherwise the informational decision.
-    LaunchedEffect(asset.id, reload, decisionReload, held, model.holdings) {
+    LaunchedEffect(asset.id, reload, decisionReload, held, model.holdings, model.scoreWeights) {
         val client = model.client ?: return@LaunchedEffect
         decision = Loadable.Loading
         decision = try {
@@ -93,7 +93,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                     assets.mapNotNull { a -> model.live.price(a)?.let { a.id to it.price } }
                 weights = Decision.weights(model.holdings, prices)
             }
-            Loadable.Loaded(client.decision(asset, cost, weights).also { model.recordDecision(it, personal = held) })
+            Loadable.Loaded(client.decision(asset, cost, weights, model.scoreWeights).also { model.recordDecision(it, personal = held) })
         } catch (e: AltimException.Unauthorized) {
             model.sessionLost()
             return@LaunchedEffect
@@ -348,6 +348,7 @@ fun MacroCard(macro: MacroInfo) {
             Text(macro.levelLabel, fontWeight = FontWeight.Bold, color = AltimColors.of(macro.tone), modifier = Modifier.weight(1f))
             Text("${Math.round(macro.score)}/100", style = mono(13.sp))
         }
+        macro.regime?.let { RegimeText(it) }
         macro.factors.forEach { Text("• ${it.text}", fontSize = 13.sp) }
         if (macro.factors.isEmpty()) Caption("Aucun signe de stress sur la peur (VIX), le S&P 500, le pétrole, l'or, le dollar ni les taux.")
         MacroInfo.series.forEach { (key, label) ->

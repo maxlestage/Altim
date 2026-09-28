@@ -183,7 +183,7 @@ fun LazyListScope.agendaItems(ui: AgendaUi) {
                 modifier = Modifier.padding(top = 4.dp).semantics { heading() },
             )
         }
-        g.events.forEachIndexed { i, e -> item(key = "ev:${g.day}:$i:${e.kind}:${e.title}") { EventRow(e) } }
+        g.events.forEachIndexed { i, e -> item(key = "ev:${g.day}:$i:${e.kind}:${e.title}") { AgendaEventRow(e) } }
     }
     item { NotCoveredCard(r) }
 }
@@ -217,9 +217,10 @@ private fun Tag(text: String, color: Color = AltimColors.textSecondary) {
     Text(text, fontSize = 11.sp, color = color, modifier = Modifier.clip(RoundedCornerShape(50)).background(Color.White.copy(alpha = 0.08f)).padding(horizontal = 8.dp, vertical = 2.dp))
 }
 
+/** One event (Agenda, and the decision card's "Agenda (7 jours)" with [timeLabel] = "Demain · 14:30"). */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun EventRow(e: CalendarEvent) {
+fun AgendaEventRow(e: CalendarEvent, timeLabel: String? = null) {
     val context = LocalContext.current
     val shape = RoundedCornerShape(14.dp)
     val importance = if (e.high) "Importance haute" else "Importance moyenne"
@@ -232,7 +233,7 @@ private fun EventRow(e: CalendarEvent) {
         // Time on its own line: the title keeps the whole width ("avant l'ouverture" would squeeze it at 360 dp).
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(8.dp).clip(CircleShape).background(if (e.high) AltimColors.sell else AltimColors.warning).semantics { contentDescription = importance })
-            Text(e.time ?: "Journée", style = mono(12.sp), color = AltimColors.textSecondary)
+            Text(timeLabel ?: e.time ?: "Journée", style = mono(12.sp), color = AltimColors.textSecondary)
         }
         Text(e.title, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = Color.White)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
