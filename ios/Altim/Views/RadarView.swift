@@ -37,6 +37,9 @@ struct RadarView: View {
                 } footer: {
                     Text("Le signal est une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
+                if model.watchlist.count >= 2 {
+                    Section { CompareCard() }.listRowBackground(Color.clear)
+                }
             }
         }
         .listStyle(.insetGrouped)

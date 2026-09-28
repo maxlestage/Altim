@@ -7,6 +7,8 @@ import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, typ
 import { GuardCard } from "./GuardCard";
 import { ZonesCard } from "./ZonesCard";
 import { DcaCard } from "./DcaCard";
+import { PositionCard } from "./ToolCards";
+import { NoteCard } from "./NoteCard";
 import { zoneState } from "../engine/fibonacci";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
@@ -191,6 +193,20 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {zonesReport ? <ZonesCard report={zonesReport} price={price} horizon={horizon} /> : data && <div className="skeleton" aria-label="Chargement des zones d'achat" />}
 
       {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
+
+      <PositionCard
+        symbol={symbol}
+        price={price}
+        {...(signal?.hasPlan && signal.stopLoss < (price ?? Infinity)
+          ? { stop: signal.stopLoss, stopSource: "stop du plan (2 × ATR)", target: signal.takeProfit > (price ?? 0) ? signal.takeProfit : null }
+          : rawZone?.invalidation && rawZone.invalidation < (price ?? 0)
+            ? { stop: rawZone.invalidation, stopSource: "plus bas qui invalide la zone d'achat", target: rawZone.targets.find((t) => t > (price ?? 0)) ?? null }
+            : { stop: price ? price * 0.95 : null, stopSource: "5 % sous le prix (à ajuster)", target: null })}
+        capital={portfolio.total}
+        riskPct={risk.riskPerTradePercent}
+      />
+
+      <NoteCard id={`${kind}:${symbol}`} symbol={symbol} />
 
       <DcaCard symbol={symbol} kind={kind} />
 

@@ -46,7 +46,7 @@ struct AlertsView: View {
                         .swipeActions {
                             Button(role: .destructive) { model.removeTarget(t.id) } label: { Label("Supprimer", systemImage: "trash") }
                             if t.triggered != nil {
-                                Button { model.rearmTarget(t.id) } label: { Label("Réarmer", systemImage: "arrow.counterclockwise") }.tint(Theme.cyan)
+                                Button { model.rearmTarget(t.id, current: price(t.asset)) } label: { Label("Réarmer", systemImage: "arrow.counterclockwise") }.tint(Theme.cyan)
                             }
                         }
                 }
@@ -143,6 +143,9 @@ private struct TargetRow: View {
             Text("\(target.asset.symbol) · \(target.label.lowercased())").font(.subheadline.weight(.semibold))
             if let done = target.triggered {
                 Text("Atteinte le \(Format.date(done.timeIntervalSince1970 * 1000, time: true))").font(.caption).foregroundStyle(Theme.buy)
+            } else if let price, let move = target.move {
+                Text("Prix actuel \(Format.price(price)) · variation \(Format.percent((price / target.price - 1) * 100, digits: 1)) sur ±\(Format.plain(move, digits: 1)) %")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
             } else if let price {
                 Text("Prix actuel \(Format.price(price)) · encore \(Format.percent((target.price / price - 1) * 100, digits: 1))")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
@@ -177,16 +180,24 @@ struct PriceTargetSheet: View {
     @Environment(\.dismiss) private var dismiss
     let asset: Asset
     let current: Double?
-    @State private var above = false
+    /// 0: falls below, 1: rises above, 2: moves by ±X % from the current price.
+    @State private var mode = 0
     @State private var text = ""
+    @State private var moveText = "5"
     @State private var denied = false
 
-    private var value: Double? {
-        Double(text.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: "."))
+    private var above: Bool { mode == 1 }
+
+    private static func number(_ s: String) -> Double? {
+        Double(s.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: "."))
     }
+
+    private var value: Double? { Self.number(text) }
+    private var move: Double? { Self.number(moveText) }
 
     /// The threshold must be on the right side of the current price, otherwise it would fire at once.
     private var sideOK: Bool {
+        if mode == 2 { return current != nil && (move ?? 0) > 0 && (move ?? 100) < 100 }
         guard let v = value, v > 0 else { return false }
         guard let current else { return true }
         return above ? v > current : v < current
@@ -199,16 +210,25 @@ struct PriceTargetSheet: View {
                     Section { KeyValue(key: "Prix actuel", value: Format.price(current)) }
                 }
                 Section {
-                    Picker("Condition", selection: $above) {
-                        Text("Passe sous").tag(false)
-                        Text("Passe au-dessus").tag(true)
+                    Picker("Condition", selection: $mode) {
+                        Text("Passe sous").tag(0)
+                        Text("Passe au-dessus").tag(1)
+                        Text("Bouge de ±").tag(2)
                     }
                     .pickerStyle(.segmented)
                     HStack {
-                        TextField("Prix", text: $text).keyboardType(.decimalPad).font(Theme.mono(18))
-                        Text("$").foregroundStyle(Theme.textSecondary)
+                        if mode == 2 {
+                            TextField("Variation", text: $moveText).keyboardType(.decimalPad).font(Theme.mono(18))
+                            Text("%").foregroundStyle(Theme.textSecondary)
+                        } else {
+                            TextField("Prix", text: $text).keyboardType(.decimalPad).font(Theme.mono(18))
+                            Text("$").foregroundStyle(Theme.textSecondary)
+                        }
                     }
-                    if value != nil && !sideOK {
+                    if mode == 2 {
+                        Text("Une notification quand le prix s'écarte de ce pourcentage (à la hausse ou à la baisse) du prix actuel ; réarmée, elle repart du prix du moment.")
+                            .font(.footnote).foregroundStyle(Theme.textSecondary)
+                    } else if value != nil && !sideOK {
                         Text(above ? "Choisissez un prix au-dessus du prix actuel." : "Choisissez un prix en dessous du prix actuel.")
                             .font(.footnote).foregroundStyle(Theme.warning)
                     }
@@ -229,8 +249,14 @@ struct PriceTargetSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Créer") {
                         Task {
-                            guard await BuyNotifications.authorize(), let v = value else { return denied = true }
-                            model.addTarget(PriceTarget(asset: asset, above: above, price: v))
+                            guard await BuyNotifications.authorize() else { return denied = true }
+                            if mode == 2, let current, let move {
+                                model.addTarget(PriceTarget(asset: asset, above: false, price: current, move: move))
+                            } else if let v = value {
+                                model.addTarget(PriceTarget(asset: asset, above: above, price: v))
+                            } else {
+                                return
+                            }
                             dismiss()
                         }
                     }

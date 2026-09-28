@@ -116,7 +116,7 @@ fun AlertsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
             if (model.priceTargets.isEmpty()) {
                 item { Caption("Aucune alerte de prix. Sur la fiche d'un actif, bouton « Alerte de prix » : « préviens-moi si BTC passe sous 80 000 $ ».") }
             }
-            items(model.priceTargets, key = { "t:" + it.id }) { t -> TargetRow(t, price(t.asset), onOpen = { open(t.asset) }, onRearm = { model.rearmTarget(context, t.id) }) { model.removeTarget(context, t.id) } }
+            items(model.priceTargets, key = { "t:" + it.id }) { t -> TargetRow(t, price(t.asset), onOpen = { open(t.asset) }, onRearm = { model.rearmTarget(context, t.id, price(t.asset)) }) { model.removeTarget(context, t.id) } }
 
             item { SectionTitle("Journal des alertes") }
             val summary = AlertJournal.summary(model.journal, model.journal.associate { it.asset.id to (price(it.asset) ?: Double.NaN) }.filterValues { it.isFinite() })
@@ -160,7 +160,10 @@ private fun TargetRow(t: PriceTarget, price: Double?, onOpen: () -> Unit, onRear
         Column(Modifier.weight(1f)) {
             Text("${t.asset.symbol} · ${t.label.lowercase()}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
             val status = t.triggered?.let { "Atteinte le ${Format.date(it.toDouble(), time = true)}" }
-                ?: price?.let { p -> "Prix actuel ${Format.price(p)} · encore ${Format.percent((t.price / p - 1) * 100, 1)}" }
+                ?: price?.let { p ->
+                    t.move?.let { m -> "Prix actuel ${Format.price(p)} · variation ${Format.percent((p / t.price - 1) * 100, 1)} sur ±${Format.plain(m, 1)} %" }
+                        ?: "Prix actuel ${Format.price(p)} · encore ${Format.percent((t.price / p - 1) * 100, 1)}"
+                }
                 ?: "En attente"
             Text(status, fontSize = 12.sp, color = if (t.triggered != null) AltimColors.buy else AltimColors.textSecondary)
         }
@@ -190,14 +193,19 @@ private fun JournalRow(e: JournalEntry, price: Double?, onClick: () -> Unit) {
 @Composable
 fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: () -> Unit) {
     val context = LocalContext.current
-    var above by remember { mutableStateOf(false) }
+    // 0: falls below, 1: rises above, 2: moves by ±X % from the current price.
+    var mode by remember { mutableIntStateOf(0) }
+    val above = mode == 1
     var text by remember { mutableStateOf(current?.let { Format.plain(it, if (it >= 1) 2 else 6) } ?: "") }
+    var moveText by remember { mutableStateOf("5") }
     var denied by remember { mutableStateOf(false) }
     val value = Format.parse(text)
+    val move = Format.parse(moveText)
     // The threshold must be on the right side of the current price, otherwise it would fire at once.
-    val sideOk = value != null && value > 0 && (current == null || (if (above) value > current else value < current))
+    val sideOk = if (mode == 2) current != null && move != null && move > 0 && move < 100
+    else value != null && value > 0 && (current == null || (if (above) value > current else value < current))
     fun save() {
-        model.addTarget(context, PriceTarget(asset = asset, above = above, price = value!!))
+        model.addTarget(context, if (mode == 2) PriceTarget(asset = asset, above = false, price = current!!, move = move) else PriceTarget(asset = asset, above = above, price = value!!))
         onClose()
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -206,26 +214,27 @@ fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: ()
     Card(title = "Alerte de prix · ${asset.symbol}", glow = AltimColors.cyan) {
         current?.let { Caption("Prix actuel : ${Format.price(it)}") }
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf(false to "Passe sous", true to "Passe au-dessus").forEachIndexed { i, (v, label) ->
+            listOf("Passe sous", "Passe au-dessus", "Bouge de ±").forEachIndexed { i, label ->
                 SegmentedButton(
-                    selected = above == v,
-                    onClick = { above = v },
-                    shape = SegmentedButtonDefaults.itemShape(i, 2),
+                    selected = mode == i,
+                    onClick = { mode = i },
+                    shape = SegmentedButtonDefaults.itemShape(i, 3),
                     colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label) }
+                ) { Text(label, fontSize = 12.sp) }
             }
         }
         OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            suffix = { Text("$") },
+            value = if (mode == 2) moveText else text,
+            onValueChange = { if (mode == 2) moveText = it else text = it },
+            suffix = { Text(if (mode == 2) "%" else "$") },
             singleLine = true,
             textStyle = mono(18.sp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AltimColors.cyan, cursorColor = AltimColors.cyan),
         )
-        if (value != null && !sideOk) Caption(if (above) "Choisissez un prix au-dessus du prix actuel." else "Choisissez un prix en dessous du prix actuel.", AltimColors.warning)
+        if (mode == 2) Caption("Une notification quand le prix s'écarte de ce pourcentage (à la hausse ou à la baisse) du prix actuel ; réarmée, elle repart du prix du moment.")
+        else if (value != null && !sideOk) Caption(if (above) "Choisissez un prix au-dessus du prix actuel." else "Choisissez un prix en dessous du prix actuel.", AltimColors.warning)
         if (denied) Caption("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim.", AltimColors.warning)
         Caption("Vérifiée toutes les 15 minutes avec les alertes d'achat, même app fermée ; une seule notification, puis vous pouvez la réarmer.")
         Row {

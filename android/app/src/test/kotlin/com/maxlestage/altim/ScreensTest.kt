@@ -95,6 +95,11 @@ class ScreensTest {
         waitFor("Tendance de fond", 90_000)
         waitFor("sources en accord", 90_000)
         waitFor("Tout investi le", 90_000)
+        waitFor("Taille de position")
+        waitFor("Mes notes · BTC")
+        // No holding yet: the capital is typed, like a user would.
+        compose.onNode(hasSetTextAction() and hasText("Capital")).performTextInput("10000")
+        waitFor("Perte si le stop est touché", 30_000)
         compose.waitForIdle()
         shot("4-fiche-btc")
         compose.onNode(hasText("Retour", substring = false).or(androidx.compose.ui.test.hasContentDescription("Retour"))).performClick()

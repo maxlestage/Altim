@@ -67,7 +67,10 @@ enum BuyNotifications {
             if model.alertsEnabled { await post(result.buy) }
             await postNews(result.news)
             for (t, price) in result.targets {
-                await add(id: "altim.target.\(t.id)", title: "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Format.price(t.price))",
+                let title = t.move != nil
+                    ? "\(t.asset.symbol) a bougé de \(Format.percent((price / t.price - 1) * 100, digits: 1))"
+                    : "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Format.price(t.price))"
+                await add(id: "altim.target.\(t.id)", title: title,
                           body: "Prix actuel \(Format.price(price)) : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.", asset: t.asset.id)
             }
             return true

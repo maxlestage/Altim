@@ -101,7 +101,8 @@ object BuyAlerts {
             name = t.asset.name,
             price = price,
             buy = true,
-            title = "${t.asset.symbol} ${if (t.above) "au-dessus de" else "en dessous de"} ${Format.price(t.price)}",
+            title = if (t.move != null) "${t.asset.symbol} a bougé de ${Format.percent((price / t.price - 1) * 100, 1)}"
+            else "${t.asset.symbol} ${if (t.above) "au-dessus de" else "en dessous de"} ${Format.price(t.price)}",
             body = "Prix actuel ${Format.price(price)} : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.",
         ),
         tag = "target:${t.id}",
