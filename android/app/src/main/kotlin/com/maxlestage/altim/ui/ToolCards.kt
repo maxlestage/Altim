@@ -66,7 +66,8 @@ import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-// Categorical palette (fixed order, validated for colour-blind readers on the dark surface).
+// Categorical palette (fixed order, validated on the dark surface). The 4th is close to the 1st for deuteranopes
+// (ΔE 6,4, allowed with a second cue): its line is dashed.
 private val SERIES = listOf(Color(0xFF3987E5), Color(0xFFD95926), Color(0xFF199E70), Color(0xFFC24EC9))
 private fun sgn(v: Double) = (if (v >= 0) "+" else "−") + String.format(Locale.FRANCE, "%.1f", abs(v)).removeSuffix(",0") + " %"
 private fun usd0(v: Double) = String.format(Locale.FRANCE, "%,.0f", v).replace(' ', ' ').replace(' ', ' ') + " $"
@@ -154,7 +155,8 @@ fun CompareCard(model: AppModel) {
                     c.stats.forEach { s ->
                         val p = Path()
                         s.pct.forEachIndexed { i, v -> if (i == 0) p.moveTo(x(i, s.pct.size), y(v)) else p.lineTo(x(i, s.pct.size), y(v)) }
-                        drawPath(p, SERIES[picked.indexOf(s.id).coerceIn(0, 3)], style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        val slot = picked.indexOf(s.id).coerceIn(0, 3)
+                        drawPath(p, SERIES[slot], style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round, pathEffect = if (slot == 3) PathEffect.dashPathEffect(floatArrayOf(14f, 10f)) else null))
                     }
                 }
                 Row { Caption("${sgn(lo)} … ${sgn(hi)}") }

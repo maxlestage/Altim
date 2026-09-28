@@ -13,7 +13,9 @@ import { ProjectionCard, RebalanceCard, SaleCard } from "./ToolCards";
 
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 const REC_CLASS: Record<Recommendation, string> = { sell: "sell", protect: "sell", lighten: "hold", strengthen: "buy", hold: "hold", unknown: "unknown" };
-const LEVEL_ICON = { danger: "⛔", warning: "⚠", info: "ℹ", good: "✔" } as const;
+// CSV columns: quantities and prices keep their precision (small cryptos), the rest 2 decimals.
+const CSV_DIGITS = [0, 0, 0, 8, 6, 6, 2, 2, 2, 2, 0];
+const LEVEL_ICON ={ danger: "⛔", warning: "⚠", info: "ℹ", good: "✔" } as const;
 
 /** Real portfolio entered by the user (localStorage) and full analysis. */
 export function MyHoldings() {
@@ -89,9 +91,9 @@ export function MyHoldings() {
 
   /** Spreadsheet export (French Excel: ";" separator, decimal comma); texts starting like a formula are neutralised. */
   const downloadCsv = () => {
-    const cell = (v: string | number | null) => {
+    const cell = (v: string | number | null, digits = 2) => {
       if (v == null) return "";
-      if (typeof v === "number") return Number.isFinite(v) ? String(Math.round(v * 1e8) / 1e8).replace(".", ",") : "";
+      if (typeof v === "number") return Number.isFinite(v) ? String(Math.round(v * 10 ** digits) / 10 ** digits).replace(".", ",") : "";
       const s = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
       return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
@@ -100,7 +102,7 @@ export function MyHoldings() {
       ...analysis.lines.map((l) => [l.symbol, l.name, l.kind === "crypto" ? "Crypto" : "Action", l.quantity, l.averagePrice, l.price, l.value, l.pnl, l.pnlPercent, l.weight, RECOMMENDATION_LABEL[l.recommendation]]),
       ["Liquidités", "", "", "", "", "", analysis.cash, "", "", "", ""],
     ];
-    const blob = new Blob(["﻿" + rows.map((r) => r.map(cell).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const blob = new Blob(["﻿" + rows.map((r) => r.map((v, i) => cell(v, CSV_DIGITS[i])).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = `altim-avoirs-${new Date().toISOString().slice(0, 10)}.csv`;

@@ -10,7 +10,8 @@ const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits:
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const num = (s: string) => Number(s.replace(/[\s ]/g, "").replace(",", "."));
 const plain = (v: number) => (v >= 1 ? v.toFixed(2) : v.toPrecision(4)).replace(".", ",");
-// Categorical palette (fixed order, validated for colour-blind readers on the dark surface).
+// Categorical palette (fixed order, validated on the dark surface). The 4th is close to the 1st for deuteranopes
+// (ΔE 6,4, allowed with a second cue): its line is dashed.
 const COLORS = ["#3987e5", "#d95926", "#199e70", "#c24ec9"];
 
 // ---------- Comparison ----------
@@ -116,7 +117,7 @@ function CompareChart({ c, colors }: { c: NonNullable<ReturnType<typeof compareA
         <text x={30} y={y(hi) + 4} className="axis" textAnchor="end">{pct(hi)}</text>
         <text x={30} y={y(lo)} className="axis" textAnchor="end">{pct(lo)}</text>
         {c.stats.map((s, k) => (
-          <path key={s.id} d={s.pct.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("")} stroke={colors[k]} className="mine" />
+          <path key={s.id} d={s.pct.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("")} stroke={colors[k]} className="mine" strokeDasharray={colors[k] === COLORS[3] ? "6 4" : undefined} />
         ))}
       </svg>
     </div>
@@ -300,7 +301,7 @@ export function RebalanceCard({ analysis }: { analysis: PortfolioAnalysis }) {
             <p key={k} className="kv small">
               <span>{CLASS_LABEL[k]} : {r.current[k].toLocaleString("fr-FR", { maximumFractionDigits: 0 })} % → {t[k].toLocaleString("fr-FR")} %</span>
               <b className={small(r.moves[k]) ? "" : r.moves[k] > 0 ? "up" : "down"}>
-                {small(r.moves[k]) ? "rien à faire" : `${r.moves[k] > 0 ? (k === "cash" ? "garder" : "acheter") : k === "cash" ? "investir" : "vendre"} ${usd(Math.abs(r.moves[k]))}`}
+                {small(r.moves[k]) ? "rien à faire" : `${r.moves[k] > 0 ? (k === "cash" ? "mettre de côté" : "acheter") : k === "cash" ? "investir" : "vendre"} ${usd(Math.abs(r.moves[k]))}`}
               </b>
             </p>
           ))}

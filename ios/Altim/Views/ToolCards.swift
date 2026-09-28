@@ -2,7 +2,8 @@ import SwiftUI
 import Charts
 import AltimKit
 
-// Categorical palette (fixed order, validated for colour-blind readers on the dark surface).
+// Categorical palette (fixed order, validated on the dark surface). The 4th is close to the 1st for deuteranopes
+// (ΔE 6,4, allowed with a second cue): its line is dashed.
 private let series: [Color] = [Theme.allocCrypto, Theme.allocStock, Theme.allocCash, Color(red: 0xC2 / 255, green: 0x4E / 255, blue: 0xC9 / 255)]
 private let fr = Locale(identifier: "fr_FR")
 
@@ -99,7 +100,7 @@ private struct CompareBody: View {
                     ForEach(Array(s.pct.enumerated()), id: \.offset) { e in
                         LineMark(x: .value("Jour", e.offset), y: .value("Variation", e.element), series: .value("Actif", s.id))
                             .foregroundStyle(color(s.id))
-                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round, dash: picked.firstIndex(of: s.id) == 3 ? [6, 4] : []))
                     }
                 }
             }
