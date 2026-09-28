@@ -91,6 +91,7 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | `GET /api/alerts?symbols=…` | **« Puis-je acheter ? »** pour les notifications des apps : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou plus bas cassé ; une clé de situation évite les notifications répétées |
 | `GET /api/brief?symbols=…` | **Point du jour** : contexte de marché, actifs achetables (règle des notifications), variations depuis la dernière clôture, sujets à la une |
 | `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90, 365 ou 730 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
+| `GET /api/decision?symbol=BTC&kind=crypto[&cost=…&weights=…]` | **Décision** : verdict, familles, interdictions d'achat, configuration, plan, scénarios, pourquoi pas, fondamentaux, historique du signal, sorties progressives |
 | `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
 
 ## Actualités (onglet « Actu »)
@@ -121,6 +122,19 @@ Carte **« Évolution de mes lignes »** dans Mes avoirs (web, iPhone, Android),
 - pire recul depuis un sommet, meilleure et pire journée ; toucher ou survoler la courbe affiche la valeur du jour ;
 - **limites affichées** : vos achats et ventes passés ne sont pas connus, ce n'est donc pas la performance de votre compte ; les liquidités ne sont pas comptées ; si un actif a un historique plus court, la courbe commence plus tard au lieu d'inventer un gain.
 - Le serveur ne reçoit que les symboles ; les quantités restent dans le navigateur ou le téléphone. Même calcul sur les trois plateformes, vérifié sur les mêmes vraies clôtures (ETH + AAPL sur 90 jours : +45,5 %, Bitcoin +40,3 %, pire recul −6,8 %).
+
+## Décision : acheter, attendre, alléger, vendre
+
+En tête de la fiche de chaque actif (web, iPhone, Android), `GET /api/decision?symbol=BTC&kind=crypto` : **ACHETER**, **ZONE D'ACHAT**, **ATTENDRE**, **AUCUNE POSITION**, **ALLÉGER** ou **VENDRE**, avec le pourquoi, le quand et surtout le quand ne pas agir.
+
+- **10 familles indépendantes** notées de −100 à +100, chacune avec sa source : tendance, momentum, volume, volatilité / risque, valorisation, fondamentaux (réseau pour une crypto), macro, sentiment, actualités, liquidité. Sans source gratuite et vérifiable, la famille est « non disponible », jamais estimée.
+- **Interdictions d'achat** (15 contrôles, tous affichés, actifs ou non) : écart achat/vente, liquidité, volatilité extrême, choc confirmé par les marchés, résultats dans les 5 jours, chute sans stabilisation, hausse anormale, volume artificiel, régulation, déblocage de jetons (non vérifiable : sources payantes), divergence baissière, tendance de fond baissière, rapport gain/risque sous 2, choc macro, données peu fiables.
+- **Configuration d'entrée en 9 étapes** (tendance de fond, correction, retour sur la zone d'achat, volume en baisse pendant le repli, signal de retournement, retour des acheteurs, confirmation, stop, objectif) : « ACHETER » seulement quand elle est complète, sans interdiction, avec un gain/risque d'au moins 2.
+- **Plan** (zone, entrée, stop / invalidation, objectifs 1 et 2, gain/risque), **scénarios** haussier / neutre / baissier avec leurs niveaux, conditions pour passer à l'achat ou à la vente, **points favorables et défavorables** séparés et **« Pourquoi pas ? »** : ce qui pourrait rendre la décision mauvaise, cherché volontairement.
+- **Confiance du modèle** (0–100) : accord des familles, fiabilité des données et **historique du signal sur l'actif** (sans regard vers l'avenir, frais et glissement inclus ; Sharpe, Sortino, profit factor, pire recul). Mesuré honnêtement : sur BTC, ETH, AAPL ou SPY le signal technique a fait moins bien que la simple détention ; la confiance est alors plafonnée et la carte le dit.
+- **Fondamentaux** : actions d'après les comptes déposés à la SEC (EDGAR : chiffre d'affaires, marges, flux de trésorerie libre, dette, PER, PEG, VE/EBITDA, rachats) et Nasdaq (prochains résultats, date estimée signalée, surprises, révisions) ; cryptos d'après CoinGecko ou CoinPaprika (capitalisation, FDV, offre en circulation), DefiLlama (TVL, frais), OKX (financement, positions ouvertes) et blockchain.com (réseau bitcoin). La comparaison au secteur et les déblocages de jetons n'ont pas de source gratuite : c'est affiché.
+- **Position détenue** : avec votre prix de revient, sorties progressives (vendre 20 %, puis 30 %, garder le reste) et sorties défensives ou macro ; avec vos pondérations, alerte d'exposition au même facteur de risque (Bitcoin ou S&P 500). Ces valeurs sont envoyées pour le calcul et jamais conservées.
+- **Mode informationnel par défaut** (données et scénarios observés) ; « personnel » seulement quand l'app envoie votre prix de revient ou vos pondérations. Altim reste un outil privé, réservé à son propriétaire, et ne passe aucun ordre ; ce n'est pas un conseil en investissement réglementé.
 
 ## Outils de décision
 

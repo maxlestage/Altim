@@ -194,7 +194,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
 
       {advice && (
         <div className={`card advice advice-${advice.tone}`}>
-          <h2 className="card-title">Le conseil d'Altim</h2>
+          <h2 className="card-title">Lecture du signal · {INTERVAL_LABEL[interval]}</h2>
+          <p className="muted small">Une seule unité de temps et le signal technique : la décision en haut de page réunit toutes les familles, les interdictions d'achat et le rapport gain/risque, et c'est elle qui prime.</p>
           <p className="advice-title">{advice.title}</p>
           <ul>{advice.points.map((p) => <li key={p}>{p}</li>)}</ul>
           <div className="advice-actions">

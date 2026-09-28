@@ -312,3 +312,21 @@ async fn live_cryptos() {
         }
     }
 }
+
+/// CoinPaprika, fallback of CoinGecko for market cap and supply (real response, trimmed).
+#[test]
+fn paprika_fallback() {
+    let d: serde_json::Value = serde_json::json!([
+        { "id": "btc-bitcoin", "symbol": "BTC", "rank": 1, "total_supply": 20090681, "max_supply": 21000000,
+          "quotes": { "USD": { "price": 83741.30302596571, "market_cap": 1682419805619.0 } } },
+        { "id": "btc-fake", "symbol": "BTC", "rank": 900, "total_supply": 1, "max_supply": 1,
+          "quotes": { "USD": { "price": 1.0, "market_cap": 1.0 } } }
+    ]);
+    let c = altim::tokenomics::parse::paprika(&d, "btc").unwrap();
+    assert_eq!(c.source, "CoinPaprika");
+    assert_eq!(c.market_cap, Some(1682419805619.0));
+    let circ = c.circulating.unwrap();
+    assert!((circ - 20_090_681.0).abs() < 1_000.0, "{circ}");
+    assert!((c.fdv.unwrap() - 83741.30302596571 * 21e6).abs() < 1.0);
+    assert!(altim::tokenomics::parse::paprika(&d, "ZZZ").is_none());
+}

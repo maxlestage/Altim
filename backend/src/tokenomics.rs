@@ -32,6 +32,8 @@ pub struct Coin {
     pub circulating: Option<f64>,
     pub total: Option<f64>,
     pub max: Option<f64>,
+    /// Who gave these figures ("CoinGecko", or "CoinPaprika" when CoinGecko refuses: it limits requests hard).
+    pub source: &'static str,
 }
 
 /// DefiLlama index: the chains and protocols that name a CoinGecko id.
@@ -53,6 +55,37 @@ pub mod parse {
     use super::*;
 
     /// CoinGecko `/coins/{id}` (market_data).
+    /// CoinPaprika `/v1/tickers`: the best-ranked coin with this symbol. Circulating supply = market cap ÷ price;
+    /// FDV = price × maximum supply (or total when there is no maximum).
+    pub fn paprika(d: &Value, symbol: &str) -> Option<Coin> {
+        let t = d
+            .as_array()?
+            .iter()
+            .filter(|t| t.get("symbol").and_then(Value::as_str).is_some_and(|s| s.eq_ignore_ascii_case(symbol)))
+            .filter(|t| t.get("rank").and_then(Value::as_f64).is_some_and(|r| r > 0.0))
+            .min_by(|a, b| a["rank"].as_f64().unwrap_or(f64::MAX).total_cmp(&b["rank"].as_f64().unwrap_or(f64::MAX)))?;
+        let usd = t.pointer("/quotes/USD")?;
+        let price = positive(num(usd.get("price")));
+        let market_cap = positive(num(usd.get("market_cap")));
+        let total = positive(num(t.get("total_supply")));
+        let max = positive(num(t.get("max_supply")));
+        let circulating = match (market_cap, price) {
+            (Some(m), Some(p)) => Some(m / p),
+            _ => None,
+        };
+        let fdv = match (price, max.or(total)) {
+            (Some(p), Some(s)) => Some(p * s),
+            _ => None,
+        };
+        let mut c = Coin { market_cap, fdv, circulating, total, max, source: "CoinPaprika" };
+        if let (Some(circ), Some(cap)) = (c.circulating, c.max.or(c.total)) {
+            if circ > cap * 1.001 {
+                c.circulating = None;
+            }
+        }
+        (c.market_cap.is_some() || c.circulating.is_some()).then_some(c)
+    }
+
     pub fn coin(d: &Value) -> Coin {
         let Some(m) = d.get("market_data") else { return Coin::default() };
         let usd = |k: &str| positive(num(m.get(k).and_then(|x| x.get("usd"))));
@@ -62,6 +95,7 @@ pub mod parse {
             circulating: positive(num(m.get("circulating_supply"))),
             total: positive(num(m.get("total_supply"))),
             max: positive(num(m.get("max_supply"))),
+            source: "CoinGecko",
         };
         // Inconsistent supplies (more in circulation than can ever exist): not shown.
         let cap = c.max.or(c.total);
@@ -178,6 +212,12 @@ async fn coin(id: &str) -> Option<Coin> {
     .map(|c| *c)
 }
 
+/// CoinPaprika tickers (all coins, one call, cached 1 h): the fallback for market cap and supply.
+async fn paprika(symbol: &str) -> Option<Coin> {
+    let list = cached("paprika:tickers", HOUR, || async { get("https://api.coinpaprika.com/v1/tickers").await }).await.ok()?;
+    parse::paprika(&list, symbol)
+}
+
 /// BTC dominance and the source that gave it.
 async fn dominance() -> Option<(f64, &'static str)> {
     cached("crypto:dominance", HOUR, || async {
@@ -269,8 +309,8 @@ pub fn assemble(
     let open_interest = positive(open_interest);
     let is_btc = symbol.eq_ignore_ascii_case("BTC");
     let mut sources = Vec::new();
-    if coin.is_some_and(|c| c != Coin::default()) {
-        sources.push("CoinGecko");
+    if let Some(c) = coin.filter(|c| c.market_cap.is_some() || c.circulating.is_some() || c.total.is_some() || c.max.is_some()) {
+        sources.push(if c.source.is_empty() { "CoinGecko" } else { c.source });
     }
     if let Some((_, name)) = dominance {
         if !sources.contains(&name) {
@@ -314,9 +354,13 @@ pub async fn crypto_fundamentals(symbol: &str) -> Result<CryptoFundamentals> {
     let gecko = gecko_id(&base).await;
     let (coin, dom, llama, pos, network) = tokio::join!(
         async {
-            match &gecko {
-                Some(id) => coin(id).await,
+            let from_gecko = match &gecko {
+                Some(id) => coin(id).await.filter(|c| c.market_cap.is_some() || c.circulating.is_some()),
                 None => None,
+            };
+            match from_gecko {
+                Some(c) => Some(c),
+                None => paprika(&base).await,
             }
         },
         dominance(),
