@@ -12,6 +12,8 @@
 //! in hashes per second; times in ms since the epoch.
 use serde::{Deserialize, Serialize};
 
+pub use super::structure::Structure;
+pub use super::synthesis::{CompositeScore, Degraded, HorizonClass, MarketRegime, Rating};
 use crate::types::Kind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +137,7 @@ pub struct Setup {
     pub total: usize,
 }
 
-/// Entry plan: buy zone, stop / invalidation, two targets, risk/reward (gain to target 1 ÷ risk to the stop).
+/// Entry plan: buy zone, stop / invalidation, three targets, risk/reward (gain to target 1 ÷ risk to the stop).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Plan {
@@ -156,6 +158,15 @@ pub struct Plan {
     pub acceptable: bool,
     /// Horizon of the zone ("moyen terme · quelques semaines").
     pub horizon: String,
+    /// Target 3: the nearest support / resistance level above target 2, capped by the projection target 2 +
+    /// (target 2 − target 1); None without target 2.
+    #[serde(default)]
+    pub target3: Option<f64>,
+    #[serde(default)]
+    pub reward3_pct: Option<f64>,
+    /// Where target 3 comes from ("résistance touchée 3 fois", "projection …").
+    #[serde(default)]
+    pub target3_source: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -582,4 +593,25 @@ pub struct Decision {
     pub exposure: Option<Exposure>,
     pub sources: Vec<DataSource>,
     pub disclaimer: String,
+    /// 6-level rating derived from the verdict, its level, the confidence and the trend (the verdict is unchanged).
+    #[serde(default)]
+    pub rating: Rating,
+    /// "ACHAT FORT" | "ACHAT" | "ATTENDRE" | "ALLÉGER" | "VENDRE" | "VENTE FORTE"
+    #[serde(default)]
+    pub rating_label: String,
+    /// Composite multi-factor score (weights tunable with `w=`).
+    #[serde(default)]
+    pub score: CompositeScore,
+    /// "Signal dégradé": contradictory evidence, unreliable data or a signal that lost money on this asset.
+    #[serde(default)]
+    pub degraded: Degraded,
+    /// Risk-on / risk-off / neutre (macro stress and the benchmark's trend).
+    #[serde(default)]
+    pub market_regime: Option<MarketRegime>,
+    /// Scalping … long terme, from the plan's candles and the distance to target 1 in ATR (None without a plan).
+    #[serde(default)]
+    pub horizon: Option<HorizonClass>,
+    /// Technical structure on the daily candles (Ichimoku, Supertrend, levels, breakouts, relative strength…).
+    #[serde(default)]
+    pub structure: Option<Structure>,
 }

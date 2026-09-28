@@ -2,12 +2,15 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import type { Kind } from "../engine/reliability";
 import { api } from "./api";
 import {
-  cacheDecision, cachedDecision, count, decisionUrl, EXIT_KIND_LABEL, exitText, familyTone, hashRate, LEVEL_UI, longDate, modeText, nyDate, num,
-  pct, recentVerdict, riskRewardText, SCENARIO_UI, shortDateTime, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL, usd, usdCompact,
-  type CryptoFundamentals, type Decision, type Family, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals,
+  BIAS_UI, cacheDecision, cachedDecision, count, decisionUrl, EXIT_KIND_LABEL, exitText, familyTone, hashRate, LEVEL_UI, longDate, modeText, nyDate, num,
+  pct, RATING_UI, recentVerdict, REGIME_UI, riskRewardText, SCENARIO_UI, shortDateTime, signedScore, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL,
+  usd, usdCompact,
+  type Bias, type CompositeScore, type CryptoFundamentals, type Decision, type Family, type PersonalInput, type RatioHistory, type StablecoinFlows,
+  type StockFundamentals, type Structure,
 } from "./decision";
 import { TrackDetails } from "./TrackDetails";
 import { SimulateBuy } from "./PaperOrder";
+import { useAppState } from "./store";
 
 // ---------- Small building blocks ----------
 
@@ -247,6 +250,113 @@ function CryptoFund({ f }: { f: CryptoFundamentals }) {
   );
 }
 
+// ---------- Composite score and technical structure ----------
+
+/** Direction of an item: an arrow and a word, never colour alone. */
+function BiasTag({ b }: { b: Bias }) {
+  return <span className={`dec-bias bias-${b}`}><span aria-hidden>{BIAS_UI[b].icon}</span> {BIAS_UI[b].label}</span>;
+}
+
+/** Score −100 … +100 on one axis centred on 0 (same bar as the families). */
+function ScoreBar({ v, label }: { v: number; label: string }) {
+  const w = Math.min(100, Math.abs(v)) / 2;
+  return (
+    <div className="bar dec-thin" role="img" aria-label={`${label} : ${signedScore(v)} sur une échelle de −100 à +100`}>
+      <i className={v >= 0 ? "pos" : "neg"} style={{ width: `${w}%`, left: v >= 0 ? "50%" : `${50 - w}%` }} />
+    </div>
+  );
+}
+
+function ScoreBlock({ s }: { s: CompositeScore }) {
+  if (s.value == null) return <p className="muted small">{s.text}</p>;
+  return (
+    <div className="dec-block dec-score">
+      <p className="kv"><span>Score composite</span><b><span className="mono">{signedScore(s.value)}</span> · {s.label}</b></p>
+      <ScoreBar v={s.value} label="Score composite" />
+      <ul className="dec-score-factors" aria-label="Score par facteur">
+        {s.factors.map((f) => (
+          <li key={f.key}>
+            <span>{f.label} <small className="muted">{f.value == null ? "non mesuré" : `poids ${num(f.applied, 1)} %`}</small></span>
+            <span className="mono small">{f.value == null ? "—" : signedScore(f.value)}</span>
+            {f.value != null && <ScoreBar v={f.value} label={f.label} />}
+          </li>
+        ))}
+      </ul>
+      <p className="muted small">{s.text}</p>
+    </div>
+  );
+}
+
+const pts = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${num(Math.abs(v), 1)} pts`;
+
+/** Every item of the structure, measured or not (a missing one says why rather than disappearing). */
+function StructureList({ st }: { st: Structure }) {
+  const na = "Non disponible : historique trop court";
+  const rows: { name: string; bias?: Bias; reading: string; extra?: ReactNode }[] = [
+    st.ichimoku
+      ? {
+        name: "Ichimoku (9, 26, 52)", bias: st.ichimoku.bias, reading: st.ichimoku.reading,
+        extra: `Tenkan ${usd(st.ichimoku.tenkan)} · Kijun ${usd(st.ichimoku.kijun)} · nuage ${usd(Math.min(st.ichimoku.senkouA, st.ichimoku.senkouB))} – ${usd(Math.max(st.ichimoku.senkouA, st.ichimoku.senkouB))}`,
+      }
+      : { name: "Ichimoku (9, 26, 52)", reading: na },
+    st.supertrend ? { name: "Supertrend (ATR 10 × 3)", bias: st.supertrend.bias, reading: st.supertrend.reading } : { name: "Supertrend (ATR 10 × 3)", reading: na },
+    st.donchian
+      ? { name: "Canal de Donchian (20)", bias: st.donchian.bias, reading: st.donchian.reading, extra: `Haut ${usd(st.donchian.upper)} · milieu ${usd(st.donchian.mid)} · bas ${usd(st.donchian.lower)}` }
+      : { name: "Canal de Donchian (20)", reading: na },
+    st.vwap ? { name: `VWAP glissant (${st.vwap.bars} bougies)`, bias: st.vwap.bias, reading: st.vwap.reading } : { name: "VWAP glissant", reading: "Non disponible : volume absent ou historique trop court" },
+    st.volumeProfile
+      ? { name: "Profil de volume (approximation)", bias: st.volumeProfile.bias, reading: st.volumeProfile.reading, extra: st.volumeProfile.note }
+      : { name: "Profil de volume (approximation)", reading: "Non disponible : volume absent ou historique trop court" },
+    st.pivots
+      ? {
+        name: "Points pivots (dernière séance)", reading: st.pivots.reading,
+        extra: `S2 ${usd(st.pivots.s2)} · S1 ${usd(st.pivots.s1)} · P ${usd(st.pivots.pivot)} · R1 ${usd(st.pivots.r1)} · R2 ${usd(st.pivots.r2)}`,
+      }
+      : { name: "Points pivots", reading: na },
+    {
+      name: "Supports et résistances", reading: st.levelsReading,
+      extra: st.levels.length > 0 && (
+        <ul className="dec-list small">
+          {st.levels.slice(0, 8).map((l) => (
+            <li key={`${l.kind}-${l.price}`}>
+              {l.kind === "support" ? "Support" : "Résistance"} <span className="mono">{usd(l.price)}</span> · {l.touches} contacts · {pct(l.distancePct, 1, true)}
+            </li>
+          ))}
+        </ul>
+      ),
+    },
+    st.breakout ? { name: "Cassure", bias: st.breakout.bias, reading: st.breakout.reading } : { name: "Cassure", reading: na },
+    st.marketStructure
+      ? { name: "Structure (sommets et creux)", bias: st.marketStructure.bias, reading: st.marketStructure.reading }
+      : { name: "Structure (sommets et creux)", reading: "Non disponible : pas assez de sommets et de creux" },
+    ...st.relative.map((r) => ({
+      name: `Force relative contre ${r.benchmark}`, bias: r.bias, reading: r.reading,
+      extra: (
+        <ul className="dec-list small">
+          {r.periods.map((x) => (
+            <li key={x.days}>{x.label} : {pct(x.assetPct, 1, true)} contre {pct(x.benchmarkPct, 1, true)} ({pts(x.diff)})</li>
+          ))}
+        </ul>
+      ),
+    })),
+    ...(st.relative.length === 0 ? [{ name: "Force relative", reading: st.relativeNote ?? "Non disponible" }] : []),
+  ];
+  return (
+    <>
+      <p className="muted small">{st.timeframe}.{st.score != null && <> Direction d'ensemble : <span className="mono">{signedScore(st.score)}</span>/100.</>}</p>
+      <ul className="dec-structure">
+        {rows.map((r) => (
+          <li key={r.name}>
+            <div className="dec-family-head"><b>{r.name}</b>{r.bias && <BiasTag b={r.bias} />}</div>
+            <p className="small">{r.reading}</p>
+            {typeof r.extra === "string" ? <small className="muted">{r.extra}</small> : r.extra}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
 // ---------- The card itself (pure: renders a decision) ----------
 
 export type DecisionStatus = { kind: "fresh" } | { kind: "refreshing"; at: number } | { kind: "stale"; at: number; offline: boolean; error: string };
@@ -261,6 +371,9 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
   const active = vetoes.filter((v) => v.active).length;
   const p = d.plan;
   const fam = summaryFamilies(d.families);
+  // The 6-level rating is the headline when the server gives it (older answers: the verdict).
+  const rt = d.rating ? RATING_UI[d.rating] : null;
+  const regime = d.marketRegime;
   return (
     <article className={`card decision lv-${d.level}`} aria-labelledby="dec-title">
       <p className="dec-date">
@@ -277,8 +390,8 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
       )}
 
       <div className="dec-verdict">
-        <h2 id="dec-title" className="dec-label">
-          <span aria-hidden>{lv.icon}</span> {d.label}
+        <h2 id="dec-title" className="dec-label" data-tone={rt?.tone}>
+          <span aria-hidden>{rt ? rt.icon : lv.icon}</span> {rt ? d.ratingLabel || rt.label : d.label}
         </h2>
         <span className="dec-level-label">{d.levelLabel || lv.label}</span>
         <div className="dec-confidence">
@@ -288,8 +401,23 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
           </div>
         </div>
       </div>
+      {rt && <p className="small">Verdict du plan : <b>{d.label}</b> <span className="muted">· la note résume verdict, niveau et confiance</span></p>}
       <p className="muted small">{d.confidenceText}</p>
       <p className={`dec-mode ${d.mode === "personal" ? "personal" : ""}`}>{modeText(d.mode)}</p>
+      {regime && (
+        <p className="small">
+          <span className="muted">Régime de marché : </span>
+          <b><span aria-hidden>{REGIME_UI[regime.kind].icon}</span> {REGIME_UI[regime.kind].label}</b>
+          {regime.reasons.length > 0 && <small className="muted"> — {regime.reasons.join(" · ")}</small>}
+        </p>
+      )}
+
+      {d.degraded?.active && (
+        <div className="notice danger" role="alert">
+          <b>{d.degraded.headline}</b>
+          {d.degraded.reasons.length > 0 && <ul className="small">{d.degraded.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+        </div>
+      )}
 
       <p className="dec-headline">{d.headline}</p>
 
@@ -306,18 +434,24 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
         </ul>
       )}
 
+      {d.score && <ScoreBlock s={d.score} />}
+
       {p ? (
         <div className="dec-plan">
           <div><small>Zone d'achat</small><b>{usd(p.zoneFrom)} – {usd(p.zoneTo)}</b></div>
           <div><small>Stop / invalidation</small><b className="sell">{usd(p.stop)}</b><small className="muted">{pct(-p.riskPct)}</small></div>
           <div><small>Objectif 1</small><b className="buy">{usd(p.target1)}</b><small className="muted">{pct(p.reward1Pct, 1, true)}</small></div>
           <div><small>Objectif 2</small>{p.target2 != null ? <><b className="buy">{usd(p.target2)}</b><small className="muted">{pct(p.reward2Pct, 1, true)}</small></> : <b className="muted">aucun</b>}</div>
+          <div title={p.target3Source ?? undefined}><small>Objectif 3</small>{p.target3 != null ? <><b className="buy">{usd(p.target3)}</b><small className="muted">{pct(p.reward3Pct, 1, true)}</small></> : <b className="muted">aucun</b>}</div>
           <div className={p.acceptable ? "rr-ok" : "rr-ko"}>
             <small>Gain/risque (entrée {usd(p.entry)})</small>
             <b>{riskRewardText(p)}</b>
             <small>{p.acceptable ? "✓ suffisant" : "✕ insuffisant"}</small>
           </div>
-          <p className="muted small dec-horizon">Horizon : {p.horizon}</p>
+          <p className="muted small dec-horizon">
+            Horizon : {d.horizon ? <><b className="dec-horizon-kind">{d.horizon.label}</b> — {d.horizon.detail}</> : p.horizon}
+            {p.target3Source && <><br />Objectif 3 : {p.target3Source.charAt(0).toLowerCase()}{p.target3Source.slice(1)}.</>}
+          </p>
         </div>
       ) : (
         <p className="muted small">Pas de plan d'entrée : aucun niveau net (zone, stop et objectifs) sur cet actif pour l'instant.</p>
@@ -371,6 +505,12 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
         <Section title="Familles d'indices" badge={`${d.families.filter((f) => f.status !== "unavailable").length}/${d.families.length} disponibles`}>
           <ul className="dec-families">{d.families.map((f) => <FamilyRow key={f.key} f={f} />)}</ul>
         </Section>
+
+        {d.structure && (
+          <Section title="Structure technique" badge={d.structure.score != null ? `direction ${signedScore(d.structure.score)}` : "non disponible"}>
+            <StructureList st={d.structure} />
+          </Section>
+        )}
 
         <Section title="Interdictions d'achat" badge={active ? `${active} active${active > 1 ? "s" : ""}` : "aucune active"}>
           <ul className="dec-vetoes">
@@ -517,7 +657,8 @@ export function DecisionCard({ symbol, kind, personal, ready = true, livePrice =
   livePrice?: number | null;
 }) {
   const isPersonal = !!personal && (personal.cost != null || personal.weights.length > 0);
-  const url = decisionUrl(symbol, kind, isPersonal ? personal : null);
+  const { scoreWeights } = useAppState();
+  const url = decisionUrl(symbol, kind, isPersonal ? personal : null, scoreWeights);
   const initial = () => {
     const c = cachedDecision(kind, symbol);
     return c && c.personal === isPersonal ? c : null;
@@ -542,7 +683,7 @@ export function DecisionCard({ symbol, kind, personal, ready = true, livePrice =
     if (!ready) return;
     let alive = true;
     const load = () =>
-      api.decision(symbol, kind, isPersonal ? personal : null)
+      api.decision(symbol, kind, isPersonal ? personal : null, scoreWeights)
         .then((x) => {
           if (!alive) return;
           cacheDecision(x, isPersonal);

@@ -54,6 +54,11 @@ pub fn parse_cost(v: Option<&str>) -> ApiResult<Option<f64>> {
     if n.is_finite() && n > 0.0 { Ok(Some(n)) } else { bad("cost invalide (prix d'achat moyen : nombre positif)") }
 }
 
+/// Weights of the composite score (`w=tech:32,mom:18,…`): integers 0 – 100, total above 0 (see `synthesis`).
+pub fn parse_score_weights(v: Option<&str>) -> ApiResult<Option<crate::engine::synthesis::ScoreWeights>> {
+    crate::engine::synthesis::parse_weights(v).or_else(bad)
+}
+
 /// Maximum number of lines in `weights=`.
 pub const MAX_WEIGHTS: usize = 20;
 

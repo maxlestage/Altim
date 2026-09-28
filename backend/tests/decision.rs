@@ -8,6 +8,8 @@ use altim::engine::decision_types::*;
 use altim::engine::guard::{GuardInput, GuardResult, NewsItem, guard};
 use altim::engine::macro_ctx::{MacroFactor, MacroLevel, MacroReport, MacroValue, MacroValues};
 use altim::engine::reliability::{Reliability, assess_quality, reliability};
+use altim::engine::structure::Benchmark;
+use altim::engine::synthesis::{DEGRADED_HEADLINE, Rating, RegimeKind, ScoreWeights};
 use altim::types::{Candle, DAY_MS, Interval, Kind};
 use common::{INPUTS, find, now};
 
@@ -57,7 +59,16 @@ fn input<'a>(symbol: &'a str, s: &'a Series, g: Option<&'a GuardResult>, t: i64)
         track: None,
         cost: None,
         exposure: None,
+        benchmarks: vec![],
+        score_weights: None,
     }
+}
+
+/// The benchmark of the real candles: Bitcoin for a crypto, the S&P 500 (SPY) for a stock (QQQ is not in the
+/// captured inputs).
+fn benchmark_of(kind: Kind) -> Benchmark {
+    let (symbol, name) = if kind == Kind::Crypto { ("BTC", "Bitcoin (BTC)") } else { ("SPY", "S&P 500 (SPY)") };
+    Benchmark { name: name.into(), symbol: symbol.into(), kind, daily: real(symbol).long }
 }
 
 fn guard_of(s: &Series, t: i64) -> GuardResult {
@@ -117,6 +128,41 @@ fn assert_coherent(d: &Decision, what: &str) {
     assert_eq!(d.mode == "personal", d.position.is_some() || d.exposure.is_some(), "{what}: mode");
     assert!(d.disclaimer.starts_with(if d.mode == "personal" { "Mode personnel" } else { "Mode informationnel" }));
     assert!(matches!(d.verdict, Verdict::Trim | Verdict::Sell) <= d.position.is_some(), "{what}: sell side without a position");
+    // Summaries: rating, composite score, degraded signal, horizon, structure.
+    assert_eq!(d.rating_label, d.rating.label(), "{what}");
+    if d.degraded.active {
+        assert!(!matches!(d.rating, Rating::StrongBuy | Rating::Buy), "{what}: degraded but {:?}", d.rating);
+        assert_eq!(d.degraded.headline, DEGRADED_HEADLINE);
+        assert!(!d.degraded.reasons.is_empty());
+    } else {
+        assert!(d.degraded.headline.is_empty() && d.degraded.reasons.is_empty(), "{what}");
+    }
+    match d.verdict {
+        Verdict::Buy | Verdict::BuyZone => assert!(matches!(d.rating, Rating::StrongBuy | Rating::Buy | Rating::Hold), "{what}"),
+        Verdict::Wait => assert_eq!(d.rating, Rating::Hold, "{what}"),
+        Verdict::Trim => assert_eq!(d.rating, Rating::Reduce, "{what}"),
+        Verdict::Sell => assert!(matches!(d.rating, Rating::Sell | Rating::StrongSell), "{what}"),
+        Verdict::NoPosition => assert!(matches!(d.rating, Rating::Sell | Rating::Hold), "{what}"),
+    }
+    assert_eq!(d.score.factors.len(), 6, "{what}");
+    if let Some(v) = d.score.value {
+        assert!((-100.0..=100.0).contains(&v), "{what}: score {v}");
+        let applied: f64 = d.score.factors.iter().map(|f| f.applied).sum();
+        assert!((applied - 100.0).abs() < 0.5, "{what}: weights {applied}");
+        let sum: f64 = d.score.factors.iter().filter_map(|f| f.contribution).sum();
+        assert!((sum - v).abs() <= 1.0, "{what}: contributions {sum} vs {v}");
+    }
+    assert_eq!(d.score.missing.len(), d.score.factors.iter().filter(|f| f.value.is_none()).count());
+    assert_eq!(d.horizon.is_some(), d.plan.as_ref().is_some_and(|p| p.target1 > p.entry), "{what}: horizon");
+    if let Some(p) = &d.plan {
+        assert_eq!(p.target3.is_some(), p.target2.is_some_and(|t| t > p.target1), "{what}: target 3");
+        if let (Some(t2), Some(t3)) = (p.target2, p.target3) {
+            assert!(t3 > t2 && t3 <= t2 + (t2 - p.target1) + 1e-9, "{what}: {p:?}");
+            assert!(p.target3_source.is_some() && p.reward3_pct.is_some());
+        }
+    }
+    let st = d.structure.as_ref().expect("structure");
+    assert!(st.levels.iter().all(|l| l.touches >= 2), "{what}");
     // Round trip through the contract.
     let json = serde_json::to_string(d).unwrap();
     let back: Decision = serde_json::from_str(&json).unwrap();
@@ -131,9 +177,22 @@ fn real_assets_give_coherent_decisions() {
     for sym in ["BTC", "ETH", "SOL", "DOGE", "AAPL", "NVDA", "SPY"] {
         let s = real(sym);
         let g = guard_of(&s, t);
-        let d = decide(&input(sym, &s, Some(&g), t));
+        let mut i = input(sym, &s, Some(&g), t);
+        i.benchmarks = vec![benchmark_of(s.kind)];
+        let d = decide(&i);
         assert_coherent(&d, sym);
         assert_eq!(d.mode, "informational");
+        // Structure on the daily candles: every indicator is measured; relative strength except for the benchmark.
+        let st = d.structure.as_ref().unwrap();
+        assert!(st.ichimoku.is_some() && st.supertrend.is_some() && st.donchian.is_some() && st.vwap.is_some(), "{sym}");
+        assert!(st.volume_profile.is_some() && st.pivots.is_some() && st.breakout.is_some() && st.score.is_some(), "{sym}");
+        assert_eq!(st.relative.is_empty(), matches!(sym, "BTC" | "SPY"), "{sym}: {:?}", st.relative_note);
+        if let Some(r) = st.relative.first() {
+            assert_eq!(r.periods.len(), 3, "{sym}");
+            assert!(r.correlation.is_some_and(|c| (-1.0..=1.0).contains(&c)), "{sym}");
+        }
+        // No macro report: the regime comes from the benchmark's trend alone (never risk-on).
+        assert!(d.market_regime.as_ref().is_some_and(|r| r.kind != RegimeKind::RiskOn), "{sym}: {:?}", d.market_regime);
         assert!(d.position.is_none() && d.exposure.is_none());
         // Without fundamentals, liquidity or track: shown as unavailable, never estimated.
         let fam = |k: &str| d.families.iter().find(|f| f.key == k).unwrap();
@@ -145,7 +204,7 @@ fn real_assets_give_coherent_decisions() {
         assert_eq!(veto(&d, "earnings").verifiable, s.kind == Kind::Crypto, "{sym}");
         assert!(d.track.is_none() && d.fundamentals.is_none() && d.liquidity.is_none());
         // Deterministic.
-        assert_eq!(decide(&input(sym, &s, Some(&g), t)), d, "{sym}");
+        assert_eq!(decide(&i), d, "{sym}");
     }
 }
 
@@ -761,6 +820,10 @@ fn the_signal_track_record_is_told_honestly() {
     assert!(d.confidence_text.contains("a perdu de l'argent") && d.confidence_text.contains("simple détention"), "{}", d.confidence_text);
     assert!(d.why_not.risks.iter().any(|r| r.contains("−25,5 %") && r.contains("+36,2 %")), "{:?}", d.why_not.risks);
     assert!(d.headline.contains("n'a pas battu la simple détention"), "{}", d.headline);
+    // A signal that lost money on the asset: "signal dégradé", and no buy rating even though the verdict is ACHETER.
+    assert!(d.degraded.active && d.degraded.reasons.iter().any(|r| r.contains("a perdu de l'argent")), "{:?}", d.degraded);
+    assert_eq!(d.rating, Rating::Hold);
+    assert!(!base.degraded.active && matches!(base.rating, Rating::Buy | Rating::StrongBuy), "{:?} {:?}", base.degraded, base.rating);
     // AAPL: +10.6 % against +97.1 % held: positive but far behind holding.
     let d = decide_on(&s, |i| i.track = Some(track(10.6, 97.1, 48.0, 12)));
     assert!(d.confidence <= 55.0 && d.level != Level::Strong);
@@ -816,4 +879,57 @@ fn print_real() {
         println!("{}", serde_json::to_string_pretty(&d).unwrap());
     }
     let _ = INPUTS.len();
+}
+
+/// Composite score with the user's weights (`w=`): renormalised over the measured factors, contributions adding up
+/// to the score, the missing factors named.
+#[test]
+fn composite_score_follows_the_weights() {
+    let s = buy_setup();
+    let d = decide_on(&s, |_| {});
+    assert!(!d.score.custom);
+    assert_eq!(d.score.missing, ["Fondamentaux", "Sentiment", "Actualités", "Macro"], "{:?}", d.score);
+    let tech = &d.score.factors[0];
+    assert!(tech.sources.contains(&"structure".to_string()), "{tech:?}");
+    // Momentum only.
+    let only = decide_on(&s, |i| i.score_weights = Some(ScoreWeights([0.0, 100.0, 0.0, 0.0, 0.0, 0.0])));
+    let mom = only.score.factors.iter().find(|f| f.key == "mom").unwrap();
+    assert!(only.score.custom && only.score.value == mom.value && mom.applied == 100.0, "{:?}", only.score);
+    assert_eq!(only.verdict, d.verdict, "the weights never change the verdict");
+    assert!(only.score.text.contains("poids personnalisés"));
+}
+
+/// Target 3 and the horizon of the plan on a hand-made uptrend.
+#[test]
+fn third_target_and_horizon() {
+    let d = decide_on(&buy_setup(), |_| {});
+    let p = d.plan.as_ref().unwrap();
+    let (t1, t2, t3) = (p.target1, p.target2.unwrap(), p.target3.unwrap());
+    assert!(t3 > t2 && t3 <= 2.0 * t2 - t1 + 1e-9, "{p:?}");
+    let source = p.target3_source.as_deref().unwrap();
+    assert!(source.starts_with("Projection") || source.starts_with("Niveau"), "{source}");
+    let h = d.horizon.as_ref().unwrap();
+    assert!(h.detail.starts_with("Plan sur bougies journalières"), "{}", h.detail);
+    assert!(h.atr_distance > 0.0);
+}
+
+/// Macro stress and the benchmark's trend give the market regime.
+#[test]
+fn market_regime_in_the_decision() {
+    let s = buy_setup();
+    let up = Benchmark { name: "Bitcoin (BTC)".into(), symbol: "BTC".into(), kind: Kind::Crypto, daily: s.long.clone() };
+    let calm = macro_report(10.0, 14.0, false);
+    let d = decide_on(&s, |i| {
+        i.macro_report = Some(&calm);
+        i.benchmarks = vec![up.clone()];
+    });
+    let r = d.market_regime.as_ref().unwrap();
+    assert_eq!((r.kind, r.label.as_str()), (RegimeKind::RiskOn, "Risk-on"), "{r:?}");
+    let shock = macro_report(60.0, 34.0, false);
+    let d = decide_on(&s, |i| {
+        i.macro_report = Some(&shock);
+        i.benchmarks = vec![up.clone()];
+    });
+    assert_eq!(d.market_regime.unwrap().kind, RegimeKind::RiskOff);
+    assert_eq!(d.rating, Rating::Hold, "no position on a macro shock without a downtrend: ATTENDRE");
 }

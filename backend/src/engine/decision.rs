@@ -20,7 +20,12 @@
 //! - held (average cost given): VENDRE when a defensive exit is met now (close under the stop, move broken,
 //!   background trend down), ALLÉGER when a profit or macro exit is met now, otherwise ATTENDRE (keep);
 //! - confidence = 45 % agreement of the families + 35 % data reliability (sources and available families)
-//!   + 20 % the signal's own track record (50 when unknown).
+//!   + 20 % the signal's own track record (50 when unknown);
+//! - technical structure (`structure.rs`, daily candles): Ichimoku and Supertrend agreeing add or remove 10 points
+//!   to the trend family, the nearest resistance and a fake breakout are cited in "pourquoi attendre", target 3 is
+//!   the next level beyond target 2;
+//! - rating, composite score, "signal dégradé", market regime and horizon (`synthesis.rs`) summarise the decision
+//!   without changing the verdict.
 use serde::{Deserialize, Serialize};
 
 use super::Evidence;
@@ -31,6 +36,8 @@ use super::guard::{Direction, GuardResult, NewsItem, Regime, ShockLevel, Trend, 
 use super::macro_ctx::{MACRO, MacroLevel, MacroReport};
 use super::reliability::{Reliability, ReliabilityLevel, gate};
 use super::signal::{AnalyzeOptions, Candle, Signal, adx, analyze, atr, is_sell, rsi, sanitize, sma};
+use super::structure::{Benchmark, Bias, BreakoutKind, Structure, structure};
+use super::synthesis::{self, PlanCandles, ScoreWeights};
 use crate::js::{fr, iso_date, round};
 use crate::types::{DAY_MS, Interval, Kind};
 
@@ -126,6 +133,11 @@ pub struct DecisionInput<'a> {
     pub cost: Option<f64>,
     /// The user's weights (personal mode).
     pub exposure: Option<ExposureInput>,
+    /// Benchmarks' daily candles (Bitcoin for a crypto; S&P 500 then Nasdaq-100 for a stock): relative strength,
+    /// correlation, and the first one's trend for the market regime. Empty when not loaded.
+    pub benchmarks: Vec<Benchmark>,
+    /// Weights of the composite score (`w=`); None = default weights.
+    pub score_weights: Option<ScoreWeights>,
 }
 
 // ---------- Formatting ----------
@@ -219,6 +231,8 @@ struct Metrics {
     month: usize,
     div_d: bool,
     div_4h: bool,
+    /// Technical structure of the daily candles.
+    st: Structure,
 }
 
 fn change(c: &[Candle], price: f64, bars: usize) -> Option<f64> {
@@ -265,8 +279,10 @@ fn metrics(inp: &DecisionInput) -> Metrics {
         let c4: Vec<f64> = h4.iter().map(|c| c.close).collect();
         divergence(&h4, &rsi(&c4, 14), Direction::Down, h4.len() as i64 - 1, 60)
     };
+    let st = structure(&d, price, inp.symbol, inp.kind, &inp.benchmarks);
     Metrics {
         price,
+        st,
         atr_d,
         atr_pct,
         atr_rank,
@@ -388,8 +404,21 @@ fn plan_calc(m: &Metrics) -> Option<PlanCalc> {
     None
 }
 
-fn plan_out(p: &PlanCalc) -> Plan {
+/// Target 3: the nearest level (2 touches or more) above target 2, capped by the projection target 2 + (target 2 −
+/// target 1).
+fn target3(p: &PlanCalc, st: &Structure) -> Option<(f64, String)> {
+    let t2 = p.target2.filter(|t| *t > p.target1)?;
+    let projection = t2 + (t2 - p.target1);
+    let level = st.levels.iter().filter(|l| l.price > t2 * 1.001 && l.price < projection).min_by(|a, b| a.price.total_cmp(&b.price));
+    Some(match level {
+        Some(l) => (l.price, format!("Niveau touché {} fois au-dessus de l'objectif 2", l.touches)),
+        None => (projection, "Projection : objectif 2 + (objectif 2 − objectif 1), aucun niveau touché avant".into()),
+    })
+}
+
+fn plan_out(p: &PlanCalc, st: &Structure) -> Plan {
     let e = p.entry;
+    let t3 = target3(p, st);
     Plan {
         zone_from: p.zone_from,
         zone_to: p.zone_to,
@@ -404,6 +433,9 @@ fn plan_out(p: &PlanCalc) -> Plan {
         min_risk_reward: MIN_RISK_REWARD,
         acceptable: p.rr >= MIN_RISK_REWARD - 1e-9,
         horizon: format!("{} · {}", p.zone.label.to_lowercase(), p.zone.holding),
+        target3: t3.as_ref().map(|t| t.0),
+        reward3_pct: t3.as_ref().map(|t| r1((t.0 - e) / e * 100.0)),
+        target3_source: t3.map(|t| t.1),
     }
 }
 
@@ -453,6 +485,19 @@ fn trend_family(inp: &DecisionInput, m: &Metrics) -> Family {
         Trend::Range => 0.0,
     };
     points.push(m.regime.text.clone());
+    // Ichimoku and Supertrend (daily) agreeing confirm the direction: ±10 points.
+    match (m.st.ichimoku.as_ref().map(|i| i.bias), m.st.supertrend.as_ref().map(|s| s.bias)) {
+        (Some(Bias::Bullish), Some(Bias::Bullish)) => {
+            score += 10.0;
+            points.push("Ichimoku et Supertrend haussiers : ils confirment la hausse".into());
+        }
+        (Some(Bias::Bearish), Some(Bias::Bearish)) => {
+            score -= 10.0;
+            points.push("Ichimoku et Supertrend baissiers : ils confirment la baisse".into());
+        }
+        (Some(_), Some(_)) => points.push("Ichimoku et Supertrend pas d'accord : direction à confirmer".into()),
+        _ => {}
+    }
     // A weak ADX: the direction is there but the trend is not marked, the score is scaled down (×0.6 at ADX ≤ 15).
     if let Some(a) = m.adx_d {
         score *= 0.6 + 0.4 * clamp((a - 15.0) / 15.0, 0.0, 1.0);
@@ -1924,7 +1969,41 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         Verdict::Sell => Level::Exit,
     };
 
-    let plan = p.as_ref().map(plan_out);
+    let plan = p.as_ref().map(|p| plan_out(p, &m.st));
+    // Summaries (they never change the verdict).
+    let score = synthesis::composite(&fams, m.st.score, inp.score_weights);
+    let unreliable = (inp.reliability.level == ReliabilityLevel::Low || inp.reliability.conflict).then(|| {
+        format!(
+            "Données peu fiables ({}/100{})",
+            fr(inp.reliability.score, 0, 0),
+            if inp.reliability.conflict { ", sources de prix en désaccord" } else { "" }
+        )
+    });
+    let lost = match (&inp.track, track_edge(inp.track.as_ref())) {
+        (Some(t), Some(Edge::Loses)) => Some(format!(
+            "Aucune avance prouvée : sur cet actif, le signal a perdu de l'argent ({}, {}, frais inclus)",
+            signed(t.total_return),
+            t.period
+        )),
+        _ => None,
+    };
+    let degraded = synthesis::degraded(&fams, &score, unreliable, lost);
+    let rating = synthesis::rating(verdict, level, conf, m.regime.trend == Trend::Down, degraded.active);
+    let market_regime = match inp.benchmarks.first() {
+        Some(b) => {
+            let closes: Vec<f64> = sanitize(&b.daily).iter().map(|c| c.close).collect();
+            synthesis::market_regime(inp.macro_report, &b.name, &closes)
+        }
+        None => synthesis::market_regime(inp.macro_report, "Indice de référence", &[]),
+    };
+    let horizon = p.as_ref().and_then(|p| {
+        let candles = match p.zone.horizon {
+            Horizon::Short => PlanCandles::H4,
+            Horizon::Medium => PlanCandles::D1,
+            Horizon::Long => PlanCandles::W1,
+        };
+        synthesis::horizon(candles, p.entry, p.target1, p.atr)
+    });
     let texts = Texts { inp, m: &m, p: p.as_ref(), fams: &fams, vetoes: &vetoes, sc: &sc, pos: pos.as_ref(), verdict };
     let headline = texts.headline();
     let why_wait = if verdict == Verdict::Buy { vec![] } else { texts.why_wait() };
@@ -1990,6 +2069,13 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         exposure: expo,
         sources: sources(inp),
         disclaimer,
+        rating,
+        rating_label: rating.label().into(),
+        score,
+        degraded,
+        market_regime,
+        horizon,
+        structure: Some(m.st.clone()),
     }
 }
 
@@ -2233,6 +2319,21 @@ impl Texts<'_> {
         {
             out.push(format!("Étape manquante — {} : {}", s.label, s.detail));
         }
+        // Structure: a resistance close above the price, a recent fake breakout.
+        let st = &self.m.st;
+        if let (Some(r), Some(a)) = (&st.nearest_resistance, self.m.atr_d) {
+            if r.price - self.m.price <= a {
+                out.push(format!(
+                    "Résistance proche : {} (touchée {} fois), {} au-dessus du prix, moins d'un ATR journalier",
+                    usd(r.price),
+                    r.touches,
+                    pct(r.distance_pct.max(0.0))
+                ));
+            }
+        }
+        if let Some(b) = st.breakout.as_ref().filter(|b| b.kind == BreakoutKind::Fake && b.bias == Bias::Bearish) {
+            out.push(b.reading.clone());
+        }
         if self.verdict == Verdict::Wait && self.pos.is_some() && self.sc.complete {
             out.push("Configuration d'achat complète, mais la position est déjà détenue : renforcer reste un choix de taille".into());
         }
@@ -2401,6 +2502,14 @@ impl Texts<'_> {
                         fr(e.samples, 0, 0)
                     ));
                 }
+            }
+        }
+        // Breakouts and fake breakouts of the structure (daily candles).
+        if let Some(b) = self.m.st.breakout.as_ref().filter(|b| matches!(b.kind, BreakoutKind::Confirmed | BreakoutKind::Fake)) {
+            match b.bias {
+                Bias::Bullish => pros.push(b.reading.clone()),
+                Bias::Bearish => cons.push(b.reading.clone()),
+                Bias::Neutral => {}
             }
         }
         match self.inp.reliability.level {

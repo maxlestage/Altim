@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import type { Kind } from "../engine/reliability";
 import type { Holding } from "../engine/holdings";
+import { DEFAULT_SCORE_WEIGHTS, sanitizeScoreWeights, type ScoreWeights } from "./decision";
 
 export type Interval = "1h" | "4h" | "1d";
 export type WatchItem = { symbol: string; kind: Kind; name: string };
@@ -18,6 +19,8 @@ export interface AppState {
   watchlist: WatchItem[];
   risk: RiskSettings;
   horizon: HorizonPref;
+  /** Weights of the decision's composite score (Réglages), sent as `w=` when not the defaults. */
+  scoreWeights: ScoreWeights;
 }
 
 export const DEFAULT_WATCHLIST: WatchItem[] = [
@@ -40,6 +43,7 @@ const initial = (): AppState => ({
   watchlist: DEFAULT_WATCHLIST,
   risk: DEFAULT_RISK,
   horizon: "medium",
+  scoreWeights: DEFAULT_SCORE_WEIGHTS,
 });
 
 function load(): AppState {
@@ -55,6 +59,7 @@ function load(): AppState {
           watchlist: Array.isArray(parsed.watchlist) ? parsed.watchlist : DEFAULT_WATCHLIST,
           risk: { ...DEFAULT_RISK, ...parsed.risk },
           horizon: ["short", "medium", "long"].includes(parsed.horizon as string) ? parsed.horizon! : "medium",
+          scoreWeights: sanitizeScoreWeights(parsed.scoreWeights),
         };
       }
     }

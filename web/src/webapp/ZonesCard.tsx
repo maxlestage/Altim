@@ -78,6 +78,12 @@ export function MacroBlock({ m }: { m: MacroInfo }) {
   return (
     <div className={`macro macro-${m.level}`}>
       <p className="kv"><span>Contexte macro et géopolitique</span><b>{MACRO_LABEL[m.level]} · {m.score}/100</b></p>
+      {m.regime && (
+        <p className="small">
+          <span className="muted">Régime de marché : </span><b>{m.regime.label}</b>
+          {m.regime.reasons.length > 0 && <small className="muted"> — {m.regime.reasons.join(" · ")}</small>}
+        </p>
+      )}
       {m.factors.length ? (
         <ul className="guard-factors">{m.factors.map((f) => <li key={f.code}>{f.text} <small className="muted">+{f.points}</small></li>)}</ul>
       ) : (

@@ -5,6 +5,7 @@ import { assetKey, DEFAULT_WATCHLIST, setState, useAppState, type HorizonPref, t
 import { Segmented } from "./ui";
 import { onLink } from "./router";
 import { HORIZONS } from "../engine/fibonacci";
+import { DEFAULT_SCORE_WEIGHTS, NNBSP, SCORE_FACTORS } from "./decision";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
   { key: "riskPerTradePercent", label: "Risque accepté par idée", min: 0.25, max: 5, step: 0.25, unit: " %" },
@@ -15,8 +16,9 @@ const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: n
 ];
 
 export function Settings() {
-  const { risk, watchlist, horizon } = useAppState();
+  const { risk, watchlist, horizon, scoreWeights } = useAppState();
   const [picking, setPicking] = useState(false);
+  const weightTotal = SCORE_FACTORS.reduce((a, f) => a + scoreWeights[f.key], 0);
 
   const setRisk = (key: keyof RiskSettings, value: number) => setState((s) => ({ risk: { ...s.risk, [key]: value } }));
   const toggle = (item: WatchItem) =>
@@ -81,6 +83,30 @@ export function Settings() {
           Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).
         </p>
         <button className="link-btn" onClick={() => setState({ risk: DEFAULT_RISK })}>Valeurs recommandées</button>
+      </div>
+
+      <div className="card">
+        <h2 className="card-title">Score composite</h2>
+        <p className="muted small">
+          Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.
+        </p>
+        <div className="score-weights">
+          {SCORE_FACTORS.map((f) => (
+            <label key={f.key} className="score-weight">
+              <span><b>{f.label}</b> <small className="muted">{f.hint}</small></span>
+              <b className="mono">{scoreWeights[f.key]}{NNBSP}%</b>
+              <input
+                type="range" min={0} max={100} step={1} value={scoreWeights[f.key]}
+                aria-label={`Poids ${f.label}`}
+                onChange={(e) => setState((s) => ({ scoreWeights: { ...s.scoreWeights, [f.key]: Math.min(100, Math.max(0, Math.round(Number(e.target.value)) || 0)) } }))}
+              />
+            </label>
+          ))}
+        </div>
+        <p className="muted small">
+          Total : <span className="mono">{weightTotal}</span> (ramené à 100 %).{weightTotal === 0 ? " Tous à 0 : les poids par défaut sont utilisés." : ""}
+        </p>
+        <button className="link-btn" onClick={() => setState({ scoreWeights: DEFAULT_SCORE_WEIGHTS })}>Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)</button>
       </div>
 
       <div className="card">
