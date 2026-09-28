@@ -4,3 +4,8 @@ pub mod engine;
 pub mod http;
 pub mod js;
 pub mod types;
+pub mod jsval;
+pub mod live;
+pub mod market;
+pub mod quotes;
+pub mod stocks_extra;
