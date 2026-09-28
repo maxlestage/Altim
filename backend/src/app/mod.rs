@@ -1,6 +1,7 @@
 //! Altim web server (Axum): showcase site, /app web application and multi-source APIs (port of web/server/app.ts).
 pub mod data;
 pub mod error;
+pub mod extras;
 pub mod validate;
 pub mod web;
 
@@ -36,7 +37,7 @@ use crate::types::{Asset, DAY_MS, Kind};
 use crate::universe::{search_universe, universe};
 use data::*;
 use error::{ApiError, ApiResult, bad};
-use validate::{int_or, js_number, parse_interval, parse_kind, parse_symbol};
+use validate::{int_or, js_number, parse_cost, parse_interval, parse_kind, parse_symbol, parse_weights};
 
 type Q = Query<HashMap<String, String>>;
 
@@ -327,6 +328,16 @@ async fn macro_route() -> ApiResult<Response> {
     Ok(json_of(&*macro_now().await?))
 }
 
+/// Decision for one asset: verdict, reasons, vetoes, setup, plan, scenarios, what could make it wrong. Personal
+/// only with `cost=` (average cost) or `weights=` (portfolio weights): used for this answer, never stored or logged.
+async fn decision_route(Query(p): Q) -> ApiResult<Response> {
+    let kind = parse_kind(q(&p, "kind"))?;
+    let symbol = parse_symbol(q(&p, "symbol"), kind)?;
+    let cost = parse_cost(q(&p, "cost"))?;
+    let weights = parse_weights(q(&p, "weights"))?;
+    Ok(json_of(&decision_for(&symbol, kind, cost, &weights).await?))
+}
+
 async fn sentiment_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(q(&p, "kind"))?;
     Ok(json_of(&sentiment(&parse_symbol(q(&p, "symbol"), kind)?, kind).await))
@@ -370,6 +381,7 @@ pub fn api(state: AppState) -> Router {
         .route("/brief", get(brief))
         .route("/macro", get(macro_route))
         .route("/sentiment", get(sentiment_route))
+        .route("/decision", get(decision_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))

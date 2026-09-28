@@ -47,6 +47,45 @@ pub fn parse_assets(v: Option<&str>, default: &[Asset], make: impl Fn(&str, Kind
         .collect()
 }
 
+/// The user's average cost (`cost=`): absent or empty → None, otherwise a positive finite number.
+pub fn parse_cost(v: Option<&str>) -> ApiResult<Option<f64>> {
+    let Some(v) = v.filter(|s| !s.trim().is_empty()) else { return Ok(None) };
+    let n = js_number(v);
+    if n.is_finite() && n > 0.0 { Ok(Some(n)) } else { bad("cost invalide (prix d'achat moyen : nombre positif)") }
+}
+
+/// Maximum number of lines in `weights=`.
+pub const MAX_WEIGHTS: usize = 20;
+
+/// The user's weights (`weights=BTC:crypto:40,AAPL:stock:25`): 20 lines at most, each weight 0 – 100 %, 100 % in
+/// total at most (1 point of rounding tolerated). Absent or empty → none.
+pub fn parse_weights(v: Option<&str>) -> ApiResult<Vec<super::data::Weight>> {
+    let Some(v) = v.filter(|s| !s.trim().is_empty()) else { return Ok(vec![]) };
+    let items: Vec<&str> = v.split(',').collect();
+    if items.len() > MAX_WEIGHTS {
+        return bad(format!("weights invalide : {MAX_WEIGHTS} lignes au plus"));
+    }
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        let parts: Vec<&str> = item.split(':').collect();
+        let [sym, kind, pct] = parts.as_slice() else {
+            return bad("weights invalide (SYMBOLE:crypto|stock:pourcentage, séparés par des virgules)");
+        };
+        let kind = parse_kind(Some(kind))?;
+        let symbol = parse_symbol(Some(sym), kind)?;
+        let raw = pct.trim();
+        let pct = js_number(raw);
+        if raw.is_empty() || !(pct.is_finite() && (0.0..=100.0).contains(&pct)) {
+            return bad("weights invalide : chaque pondération entre 0 et 100 %");
+        }
+        out.push(super::data::Weight { symbol, kind, pct });
+    }
+    if out.iter().map(|w| w.pct).sum::<f64>() > 101.0 {
+        return bad("weights invalide : total supérieur à 100 %");
+    }
+    Ok(out)
+}
+
 /// `Math.floor(Number(v) || fallback)` for the paging parameters.
 pub fn int_or(v: Option<&str>, fallback: f64) -> f64 {
     let n = v.map(js_number).unwrap_or(f64::NAN);
