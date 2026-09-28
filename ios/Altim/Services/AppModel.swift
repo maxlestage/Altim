@@ -38,7 +38,13 @@ final class AppModel {
     var selectionMarket: Kind { didSet { defaults.set(selectionMarket.rawValue, forKey: "selectionMarket") } }
     var selectionHorizon: Horizon { didSet { defaults.set(selectionHorizon.rawValue, forKey: "selectionHorizon") } }
 
+    /// Server unreachable: date of the saved answers shown instead (nil when online).
+    var offlineSince: Date? = nil
+
     let live = LivePrices()
+    @ObservationIgnored private let responseCache = FileResponseCache(
+        directory: FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("api", isDirectory: true)
+    )
     /// Asset open on screen (its live price is followed too).
     var focus: Asset? = nil
     /// Picks shown in the Sélection tab (live prices too).
@@ -79,8 +85,15 @@ final class AppModel {
         user = creds?.user ?? defaults.string(forKey: "user")
         // Empty password = 2FA account: no silent re-login (a wrong attempt would count towards the lockout).
         let usable = creds.flatMap { $0.password.isEmpty ? nil : $0 }
-        client = AltimClient(baseURL: url, credentials: usable, sessionCookie: cookie)
+        client = makeClient(url, credentials: usable, cookie: cookie)
         phase = faceIDLock ? .locked : .ready
+    }
+
+    /// Client with the offline cache: the last good answers are shown, dated, when the network or the server fails.
+    private func makeClient(_ url: URL, credentials: Credentials?, cookie: String?) -> AltimClient {
+        AltimClient(baseURL: url, credentials: credentials, sessionCookie: cookie, cache: responseCache) { [weak self] date in
+            Task { @MainActor in self?.offlineSince = date }
+        }
     }
 
     /// Checks the server and returns what it asks for (user/password, 2FA code, or nothing for a local server).
@@ -104,9 +117,9 @@ final class AppModel {
             } else {
                 KeychainStore.set(try JSONEncoder().encode(Credentials(user: c.user, password: "")), for: .credentials)
             }
-            client = AltimClient(baseURL: url, credentials: mode == .login(needsCode: false) ? c : nil, sessionCookie: c1.sessionCookie)
+            client = makeClient(url, credentials: mode == .login(needsCode: false) ? c : nil, cookie: c1.sessionCookie)
         } else {
-            client = AltimClient(baseURL: url, credentials: nil)
+            client = makeClient(url, credentials: nil, cookie: nil)
         }
         defaults.set(url.absoluteString, forKey: "server")
         defaults.set(mode == .open, forKey: "openServer")
@@ -123,6 +136,8 @@ final class AppModel {
         lastAlerts = []
         await client?.logout()
         KeychainStore.clear()
+        responseCache.clear()
+        offlineSince = nil
         defaults.removeObject(forKey: "openServer")
         client = nil
         user = nil

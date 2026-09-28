@@ -62,6 +62,10 @@ class AltimClient(
     private val credentials: Credentials?,
     sessionCookie: String? = null,
     private val http: OkHttpClient = defaultHttp,
+    /** Last good answers, served when the network or the server fails (offline mode); null = no cache. */
+    private val cache: ResponseCache? = null,
+    /** Told after each call: null when the server answered, the date of the data when a cached answer was served. */
+    private val onStatus: ((Long?) -> Unit)? = null,
 ) {
     private val cookie = AtomicReference(sessionCookie)
     private val renewLock = kotlinx.coroutines.sync.Mutex()
@@ -72,6 +76,12 @@ class AltimClient(
 
     companion object {
         const val COOKIE_NAME = "altim_session"
+
+        /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection")
+
+        /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
+        @Volatile var retryDelaysMs = listOf(500L, 1_500L)
         private const val USER_AGENT = "AltimAndroid/1.0"
 
         val defaultHttp: OkHttpClient = OkHttpClient.Builder()
@@ -195,6 +205,10 @@ class AltimClient(
 
     suspend fun macro(): MacroInfo = get("/api/macro", emptyMap(), MacroInfo.serializer())
 
+    /** News of the world, the markets, crypto and these assets (20 at most). */
+    suspend fun news(assets: List<Asset>): NewsReport =
+        get("/api/news", if (assets.isEmpty()) emptyMap() else mapOf("symbols" to list(assets.take(20))), NewsReport.serializer())
+
     suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
         if (assets.isEmpty()) emptyList()
         else batched(assets) { get("/api/alerts", mapOf("symbols" to list(it)), ListSerializer(BuyAlert.serializer())) }
@@ -271,15 +285,58 @@ class AltimClient(
         }
     }
 
-    private suspend fun authorized(r: Request): Pair<Int, String> {
-        var res = send(r).use { it.code to it.body.string() }
-        if (res.first == 401) {
-            cookie.set(null)
-            if (!renewSession()) throw AltimException.Unauthorized
-            res = send(r).use { it.code to it.body.string() }
-            if (res.first == 401) throw AltimException.Unauthorized
+    /**
+     * A read (GET) is tried 3 times when the network drops or the server answers 502 / 503 / 504 (restart, overload):
+     * a short outage goes unnoticed. Never for the login (a failed attempt counts towards the lock-out).
+     */
+    private suspend fun sendRetrying(r: Request): Pair<Int, String> {
+        val idempotent = r.method == "GET"
+        var attempt = 0
+        while (true) {
+            try {
+                val res = send(r).use { it.code to it.body.string() }
+                if (idempotent && res.first in setOf(502, 503, 504) && attempt < retryDelaysMs.size) {
+                    kotlinx.coroutines.delay(retryDelaysMs[attempt++])
+                    continue
+                }
+                return res
+            } catch (e: AltimException.Network) {
+                if (!idempotent || attempt >= retryDelaysMs.size) throw e
+                kotlinx.coroutines.delay(retryDelaysMs[attempt++])
+            }
         }
-        return res
+    }
+
+    private suspend fun authorized(r: Request): Pair<Int, String> {
+        val key = "${r.url.encodedPath}?${r.url.encodedQuery ?: ""}"
+        val cacheable = cache != null && r.url.encodedPath in CACHEABLE
+        try {
+            var res = sendRetrying(r)
+            if (res.first == 401) {
+                cookie.set(null)
+                if (!renewSession()) throw AltimException.Unauthorized
+                res = sendRetrying(r)
+                if (res.first == 401) throw AltimException.Unauthorized
+            }
+            if (res.first >= 500 && cacheable) {
+                cache?.load(key)?.let { (body, at) ->
+                    onStatus?.invoke(at)
+                    return 200 to body
+                }
+            }
+            if (res.first == 200) {
+                if (cacheable) cache?.save(key, res.second)
+                onStatus?.invoke(null)
+            }
+            return res
+        } catch (e: AltimException.Network) {
+            // Offline: the last good answer, with its date for the banner.
+            if (cacheable) cache?.load(key)?.let { (body, at) ->
+                onStatus?.invoke(at)
+                return 200 to body
+            }
+            throw e
+        }
     }
 
     private suspend fun <T> get(path: String, query: Map<String, String>, serializer: KSerializer<T>): T {

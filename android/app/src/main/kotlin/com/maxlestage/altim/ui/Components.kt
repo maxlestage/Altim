@@ -146,7 +146,8 @@ fun KeyValue(key: String, value: String, tone: Tone? = null) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Text(key, color = AltimColors.textSecondary, fontSize = 14.sp, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(12.dp))
-        Text(value, style = mono(14.sp), color = tone?.let { AltimColors.of(it) } ?: Color.White, textAlign = TextAlign.End)
+        // A long value wraps on its half instead of squeezing the key to one letter per line.
+        Text(value, style = mono(14.sp), color = tone?.let { AltimColors.of(it) } ?: Color.White, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
     }
 }
 

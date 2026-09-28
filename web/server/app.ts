@@ -20,6 +20,8 @@ import { toHorizon, HORIZON_LIST, SPECS, type Horizon } from "../src/engine/scre
 import { usMarketOpen } from "./live";
 import { fibZones } from "../src/engine/fibonacci";
 import { buyAlert } from "../src/engine/alerts";
+import { aggregate, newsDigest, topStories } from "../src/engine/news";
+import { fetchNews } from "./news";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
@@ -432,6 +434,26 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
       return { symbol: a.symbol, kind: a.kind, name: a.name, price, asOf: Date.now(), ...alert };
     }));
     res.json(items);
+  }));
+
+  // News section: world economy and geopolitics, markets, crypto and the user's own assets, from ~15 feeds (FR + EN)
+  // plus Google News / Yahoo Finance per asset; duplicates merged, classified, most recent first.
+  api.get("/news", wrap(async (req, res) => {
+    const assets = req.query.symbols ? parseAssets(req.query.symbols) : [];
+    const key = assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",");
+    const report = await cached(`news:${key}`, 300_000, async () => {
+      const { results, watch } = await fetchNews(assets);
+      const now = Date.now();
+      const bySource = new Map<string, { name: string; ok: boolean; count: number; error?: string }>();
+      for (const r of results) {
+        const name = r.feed.name;
+        const prev = bySource.get(name);
+        bySource.set(name, { name, ok: (prev?.ok ?? false) || r.ok, count: (prev?.count ?? 0) + r.items.length, error: r.ok ? undefined : (prev?.error ?? r.error) });
+      }
+      const items = aggregate(results.map((r) => ({ category: r.feed.category, fallback: r.feed.fallback, items: r.items })), watch, now);
+      return { asOf: now, items, top: topStories(items).map((i) => i.id), digest: newsDigest(items, now), sources: [...bySource.values()] };
+    });
+    res.json(report);
   }));
 
   // Macro / geopolitical context (market-wide), readable by bots.

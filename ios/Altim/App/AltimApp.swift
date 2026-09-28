@@ -104,8 +104,12 @@ struct MainTabs: View {
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }
             NavigationStack { AlertsView() }
                 .tabItem { Label("Alertes", systemImage: "bell.badge") }
-            NavigationStack { SettingsView() }
-                .tabItem { Label("Réglages", systemImage: "gearshape") }
+            NavigationStack { NewsView() }
+                .tabItem { Label("Actu", systemImage: "newspaper") }
+        }
+        // Server or network down: the saved answers are shown, with their date.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let since = model.offlineSince { OfflineBanner(since: since) }
         }
         // Tapped notification: the asset opens above the tabs.
         .sheet(item: $model.pendingOpen) { asset in
@@ -115,6 +119,23 @@ struct MainTabs: View {
             }
             .environment(model)
         }
+    }
+}
+
+struct OfflineBanner: View {
+    var since: Date
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "icloud.slash").foregroundStyle(Theme.warning)
+            Text("Hors ligne : données du \(Format.date(since.timeIntervalSince1970 * 1000, time: true)). Reconnexion automatique.")
+                .font(.caption)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 8)
+        .background(Theme.warning.opacity(0.18))
+        .background(.ultraThinMaterial)
+        .accessibilityElement(children: .combine)
     }
 }
 

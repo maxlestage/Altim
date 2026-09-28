@@ -26,6 +26,7 @@ Accessible depuis le bouton **« Ouvrir l'app »** du site, sans installation :
 - **Le conseil d'Altim** sur chaque actif : *Achat envisageable* (avec zone d'entrée, stop, objectif et **montant prudent** calculé sur votre patrimoine), *Attendre*, *À éviter*, ou *Pas de conseil* si les sources sont en désaccord. Si vous détenez déjà l'actif, le conseil devient celui de votre ligne : *Conserver*, *Renforcer possible*, *Alléger* (avec le montant), *Protéger* ou *Vendre ou protéger*.
 - **Catalogue complet** : toutes les cryptos listées en USD/USDT sur OKX, Coinbase, Kraken, KuCoin et Gate (≈ 2 000, classées par capitalisation CoinGecko) et toutes les actions et ETF cotés aux États-Unis (≈ 11 600, annuaire officiel Nasdaq Trader, classés par capitalisation). Parcours par catégorie ou recherche par symbole ou nom (`/api/universe`).
 - **Mes avoirs** : vous renseignez en une fois plusieurs cryptos et plusieurs actions (actif, quantité, prix d'achat moyen), plus vos liquidités. Les données sont **gardées dans le navigateur (localStorage)**, avec export/import JSON. Altim en déduit tout : patrimoine et plus-values au prix de consensus, répartition crypto/actions/liquidités, et pour chaque ligne une recommandation expliquée (*Vendre ou protéger*, *Protéger*, *Alléger*, *Renforcer possible*, *Conserver*, ou *Données insuffisantes*) avec le stop de protection conseillé. S'y ajoutent les risques du portefeuille : volatilité, perte possible sur une mauvaise journée (VaR 95 %), perte si les stops sont touchés, concentration, diversification effective et corrélation.
+- **Actu** : toute l'actualité utile au même endroit (voir [Actualités](#actualités-onglet-actu)).
 - **Réglages** : radar, prudence des conseils (risque accepté par idée, taille maximale d'une ligne).
 
 Aucun ordre, aucune clé de courtier : les données de l'app web restent dans le navigateur (localStorage).
@@ -46,6 +47,8 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 - **Live Activity et Dynamic Island** : sur la fiche d'un actif, « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island (en direct quand l'app tourne, à chaque vérification en arrière-plan sinon) ; activable dans Réglages.
 - **Onglet Alertes** : les actifs achetables maintenant (même règle que les notifications), vos **alertes de prix** (« préviens-moi si BTC passe sous 80 000 $ », une notification puis réarmable, bouton cloche sur la fiche) et le **journal des alertes** : chaque notification reçue avec son prix et ce qu'elle a donné depuis, et un résumé honnête (part des alertes d'achat en hausse, variation moyenne, sans frais ni règle de sortie).
 - **Apple Watch** : les actifs achetables et leurs raisons, envoyés par l'iPhone (la montre ne détient ni mot de passe ni session) ; les notifications de l'iPhone arrivent au poignet.
+- **Onglet Actu** : la même section Actualités que le site (à la une, ce qui domine, rubriques, articles en français seulement) ; un article s'ouvre chez sa source. Les Réglages passent sous la roue dentée du Radar.
+- **Hors ligne** : voir [Solidité](#solidité-réseau-coupé-serveur-en-panne).
 
 Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`) ; avec `ALTIM_SERVER`, `ALTIM_USER` et `ALTIM_PASSWORD`, le test de bout en bout se connecte à un serveur réel (mauvais mot de passe refusé, API fermée sans session, reconnexion automatique, flux en direct). La CI compile l'app en Debug et en Release sur macOS ; l'envoi sur TestFlight se lance depuis l'onglet Actions (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
@@ -56,8 +59,9 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 - **Sécurité** : mot de passe et session chiffrés en AES-256-GCM par une clé du **Keystore Android** propre au téléphone (non exportable) ; sauvegardes cloud et transferts d'appareil désactivés ; HTTPS obligatoire (HTTP seulement pour un serveur local ou l'émulateur). Empreinte, visage ou code de l'écran à l'ouverture et après 2 minutes en arrière-plan. La clé du mot de passe ne fonctionne que téléphone déverrouillé ; l'aperçu des apps récentes est masqué.
 - **Notifications « achat possible »** : toutes les 15 minutes (WorkManager), même règle que l'iPhone, sans répétition, résumé au-delà de 3 ; touche → fiche de l'actif.
 - **Onglet Alertes** : achetables maintenant, alertes de prix (carte « Alerte de prix » sur la fiche d'un actif) et journal des alertes avec la variation depuis chaque notification, comme sur iPhone.
+- **Onglet Actu** et **mode hors ligne** comme sur iPhone ; Réglages sous la roue dentée du Radar.
 - **Sans rafale** : un actif n'est oublié qu'après 6 h sans être achetable et une raison déjà notifiée ne revient pas, même quand le prix hésite au bord d'une zone (iPhone et Android).
-- **Tests** : `./gradlew :kit:test` (15 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir, Réglages, avec une capture de chaque écran dans `android/app/build/screens`.
+- **Tests** : `./gradlew :kit:test` (25 tests ; avec `ALTIM_SERVER`, `ALTIM_USER`, `ALTIM_PASSWORD`, connexion de bout en bout à un vrai serveur). `./gradlew :app:testDebugUnitTest` avec les mêmes variables fait tourner **les vrais écrans** (Robolectric) comme un utilisateur : avertissement, connexion, Radar, fiche BTC, Sélection crypto, ajout d'un avoir, alerte de prix, Actu, Réglages, avec une capture de chaque écran dans `android/app/build/screens`.
 - **CI** : tests du noyau, lint, build Debug (APK de test téléchargeable dans l'onglet Actions) et Release minifié ; le workflow « Android APK signé » produit l'APK à installer (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ### Serveur (Express sur Bun)
@@ -72,6 +76,25 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 | `GET /api/zones?symbol=BTC&kind=crypto` | **Zones d'achat** court / moyen / long terme (Fibonacci), vérifiées sur l'historique, avec le contexte macro |
 | `GET /api/macro` | **Contexte macro et géopolitique** : VIX, S&P 500, pétrole, or, dollar, taux, actualités d'escalade |
 | `GET /api/alerts?symbols=…` | **« Puis-je acheter ? »** pour les notifications des apps : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou plus bas cassé ; une clé de situation évite les notifications répétées |
+| `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
+
+## Actualités (onglet « Actu »)
+
+Tout ce qui peut faire bouger vos actifs, réuni sur une page (web, iPhone, Android) :
+
+- **Sources** (en français et en anglais) : Le Monde Économie, BFM Économie, La Tribune, MarketWatch, CNBC, Investing.com, CoinDesk, Cointelegraph, Decrypt, The Block, Cryptoast, Journal du Token, des recherches Google Actualités (économie, géopolitique, marchés) et, **pour chacun de vos actifs**, Google Actualités FR/EN et Yahoo Finance pour les actions. Chaque flux est lu avec un délai maximal de 8 s et gardé 10 min ; une source en panne est signalée et n'empêche pas les autres.
+- **Une histoire, une ligne** : le même sujet repris par plusieurs médias (titres semblables à 60 % en moins de 36 h) n'apparaît qu'une fois, avec « +N sources ».
+- **À la une** : les sujets repris le plus largement, et toujours une escalade grave (guerre déclarée, invasion, panique bancaire…) marquée ALERTE.
+- **Ce qui domine (24 h)** : thèmes (géopolitique, banques centrales, droits de douane, crise, régulation, résultats) et ton des titres (négatif, neutre, positif). Le ton est un repérage par mots-clés, indicatif.
+- **Rubriques** Tout / Mes actifs / Monde / Marchés / Crypto, et « articles en français seulement ». Un article n'est rangé dans « Mes actifs » que s'il nomme vraiment l'actif (nom ou symbole, sans faux positif comme « Pineapple » pour Apple).
+- Titres affichés tels que publiés, non traduits ; liens http(s) seulement, ouverts chez la source. Vérifié sur les vrais flux (septembre 2026) : 18 sources sur 18 en ligne, ≈ 270 articles sur 48 h.
+
+## Solidité : réseau coupé, serveur en panne
+
+- **Nouvelles tentatives** : une lecture qui échoue (réseau coupé, serveur 502/503/504, redémarrage Heroku) est retentée deux fois (après 0,5 s puis 1,5 s). La connexion n'est jamais retentée, pour ne pas compter de faux échecs de mot de passe.
+- **Mode hors ligne (iPhone et Android)** : les dernières réponses valides (radar, fiches, zones, alertes, actualités…) sont gardées sur le téléphone (fichiers protégés, 300 au plus) ; sans réseau, l'app les affiche avec un bandeau « Hors ligne : données du … », puis revient seule aux données fraîches. Les recherches et la connexion ne sont jamais servies depuis ce cache, qui est effacé à la déconnexion.
+- **Serveur** : arrêt propre sur SIGTERM (redémarrage quotidien d'Heroku) : les flux en direct sont fermés pour que les apps se reconnectent aussitôt, puis le processus s'arrête en 3 s au plus.
+- Testé : 503 puis réseau coupé puis succès à la 3ᵉ tentative, abandon après 3 échecs, connexion jamais retentée, réponse hors ligne datée, recherche jamais servie du cache (`swift test`, `./gradlew :kit:test`).
 
 Sécurité : helmet (CSP stricte, HSTS…), redirection HTTPS, compression gzip, limitation de débit par IP, validation de tous les paramètres, cache mémoire borné avec déduplication des requêtes et dernières données valides en cas de panne d'une source. Connexion : une vérification à la fois par adresse et 2 au plus sur le serveur (argon2id, 64 Mo chacune : impossible de saturer la mémoire), 5 échecs → 15 min de blocage (IPv6 par /64), plafond global de 30 échecs, session révoquée côté serveur à la déconnexion. API sans CORS ouvert et jamais mise en cache par le navigateur ; 8 flux en direct au plus par adresse ; messages d'erreur sans adresse de source ; échec fermé sur Heroku même sans `NODE_ENV`.
 

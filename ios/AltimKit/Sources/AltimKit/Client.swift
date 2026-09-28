@@ -76,20 +76,33 @@ public final class AltimClient: Sendable {
     private let jar: CookieJar
     static let cookieName = "altim_session"
 
-    public init(baseURL: URL, credentials: Credentials?, sessionCookie: String? = nil, session: URLSession = AltimClient.makeSession()) {
+    /// Last good answers, served when the network or the server fails (offline mode); nil = no cache.
+    private let cache: ResponseCache?
+    /// Told after each call: nil when the server answered, the date of the data when a cached answer was served.
+    private let onStatus: (@Sendable (Date?) -> Void)?
+
+    public init(baseURL: URL, credentials: Credentials?, sessionCookie: String? = nil, session: URLSession = AltimClient.makeSession(),
+                cache: ResponseCache? = nil, onStatus: (@Sendable (Date?) -> Void)? = nil) {
         self.baseURL = baseURL
         self.credentials = credentials
         self.session = session
+        self.cache = cache
+        self.onStatus = onStatus
         jar = CookieJar(sessionCookie)
     }
+
+    /// Paths whose last answer is kept for the offline mode (not the search nor the login).
+    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection"]
+    /// Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error.
+    nonisolated(unsafe) static var retryDelays: [Double] = [0.5, 1.5]
 
     private let renewal = Renewal()
 
     /// Current session cookie value (the app keeps it in the Keychain to avoid a login at each launch).
     public var sessionCookie: String? { jar.value }
 
-    public static func makeSession() -> URLSession {
-        let c = URLSessionConfiguration.default
+    public static func makeSession(configuration: URLSessionConfiguration = .default) -> URLSession {
+        let c = configuration
         c.httpCookieStorage = nil
         c.httpShouldSetCookies = false
         c.httpCookieAcceptPolicy = .never
@@ -203,6 +216,10 @@ public final class AltimClient: Sendable {
 
     public func macro() async throws -> MacroInfo { try await get("/api/macro", [:]) }
 
+    func getNews(_ assets: [Asset]) async throws -> NewsReport {
+        try await get("/api/news", assets.isEmpty ? [:] : ["symbols": Self.list(assets)])
+    }
+
     func getAlerts(_ assets: [Asset]) async throws -> [BuyAlert] {
         try await get("/api/alerts", ["symbols": Self.list(assets)])
     }
@@ -277,15 +294,56 @@ public final class AltimClient: Sendable {
         }
     }
 
-    private func authorized(_ r: URLRequest) async throws -> (Data, Int) {
-        var (data, response) = try await send(r)
-        if response.statusCode == 401 {
-            jar.value = nil
-            guard await renewSession() else { throw AltimError.unauthorized }
-            (data, response) = try await send(r)
-            if response.statusCode == 401 { throw AltimError.unauthorized }
+    /// A read (GET) is tried 3 times when the network drops or the server answers 502 / 503 / 504 (restart, overload):
+    /// a short outage goes unnoticed. Never for the login (a failed attempt counts towards the lock-out).
+    private func sendRetrying(_ r: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        let idempotent = (r.httpMethod ?? "GET") == "GET"
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await send(r)
+                if idempotent, [502, 503, 504].contains(response.statusCode), attempt < Self.retryDelays.count {
+                    try await Task.sleep(nanoseconds: UInt64(Self.retryDelays[attempt] * 1e9))
+                    attempt += 1
+                    continue
+                }
+                return (data, response)
+            } catch AltimError.network(let m) {
+                guard idempotent, attempt < Self.retryDelays.count, !Task.isCancelled else { throw AltimError.network(m) }
+                try await Task.sleep(nanoseconds: UInt64(Self.retryDelays[attempt] * 1e9))
+                attempt += 1
+            }
         }
-        return (data, response.statusCode)
+    }
+
+    private func authorized(_ r: URLRequest) async throws -> (Data, Int) {
+        let key = r.url.map { "\($0.path)?\($0.query ?? "")" } ?? ""
+        let cacheable = cache != nil && Self.cacheable.contains(r.url?.path ?? "")
+        do {
+            var (data, response) = try await sendRetrying(r)
+            if response.statusCode == 401 {
+                jar.value = nil
+                guard await renewSession() else { throw AltimError.unauthorized }
+                (data, response) = try await sendRetrying(r)
+                if response.statusCode == 401 { throw AltimError.unauthorized }
+            }
+            if response.statusCode >= 500, cacheable, let saved = cache?.load(key) {
+                onStatus?(saved.date)
+                return (saved.data, 200)
+            }
+            if response.statusCode == 200 {
+                if cacheable { cache?.save(key, data) }
+                onStatus?(nil)
+            }
+            return (data, response.statusCode)
+        } catch AltimError.network(let m) {
+            // Offline: the last good answer, with its date for the banner.
+            if cacheable, !Task.isCancelled, let saved = cache?.load(key) {
+                onStatus?(saved.date)
+                return (saved.data, 200)
+            }
+            throw AltimError.network(m)
+        }
     }
 
     private func get<T: Decodable>(_ path: String, _ query: [String: String]) async throws -> T {
