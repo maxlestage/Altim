@@ -1,5 +1,6 @@
 //! Pure engines, ported line for line from `web/src/engine/*.ts` (the web app keeps using the TypeScript ones).
 pub mod alerts;
+pub mod ask;
 pub mod backtest;
 pub mod brief;
 pub mod decision;
@@ -19,6 +20,7 @@ pub mod signal;
 pub mod strategies;
 pub mod structure;
 pub mod synthesis;
+pub mod why;
 
 use serde::{Deserialize, Serialize};
 

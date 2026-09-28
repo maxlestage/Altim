@@ -754,3 +754,44 @@
 .strat-regimes { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
 .strat-regimes li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
 .strat-regimes span:first-child { color: var(--muted); }
+/* Journal, « Et si… ? », « Pourquoi ça bouge ? »: stacked rows and wrapping chips, no horizontal scroll at 320 px. */
+.portfolio-tabs.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.journal-screen { grid-template-columns: minmax(0, 1fr); }
+.journal-list, .journal-groups ul, .journal-checks, .whatif-lines, .why-factors { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.journal-entry { display: grid; gap: 8px; min-width: 0; overflow-wrap: anywhere; }
+.journal-entry.buy { border-color: rgba(0, 230, 118, 0.35); }
+.journal-entry.hold { border-color: rgba(255, 199, 51, 0.45); }
+.journal-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; min-width: 0; }
+.journal-head .holding-name { min-width: 0; }
+.journal-figures { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; font-size: 13px; }
+.journal-figures > div { display: grid; min-width: 0; overflow-wrap: anywhere; }
+.journal-figures small { color: var(--muted); font-size: 11px; }
+.journal-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--cyan); font-size: 14px; }
+.journal-details { display: grid; gap: 6px; }
+.journal-review { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.journal-review h3, .journal-review h4, .journal-groups h3 { margin: 6px 0 0; }
+.journal-checks li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; }
+.journal-group { display: grid; gap: 6px; padding: 8px 0; border-top: 1px solid var(--line); }
+.journal-group-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.journal-group-head .chip { white-space: normal; }
+.journal-toggle { display: grid; gap: 4px; }
+.journal-toggle .check-row span { font-size: 14px; }
+.journal-screen textarea, .sheet textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.whatif { display: grid; gap: 8px; }
+.whatif-row { display: grid; gap: 4px; }
+.whatif-total { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 0; }
+.whatif-total b { font-size: 22px; font-family: var(--mono); }
+.whatif-lines li { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.whatif-line-head { display: flex; justify-content: space-between; gap: 8px; }
+.why { display: grid; gap: 8px; }
+.why-summary { margin: 0; line-height: 1.5; overflow-wrap: anywhere; }
+.why-factors .insight, .journal-screen .insight { grid-template-columns: 22px minmax(0, 1fr); overflow-wrap: anywhere; font-size: 14px; }
+.why-factors .chip { display: inline-block; vertical-align: middle; }
+.why-ask { display: grid; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+.why-ask textarea { width: 100%; box-sizing: border-box; font: inherit; }
+.why-answer { padding: 8px 10px; border-radius: 10px; border: 1px solid rgba(0, 240, 255, 0.35); overflow-wrap: anywhere; }
+.why-answer p { margin: 0 0 4px; white-space: pre-wrap; }
+@media (min-width: 720px) {
+  .journal-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .journal-group .journal-figures { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}

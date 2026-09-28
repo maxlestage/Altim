@@ -11,6 +11,10 @@ import {
 } from "../engine/portfolio-risk";
 import type { Candle } from "../engine/signal";
 import { LimitsCard, StressCard } from "./RiskCards";
+import { WhatIfCard } from "./WhatIfCard";
+import { recordRealTrade } from "./journal-store";
+import { JournalToggle } from "./Journal";
+import { holdingChange } from "../engine/journal";
 import { saveDangers } from "./danger-store";
 import { Change } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
@@ -336,6 +340,8 @@ export function MyHoldings() {
           {riskView && <LimitsCard checks={riskView.limits} />}
 
           {riskView && <StressCard analysis={analysis} results={riskView.stress} betas={betas} />}
+
+          {riskView && <WhatIfCard analysis={analysis} daily={daily} />}
         </>
       )}
 
@@ -362,7 +368,7 @@ export function MyHoldings() {
         </div>
       </div>
 
-      {editing && <HoldingForm initial={editing} onClose={() => setEditing(null)} />}
+      {editing && <HoldingForm initial={editing} lastPrice={analysis.lines.find((l) => l.id === editing.id)?.price ?? null} onClose={() => setEditing(null)} />}
       {adding && <AddHoldings onClose={() => setAdding(false)} />}
     </section>
   );
@@ -393,11 +399,13 @@ function AllocationBar({ a }: { a: PortfolioAnalysis["allocation"] }) {
 }
 
 /** Editing one existing line (new lines are added with AddHoldings). */
-function HoldingForm({ initial, onClose }: { initial: Holding; onClose: () => void }) {
+function HoldingForm({ initial, lastPrice, onClose }: { initial: Holding; lastPrice: number | null; onClose: () => void }) {
   const [qty, setQty] = useState(String(initial.quantity));
   const [pru, setPru] = useState(String(initial.averagePrice));
   const [stopText, setStopText] = useState(initial.stop ? String(initial.stop) : "");
   const [price, setPrice] = useState<number | null>(null);
+  const [journal, setJournal] = useState(true);
+  const [note, setNote] = useState("");
 
   useEffect(() => {
     api.quotes([initial]).then((r) => setPrice(r[0]?.price ?? null)).catch(() => setPrice(null));
@@ -409,9 +417,11 @@ function HoldingForm({ initial, onClose }: { initial: Holding; onClose: () => vo
   const stop = stopText.trim() ? n(stopText) : undefined;
   const valid = quantity > 0 && Number.isFinite(averagePrice) && averagePrice >= 0 && (stop === undefined || (Number.isFinite(stop) && stop > 0));
 
+  const change = valid ? holdingChange(initial, { quantity, averagePrice }, price ?? (lastPrice || null)) : null;
   const save = () => {
     if (!valid) return;
     upsertHolding({ id: initial.id, symbol: initial.symbol, kind: initial.kind, name: initial.name, quantity, averagePrice, stop });
+    if (journal && change) recordRealTrade({ ...change, symbol: initial.symbol, kind: initial.kind, name: initial.name, stop: change.side === "buy" ? stop : null, note, refId: initial.id });
     onClose();
   };
 
@@ -436,6 +446,10 @@ function HoldingForm({ initial, onClose }: { initial: Holding; onClose: () => vo
         </label>
         <p className="muted small">Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.</p>
         {quantity > 0 && averagePrice > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * averagePrice)}</b></p>}
+        {change && (
+          <JournalToggle checked={journal} onChange={setJournal} note={note} onNote={setNote}
+            text={`${change.side === "buy" ? "Achat" : "Vente"} de ${change.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} ${initial.symbol} à ${formatPrice(change.price)} $${change.implied ? " (déduit du nouveau PRU)" : " (cours actuel)"} : l'inscrire au journal`} />
+        )}
         <button className="btn" disabled={!valid} onClick={save}>Enregistrer</button>
         <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
       </div>
