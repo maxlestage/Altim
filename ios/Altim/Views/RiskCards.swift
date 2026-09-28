@@ -131,6 +131,10 @@ struct ConfigChangesCard: View {
     private func row(_ t: ConfigTransition) -> some View {
         InsightRow(icon: "arrow.triangle.2.circlepath", tone: t.tone, title: t.title,
                    detail: "\(Format.date(t.at, time: true)) · niveau \(t.from.levelLabel) → \(t.to.levelLabel) · configuration précédente vue le \(Format.date(t.since, time: true))\(t.personal ? " · mode personnel" : "")") {
+            if !t.changes.isEmpty {
+                Text("Pourquoi le signal a changé : \(t.changes.joined(separator: " ; ")).").font(.caption).foregroundStyle(.white.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             if !t.missing.isEmpty {
                 Text("Conditions manquantes : \(t.missing.joined(separator: " ; ")).").font(.caption).foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)

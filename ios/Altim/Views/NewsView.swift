@@ -10,6 +10,8 @@ struct NewsView: View {
     @AppStorage("news.frenchOnly") private var frenchOnly = false
     /// "articles" or "agenda", remembered like the web's Actu sub-tab.
     @AppStorage("news.view") private var view = "articles"
+    /// Asset opened from the summary's chips.
+    @State private var opened: Asset?
 
     private static let filters = [("all", "Tout"), ("actifs", "Mes actifs"), ("monde", "Monde"), ("marches", "Marchés"), ("crypto", "Crypto")]
 
@@ -33,6 +35,7 @@ struct NewsView: View {
         }
         .altimScreen()
         .navigationTitle("Actualités")
+        .navigationDestination(item: $opened) { AssetDetailView(asset: $0) }
     }
 
     private var articles: some View {
@@ -44,6 +47,10 @@ struct NewsView: View {
                 if let error { Text(error).foregroundStyle(Theme.sell) }
             }
             .listRowBackground(Color.clear)
+
+            if let summary = report?.summary {
+                Section { NewsSummaryCard(list: summary) { opened = $0 } }.listRowBackground(Color.clear)
+            }
 
             if let report, filter == "all" {
                 let top = report.topItems

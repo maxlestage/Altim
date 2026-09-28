@@ -5,9 +5,10 @@ import {
   BIAS_UI, cacheDecision, cachedDecision, count, decisionUrl, EXIT_KIND_LABEL, exitText, familyTone, hashRate, LEVEL_UI, longDate, modeText, nyDate, num,
   pct, RATING_UI, recentVerdict, REGIME_UI, riskRewardText, SCENARIO_UI, shortDateTime, signedScore, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL,
   usd, usdCompact,
-  type Bias, type CompositeScore, type CryptoFundamentals, type Decision, type Family, type PersonalInput, type RatioHistory, type StablecoinFlows,
-  type StockFundamentals, type Structure,
+  type ActionZones, type Bias, type CheckState, type CompositeScore, type CounterArgument, type CryptoFundamentals, type Decision, type Family,
+  type NoTrade, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals, type Structure,
 } from "./decision";
+import { latestChange, transitionTitle, useTransitions, type ConfigTransition } from "./config-changes";
 import { TrackDetails } from "./TrackDetails";
 import { AgendaEvent } from "./Agenda";
 import { dayLabel } from "./calendar";
@@ -359,14 +360,116 @@ function StructureList({ st }: { st: Structure }) {
   );
 }
 
+// ---------- Guidance: when not to trade, action zones, counter-argument, why the signal changed ----------
+
+/** Compact banner near the top: the headline and the reasons' names (the detail is in its section). */
+function NoTradeBanner({ n }: { n: NoTrade }) {
+  if (!n.active) return null;
+  return (
+    <div className="notice warn dec-notrade" role="status">
+      <b>{n.headline}</b>
+      <ul className="dec-chips" aria-label="Raisons">
+        {n.reasons.map((r) => <li key={r.code} className="dec-chip">{r.label}</li>)}
+      </ul>
+    </div>
+  );
+}
+
+function NoTradeList({ n }: { n: NoTrade }) {
+  return (
+    <>
+      {n.reasons.length > 0 ? (
+        <ul className="dec-list">{n.reasons.map((r) => <li key={r.code}><b>{r.label}</b> — {r.detail}</li>)}</ul>
+      ) : <p className="small">Aucune raison mesurée de s'abstenir maintenant, ce qui ne garantit rien pour la suite.</p>}
+      {n.unchecked.length > 0 && <p className="muted small">Non vérifié faute de données : {n.unchecked.join(" ; ")}.</p>}
+      <p className="muted small">Volatilité, liquidité, écart achat/vente, résultats (avant et 1 à 2 séances après), annonces, marché sans direction, signal faible ou dégradé, séance de Wall Street (actions). N'interdit rien : signale un mauvais moment.</p>
+    </>
+  );
+}
+
+/** Vertical ladder, highest price at the top; bands in the kind's colour, the price marked where it sits. */
+export function ActionLadder({ z }: { z: ActionZones }) {
+  const rows = [...z.zones].reverse();
+  // Price outside every zone: its marker goes above the first zone lying entirely under it.
+  const markerAt = z.here ? -1 : (() => {
+    const i = rows.findIndex((r) => r.to < z.price);
+    return i < 0 ? rows.length : i;
+  })();
+  const marker = <li key="here" className="az-marker" aria-current="true"><span className="mono">◀ {z.hereText.replace(/^Vous êtes ici : /, "vous êtes ici : ")}</span></li>;
+  return (
+    <div className="dec-block">
+      <h3>Zones d'action</h3>
+      <p className="small"><b>{z.hereText}</b></p>
+      <ol className="dec-ladder" aria-label="Zones d'action, du prix le plus haut au plus bas">
+        {rows.flatMap((r, i) => {
+          const here = z.here === r.kind;
+          const li = (
+            <li key={r.kind} className={`az az-${r.kind}${here ? " here" : ""}`} aria-current={here || undefined}>
+              <span className="az-band" aria-hidden />
+              <div>
+                <b className="az-label">{r.label}</b>
+                <span className="mono small">{r.from === r.to ? usd(r.from) : `${usd(r.from)} – ${usd(r.to)}`}</span>
+                {here && <span className="az-here mono">◀ vous êtes ici · {usd(z.price)}</span>}
+                <small className="muted">{r.note}</small>
+              </div>
+            </li>
+          );
+          return i === markerAt ? [marker, li] : [li];
+        })}
+        {markerAt === rows.length && marker}
+      </ol>
+    </div>
+  );
+}
+
+function CounterBlock({ c }: { c: CounterArgument }) {
+  return (
+    <div className="dec-block dec-counter">
+      <h3>Contre-argument</h3>
+      <p className="dec-counter-counts">
+        <span>🟢 Raisons favorables : <b className="mono">{c.favourable}</b></span>
+        <span>🔴 Raisons défavorables : <b className="mono">{c.unfavourable}</b></span>
+      </p>
+      <small className="muted">{c.familiesText}</small>
+      {c.invalidators.length > 0 && (
+        <>
+          <p className="small"><b>Points qui pourraient invalider le scénario</b></p>
+          <ul className="dec-list small">{c.invalidators.map((i) => <li key={i.text}>{i.text}</li>)}</ul>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** "Pourquoi le signal a changé depuis le 28/09 à 14:02": what the measurements say changed. */
+export function ChangeBlock({ t }: { t: ConfigTransition }) {
+  return (
+    <div className="dec-block dec-change">
+      <h3>Pourquoi le signal a changé depuis le {shortDateTime(t.since)}</h3>
+      <p className="small">{transitionTitle(t).replace(/^🚨 \S+ — changement de configuration : /, "")}</p>
+      {t.changes.length > 0 ? (
+        <ul className="dec-list small">{t.changes.map((c) => <li key={c}>{c}</li>)}</ul>
+      ) : <p className="muted small">Mesures de la décision précédente non enregistrées (vue avant cette version) : changement non détaillé.</p>}
+    </div>
+  );
+}
+
+const CHECK_UI: Record<CheckState, { icon: string; label: string }> = {
+  met: { icon: "✓", label: "remplie" },
+  unmet: { icon: "✕", label: "non remplie" },
+  unknown: { icon: "?", label: "inconnue" },
+};
+
 // ---------- The card itself (pure: renders a decision) ----------
 
 export type DecisionStatus = { kind: "fresh" } | { kind: "refreshing"; at: number } | { kind: "stale"; at: number; offline: boolean; error: string };
 
-export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate }: {
+export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate, change }: {
   d: Decision; status?: DecisionStatus; onRetry?: () => void;
   /** Shows "Simuler cet achat" (paper trading) with the live price when known. */
   simulate?: { livePrice: number | null };
+  /** The configuration change that led to this decision (this browser's history), explained. */
+  change?: ConfigTransition | null;
 }) {
   const lv = LEVEL_UI[d.level];
   const vetoes = sortVetoes(d.vetoes);
@@ -421,7 +524,11 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
         </div>
       )}
 
+      {d.noTrade && <NoTradeBanner n={d.noTrade} />}
+
       <p className="dec-headline">{d.headline}</p>
+
+      {change && <ChangeBlock t={change} />}
 
       {fam.length > 0 && (
         <ul className="dec-chips" aria-label="Résumé par famille">
@@ -458,6 +565,7 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
       ) : (
         <p className="muted small">Pas de plan d'entrée : aucun niveau net (zone, stop et objectifs) sur cet actif pour l'instant.</p>
       )}
+      {d.actionZones && <ActionLadder z={d.actionZones} />}
 
       {d.position && (
         <div className="dec-block dec-position">
@@ -502,8 +610,15 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
       )}
       <Conditions title="Pour passer en ACHAT" items={d.toBuy} />
       <Conditions title="Pour passer en VENTE" items={d.toSell} />
+      {d.counterArgument && <CounterBlock c={d.counterArgument} />}
 
       <div className="dec-sections">
+        {d.noTrade && (
+          <Section title="Quand ne pas trader" badge={d.noTrade.active ? `${d.noTrade.reasons.length} raison${d.noTrade.reasons.length > 1 ? "s" : ""}` : "rien à signaler"}>
+            <NoTradeList n={d.noTrade} />
+          </Section>
+        )}
+
         <Section title="Familles d'indices" badge={`${d.families.filter((f) => f.status !== "unavailable").length}/${d.families.length} disponibles`}>
           <ul className="dec-families">{d.families.map((f) => <FamilyRow key={f.key} f={f} />)}</ul>
         </Section>
@@ -557,13 +672,29 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate 
         </Section>
 
         {d.scenarios.length > 0 && (
-          <Section title="Scénarios">
+          <Section title="Scénarios" badge={d.unfolding ? `en cours : ${SCENARIO_UI[d.unfolding.kind].label.toLowerCase()}` : undefined}>
+            {d.unfolding && <p className="small">{d.unfolding.text}</p>}
             <ul className="dec-scenarios">
               {d.scenarios.map((s) => (
-                <li key={s.kind} className={`sc-${s.kind}`}>
-                  <b><span aria-hidden>{SCENARIO_UI[s.kind].icon}</span> {s.title}</b>
+                <li key={s.kind} className={`sc-${s.kind}${s.unfolding ? " sc-unfolding" : ""}`} aria-current={s.unfolding || undefined}>
+                  <div className="dec-family-head">
+                    <b><span aria-hidden>{SCENARIO_UI[s.kind].icon}</span> {s.title}</b>
+                    {s.conditions && s.conditions.length > 0 && (
+                      <span className="mono small">{s.met ?? 0}/{s.conditions.length} condition{s.conditions.length > 1 ? "s" : ""}{s.unfolding ? " · en cours" : ""}</span>
+                    )}
+                  </div>
                   <p className="small">Si {s.condition.charAt(0).toLowerCase()}{s.condition.slice(1)} → {s.consequence}</p>
                   {s.level != null && <small className="muted mono">niveau {usd(s.level)}</small>}
+                  {s.conditions && s.conditions.length > 0 && (
+                    <ul className="dec-checks">
+                      {s.conditions.map((c) => (
+                        <li key={c.text} className={`check-${c.state}`}>
+                          <span className="dec-step-mark"><span aria-hidden>{CHECK_UI[c.state].icon}</span> {CHECK_UI[c.state].label}</span>
+                          <div><span>{c.text}</span><small className="muted">{c.detail}</small></div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               ))}
             </ul>
@@ -676,6 +807,7 @@ export function DecisionCard({ symbol, kind, personal, ready = true, livePrice =
 }) {
   const isPersonal = !!personal && (personal.cost != null || personal.weights.length > 0);
   const { scoreWeights } = useAppState();
+  const transitions = useTransitions();
   const url = decisionUrl(symbol, kind, isPersonal ? personal : null, scoreWeights);
   const initial = () => {
     const c = cachedDecision(kind, symbol);
@@ -731,7 +863,7 @@ export function DecisionCard({ symbol, kind, personal, ready = true, livePrice =
     // The URL carries every input (symbol, kind, cost, weights).
   }, [url, ready, nonce]);
 
-  if (d) return <DecisionView d={d} status={status} onRetry={retry} simulate={{ livePrice }} />;
+  if (d) return <DecisionView d={d} status={status} onRetry={retry} simulate={{ livePrice }} change={latestChange(transitions, d)} />;
   if (error) {
     return (
       <div className="card decision">

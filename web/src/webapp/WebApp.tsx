@@ -6,9 +6,11 @@ import { AssetScreen } from "./AssetScreen";
 import { Settings } from "./Settings";
 import { MyHoldings } from "./MyHoldings";
 import { Selection } from "./Selection";
+import { Opportunities } from "./Opportunities";
 import { News } from "./News";
 import { Glossary } from "./Glossary";
 import { Simulation } from "./Simulation";
+import { Journal } from "./Journal";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
@@ -41,14 +43,21 @@ export function WebApp() {
   if (asset) screen = <AssetScreen key={path} kind={asset[1] as "crypto" | "stock"} symbol={asset[2]!.toUpperCase()} />;
   else if (path === "/app/avoirs") screen = <MyHoldings />;
   else if (path === "/app/selection") screen = <Selection />;
+  else if (path === "/app/opportunites") screen = <Opportunities />;
   else if (path === "/app/reglages") screen = <Settings />;
   else if (path === "/app/actu") screen = <News />;
   else if (path === "/app/lexique") screen = <Glossary />;
   else if (path === "/app/simulation") screen = <Simulation />;
+  else if (path === "/app/journal") screen = <Journal />;
   else screen = <Radar />;
 
-  // The simulation sits next to the real holdings (tab "Mes avoirs").
-  const active = asset ? "/app" : path === "/app/simulation" ? "/app/avoirs" : TABS.find((t) => t.href === path)?.href ?? "/app";
+  // The simulation and the journal sit next to the real holdings (tab "Mes avoirs"), the opportunities next to the
+  // selection.
+  const active = asset
+    ? "/app"
+    : path === "/app/simulation" || path === "/app/journal"
+      ? "/app/avoirs"
+      : path === "/app/opportunites" ? "/app/selection" : TABS.find((t) => t.href === path)?.href ?? "/app";
 
   return (
     <div className="webapp">

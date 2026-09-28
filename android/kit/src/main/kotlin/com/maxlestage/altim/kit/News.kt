@@ -54,6 +54,8 @@ data class NewsReport(
     val top: List<String> = emptyList(),
     val digest: Digest,
     val sources: List<Source> = emptyList(),
+    /** The day's important events (at most 5); absent from an older server. */
+    val summary: List<StorySummary>? = null,
 ) {
     @Serializable data class Digest(val total: Int, val themes: List<Theme> = emptyList(), val tone: Tone)
     @Serializable data class Theme(val theme: String, val label: String, val count: Int)

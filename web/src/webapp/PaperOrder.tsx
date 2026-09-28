@@ -4,6 +4,8 @@ import { DEFAULT_CAPITAL, FEE_RATE, newPaper, openPosition, SLIPPAGE, valuation 
 import { onLink } from "./router";
 import type { Decision } from "./decision";
 import { getPaper, setPaper, usePaper } from "./paper-store";
+import { record } from "./journal-store";
+import { JournalNote } from "./Journal";
 import { againstDecision, againstText, defaultAmount, frDate, inputPrice, levelWarnings, newId, parseAmount, price as fmtPrice, usd } from "./paper-ui";
 
 /** "Simuler cet achat" on the Décision card: a virtual purchase, no real money, no order sent. */
@@ -38,6 +40,7 @@ function OrderSheet({ d, px, live, onClose, onDone }: { d: Decision; px: number;
   const [stopText, setStopText] = useState(inputPrice(d.plan?.stop));
   const [targetText, setTargetText] = useState(inputPrice(d.plan?.target1));
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState("");
 
   const amount = parseAmount(amountText);
   const stop = parseAmount(stopText);
@@ -64,7 +67,12 @@ function OrderSheet({ d, px, live, onClose, onDone }: { d: Decision; px: number;
     );
     if (res.error) return setError(res.error);
     setPaper(res.state);
-    onDone(`Achat simulé : ${usd(amount!)} de ${d.name}${created ? " (portefeuille simulé créé avec 10 000 $)" : ""}.`);
+    const pos = res.state.positions[res.state.positions.length - 1]!;
+    record({
+      source: "paper", side: "buy", symbol: d.symbol, kind: d.kind, name: d.name, price: pos.entry, quantity: pos.quantity, amount: pos.invested,
+      stop: pos.stop, targets: [pos.target], note, refId: pos.id, decision: d, now,
+    });
+    onDone(`Achat simulé : ${usd(amount!)} de ${d.name}${created ? " (portefeuille simulé créé avec 10 000 $)" : ""}. Inscrit au journal.`);
   };
 
   // Portal: the Décision card has a backdrop-filter, which would trap a position: fixed sheet inside it.
@@ -98,6 +106,7 @@ function OrderSheet({ d, px, live, onClose, onDone }: { d: Decision; px: number;
         </div>
         {d.plan && <small className="muted">Préremplis avec le plan de la décision (stop et objectif 1). Vente automatique si une bougie journalière les atteint.</small>}
         {warnings.map((w) => <p key={w} className="notice warn small">⚠ {w}</p>)}
+        <JournalNote value={note} onChange={setNote} />
         {error && <p className="notice danger small" role="alert">✕ {error}</p>}
         <button className="btn" onClick={confirm}>Confirmer l'achat simulé</button>
         <button className="btn btn-ghost" onClick={onClose}>Annuler</button>

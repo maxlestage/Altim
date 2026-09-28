@@ -47,6 +47,17 @@ pub struct Llama {
     pub parents: Vec<(String, String)>,
     /// (gecko id, slug, TVL)
     pub protocols: Vec<(String, String, Option<f64>)>,
+    /// TVL now and a month ago per token symbol (lite/protocols2).
+    pub tvl_month: Vec<TvlMonth>,
+}
+
+/// TVL of the protocols carrying one token, now and a month ago (USD), and the largest of those protocols.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TvlMonth {
+    pub symbol: String,
+    pub tvl: f64,
+    pub month_ago: f64,
+    pub protocols: Vec<String>,
 }
 
 fn positive(x: Option<f64>) -> Option<f64> {
@@ -167,6 +178,34 @@ pub mod parse {
             .filter_map(|p| Some((p.get("geckoId")?.as_str()?.to_string(), slug(p.get("name")?.as_str()?), positive(num(p.get("tvl"))))))
             .collect();
         (parents, protocols)
+    }
+
+    /// DefiLlama `/lite/protocols2`: TVL now and a month ago (`tvlPrevMonth`) summed per token symbol, like for
+    /// like: only the protocols that report both, with a TVL a month ago (a protocol tracked for less than a month
+    /// would read as growth). Deprecated ones and those without a token ("-") are left out.
+    pub fn llama_tvl_month(d: &Value) -> Vec<TvlMonth> {
+        let mut by: indexmap::IndexMap<String, (f64, f64, Vec<(f64, String)>)> = indexmap::IndexMap::new();
+        for p in d.get("protocols").and_then(|x| x.as_array()).map(|a| a.as_slice()).unwrap_or(&[]) {
+            if p.get("deprecated").and_then(|x| x.as_bool()) == Some(true) {
+                continue;
+            }
+            let Some(sym) = p.get("symbol").and_then(|x| x.as_str()).map(|s| s.trim().to_uppercase()).filter(|s| !s.is_empty() && s != "-") else {
+                continue;
+            };
+            let (Some(now), Some(before)) = (num(p.get("tvl")).filter(|v| *v >= 0.0), num(p.get("tvlPrevMonth")).filter(|v| *v > 0.0)) else {
+                continue;
+            };
+            let e = by.entry(sym).or_insert((0.0, 0.0, vec![]));
+            e.0 += now;
+            e.1 += before;
+            e.2.push((now, p.get("name").and_then(|x| x.as_str()).unwrap_or("?").to_string()));
+        }
+        by.into_iter()
+            .map(|(symbol, (tvl, month_ago, mut names))| {
+                names.sort_by(|a, b| b.0.total_cmp(&a.0));
+                TvlMonth { symbol, tvl, month_ago, protocols: names.into_iter().take(3).map(|x| x.1).collect() }
+            })
+            .collect()
     }
 
     /// DefiLlama `/summary/fees/{slug}`: fees of the last 30 days, only when the answer names the same CoinGecko id.
@@ -426,8 +465,10 @@ async fn llama() -> Result<Arc<Llama>> {
         if let (Err(e), Err(_)) = (&chains, &lite) {
             return Err(e.clone());
         }
-        let (parents, protocols) = lite.ok().as_ref().map(parse::llama_protocols).unwrap_or_default();
-        Ok(Llama { chains: chains.ok().as_ref().map(parse::llama_chains).unwrap_or_default(), parents, protocols })
+        let lite = lite.ok();
+        let (parents, protocols) = lite.as_ref().map(parse::llama_protocols).unwrap_or_default();
+        let tvl_month = lite.as_ref().map(parse::llama_tvl_month).unwrap_or_default();
+        Ok(Llama { chains: chains.ok().as_ref().map(parse::llama_chains).unwrap_or_default(), parents, protocols, tvl_month })
     })
     .await
 }
@@ -462,6 +503,11 @@ async fn tvl_and_fees(gecko: &str) -> (Option<f64>, Option<f64>) {
     .ok()
     .and_then(|v| *v);
     (tvl, fees)
+}
+
+/// TVL now and a month ago of the protocols carrying each token (DefiLlama index, cached 6 h).
+pub async fn tvl_month() -> Result<Vec<TvlMonth>> {
+    Ok(llama().await?.tvl_month.clone())
 }
 
 async fn bitcoin_network() -> (Option<f64>, Option<f64>) {

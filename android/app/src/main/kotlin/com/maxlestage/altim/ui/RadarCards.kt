@@ -75,6 +75,7 @@ fun ConfigChangesCard(transitions: List<ConfigTransition>, open: (Asset) -> Unit
                         "${Format.shortDateTime(t.at)} · niveau ${t.from.levelLabel} → ${t.to.levelLabel} · configuration précédente vue le ${Format.shortDateTime(t.since)}" +
                             if (t.personal) " · mode personnel" else "",
                     )
+                    if (t.changes.isNotEmpty()) Text("Pourquoi le signal a changé : ${t.changes.joinToString(" ; ")}.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.88f))
                     if (t.missing.isNotEmpty()) Text("Conditions manquantes : ${t.missing.joinToString(" ; ")}.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.88f))
                     if (t.triggers.isNotEmpty()) Text("Ce qui changerait la décision : ${t.triggers.joinToString(" ; ")}.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.88f))
                 }

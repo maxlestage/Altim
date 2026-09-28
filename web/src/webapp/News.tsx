@@ -5,6 +5,8 @@ import { assetKey, useAppState, useHoldings } from "./store";
 import type { NewsCategory, NewsItem } from "../engine/news";
 import { THEME_LABEL } from "../engine/news";
 import { Agenda } from "./Agenda";
+import { onLink } from "./router";
+import { IMPACT_LABEL, assetLink, basisLabel, consensusText, moveText, summaryHeading, type StorySummary } from "./news-summary";
 
 type View = "articles" | "agenda";
 const VIEWS: [View, string][] = [["articles", "Articles"], ["agenda", "Agenda"]];
@@ -50,6 +52,84 @@ function Story({ n, featured }: { n: NewsItem; featured?: boolean }) {
         </div>
       )}
     </li>
+  );
+}
+
+const TONE_MARK: Record<string, string> = { negative: "▼", positive: "▲", neutral: "·" };
+
+function SummaryEvent({ s }: { s: StorySummary }) {
+  return (
+    <li className={`news-item summary-item ${s.alert ? "alert" : ""}`}>
+      <a href={s.link} target="_blank" rel="noopener noreferrer nofollow"><b>{s.title}</b></a>
+      <div className="news-tags">
+        <span className={`chip impact ${s.impact}`}>Impact potentiel {IMPACT_LABEL[s.impact]}</span>
+        <span className="chip muted">{basisLabel(s)}</span>
+      </div>
+      {s.assets.length > 0 && (
+        <div className="news-tags small">
+          <span className="muted">Actifs concernés</span>
+          {s.assets.map((id) => {
+            const a = assetLink(id);
+            return <a key={id} href={a.href} onClick={onLink} className="chip link">{a.symbol}</a>;
+          })}
+        </div>
+      )}
+      <p className="small"><span className="muted">Sources </span>{consensusText(s)}</p>
+      {s.moves.map((m) => (
+        <p key={m.asset} className="small">
+          <span className={m.changePct >= 0 ? "up" : "down"}>{moveText(m)}</span>{" "}
+          <span className="muted">(clôtures horaires, pas forcément dues à cette actualité)</span>
+        </p>
+      ))}
+      {s.technical.map((t) => (
+        <p key={t.asset} className="small summary-tech">
+          <span className="muted">Impact sur le signal technique{s.technical.length > 1 ? ` (${assetLink(t.asset).symbol})` : ""} : </span>{t.text}
+        </p>
+      ))}
+      <details className="small">
+        <summary>Sources et calcul</summary>
+        <ul className="news-sources">
+          {s.links.map((l) => (
+            <li key={l.link}>
+              <span className={l.tone === "negative" ? "down" : l.tone === "positive" ? "up" : "muted"} aria-label={l.tone}>{TONE_MARK[l.tone]}</span>{" "}
+              <a className="link" href={l.link} target="_blank" rel="noopener noreferrer nofollow">{l.source}</a> <span className="muted">· {l.title}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="muted">
+          Règle : {s.impactReasons.filter((r) => r.includes("(+")).join(" ; ")} → {s.impactPoints} point{s.impactPoints > 1 ? "s" : ""}, impact {IMPACT_LABEL[s.ruleImpact]} par règle
+          {s.impactBasis === "measured" ? ` ; retenu : ${IMPACT_LABEL[s.impact]}, d'après la variation mesurée (${s.impactReasons.filter((r) => !r.includes("(+")).join(" ; ")}).` : "."}
+        </p>
+      </details>
+    </li>
+  );
+}
+
+function Summary({ list }: { list: StorySummary[] }) {
+  const head = summaryHeading(list);
+  return (
+    <div className="card news-summary">
+      <h2 className="card-title">{head.title}</h2>
+      {head.others && <p className="small">{head.others}</p>}
+      <p className="muted small">
+        Sujets des dernières 24 h repris par plusieurs sources indépendantes, escalades graves, ou articles citant vos actifs sur un sujet sensible. Impact potentiel indicatif, pas un signal.
+      </p>
+      {list.length > 0 && <ol className="news-list">{list.map((s) => <SummaryEvent key={s.id} s={s} />)}</ol>}
+      <details className="small">
+        <summary>Comment l'impact est estimé</summary>
+        <p className="muted">
+          Par règle : sources indépendantes, un même titre repris mot pour mot comptant pour une (2–3 : +1, 4 et plus : +2), thème (escalade grave +2 ; banques centrales, régulation ou piratage +1),
+          cite un de vos actifs (+1). 0–1 point : faible, 2–3 : moyen, 4 et plus : important.
+        </p>
+        <p className="muted">
+          Mesuré : si les bougies horaires d'un actif cité sont déjà en mémoire sur le serveur, la plus forte variation depuis la clôture précédant la
+          publication (action : 1 % moyen, 3 % important ; crypto : 2 % et 5 %). Une variation après un article ne prouve pas qu'il en est la cause.
+        </p>
+        <p className="muted">
+          Consensus : ton des titres de chaque source (repérage par mots-clés) ; divergent dès qu'un titre est négatif et un autre positif.
+        </p>
+      </details>
+    </div>
   );
 }
 
@@ -135,6 +215,8 @@ export function News() {
 
       {view === "agenda" ? <Agenda /> : <>
       {error && <p className="notice warn">⚠ {error}</p>}
+
+      {report?.summary && <Summary list={report.summary} />}
 
       {top.length > 0 && filter === "all" && (
         <div className="card">

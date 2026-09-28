@@ -41,9 +41,16 @@ import com.maxlestage.altim.kit.decodePaper
 import com.maxlestage.altim.kit.encodePaper
 import com.maxlestage.altim.kit.newPaper
 import com.maxlestage.altim.kit.openPosition
+import com.maxlestage.altim.kit.JournalMarket
+import com.maxlestage.altim.kit.NewTradeEntry
+import com.maxlestage.altim.kit.TradeEntry
+import com.maxlestage.altim.kit.TradeJournal
+import com.maxlestage.altim.kit.TradeJournalState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import java.util.UUID
 import kotlinx.serialization.builtins.ListSerializer
 import okhttp3.HttpUrl
 
@@ -118,6 +125,18 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
      */
     var paper by mutableStateOf(decodePaper(prefs.getString("paper", null)) ?: newPaper(Paper.DEFAULT_CAPITAL, System.currentTimeMillis().toDouble()))
         private set
+    /**
+     * Automatic trading journal (simulated purchases, real purchases and sales of Mes avoirs), kept on this phone only.
+     * Unreadable saved data is ignored (kept aside as "tradeJournal.v1.invalid" at the next write), with a message.
+     */
+    private val savedJournal = TradeJournal.parseSaved(prefs.getString(TradeJournal.KEY, null))
+    var tradeJournal by mutableStateOf(savedJournal.state)
+        private set
+    var tradeJournalError by mutableStateOf(savedJournal.error)
+        private set
+    /** Last decisions received in this session (memory only): the one "of the moment" for a journal entry. */
+    private val recentDecisions = mutableMapOf<String, Pair<Double, Decision>>()
+
     /** Positions just closed by their stop or target (shown once in the Simulation part). */
     var paperJustClosed by mutableStateOf<List<PaperTrade>>(emptyList())
     /** Incremented each time the app comes back to the foreground (the Simulation part checks its exits again). */
@@ -182,6 +201,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
      */
     fun recordDecision(d: Decision, personal: Boolean = d.isPersonal, now: Double = System.currentTimeMillis().toDouble()): ConfigTransition? {
         if (offlineSince != null) return null
+        d.kind?.let { k -> recentDecisions["${k.raw}:${d.symbol}"] = now to d }
         val u = ConfigChanges.apply(configChanges, d, personal, now)
         configChanges = u.state
         prefs.edit().putString(ConfigChanges.KEY, ConfigChanges.encode(u.state)).apply()
@@ -429,10 +449,84 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     }
 
     /** Simulated purchase (nothing is sent anywhere): the engine's French error when refused. */
-    fun paperBuy(order: OpenOrder): String? {
-        val r: PaperResult = openPosition(paper, order, System.currentTimeMillis().toDouble())
-        if (r.error == null) storePaper(r.state)
+    fun paperBuy(order: OpenOrder, decision: Decision? = null, note: String = ""): String? {
+        val now = System.currentTimeMillis().toDouble()
+        val r: PaperResult = openPosition(paper, order, now)
+        if (r.error == null) {
+            storePaper(r.state)
+            // Written in the journal with the decision shown and the note ("Pourquoi j'entre").
+            r.state.positions.lastOrNull()?.let { pos ->
+                recordTrade(
+                    NewTradeEntry(
+                        UUID.randomUUID().toString(), now, "paper", "buy", pos.symbol, pos.kind, pos.name, pos.entry,
+                        quantity = pos.quantity, amount = pos.invested, stop = pos.stop, targets = listOf(pos.target), note = note, refId = pos.id, decision = decision,
+                    ),
+                )
+            }
+        }
         return r.error
+    }
+
+    // ---------- Automatic journal ----------
+
+    private fun storeJournal(s: TradeJournalState) {
+        val edit = prefs.edit()
+        if (tradeJournalError != null) prefs.getString(TradeJournal.KEY, null)?.let { edit.putString("${TradeJournal.KEY}.invalid", it) }
+        edit.putString(TradeJournal.KEY, TradeJournal.encode(s)).apply()
+        tradeJournal = s
+        tradeJournalError = null
+    }
+
+    /** The decision seen on this phone for this asset, when recent enough to be "the one of the moment". */
+    fun recentDecision(asset: Asset, now: Double = System.currentTimeMillis().toDouble()): Decision? {
+        val (at, d) = recentDecisions[asset.id] ?: return null
+        return d.takeIf { now - at <= TradeJournal.DECISION_MAX_AGE && now - d.asOf <= TradeJournal.DECISION_MAX_AGE }
+    }
+
+    /** Writes an entry and completes it in the background with the market data of that moment. Returns its id. */
+    fun recordTrade(n: NewTradeEntry): String {
+        val e = TradeJournal.createEntry(n)
+        storeJournal(TradeJournal.addEntry(tradeJournal, e))
+        scope.launch { runCatching { enrichTrade(e) } }
+        return e.id
+    }
+
+    /** A real purchase or sale saved in « Mes avoirs » (the decision of the moment when one was seen recently). */
+    fun recordRealTrade(asset: Asset, side: String, price: Double, quantity: Double, stop: Double? = null, note: String = "", refId: String? = null): String? {
+        if (!(price > 0) || !(quantity > 0)) return null
+        return recordTrade(
+            NewTradeEntry(
+                UUID.randomUUID().toString(), System.currentTimeMillis().toDouble(), "real", side, asset.symbol, asset.kind, asset.name, price,
+                quantity = quantity, amount = price * quantity, stop = stop, note = note, refId = refId, decision = recentDecision(asset),
+            ),
+        )
+    }
+
+    fun setJournalNote(id: String, note: String) = storeJournal(TradeJournal.patchEntry(tradeJournal, id, note = note))
+    fun deleteJournalEntry(id: String) = storeJournal(TradeJournal.removeEntry(tradeJournal, id))
+
+    /** Macro stress, ATR and relative volume of that moment (and the decision when none was loaded); a failed fetch leaves the field unknown. */
+    private suspend fun enrichTrade(e: TradeEntry) {
+        val c = client ?: return
+        val asset = e.asset
+        val macro = runCatching { c.macro() }.getOrNull()
+        val candles = runCatching { c.candles(asset, "1d").candles }.getOrNull()
+        val decision = if (e.decision == null) runCatching { c.decision(asset) }.getOrNull() else null
+        var market = JournalMarket(macroScore = macro?.score, macroLevel = macro?.level)
+        if (!candles.isNullOrEmpty()) {
+            val (atrPct, relVol) = TradeJournal.marketFromCandles(candles, e.createdAt)
+            val current = tradeJournal.entries.firstOrNull { it.id == e.id }
+            market = market.copy(atrPct = atrPct, relativeVolume = if (current?.market?.relativeVolume == null) relVol else null)
+        }
+        decision?.let { d ->
+            val m = TradeJournal.marketFromDecision(d)
+            market = market.copy(regime = m.regime, regimeLabel = m.regimeLabel, relativeVolume = m.relativeVolume ?: market.relativeVolume, events = m.events)
+        }
+        val current = tradeJournal.entries.firstOrNull { it.id == e.id } ?: return
+        if (current.market.regime == null && market.regime == null) {
+            macro?.regime?.let { r -> market = market.copy(regime = TradeJournal.regimeRaw(r.kind), regimeLabel = r.label) }
+        }
+        storeJournal(TradeJournal.patchEntry(tradeJournal, e.id, market = market, decision = decision?.let(TradeJournal::snapshotDecision)))
     }
 
     fun paperSell(id: String, price: Double): String? {

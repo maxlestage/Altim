@@ -207,6 +207,8 @@ export function Selection() {
         <LiveBadge status={live.status} last={live.last} />
       </div>
 
+      <a className="notice opp-link" href="/app/opportunites" onClick={onLink}><b>Opportunités du moment →</b> retournements, cassures, volumes anormaux, survendus, fondamentaux qui évoluent.</a>
+
       <Segmented<Market>
         label="Marché"
         value={market}

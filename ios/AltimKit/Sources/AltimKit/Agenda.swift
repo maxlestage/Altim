@@ -143,17 +143,168 @@ public enum Agenda {
         return Array(assets.filter { $0.kind == .stock }.map { $0.symbol.uppercased() }.filter { seen.insert($0).inserted }.prefix(50))
     }
 
-    /// Query of /api/calendar: no symbol, the whole calendar (filtered on the device when "Mes actifs" is on).
-    public static func query(days: Int, symbols: [String]?) -> [String: String] {
+    /// Query of /api/calendar: no symbol, the whole calendar (filtered on the device when "Mes actifs" is on). `top`:
+    /// the company events of `symbols` and of the largest companies together (the risk view), only with symbols.
+    public static func query(days: Int, symbols: [String]?, top: Bool = false) -> [String: String] {
         var q = ["days": String(days)]
-        if let symbols, !symbols.isEmpty { q["symbols"] = symbols.joined(separator: ",") }
+        if let symbols, !symbols.isEmpty {
+            q["symbols"] = symbols.joined(separator: ",")
+            if top { q["top"] = "1" }
+        }
         return q
     }
+
+    // MARK: Risk by day (web calendar.ts `riskDays`)
+
+    /// 🔴 high, 🟠 medium, 🟢 low.
+    public enum RiskLevel: String, Sendable, Hashable {
+        case high, medium, low
+        public var icon: String {
+            switch self {
+            case .high: return "🔴"
+            case .medium: return "🟠"
+            case .low: return "🟢"
+            }
+        }
+        public var label: String {
+            switch self {
+            case .high: return "Risque élevé"
+            case .medium: return "Risque modéré"
+            case .low: return "Risque faible"
+            }
+        }
+        var rank: Int { self == .high ? 2 : self == .medium ? 1 : 0 }
+    }
+
+    /// The categories whose high-importance releases make a 🔴 day.
+    private static let major: Set<String> = ["tauxDirecteurs", "inflation", "emploi", "pib"]
+
+    /// Risk of one event, nil when it does not count (IPOs, other companies' dividends and splits).
+    /// - 🔴: a high-importance central bank decision / inflation (CPI) / jobs / GDP release, or the earnings of a stock
+    ///   the user holds or watches;
+    /// - 🟠: the other macro and central bank events, the earnings of other companies (the calendar keeps the largest
+    ///   US ones only), a dividend or split of a held stock.
+    public static func eventRisk(_ e: CalendarEvent, held: [String], watched: [String]) -> RiskLevel? {
+        let sym = e.symbol.map(norm) ?? ""
+        let isHeld = !sym.isEmpty && held.contains { norm($0) == sym }
+        let isMine = isHeld || (!sym.isEmpty && watched.contains { norm($0) == sym })
+        switch e.kind {
+        case .macro, .centralBank: return e.importance == "high" && major.contains(e.category) ? .high : .medium
+        case .earnings: return isMine ? .high : .medium
+        case .dividend, .split: return isHeld ? .medium : nil
+        default: return nil
+        }
+    }
+
+    private static let acronym = try? NSRegularExpression(pattern: #"\(([^)]*[A-Z]{2,}[^)]*)\)\s*$"#)
+
+    /// Short name of an event for the risk row: "CPI", "Décision de taux de la Fed", "Résultats AAPL"…
+    public static func shortTitle(_ e: CalendarEvent) -> String {
+        if let s = e.symbol {
+            switch e.kind {
+            case .earnings: return "Résultats \(s)"
+            case .dividend: return "Dividende \(s)"
+            case .split: return "Split \(s)"
+            default: break
+            }
+        }
+        // The acronym in brackets when there is one ("Inflation (CPI)" → "CPI"), else the whole title.
+        var name = e.title
+        if e.kind == .macro, let re = acronym,
+           let m = re.firstMatch(in: e.title, range: NSRange(e.title.startIndex..., in: e.title)),
+           let r = Range(m.range(at: 1), in: e.title) {
+            name = String(e.title[r])
+        }
+        if e.kind == .macro, let c = e.country, !c.isEmpty, c != "États-Unis" { return "\(name) (\(c))" }
+        return name
+    }
+
+    public struct RiskEvent: Sendable {
+        public var event: CalendarEvent
+        public var risk: RiskLevel
+    }
+
+    public struct RiskDay: Sendable, Identifiable {
+        /// "YYYY-MM-DD".
+        public var day: String
+        /// "Lun. 28 sept."
+        public var label: String
+        public var weekend: Bool
+        public var level: RiskLevel
+        /// Short names of the events at the day's level, in the calendar's order, without repeats.
+        public var main: [String]
+        /// Every event that counts, with its risk.
+        public var events: [RiskEvent]
+        /// A source could not be read for this day: 🟢 is then not asserted.
+        public var incomplete: Bool
+        public var id: String { day }
+        /// Sources incomplete and nothing found: the risk is not assessed (⚪).
+        public var unknown: Bool { incomplete && level == .low }
+    }
+
+    private static var utc: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        return c
+    }
+
+    private static func parseDay(_ day: String) -> Date? {
+        let p = day.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { return nil }
+        return utc.date(from: DateComponents(year: p[0], month: p[1], day: p[2], hour: 12))
+    }
+
+    private static let weekdays = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."]
+    static let months = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."]
+
+    /// "Lun. 28 sept." (a calendar day, read without time zone).
+    public static func riskDayLabel(_ day: String) -> String {
+        guard let d = parseDay(day) else { return day }
+        let c = utc.dateComponents([.weekday, .day, .month], from: d)
+        let w = weekdays[((c.weekday ?? 1) - 1) % 7]
+        return "\(w.prefix(1).uppercased())\(w.dropFirst()) \(c.day ?? 1) \(months[((c.month ?? 1) - 1) % 12])"
+    }
+
+    /// The `n` days from `from` ("YYYY-MM-DD", the report's first day, Paris time), weekends included, each with its
+    /// risk: the highest of its events' (`eventRisk`), 🟢 when none counts. `failed`: days a source could not read.
+    public static func riskDays(_ events: [CalendarEvent], from: String, held: [String], watched: [String], n: Int = 7, failed: [String] = []) -> [RiskDay] {
+        guard let start = parseDay(from) else { return [] }
+        let cal = utc
+        return (0..<max(0, n)).compactMap { i -> RiskDay? in
+            guard let date = cal.date(byAdding: .day, value: i, to: start) else { return nil }
+            let c = cal.dateComponents([.year, .month, .day, .weekday], from: date)
+            let day = String(format: "%04d-%02d-%02d", c.year ?? 1970, c.month ?? 1, c.day ?? 1)
+            let counted = events.filter { $0.day == day }.compactMap { e in eventRisk(e, held: held, watched: watched).map { RiskEvent(event: e, risk: $0) } }
+            let level = counted.reduce(RiskLevel.low) { $1.risk.rank > $0.rank ? $1.risk : $0 }
+            var seen = Set<String>()
+            let main = counted.filter { $0.risk == level }.map { shortTitle($0.event) }.filter { seen.insert($0).inserted }
+            let dow = c.weekday ?? 2
+            return RiskDay(day: day, label: riskDayLabel(day), weekend: dow == 1 || dow == 7, level: level, main: main, events: counted,
+                           incomplete: failed.contains(day))
+        }
+    }
+
+    /// Days a source could not read ("YYYY-MM-DD" only: the IPO months do not change the risk).
+    public static func failedDays(_ report: CalendarReport) -> [String] {
+        var seen = Set<String>()
+        return report.sources.flatMap { ($0.failed ?? []).filter { $0.count == 10 } }.filter { seen.insert($0).inserted }
+    }
+
+    /// Text of a risk row: "Sources incomplètes : risque non évalué", "Aucun événement majeur", or the main events
+    /// (3 at most, "+2" for the others).
+    public static func riskText(_ d: RiskDay) -> String {
+        if d.unknown { return "Sources incomplètes : risque non évalué" }
+        if d.level == .low { return "Aucun événement majeur" }
+        let extra = d.main.count > 3 ? " +\(d.main.count - 3)" : ""
+        return d.main.prefix(3).joined(separator: " · ") + extra
+    }
+
+    public static let riskRule = "🔴 décision de taux d'une banque centrale, inflation (CPI), emploi ou PIB d'importance haute, ou résultats d'une action de vos avoirs ou de votre radar. 🟠 autres publications économiques et banques centrales, résultats des grandes capitalisations américaines, dividende ou split d'une action détenue. 🟢 aucun de ces événements. Heures et jours de Paris ; seules les sources de l'Agenda sont prises en compte (voir « Non couvert »)."
 }
 
 extension AltimClient {
     /// Agenda of the next `days` days; `symbols` limits the company events to these stocks.
-    public func calendar(days: Int, symbols: [String]?) async throws -> CalendarReport {
-        try await getCalendar(Agenda.query(days: days, symbols: symbols))
+    public func calendar(days: Int, symbols: [String]?, top: Bool = false) async throws -> CalendarReport {
+        try await getCalendar(Agenda.query(days: days, symbols: symbols, top: top))
     }
 }

@@ -76,6 +76,8 @@ import com.maxlestage.altim.kit.StressResult
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.Holding
+import com.maxlestage.altim.kit.HoldingChange
+import com.maxlestage.altim.kit.TradeJournal
 import com.maxlestage.altim.kit.Portfolio
 import com.maxlestage.altim.kit.PortfolioLine
 import com.maxlestage.altim.kit.RadarRow
@@ -99,7 +101,8 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     var form by remember { mutableStateOf<Holding?>(null) }
     var adding by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
-    var simulation by rememberSaveable { mutableStateOf(false) }
+    // "real", "paper" (simulation, no real money) or "journal".
+    var view by rememberSaveable { mutableStateOf("real") }
     // Daily candles of the lines and of the benchmarks (Bitcoin, S&P 500 via SPY): betas, limits, dangerous positions.
     val daily = remember { mutableStateMapOf<String, List<Candle>>() }
     var marketLoads by remember { mutableIntStateOf(0) }
@@ -159,21 +162,24 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     Column(modifier.statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Mes avoirs", fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            if (!simulation) IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, contentDescription = "Ajouter un avoir", tint = AltimColors.cyan) }
+            if (view == "real") IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, contentDescription = "Ajouter un avoir", tint = AltimColors.cyan) }
         }
-        // Real holdings, or the simulated portfolio (no real money).
+        // Real holdings, the simulated portfolio (no real money), or the automatic journal of both.
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            listOf(false to "Réel", true to "Simulation").forEachIndexed { i, (sim, label) ->
+            val views = listOf("real" to "Réel", "paper" to "Simulation", "journal" to "Journal")
+            views.forEachIndexed { i, (key, label) ->
                 SegmentedButton(
-                    selected = simulation == sim,
-                    onClick = { simulation = sim },
-                    shape = SegmentedButtonDefaults.itemShape(i, 2),
+                    selected = view == key,
+                    onClick = { view = key },
+                    shape = SegmentedButtonDefaults.itemShape(i, views.size),
                     colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
                 ) { Text(label) }
             }
         }
-        if (simulation) {
+        if (view == "paper") {
             PaperPane(model, Modifier.fillMaxSize())
+        } else if (view == "journal") {
+            JournalPane(model, open, Modifier.fillMaxSize())
         } else PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
                 if (model.holdings.isEmpty()) {
@@ -211,13 +217,14 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 risk?.let { r ->
                     item { LimitsCard(r.limits) }
                     item { StressCard(r.portfolio, r.stress, r.betas) }
+                    item { WhatIfCard(r.portfolio, candles, model.client) }
                 }
             }
         }
     }
 
     if (adding || form != null) {
-        HoldingForm(model, form) {
+        HoldingForm(model, form, form?.let { prices[it.asset.id] }) {
             adding = false
             form = null
         }
@@ -312,7 +319,7 @@ private fun LineRow(line: PortfolioLine, signal: RadarRow?, danger: Danger?, onO
 /** Add or edit a line: asset (search), quantity, average purchase price. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HoldingForm(model: AppModel, holding: Holding?, close: () -> Unit) {
+private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, close: () -> Unit) {
     var asset by remember { mutableStateOf(holding?.asset) }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchItem>>(emptyList()) }
@@ -320,6 +327,9 @@ private fun HoldingForm(model: AppModel, holding: Holding?, close: () -> Unit) {
     var average by remember { mutableStateOf(holding?.averagePrice?.let { Format.quantity(it) } ?: "") }
     var current by remember { mutableStateOf<Double?>(null) }
     var stopText by remember { mutableStateOf(holding?.stop?.let { Format.quantity(it) } ?: "") }
+    // A first entry of holdings is usually past purchases: not journaled unless asked; later additions and edits are.
+    var journal by remember { mutableStateOf(holding != null || model.holdings.isNotEmpty()) }
+    var note by remember { mutableStateOf("") }
 
     LaunchedEffect(query) {
         val q = query.trim()
@@ -336,6 +346,13 @@ private fun HoldingForm(model: AppModel, holding: Holding?, close: () -> Unit) {
     val q = Format.parse(quantity)
     val stop = if (stopText.isBlank()) null else Format.parse(stopText)
     val valid = asset != null && q != null && q > 0 && (average.isEmpty() || (Format.parse(average) ?: -1.0) > 0) && (stopText.isBlank() || (stop ?: -1.0) > 0)
+    val avgNow = if (average.isEmpty()) null else Format.parse(average)
+    // What the save records: an edit's purchase or sale, or the purchase of a new line (at its average cost, else the current price).
+    val change = when {
+        !valid -> null
+        holding != null -> TradeJournal.holdingChange(holding.quantity, holding.averagePrice, q!!, avgNow, current ?: lastPrice)
+        else -> (avgNow ?: current)?.let { HoldingChange("buy", q!!, it, false) }
+    }
 
     ModalBottomSheet(onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = AltimColors.surface) {
         Column(
@@ -350,8 +367,12 @@ private fun HoldingForm(model: AppModel, holding: Holding?, close: () -> Unit) {
                     val avg = if (average.isEmpty()) null else Format.parse(average)
                     val list = model.holdings.toMutableList()
                     val i = list.indexOfFirst { it.id == holding?.id }
-                    if (i >= 0) list[i] = Holding(holding!!.id, a, q!!, avg, stop) else list += Holding(asset = a, quantity = q!!, averagePrice = avg, stop = stop)
+                    val saved = if (i >= 0) Holding(holding!!.id, a, q!!, avg, stop) else Holding(asset = a, quantity = q!!, averagePrice = avg, stop = stop)
+                    if (i >= 0) list[i] = saved else list += saved
                     model.updateHoldings(list)
+                    if (journal && change != null) {
+                        model.recordRealTrade(a, change.side, change.price, change.quantity, if (change.side == "buy") stop else null, note, saved.id)
+                    }
                     close()
                 }) { Text("Enregistrer", color = if (valid) AltimColors.cyan else AltimColors.textSecondary, fontWeight = FontWeight.Bold) }
             }
@@ -387,6 +408,14 @@ private fun HoldingForm(model: AppModel, holding: Holding?, close: () -> Unit) {
             Caption("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
             FormField(stopText, "Mon stop (USD, facultatif)", KeyboardType.Decimal) { stopText = it }
             Caption("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
+            change?.let { c ->
+                val text = if (holding == null) {
+                    "Achats faits aujourd'hui : les inscrire au journal"
+                } else {
+                    "${if (c.side == "buy") "Achat" else "Vente"} de ${Format.quantity(c.quantity)} ${holding.asset.symbol} à ${Format.price(c.price)}${if (c.implied) " (déduit du nouveau PRU)" else " (cours actuel)"} : l'inscrire au journal"
+                }
+                JournalToggle(journal, { journal = it }, note, { note = it }, text)
+            }
             Box(Modifier.height(24.dp))
         }
     }

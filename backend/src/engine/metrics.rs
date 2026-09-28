@@ -79,7 +79,7 @@ fn adjusted_curve(r: &BacktestResult, side: f64) -> Vec<f64> {
 }
 
 /// Mean ÷ deviation of the daily returns, annualised; None with fewer than 30 returns or no variation.
-fn ratios(curve: &[f64], per_year: f64) -> (Option<f64>, Option<f64>) {
+pub fn ratios(curve: &[f64], per_year: f64) -> (Option<f64>, Option<f64>) {
     let r: Vec<f64> = curve.windows(2).filter(|w| w[0] > 0.0).map(|w| w[1] / w[0] - 1.0).collect();
     if r.len() < 30 {
         return (None, None);

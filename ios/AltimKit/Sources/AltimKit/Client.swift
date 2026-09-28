@@ -92,7 +92,7 @@ public final class AltimClient: Sendable {
     }
 
     /// Paths whose last answer is kept for the offline mode (not the search nor the login).
-    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar"]
+    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies"]
     /// Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error.
     nonisolated(unsafe) static var retryDelays: [Double] = [0.5, 1.5]
 
@@ -238,6 +238,39 @@ public final class AltimClient: Sendable {
 
     func getCalendar(_ query: [String: String]) async throws -> CalendarReport {
         try await get("/api/calendar", query)
+    }
+
+    func getStrategies(_ query: [String: String]) async throws -> StrategiesReport {
+        try await get("/api/strategies", query)
+    }
+
+    func getWhy(_ query: [String: String]) async throws -> WhyReport {
+        try await get("/api/why", query)
+    }
+
+    func getAnomalies(_ query: [String: String]) async throws -> AnomalyReport {
+        try await get("/api/anomalies", query)
+    }
+
+    /// A read whose status matters (202 "pending" of a long scan).
+    func getWithStatus(_ path: String, _ query: [String: String]) async throws -> (Data, Int) {
+        try await authorized(request(path, query: query))
+    }
+
+    func decodeResponse<T: Decodable>(_ type: T.Type, _ data: Data, _ status: Int) throws -> T {
+        try decode(type, data, status)
+    }
+
+    /// POST of a JSON body (same session, same Origin as the website); never retried nor served from the cache.
+    func postJSON<T: Decodable>(_ path: String, _ body: Data) async throws -> T {
+        var r = request(path)
+        r.httpMethod = "POST"
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        r.setValue(origin, forHTTPHeaderField: "Origin")
+        r.httpBody = body
+        r.timeoutInterval = 45
+        let (data, status) = try await authorized(r)
+        return try decode(T.self, data, status)
     }
 
     public func selection(_ h: Horizon, kind: Kind) async throws -> SelectionResult {

@@ -164,10 +164,82 @@ fn assert_coherent(d: &Decision, what: &str) {
     }
     let st = d.structure.as_ref().expect("structure");
     assert!(st.levels.iter().all(|l| l.touches >= 2), "{what}");
+    assert_guidance(d, what);
     // Round trip through the contract.
     let json = serde_json::to_string(d).unwrap();
     let back: Decision = serde_json::from_str(&json).unwrap();
     assert_eq!(back.verdict, d.verdict);
+}
+
+/// "Quand ne pas trader", action zones, watched scenarios, counter-argument and snapshot follow what the decision
+/// measured, and never change the verdict.
+fn assert_guidance(d: &Decision, what: &str) {
+    // Not the moment to trade: every reason is sourced.
+    let nt = &d.no_trade;
+    assert_eq!(nt.active, !nt.reasons.is_empty(), "{what}");
+    assert_eq!(nt.headline.is_empty(), !nt.active, "{what}");
+    if nt.active {
+        assert!(nt.headline.starts_with("🕰️ Pas le moment de trader : "), "{what}: {}", nt.headline);
+    }
+    for r in &nt.reasons {
+        assert!(!r.label.is_empty() && !r.detail.is_empty(), "{what}: {r:?}");
+        match r.code.as_str() {
+            c @ ("volatility" | "liquidity" | "spread" | "announcement" | "event") => assert!(veto(d, c).active, "{what}: {c}"),
+            "degraded" => assert!(d.degraded.active, "{what}"),
+            "earnings" | "marketClosed" => assert_eq!(d.kind, Kind::Stock, "{what}"),
+            "trendless" | "weakSignal" => {}
+            c => panic!("{what}: unknown code {c}"),
+        }
+    }
+    assert_eq!(nt.reasons.iter().any(|r| r.code == "degraded"), d.degraded.active, "{what}");
+    // Action zones: the plan as an ascending ladder.
+    assert_eq!(d.action_zones.is_some(), d.plan.is_some(), "{what}");
+    if let (Some(z), Some(p)) = (&d.action_zones, &d.plan) {
+        assert_eq!(z.zones.len(), 5, "{what}");
+        assert!(z.zones.windows(2).all(|w| w[0].from <= w[1].from), "{what}: {:?}", z.zones);
+        assert!(z.zones.iter().all(|x| x.from <= x.to && !x.label.is_empty() && !x.note.is_empty()), "{what}: {:?}", z.zones);
+        let get = |k: &str| z.zones.iter().find(|x| x.kind == k).unwrap_or_else(|| panic!("{what}: zone {k}"));
+        assert_eq!((get("invalidation").from, get("invalidation").to), (p.stop, p.stop), "{what}");
+        assert_eq!((get("buy").from, get("buy").to), (p.zone_from, p.zone_to), "{what}");
+        assert_eq!((get("wait").from, get("profit").from), (p.zone_to, p.target1), "{what}");
+        if let Some(h) = &z.here {
+            let x = get(h);
+            assert!(z.price >= x.from && z.price <= x.to, "{what}: {h} {z:?}");
+        }
+        assert!(z.here_text.starts_with("Vous êtes ici"), "{what}");
+    }
+    // Scenarios: 3 / 2 / 3 conditions, exactly one unfolding, the same as `unfolding`.
+    for s in &d.scenarios {
+        let n = if s.kind == ScenarioKind::Neutral { 2 } else { 3 };
+        assert_eq!(s.conditions.len(), n, "{what}: {:?}", s.kind);
+        assert_eq!(s.met, s.conditions.iter().filter(|c| c.state == CheckState::Met).count(), "{what}");
+    }
+    let u = d.unfolding.as_ref().expect("unfolding");
+    let on: Vec<&Scenario> = d.scenarios.iter().filter(|s| s.unfolding).collect();
+    assert_eq!(on.len(), 1, "{what}");
+    assert_eq!((on[0].kind, on[0].met, on[0].conditions.len()), (u.kind, u.met, u.total), "{what}");
+    let share = |s: &Scenario| s.met as f64 / s.conditions.len() as f64;
+    assert!(d.scenarios.iter().all(|s| share(s) <= share(on[0]) + 1e-9 || u.kind == ScenarioKind::Neutral), "{what}");
+    // Counter-argument: counts from pros / cons, every invalidation condition listed.
+    let c = &d.counter_argument;
+    assert!(c.favourable <= d.pros.len() && c.unfavourable <= d.cons.len(), "{what}");
+    assert_eq!(c.text, format!("🟢 Raisons favorables : {} / 🔴 Raisons défavorables : {}", c.favourable, c.unfavourable));
+    for line in &d.why_not.invalidation {
+        assert!(c.invalidators.iter().any(|i| &i.text == line), "{what}: {line}");
+    }
+    assert!(c.invalidators.iter().filter(|i| i.kind == "level" || i.kind == "volume").all(|i| i.value.is_some_and(|v| v > 0.0)), "{what}");
+    // Snapshot: the same numbers as the decision.
+    let sn = &d.snapshot;
+    assert_eq!(sn.composite, d.score.value, "{what}");
+    assert_eq!(sn.families.len(), d.families.len(), "{what}");
+    assert_eq!(sn.momentum, d.families.iter().find(|f| f.key == "momentum").and_then(|f| f.score), "{what}");
+    assert_eq!(sn.nearest_resistance.as_ref().map(|l| l.price), st_price(d, true), "{what}");
+    assert_eq!(sn.nearest_support.as_ref().map(|l| l.price), st_price(d, false), "{what}");
+}
+
+fn st_price(d: &Decision, resistance: bool) -> Option<f64> {
+    let st = d.structure.as_ref()?;
+    if resistance { st.nearest_resistance.as_ref().map(|l| l.price) } else { st.nearest_support.as_ref().map(|l| l.price) }
 }
 
 // ---------- Real candles ----------
@@ -960,4 +1032,68 @@ fn market_regime_in_the_decision() {
     });
     assert_eq!(d.market_regime.unwrap().kind, RegimeKind::RiskOff);
     assert_eq!(d.rating, Rating::Hold, "no position on a macro shock without a downtrend: ATTENDRE");
+}
+
+/// "Quand ne pas trader": an announcement within 48 h and the sessions right after earnings, without changing the
+/// verdict when no veto is involved.
+#[test]
+fn not_the_moment_to_trade() {
+    let s = buy_setup();
+    let t = scenario_now(&s);
+    let fed: altim::calendar::CalendarEvent = serde_json::from_value(serde_json::json!({
+        "date": t + DAY_MS, "day": "2026-10-01", "time": "20:00", "kind": "centralBank", "category": "tauxDirecteurs",
+        "importance": "high", "title": "Décision de la Fed sur les taux", "country": "États-Unis",
+        "source": "Réserve fédérale", "url": "https://www.federalreserve.gov/"
+    }))
+    .unwrap();
+    let d = decide_on(&s, |i| i.events = Some(vec![fed.clone()]));
+    let r = d.no_trade.reasons.iter().find(|r| r.code == "announcement").expect("announcement");
+    assert!(r.detail.contains("Décision de la Fed sur les taux"), "{r:?}");
+    assert!(d.no_trade.headline.contains("annonce économique imminente"), "{}", d.no_trade.headline);
+    assert!(d.counter_argument.invalidators.iter().any(|i| i.kind == "event" && i.text.contains("Décision de la Fed")), "{:?}", d.counter_argument);
+    // Without a calendar: not a reason, said as not checked.
+    let d = decide_on(&s, |_| {});
+    assert!(d.no_trade.unchecked.iter().any(|u| u.starts_with("Annonce économique dans les 48 h")), "{:?}", d.no_trade.unchecked);
+    // A stock the session after its earnings: digesting, the verdict is untouched (the earnings veto only looks ahead).
+    let stock = Series { kind: Kind::Stock, ..buy_setup() };
+    let base = decide_on(&stock, |i| i.fundamentals = Some(Fundamentals::Stock(stock_fundamentals(Some(i.now + 40 * DAY_MS)))));
+    let after = decide_on(&stock, |i| {
+        // Midnight of the previous weekday (bare date, as the earnings sources give it).
+        let mut day = i.now.div_euclid(DAY_MS) - 1;
+        while (day + 3).rem_euclid(7) >= 5 {
+            day -= 1;
+        }
+        i.fundamentals = Some(Fundamentals::Stock(stock_fundamentals(Some(day * DAY_MS))));
+    });
+    let r = after.no_trade.reasons.iter().find(|r| r.code == "earnings").expect("earnings");
+    assert_eq!(r.label, "Lendemain de résultats", "{r:?}");
+    assert!(!base.no_trade.reasons.iter().any(|r| r.code == "earnings"));
+    assert_eq!(after.verdict, base.verdict, "the guidance never changes the verdict");
+    let soon = decide_on(&stock, |i| i.fundamentals = Some(Fundamentals::Stock(stock_fundamentals(Some(i.now + 2 * DAY_MS)))));
+    assert_eq!(soon.no_trade.reasons.iter().find(|r| r.code == "earnings").map(|r| r.label.as_str()), Some("Résultats imminents"));
+    assert!(veto(&soon, "earnings").active, "same window as the veto");
+}
+
+/// Action zones and watched scenarios on hand-made paths: above the zone the price is in the wait zone; in a
+/// downtrend the bearish scenario's conditions are the ones met.
+#[test]
+fn action_zones_and_watched_scenarios() {
+    let d = decide_on(&uptrend_pullback(0.1, &[]), |_| {});
+    let z = d.action_zones.as_ref().unwrap();
+    assert_eq!(z.here.as_deref(), Some("wait"), "{z:?}");
+    assert!(z.here_text.starts_with("Vous êtes ici : zone d'attente"), "{}", z.here_text);
+    let d = decide_on(&buy_setup(), |_| {});
+    let z = d.action_zones.as_ref().unwrap();
+    assert!(matches!(z.here.as_deref(), Some("buy") | Some("wait")), "{z:?}");
+    let d = decide_on(&downtrend(), |_| {});
+    assert!(d.action_zones.is_none() && d.plan.is_none());
+    let bear = d.scenarios.iter().find(|s| s.kind == ScenarioKind::Bear).unwrap();
+    assert!(bear.conditions.iter().any(|c| c.text == "RSI sous 50" && c.state == CheckState::Met), "{:?}", bear.conditions);
+    let u = d.unfolding.as_ref().unwrap();
+    assert!(u.text.contains("pas une prévision"), "{}", u.text);
+    assert_ne!(u.kind, ScenarioKind::Bull, "{u:?}");
+    // Counter-argument: in a downtrend, the resistance and a volume surge would prove the wait wrong.
+    let c = &d.counter_argument;
+    assert!(c.invalidators.iter().any(|i| i.kind == "volume" && i.text.contains("1,5 × la moyenne 20 j")), "{c:?}");
+    assert!(c.unfavourable > 0);
 }

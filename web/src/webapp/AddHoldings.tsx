@@ -5,6 +5,8 @@ import { api, type UniverseItem } from "./api";
 import { AssetPicker, KIND_LABEL } from "./AssetPicker";
 import { AssetSearch } from "./AssetSearch";
 import { addHoldings, assetKey, useHoldings } from "./store";
+import { recordRealTrade } from "./journal-store";
+import { JournalToggle } from "./Journal";
 
 type Line = { asset: UniverseItem; qty: string; pru: string };
 
@@ -17,6 +19,9 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
   const [lines, setLines] = useState<Line[]>([]);
   const [picking, setPicking] = useState<Kind | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
+  // A first entry of holdings is usually past purchases: not journaled unless asked; later additions are.
+  const [journal, setJournal] = useState(holdings.length > 0);
+  const [note, setNote] = useState("");
   const keys = lines.map((l) => assetKey(l.asset));
 
   // Current consensus price of every chosen asset (default average cost, amount check).
@@ -45,6 +50,7 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
 
   const save = () => {
     addHoldings(ready.map((p) => ({ symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, quantity: p.quantity, averagePrice: p.averagePrice })));
+    if (journal) for (const p of ready) recordRealTrade({ side: "buy", symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, price: p.averagePrice, quantity: p.quantity, note });
     onClose();
   };
 
@@ -100,7 +106,8 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
           {section("crypto")}
           {section("stock")}
           {ready.length > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(invested)}</b></p>}
-          {incomplete > 0 && <p className="muted small">{incomplete} ligne{incomplete > 1 ? "s" : ""} sans quantité : ignorée{incomplete > 1 ? "s" : ""}.</p>}
+          {ready.length > 0 && <JournalToggle checked={journal} onChange={setJournal} note={note} onNote={setNote} text="Achats faits aujourd'hui : les inscrire au journal" />}
+          {incomplete > 0 &&<p className="muted small">{incomplete} ligne{incomplete > 1 ? "s" : ""} sans quantité : ignorée{incomplete > 1 ? "s" : ""}.</p>}
           <button className="btn" disabled={!ready.length} onClick={save}>
             {ready.length ? `Enregistrer ${ready.length} avoir${ready.length > 1 ? "s" : ""}` : "Enregistrer"}
           </button>
