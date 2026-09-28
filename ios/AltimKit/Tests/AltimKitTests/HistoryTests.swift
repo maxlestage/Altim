@@ -77,3 +77,36 @@ final class NewsAlertTests: XCTestCase {
         XCTAssertTrue(tracker.seen.isEmpty)
     }
 }
+
+final class DcaTests: XCTestCase {
+    func testExactThreeBuys() throws {
+        // 100 $ on days 0, 7 and 14 at 10, 20 and 5 $; last close 10 $ (same case as the site and Android).
+        func price(_ i: Int) -> Double { i < 7 ? 10 : (i < 14 ? 20 : (i < 20 ? 5 : 10)) }
+        let start = d("2026-09-01")
+        let closes: [(Double, Double)] = (0...20).map { (i: Int) -> (Double, Double) in (start + Double(i) * dayMs, price(i)) }
+        let r = try XCTUnwrap(DcaResult.simulate(closes, amount: 100, everyDays: 7, days: 20, now: Date(timeIntervalSince1970: d("2026-09-22") / 1000)))
+        XCTAssertEqual(r.buys, 3)
+        XCTAssertEqual(r.invested, 300)
+        XCTAssertEqual(r.units, 35, accuracy: 1e-9)
+        XCTAssertEqual(r.value, 350, accuracy: 1e-9)
+        XCTAssertEqual(r.gain, 50.0 / 3, accuracy: 1e-9)
+        XCTAssertEqual(r.lumpValue, 300, accuracy: 1e-9)
+    }
+
+    func testRealBitcoinAndBrief() throws {
+        let hurl = try XCTUnwrap(Bundle.module.url(forResource: "history", withExtension: "json", subdirectory: "Fixtures"))
+        let btc = try XCTUnwrap(try JSONDecoder().decode(HistoryResponse.self, from: Data(contentsOf: hurl)).byId["crypto:BTC"])
+        let r = try XCTUnwrap(DcaResult.simulate(btc, amount: 100, everyDays: 7, days: 90))
+        XCTAssertEqual(r.buys, 13)
+        XCTAssertEqual(r.lastPrice, 84464.605, accuracy: 1e-6)
+        XCTAssertGreaterThan(r.lumpGain, r.gain)
+        XCTAssertNil(DcaResult.simulate(btc, amount: 100, everyDays: 30, days: 365))
+
+        let burl = try XCTUnwrap(Bundle.module.url(forResource: "brief", withExtension: "json", subdirectory: "Fixtures"))
+        let b = try JSONDecoder().decode(Brief.self, from: Data(contentsOf: burl))
+        XCTAssertFalse(b.headline.isEmpty)
+        XCTAssertEqual(b.market?.level, "calm")
+        XCTAssertFalse(b.movers.isEmpty)
+        XCTAssertTrue(b.news.allSatisfy { $0.url != nil })
+    }
+}

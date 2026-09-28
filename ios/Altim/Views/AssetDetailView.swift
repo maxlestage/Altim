@@ -25,6 +25,7 @@ struct AssetDetailView: View {
                 guardCard
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
+                DcaCard(asset: asset)
                 Text("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }

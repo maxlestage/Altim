@@ -23,6 +23,7 @@ import { buyAlert } from "../src/engine/alerts";
 import { aggregate, newsDigest, topStories } from "../src/engine/news";
 import { fetchNews } from "./news";
 import { BENCHMARKS } from "../src/engine/history";
+import { MARKET_LABEL, headline, movers } from "../src/engine/brief";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
@@ -174,6 +175,48 @@ async function radarItem(asset: Asset, interval: Interval) {
   } catch (e) {
     return { symbol: asset.symbol, kind: asset.kind, error: e instanceof Error ? e.message : "indisponible" };
   }
+}
+
+/** "Can I buy now?" for each asset: the rule of the notifications (iPhone, Apple Watch, Android) and of the brief. */
+async function alertsFor(assets: Asset[]) {
+  return Promise.all(assets.map(async (a) => {
+    const [r, z, g] = await Promise.all([
+      radarItem(a, "4h"),
+      zones(a.symbol, a.kind).catch(() => null),
+      guardFor(a.symbol, a.kind).catch(() => null),
+    ]);
+    if ("error" in r && !z) return { symbol: a.symbol, kind: a.kind, name: a.name, error: r.error };
+    const price = z?.price ?? ("lastClose" in r ? r.lastClose : null) ?? null;
+    const alert = buyAlert({
+      symbol: a.symbol,
+      name: a.name,
+      price,
+      signal: "signal" in r && r.signal ? { action: r.signal.action, confidence: r.signal.confidence } : null,
+      reliability: "reliability" in r && r.reliability ? r.reliability.level : null,
+      zones: z?.zones ?? [],
+      shock: g?.shock.level ?? null,
+      trend: g?.regime.trend ?? null,
+      macro: z?.macro?.level ?? null,
+    });
+    return { symbol: a.symbol, kind: a.kind, name: a.name, price, asOf: Date.now(), ...alert };
+  }));
+}
+
+/** News section of these assets (cached 5 minutes per list of assets). */
+function newsReport(assets: Asset[]) {
+  const key = assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",");
+  return cached(`news:${key}`, 300_000, async () => {
+    const { results, watch } = await fetchNews(assets);
+    const now = Date.now();
+    const bySource = new Map<string, { name: string; ok: boolean; count: number; error?: string }>();
+    for (const r of results) {
+      const name = r.feed.name;
+      const prev = bySource.get(name);
+      bySource.set(name, { name, ok: (prev?.ok ?? false) || r.ok, count: (prev?.count ?? 0) + r.items.length, error: r.ok ? undefined : (prev?.error ?? r.error) });
+    }
+    const items = aggregate(results.map((r) => ({ category: r.feed.category, fallback: r.feed.fallback, items: r.items })), watch, now);
+    return { asOf: now, items, top: topStories(items).map((i) => i.id), digest: newsDigest(items, now), sources: [...bySource.values()] };
+  });
 }
 
 /** Search across the full universe (every crypto, every US-listed stock / ETF): exact symbols first, then the largest. */
@@ -412,36 +455,14 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
 
   // "Can I buy now?" for the notifications of the apps (iPhone, Apple Watch, Android): same rule everywhere.
   api.get("/alerts", wrap(async (req, res) => {
-    const assets = parseAssets(req.query.symbols);
-    const items = await Promise.all(assets.map(async (a) => {
-      const [r, z, g] = await Promise.all([
-        radarItem(a, "4h"),
-        zones(a.symbol, a.kind).catch(() => null),
-        guardFor(a.symbol, a.kind).catch(() => null),
-      ]);
-      if ("error" in r && !z) return { symbol: a.symbol, kind: a.kind, name: a.name, error: r.error };
-      const price = z?.price ?? ("lastClose" in r ? r.lastClose : null) ?? null;
-      const alert = buyAlert({
-        symbol: a.symbol,
-        name: a.name,
-        price,
-        signal: "signal" in r && r.signal ? { action: r.signal.action, confidence: r.signal.confidence } : null,
-        reliability: "reliability" in r && r.reliability ? r.reliability.level : null,
-        zones: z?.zones ?? [],
-        shock: g?.shock.level ?? null,
-        trend: g?.regime.trend ?? null,
-        macro: z?.macro?.level ?? null,
-      });
-      return { symbol: a.symbol, kind: a.kind, name: a.name, price, asOf: Date.now(), ...alert };
-    }));
-    res.json(items);
+    res.json(await alertsFor(parseAssets(req.query.symbols)));
   }));
 
-  // Daily closes of the held assets over 30, 90 or 365 days, plus Bitcoin and the S&P 500 to compare: the apps
+  // Daily closes of the held assets over 30, 90, 365 or 730 days (the crypto sources keep ≈ 1 000 days), plus Bitcoin and the S&P 500 to compare: the apps
   // multiply by their own quantities (which never leave the device).
   api.get("/history", wrap(async (req, res) => {
     const days = Number(req.query.days ?? 90);
-    if (![30, 90, 365].includes(days)) throw new BadRequest("days invalide (30 | 90 | 365)");
+    if (![30, 90, 365, 730].includes(days)) throw new BadRequest("days invalide (30 | 90 | 365 | 730)");
     const held = req.query.symbols ? parseAssets(req.query.symbols) : [];
     const all = [...held, ...BENCHMARKS.map((b) => { const [kind, symbol] = b.id.split(":"); return makeAsset(symbol!, kind as Kind); })];
     const unique = [...new Map(all.map((a) => [`${a.kind}:${a.symbol}`, a])).values()];
@@ -461,20 +482,38 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
   // plus Google News / Yahoo Finance per asset; duplicates merged, classified, most recent first.
   api.get("/news", wrap(async (req, res) => {
     const assets = req.query.symbols ? parseAssets(req.query.symbols) : [];
-    const key = assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",");
-    const report = await cached(`news:${key}`, 300_000, async () => {
-      const { results, watch } = await fetchNews(assets);
-      const now = Date.now();
-      const bySource = new Map<string, { name: string; ok: boolean; count: number; error?: string }>();
-      for (const r of results) {
-        const name = r.feed.name;
-        const prev = bySource.get(name);
-        bySource.set(name, { name, ok: (prev?.ok ?? false) || r.ok, count: (prev?.count ?? 0) + r.items.length, error: r.ok ? undefined : (prev?.error ?? r.error) });
-      }
-      const items = aggregate(results.map((r) => ({ category: r.feed.category, fallback: r.feed.fallback, items: r.items })), watch, now);
-      return { asOf: now, items, top: topStories(items).map((i) => i.id), digest: newsDigest(items, now), sources: [...bySource.values()] };
-    });
+    const report = await newsReport(assets);
     res.json(report);
+  }));
+
+  // "Point du jour": market climate, what can be bought now, moves since the last daily close, top stories. Each part
+  // that fails is left empty: the rest still comes.
+  api.get("/brief", wrap(async (req, res) => {
+    const assets = parseAssets(req.query.symbols);
+    const key = assets.map((a) => `${a.kind}:${a.symbol}`).sort().join(",");
+    res.json(await cached(`brief:${key}`, 120_000, async () => {
+      const [m, alerts, prices, closes, news] = await Promise.all([
+        macroNow().catch(() => null),
+        alertsFor(assets).catch(() => []),
+        quotes(assets).catch(() => []),
+        Promise.all(assets.map((a) => snap(a.symbol, a.kind, "1d").then((d) => [`${a.kind}:${a.symbol}`, d.candles.at(-1)?.close ?? null] as const).catch(() => [`${a.kind}:${a.symbol}`, null] as const))),
+        newsReport(assets).catch(() => null),
+      ]);
+      const buyable = alerts
+        .flatMap((x) => ("buy" in x && x.buy ? [{ symbol: x.symbol, kind: x.kind, strong: x.strong, title: x.title }] : []))
+        .sort((a, b) => Number(b.strong) - Number(a.strong));
+      const moves = movers(prices.map((p) => ({ symbol: p.symbol, kind: p.kind, price: p.price ?? null })), Object.fromEntries(closes));
+      const top = news ? news.top.map((id) => news.items.find((i) => i.id === id)).filter((i) => !!i).slice(0, 3) : [];
+      const level = m?.level ?? null;
+      return {
+        asOf: Date.now(),
+        headline: headline(level, buyable, moves),
+        market: m && { level: m.level, label: MARKET_LABEL[m.level], score: m.score, themes: m.themes.filter((t) => t.count > 0).map((t) => t.label).slice(0, 3) },
+        buyable,
+        movers: moves.slice(0, 6),
+        news: top,
+      };
+    }));
   }));
 
   // Macro / geopolitical context (market-wide), readable by bots.

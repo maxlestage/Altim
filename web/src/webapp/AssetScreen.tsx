@@ -6,6 +6,7 @@ import { formatPrice } from "../market";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot, type ZonesReport } from "./api";
 import { GuardCard } from "./GuardCard";
 import { ZonesCard } from "./ZonesCard";
+import { DcaCard } from "./DcaCard";
 import { zoneState } from "../engine/fibonacci";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
@@ -190,6 +191,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {zonesReport ? <ZonesCard report={zonesReport} price={price} horizon={horizon} /> : data && <div className="skeleton" aria-label="Chargement des zones d'achat" />}
 
       {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
+
+      <DcaCard symbol={symbol} kind={kind} />
 
       {data && (
         <div className="asset-grid">

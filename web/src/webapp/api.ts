@@ -60,6 +60,16 @@ export type BuyAlert = {
   reasons?: string[]; blockers?: string[]; cautions?: string[]; key?: string; title?: string; body?: string; error?: string;
 };
 
+/** "Point du jour" (/api/brief). */
+export interface BriefReport {
+  asOf: number;
+  headline: string;
+  market: { level: "calm" | "tense" | "high"; label: string; score: number; themes: string[] } | null;
+  buyable: { symbol: string; kind: Kind; strong: boolean; title: string }[];
+  movers: { symbol: string; kind: Kind; price: number; change: number }[];
+  news: import("../engine/news").NewsItem[];
+}
+
 /** News section (/api/news). */
 export type NewsReport = {
   asOf: number;
@@ -103,10 +113,11 @@ export const api = {
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   macro: () => get<MacroInfo>("/api/macro"),
-  history: (items: { symbol: string; kind: Kind }[], days: 30 | 90 | 365) =>
+  history: (items: { symbol: string; kind: Kind }[], days: 30 | 90 | 365 | 730) =>
     get<{ asOf: number; days: number; series: { symbol: string; kind: Kind; closes: [number, number][]; error?: string }[] }>(
       `/api/history?days=${days}${items.length ? `&symbols=${list(items.slice(0, 20))}` : ""}`,
     ),
+  brief: (items: { symbol: string; kind: Kind }[]) => get<BriefReport>(`/api/brief?symbols=${list(items.slice(0, 20))}`),
   news: (items: { symbol: string; kind: Kind }[]) => get<NewsReport>(`/api/news${items.length ? `?symbols=${list(items.slice(0, 20))}` : ""}`),
   alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
