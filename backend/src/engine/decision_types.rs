@@ -4,6 +4,11 @@
 //!
 //! Every figure comes from a named source; what no free and verifiable source gives is marked unavailable,
 //! never estimated.
+//!
+//! Units: prices and amounts in USD; fields named `*_pct`, `*_margin`, `*_growth`, `*_yield`, `*_change`,
+//! `win_rate`, `confidence`, `weight`, `share`, `circulating_pct`, `btc_dominance`, `roe` are percentages
+//! (46.8 = 46,8 %); `mc_fdv` and correlations are ratios; `funding_rate` is the fraction per 8-hour period as
+//! published by the exchange (6.88e-05 = 0,0069 %); `hash_rate` in hashes per second; times in ms since the epoch.
 use serde::{Deserialize, Serialize};
 
 use crate::types::Kind;
