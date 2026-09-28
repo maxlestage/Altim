@@ -247,7 +247,10 @@ struct AssetDetailView: View {
             weights = DecisionInputs.weights(model.holdings, prices: await holdingPrices(client))
         }
         do {
-            decision = .loaded(try await client.decision(asset: asset, cost: cost, weights: weights))
+            let d = try await client.decision(asset: asset, cost: cost, weights: weights)
+            decision = .loaded(d)
+            // Compared with the last decision seen for this asset (Radar → Changements de configuration).
+            model.recordDecision(d, personal: d.isPersonal)
             model.persistSession()
         } catch AltimError.unauthorized {
             model.sessionLost()

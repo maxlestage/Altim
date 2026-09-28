@@ -21,6 +21,12 @@ struct RadarView: View {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
                 }
                 if let error { Section { ErrorView(message: error) { Task { await load() } } }.listRowBackground(Color.clear) }
+                if let d = model.dangers, !d.items.isEmpty {
+                    Section { DangerNotice(dangers: d.items, measuredAt: d.at) }.listRowBackground(Color.clear)
+                }
+                if !model.configChanges.transitions.isEmpty {
+                    Section { ConfigChangesCard() }.listRowBackground(Color.clear)
+                }
                 Section {
                     ForEach(model.watchlist) { asset in
                         NavigationLink(value: asset) { RadarRowView(asset: asset, row: rows[asset.id]) }
@@ -57,6 +63,14 @@ struct RadarView: View {
         }
         .refreshable { await load() }
         .task(id: model.watchlist.map(\.id).joined()) { await load() }
+        .task(id: model.watchlist.map(\.id).joined(separator: ",")) {
+            // Decisions of the watched assets (market data only), re-read every 15 minutes while the radar is on screen:
+            // each one goes through the configuration diff.
+            while !Task.isCancelled {
+                await checkDecisions()
+                try? await Task.sleep(for: .seconds(Self.decisionEvery))
+            }
+        }
         .overlay { if loading && rows.isEmpty { ProgressView("Analyse des marchés…") } }
     }
 
@@ -89,6 +103,31 @@ struct RadarView: View {
         try? await Task.sleep(nanoseconds: 250_000_000)
         guard !Task.isCancelled else { return }
         results = (try? await client.search(q)) ?? []
+    }
+
+    /// The decisions of the radar are re-read at most this often (they are heavier than the signals).
+    static let decisionEvery: Double = 15 * 60
+
+    /// Two at a time (the server fetches fundamentals and order books for each one), 20 assets at most; an asset
+    /// compared less than 15 minutes ago (here or on its page) waits. A failed one is compared at the next round.
+    private func checkDecisions() async {
+        guard let client = model.client else { return }
+        let due = model.watchlist.prefix(20).filter { a in
+            model.lastDecisionCheck(a).map { Date().timeIntervalSince($0) >= Self.decisionEvery } ?? true
+        }
+        var i = 0
+        while i < due.count && !Task.isCancelled {
+            let pair = Array(due[i..<min(i + 2, due.count)])
+            let got = await withTaskGroup(of: Decision?.self) { group in
+                for a in pair { group.addTask { try? await client.decision(asset: a) } }
+                var out: [Decision] = []
+                for await d in group { if let d { out.append(d) } }
+                return out
+            }
+            guard !Task.isCancelled else { return }
+            for d in got { model.recordDecision(d, personal: false) }
+            i += 2
+        }
     }
 
     private func load() async {

@@ -78,6 +78,17 @@ struct SettingsView: View {
                 Text("Sur la fiche d'un actif, le bouton « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island. Le prix bouge en direct tant qu'Altim est ouvert ; en arrière-plan, il est rafraîchi à chaque vérification des alertes (iOS le signale comme ancien après 30 minutes sans mise à jour).")
             }
             Section {
+                ForEach(RiskSettings.fields, id: \.label) { f in
+                    RiskStepper(field: f, settings: $model.risk)
+                }
+                Button("Valeurs recommandées") { model.risk = .defaults }
+                    .disabled(model.risk == .defaults)
+            } header: {
+                Text("Prudence des conseils")
+            } footer: {
+                Text("Ces limites servent à Mes avoirs : la part de votre patrimoine qu'une ligne peut perdre si son stop est touché, la taille maximale d'une ligne, la perte max du jour et la part crypto max. Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.\n\nPerte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui. Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).")
+            }
+            Section {
                 Toggle("Verrouiller avec Face ID", isOn: $model.faceIDLock)
             } header: {
                 Text("Sécurité")
@@ -106,5 +117,38 @@ struct SettingsView: View {
         } message: {
             Text("Le mot de passe enregistré sur cet iPhone sera effacé. Vos avoirs et votre radar restent.")
         }
+    }
+}
+
+/// "Perte max du jour   −  3 %  +": one risk limit, kept within its bounds.
+private struct RiskStepper: View {
+    let field: RiskSettings.Field
+    @Binding var settings: RiskSettings
+
+    private var value: Double { settings[keyPath: field.key] }
+    private var text: String { "\(Format.plain(value, digits: 2))\(field.unit)" }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(field.label).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button {
+                settings = settings.stepped(field, up: false)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .disabled(value <= field.min)
+            .accessibilityLabel("Diminuer \(field.label)")
+            Text(text).font(Theme.mono(14)).frame(minWidth: 56)
+            Button {
+                settings = settings.stepped(field, up: true)
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .disabled(value >= field.max)
+            .accessibilityLabel("Augmenter \(field.label)")
+        }
+        .buttonStyle(.borderless)
+        .font(.subheadline)
     }
 }

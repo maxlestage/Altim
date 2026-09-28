@@ -348,6 +348,13 @@ struct DecisionCard: View {
 
     @ViewBuilder private func stockView(_ s: Decision.StockFundamentals) -> some View {
         Text(s.period).font(.caption).foregroundStyle(Theme.textSecondary)
+        if let end = s.periodEnd, let filed = s.filedAt {
+            note("Comptes arrêtés au \(DecisionText.nyDate(end)), déposés à la SEC le \(DecisionText.nyDate(filed)).")
+        }
+        if let sector = s.sector {
+            Text("Secteur : \(sector.label) · \(sector.sicDescription) (code SIC \(sector.sic))")
+                .font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+        }
         DecisionRow(key: "Chiffre d'affaires", value: "\(amount(s.revenue)) (\(signed(s.revenueGrowth)))")
         DecisionRow(key: "Bénéfice net", value: amount(s.netIncome))
         DecisionRow(key: "Bénéfice par action", value: "\(s.eps.map { Format.price($0) } ?? nd) (\(signed(s.epsGrowth)))")
@@ -357,6 +364,11 @@ struct DecisionCard: View {
         DecisionRow(key: "Dette nette", value: amount(s.netDebt))
         DecisionRow(key: "Rentabilité des capitaux propres", value: pct(s.roe))
         DecisionRow(key: "PER · PEG · EV/EBITDA", value: "\(ratio(s.per)) · \(ratio(s.peg, digits: 2)) · \(ratio(s.evEbitda))")
+        if s.guidance != nil || s.ps != nil || s.pb != nil || s.roic != nil {
+            DecisionRow(key: "P/S (capitalisation ÷ ventes)", value: ratio(s.ps))
+            DecisionRow(key: "P/B (capitalisation ÷ fonds propres)", value: ratio(s.pb))
+            DecisionRow(key: "ROIC (rentabilité du capital investi)", value: DecisionText.roic(s) ?? nd)
+        }
         DecisionRow(key: "Rendement du dividende", value: pct(s.dividendYield, digits: 2))
         DecisionRow(key: "Nombre d'actions sur 1 an", value: signed(s.shareChange))
         DecisionRow(key: "Prochains résultats",
@@ -373,7 +385,25 @@ struct DecisionCard: View {
             Text("Révisions : BPA attendu de l'année \(Format.price(r.monthAgo)) il y a un mois, \(Format.price(r.now)) aujourd'hui (\(Format.percent(r.changePct, digits: 1))).")
                 .font(.caption.monospacedDigit()).fixedSize(horizontal: false, vertical: true)
         }
-        Text(s.sectorNote).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if let h = s.valuationHistory {
+            block("Valorisation par rapport à sa propre histoire")
+            if let v = s.valuationVerdict { note("\(v).", strong: true) }
+            ForEach(Array((DecisionText.historyRows("PER", h.per) + DecisionText.historyRows("P/S", h.ps)).enumerated()), id: \.offset) { item in
+                DecisionRow(key: item.element.0, value: item.element.1)
+            }
+            note("\(h.method). Source : \(h.source).")
+        }
+        if let c = s.peers {
+            block("Comparaison sectorielle")
+            note(s.sectorNote, strong: true)
+            ForEach(Array(c.peers.enumerated()), id: \.offset) { item in
+                Text("• \(DecisionText.peer(item.element))").font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            }
+            note("Cours du \(DecisionText.nyDate(c.date)). Source : \(c.source).")
+        } else {
+            Text(s.sectorNote).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        }
+        if let g = s.guidance, !g.isEmpty { note(g) }
         source(s.source)
     }
 
@@ -391,6 +421,30 @@ struct DecisionCard: View {
         if let tx = c.txPerDay { DecisionRow(key: "Transactions par jour", value: Format.large(tx, unit: "")) }
         if let h = c.hashRate { DecisionRow(key: "Taux de hachage", value: "\(Format.plain(h / 1e18, digits: 0)) EH/s") }
         Text("Déblocages de jetons : \(c.unlocks)").font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if c.stablecoins != nil || c.chainStablecoins != nil {
+            block("Flux de stablecoins")
+            let rows = DecisionText.stableRows(c.stablecoins, label: "tous réseaux")
+                + DecisionText.stableRows(c.chainStablecoins, label: "réseau \(c.chainStablecoins?.scope ?? "")")
+            ForEach(Array(rows.enumerated()), id: \.offset) { item in
+                DecisionRow(key: item.element.0, value: item.element.1 ?? nd)
+            }
+            note("Liquidité disponible sur le marché crypto. Source : \((c.stablecoins ?? c.chainStablecoins)?.source ?? nd).")
+        }
+        if c.knowsDevActivity {
+            block("Activité de développement")
+            if let dev = c.devActivity {
+                DecisionRow(key: "Commits sur 4 semaines", value: dev.commits4w.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Lignes ajoutées / supprimées (4 semaines)",
+                            value: dev.additions4w.flatMap { a in dev.deletions4w.map { "+\(DecisionText.count(a)) / −\(DecisionText.count($0))" } } ?? nd)
+                DecisionRow(key: "Pull requests intégrées (total)", value: dev.pullRequestsMerged.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Contributeurs", value: dev.contributors.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Étoiles", value: dev.stars.map { DecisionText.count($0) } ?? nd)
+                source(dev.source)
+            } else {
+                note("Non disponible (CoinGecko ne la publie plus et le dépôt GitHub du projet n'a pas répondu).")
+            }
+        }
+        if let n = c.notCovered, !n.isEmpty { note("\(n).") }
         source(c.source)
     }
 
@@ -409,9 +463,19 @@ struct DecisionCard: View {
         DecisionRow(key: "Frais · glissement par ordre", value: "\(pct(t.feesPct, digits: 2)) · \(pct(t.slippagePct, digits: 2))")
         DecisionRow(key: "Pire série de pertes", value: "\(t.losingStreak) trade\(t.losingStreak > 1 ? "s" : "")")
         Text(t.note).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if t.hasDetails { TrackDetails(track: t) }
     }
 
     // MARK: Helpers
+
+    /// Title of a block inside a disclosure (valuation history, peers, stablecoins, developer activity).
+    private func block(_ title: String) -> some View {
+        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.white).padding(.top, 6).fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func note(_ text: String, strong: Bool = false) -> some View {
+        Text(text).font(.caption).foregroundStyle(strong ? Color.white.opacity(0.9) : Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+    }
 
     private func section(_ title: String) -> some View {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).padding(.top, 4).fixedSize(horizontal: false, vertical: true)

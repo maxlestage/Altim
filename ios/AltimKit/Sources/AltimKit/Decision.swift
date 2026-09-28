@@ -214,6 +214,105 @@ public struct Decision: Codable, Sendable {
         public var revisions: Revisions?
         public var sectorNote: String
         public var source: String
+        // Added later (absent from older answers, hence optional).
+        /// Price ÷ sales and price ÷ book (ratios).
+        public var ps: Double?
+        public var pb: Double?
+        /// Return on invested capital, % (operating income after tax ÷ (debt + equity − cash)).
+        public var roic: Double?
+        /// Tax rate used for the ROIC, %.
+        public var roicTaxRate: Double?
+        /// true: the 21 % US federal statutory rate (effective rate not computable).
+        public var roicTaxStatutory: Bool?
+        /// End of the last period filed and date of that filing (ms, midnight UTC).
+        public var periodEnd: Double?
+        public var filedAt: Double?
+        public var sector: Sector?
+        public var valuationHistory: ValuationHistory?
+        public var peers: PeerComparison?
+        /// Valuation vs growth in one sentence.
+        public var valuationVerdict: String?
+        /// Management guidance, or why it is not given.
+        public var guidance: String?
+    }
+
+    /// Sector of a company: its SIC code as filed at the SEC.
+    public struct Sector: Codable, Sendable {
+        public var label: String
+        public var sic: String
+        public var sicDescription: String
+        public var source: String
+    }
+
+    /// A valuation ratio against its own daily history; `percentile`: % of days at or below today's value.
+    public struct RatioHistory: Codable, Sendable {
+        public var current: Double
+        public var median: Double
+        public var min: Double
+        public var max: Double
+        public var percentile: Double
+        public var days: Double
+        public var from: Double
+        public var to: Double
+    }
+
+    /// P/E and P/S against their own history (up to 5 years of daily closes).
+    public struct ValuationHistory: Codable, Sendable {
+        public var per: RatioHistory?
+        public var ps: RatioHistory?
+        public var method: String
+        public var source: String
+    }
+
+    /// A comparable company (same activity), figures from its own filings.
+    public struct Peer: Codable, Sendable {
+        public var symbol: String
+        public var name: String
+        public var per: Double?
+        public var ps: Double?
+        public var operatingMargin: Double?
+        public var netMargin: Double?
+        public var revenueGrowth: Double?
+        public var periodEnd: Double
+    }
+
+    /// Comparison with companies of the same activity: medians of the peers whose figures were actually read.
+    public struct PeerComparison: Codable, Sendable {
+        public var group: String
+        public var peers: [Peer]
+        public var medianPer: Double?
+        public var medianPs: Double?
+        public var medianOperatingMargin: Double?
+        public var medianNetMargin: Double?
+        public var medianRevenueGrowth: Double?
+        public var date: Double
+        public var source: String
+    }
+
+    /// Developer activity of the project's code (CoinGecko, else its main GitHub repository).
+    public struct DevActivity: Codable, Sendable {
+        public var repo: String?
+        public var commits4w: Double?
+        public var pullRequestsMerged: Double?
+        public var contributors: Double?
+        public var stars: Double?
+        public var additions4w: Double?
+        public var deletions4w: Double?
+        public var smartContractPlatform: Bool?
+        public var source: String
+    }
+
+    /// Stablecoins in circulation (USD value): the crypto market's cash.
+    public struct StablecoinFlows: Codable, Sendable {
+        /// "Tous réseaux" or the chain's name.
+        public var scope: String
+        public var date: Double
+        public var total: Double
+        public var change7d: Double?
+        public var change7dPct: Double?
+        public var change30d: Double?
+        public var change30dPct: Double?
+        public var source: String
     }
 
     /// Token and network figures. nil = not given by a free verifiable source.
@@ -235,6 +334,15 @@ public struct Decision: Codable, Sendable {
         public var hashRate: Double?
         public var unlocks: String
         public var source: String
+        // Added later (absent from older answers, hence optional).
+        public var devActivity: DevActivity?
+        /// All chains, and the asset's own chain when it is one.
+        public var stablecoins: StablecoinFlows?
+        public var chainStablecoins: StablecoinFlows?
+        /// What is not covered and why. Present in every newer answer: it tells a missing `devActivity` (unavailable)
+        /// from an older server that did not know the field.
+        public var notCovered: String?
+        public var knowsDevActivity: Bool { notCovered != nil }
     }
 
     /// Tagged by "kind" ("stock" | "crypto"); another kind decodes as `.unknown`.
@@ -296,6 +404,39 @@ public struct Decision: Codable, Sendable {
         public var slippagePct: Double
         public var losingStreak: Int
         public var note: String
+        // Added later (absent from older answers): spread cost, expectancy, R multiples, results by market regime.
+        /// Full bid/ask spread used (%), measured on the order book or assumed.
+        public var spreadPct: Double?
+        public var spreadMeasured: Bool?
+        public var spreadNote: String?
+        /// % per trade, costs included.
+        public var expectancy: Double?
+        /// Average of (trade return ÷ initial risk to the stop).
+        public var avgR: Double?
+        public var regimes: [RegimeStat]?
+        /// Daily candles tested (after the warm-up).
+        public var testedBars: Int?
+        /// How the test avoids flattering itself.
+        public var biasNotes: [String]?
+
+        /// Older answers (before these fields) show nothing more.
+        public var hasDetails: Bool { regimes != nil || expectancy != nil }
+        /// French flat tax (PFU) on the net gain, paid at the end: an assumption, not the user's own situation.
+        public static let flatTax = 30.0
+        /// Return of the signal after the flat tax (a loss is not taxed).
+        public var afterTaxReturn: Double { totalReturn > 0 ? totalReturn * (1 - Self.flatTax / 100) : totalReturn }
+    }
+
+    /// Results of the signal by market regime on the signal candle (read without future data).
+    public struct RegimeStat: Codable, Sendable {
+        /// "bull" | "bear" | "range" | "crisis" | "unknown"
+        public var regime: String
+        public var label: String
+        public var trades: Int
+        public var winRate: Double?
+        public var avgReturn: Double?
+        /// Fewer than 5 trades: "échantillon trop faible".
+        public var lowSample: Bool
     }
 
     public enum ExitKind: String, Codable, Sendable {
