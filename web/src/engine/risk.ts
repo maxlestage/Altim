@@ -5,6 +5,8 @@ export interface RiskSettings {
   dailyLossLimitPercent: number;
   minRiskReward: number;
   feeRate: number;
+  /** Cap of the crypto share of the portfolio (%, cash included). */
+  maxCryptoPercent: number;
 }
 
 export const DEFAULT_RISK: RiskSettings = {
@@ -13,6 +15,7 @@ export const DEFAULT_RISK: RiskSettings = {
   dailyLossLimitPercent: 3,
   minRiskReward: 1.5,
   feeRate: 0.001,
+  maxCryptoPercent: 60,
 };
 
 export interface Plan { entry: number; stopLoss: number; takeProfit: number }

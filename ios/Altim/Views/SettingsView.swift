@@ -78,6 +78,30 @@ struct SettingsView: View {
                 Text("Sur la fiche d'un actif, le bouton « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island. Le prix bouge en direct tant qu'Altim est ouvert ; en arrière-plan, il est rafraîchi à chaque vérification des alertes (iOS le signale comme ancien après 30 minutes sans mise à jour).")
             }
             Section {
+                ForEach(RiskSettings.fields, id: \.label) { f in
+                    RiskStepper(field: f, settings: $model.risk)
+                }
+                Button("Valeurs recommandées") { model.risk = .defaults }
+                    .disabled(model.risk == .defaults)
+            } header: {
+                Text("Prudence des conseils")
+            } footer: {
+                Text("Ces limites servent à Mes avoirs : la part de votre patrimoine qu'une ligne peut perdre si son stop est touché, la taille maximale d'une ligne, la perte max du jour et la part crypto max. Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.\n\nPerte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui. Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).")
+            }
+            Section {
+                ForEach(ScoreWeights.factors, id: \.key) { f in
+                    ScoreWeightSlider(factor: f, weights: $model.scoreWeights)
+                }
+                Text("Total : \(model.scoreWeights.total) (ramené à 100 %)." + (model.scoreWeights.total == 0 ? " Tous à 0 : les poids par défaut sont utilisés." : ""))
+                    .font(.footnote).foregroundStyle(Theme.textSecondary)
+                Button("Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)") { model.scoreWeights = .defaults }
+                    .disabled(model.scoreWeights == .defaults)
+            } header: {
+                Text("Score composite")
+            } footer: {
+                Text("Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.")
+            }
+            Section {
                 Toggle("Verrouiller avec Face ID", isOn: $model.faceIDLock)
             } header: {
                 Text("Sécurité")
@@ -106,5 +130,63 @@ struct SettingsView: View {
         } message: {
             Text("Le mot de passe enregistré sur cet iPhone sera effacé. Vos avoirs et votre radar restent.")
         }
+    }
+}
+
+/// Weight of one factor of the composite score, 0 – 100 %.
+private struct ScoreWeightSlider: View {
+    let factor: ScoreWeights.Factor
+    @Binding var weights: ScoreWeights
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(factor.label).font(.subheadline.weight(.semibold))
+                    Text(factor.hint).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Text("\(weights[keyPath: factor.path])\u{202F}%").font(Theme.mono(14))
+            }
+            Slider(value: Binding(
+                get: { Double(weights[keyPath: factor.path]) },
+                set: { weights[keyPath: factor.path] = Int(min(100, max(0, $0.rounded()))) }
+            ), in: 0...100, step: 1)
+            .accessibilityLabel("Poids \(factor.label)")
+            .accessibilityValue("\(weights[keyPath: factor.path]) %")
+        }
+    }
+}
+
+/// "Perte max du jour   −  3 %  +": one risk limit, kept within its bounds.
+private struct RiskStepper: View {
+    let field: RiskSettings.Field
+    @Binding var settings: RiskSettings
+
+    private var value: Double { settings[keyPath: field.key] }
+    private var text: String { "\(Format.plain(value, digits: 2))\(field.unit)" }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(field.label).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 8)
+            Button {
+                settings = settings.stepped(field, up: false)
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .disabled(value <= field.min)
+            .accessibilityLabel("Diminuer \(field.label)")
+            Text(text).font(Theme.mono(14)).frame(minWidth: 56)
+            Button {
+                settings = settings.stepped(field, up: true)
+            } label: {
+                Image(systemName: "plus.circle")
+            }
+            .disabled(value >= field.max)
+            .accessibilityLabel("Augmenter \(field.label)")
+        }
+        .buttonStyle(.borderless)
+        .font(.subheadline)
     }
 }

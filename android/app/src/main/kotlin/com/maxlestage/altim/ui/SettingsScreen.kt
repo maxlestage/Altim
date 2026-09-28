@@ -3,15 +3,21 @@ package com.maxlestage.altim.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -25,7 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -33,6 +42,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.data.BuyAlerts
 import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.RiskSettings
+import com.maxlestage.altim.kit.ScoreWeights
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.launch
 
@@ -91,6 +102,8 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             }
             Caption("Toutes les 15 minutes : une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
         }
+        RiskCard(model)
+        ScoreWeightsCard(model)
         Card(title = "Sécurité") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Verrouiller par empreinte, visage ou code", modifier = Modifier.weight(1f), fontSize = 15.sp)
@@ -124,5 +137,73 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Annuler") } },
             containerColor = AltimColors.surface,
         )
+    }
+}
+
+/** One setting of "Prudence des conseils": its bounds and step, as on the web app. */
+private class RiskField(val label: String, val min: Double, val max: Double, val step: Double, val unit: String, val get: (RiskSettings) -> Double, val set: (RiskSettings, Double) -> RiskSettings)
+
+private val RISK_FIELDS = listOf(
+    RiskField("Risque accepté par idée", 0.25, 5.0, 0.25, " %", { it.riskPerTradePercent }, { r, v -> r.copy(riskPerTradePercent = v) }),
+    RiskField("Taille max d'une ligne", 5.0, 100.0, 5.0, " %", { it.maxPositionPercent }, { r, v -> r.copy(maxPositionPercent = v) }),
+    RiskField("Perte max du jour", 0.5, 10.0, 0.5, " %", { it.dailyLossLimitPercent }, { r, v -> r.copy(dailyLossLimitPercent = v) }),
+    RiskField("Part crypto max", 0.0, 100.0, 5.0, " %", { it.maxCryptoPercent }, { r, v -> r.copy(maxCryptoPercent = v) }),
+)
+
+/** The user's limits, checked in Mes avoirs (Vos limites de risque, positions devenues dangereuses). */
+@Composable
+private fun RiskCard(model: AppModel) {
+    Card(title = "Prudence des conseils") {
+        Caption("Ces réglages servent aux contrôles de Mes avoirs : la part de votre patrimoine qu'une ligne peut perdre si son stop est touché, la taille maximale d'une ligne, la perte du jour et la part des cryptos.")
+        RISK_FIELDS.forEach { f ->
+            val v = f.get(model.risk)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(f.label, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                IconButton(onClick = { model.updateRisk(f.set(model.risk, maxOf(f.min, round2(v - f.step)))) }, enabled = v > f.min) {
+                    Icon(Icons.Filled.Remove, contentDescription = "Diminuer ${f.label}", tint = AltimColors.cyan)
+                }
+                Text("${Format.plain(v, 2)}${f.unit}", style = mono(14.sp), textAlign = TextAlign.Center, modifier = Modifier.widthIn(min = 64.dp))
+                IconButton(onClick = { model.updateRisk(f.set(model.risk, minOf(f.max, round2(v + f.step)))) }, enabled = v < f.max) {
+                    Icon(Icons.Filled.Add, contentDescription = "Augmenter ${f.label}", tint = AltimColors.cyan)
+                }
+            }
+        }
+        Caption("Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.")
+        Caption(
+            "Perte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui. " +
+                "Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).",
+        )
+        TextButton(onClick = { model.updateRisk(RiskSettings.DEFAULT) }) { Text("Valeurs recommandées", color = AltimColors.cyan) }
+    }
+}
+
+private fun round2(v: Double) = Math.round(v * 100) / 100.0
+
+/** Weights of the composite score of the Décision card (sent as w= when not the defaults; the verdict never changes). */
+@Composable
+private fun ScoreWeightsCard(model: AppModel) {
+    val w = model.scoreWeights
+    Card(title = "Score composite") {
+        Caption("Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.")
+        ScoreWeights.FACTORS.forEach { f ->
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(f.label, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                        Caption(f.hint)
+                    }
+                    Text("${w[f.key]} %", style = mono(14.sp))
+                }
+                Slider(
+                    value = w[f.key].toFloat(),
+                    onValueChange = { model.updateScoreWeights(w.with(f.key, Math.round(it))) },
+                    valueRange = 0f..100f,
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = "Poids ${f.label}" },
+                    colors = SliderDefaults.colors(thumbColor = AltimColors.cyan, activeTrackColor = AltimColors.cyan),
+                )
+            }
+        }
+        Caption("Total : ${w.total} (ramené à 100 %).${if (w.total == 0) " Tous à 0 : les poids par défaut sont utilisés." else ""}")
+        TextButton(onClick = { model.updateScoreWeights(ScoreWeights.DEFAULT) }) { Text("Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)", color = AltimColors.cyan) }
     }
 }

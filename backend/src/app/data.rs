@@ -22,6 +22,8 @@ use crate::engine::news::{FeedItems, MAX_AGE_MS, NewsDigest, NewsItem, aggregate
 use crate::engine::reliability::{Reliability, gate};
 use crate::engine::screener::{Horizon, spec};
 use crate::engine::signal::{Action, AnalyzeOptions, analyze};
+use crate::engine::structure::Benchmark;
+use crate::engine::synthesis::{MarketRegime, ScoreWeights, market_regime};
 use crate::guard::{GuardReport, guard_report};
 use crate::http::{Error, Result};
 use crate::js::now_ms;
@@ -125,13 +127,16 @@ pub async fn selection(h: Horizon, market: Kind) -> Result<Arc<ScreenResult>> {
     .await
 }
 
-/// Production: the daily selections are computed at start-up and every 25 minutes, so nobody waits.
+/// Production: the daily selections and the coming days of the calendar are computed at start-up and every 25 minutes,
+/// so nobody waits.
 pub fn warm_selections() {
     tokio::spawn(async {
         tokio::time::sleep(Duration::from_secs(5)).await;
         let mut every = tokio::time::interval(Duration::from_secs(25 * 60));
         loop {
             every.tick().await;
+            // The calendar's macro days, so a decision's announcement check does not wait on a cold Nasdaq (≈ 2 s a day).
+            let _ = crate::calendar::upcoming_for("BTC", Kind::Crypto, 7).await;
             // Daily horizons ahead of time; intraday ones are computed on demand (they go stale within minutes).
             for m in [Kind::Stock, Kind::Crypto] {
                 for h in [Horizon::Mo1, Horizon::Mo3, Horizon::Mo6, Horizon::D7, Horizon::D14] {
@@ -169,6 +174,8 @@ pub struct MacroOut {
     #[serde(flatten)]
     pub report: MacroReport,
     pub evidence: Option<Evidence>,
+    /// Risk-on / risk-off / neutre (macro stress and the S&P 500's trend).
+    pub regime: Option<MarketRegime>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -213,13 +220,17 @@ pub async fn zones(symbol: &str, kind: Kind) -> Result<Zones> {
         (*computed).clone()
     };
     let level = ctx.as_ref().map_or(MacroLevel::Calm, |c| c.0.level);
+    let regime = match &ctx {
+        Some((r, _)) => macro_regime(r).await,
+        None => None,
+    };
     Ok(Zones {
         symbol: symbol.to_string(),
         kind,
         price,
         as_of: now_ms(),
         zones: current.into_iter().map(|z| ZoneOut { macro_note: macro_advice(level, z.horizon.as_str()), zone: z }).collect(),
-        macro_ctx: ctx.map(|(report, evidence)| MacroOut { report: (*report).clone(), evidence }),
+        macro_ctx: ctx.map(|(report, evidence)| MacroOut { report: (*report).clone(), evidence, regime }),
     })
 }
 
@@ -545,11 +556,40 @@ async fn exposure_input(kind: Kind, weights: &[Weight]) -> Option<ExposureInput>
     })
 }
 
+/// Benchmarks of the technical structure and the market regime: Bitcoin for a crypto; the S&P 500 (SPY) then the
+/// Nasdaq-100 (QQQ, the Nasdaq Composite itself is not in the candle sources) for a stock. Long daily histories,
+/// cached one hour like every `long`; one that fails is left out.
+async fn benchmarks(kind: Kind) -> Vec<Benchmark> {
+    let list: &[(&str, &str)] = match kind {
+        Kind::Crypto => &[("BTC", "Bitcoin (BTC)")],
+        Kind::Stock => &[("SPY", "S&P 500 (SPY)"), ("QQQ", "Nasdaq-100 (QQQ)")],
+    };
+    join_all(list.iter().map(|(symbol, name)| async move {
+        long(symbol, kind).await.ok().map(|h| Benchmark { name: (*name).into(), symbol: (*symbol).into(), kind, daily: h.candles.clone() })
+    }))
+    .await
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+/// Market regime (risk-on / risk-off / neutre) of `/api/macro`: the macro stress and the S&P 500's trend (its daily
+/// closes from the macro series).
+pub async fn macro_regime(report: &MacroReport) -> Option<MarketRegime> {
+    let series = crate::macro_data::macro_series().await.ok();
+    let closes: Vec<f64> = series.as_ref().and_then(|s| s.spx.as_ref()).map(|p| p.iter().map(|x| x.close).collect()).unwrap_or_default();
+    market_regime(Some(report), "S&P 500", &closes)
+}
+
 /// Decision for one asset (`/api/decision`). Every input is cached on its own (candles, zones, guard, macro, news,
 /// extras); the personal parts (average cost, weights) are only used for this answer, never in a cache key.
-pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: &[Weight]) -> Result<Decision> {
+pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: &[Weight], score_weights: Option<ScoreWeights>) -> Result<Decision> {
     let name = asset_name(symbol, kind).await;
-    let (h1, h4, d, hist, z, g, news, expo) = tokio::join!(
+    // The calendar is slow when cold (≈ 2 s per Nasdaq day): past 5 s the decision goes without it and says so, the
+    // fetches keep filling the cache for the next call. A calendar with a failed source counts as not loaded.
+    let events =
+        async { tokio::time::timeout(std::time::Duration::from_secs(5), crate::calendar::upcoming_for(symbol, kind, 7)).await.ok().flatten() };
+    let (h1, h4, d, hist, z, g, news, expo, bench, events) = tokio::join!(
         snap(symbol, kind, Interval::H1),
         snap(symbol, kind, Interval::H4),
         snap(symbol, kind, Interval::D1),
@@ -558,6 +598,8 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         guard_for(symbol, kind),
         crate::guard::news(symbol, kind, &name),
         exposure_input(kind, weights),
+        benchmarks(kind),
+        events,
     );
     let (h4, d) = (h4?, d?);
     let (h1, hist, z, g) = (h1.ok(), hist.ok(), z.ok(), g.ok());
@@ -606,6 +648,9 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         track,
         cost,
         exposure: expo,
+        benchmarks: bench,
+        score_weights,
+        events,
     };
     Ok(decide(&input))
 }

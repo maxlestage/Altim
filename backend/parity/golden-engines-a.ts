@@ -4,7 +4,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { inputs, find, NOW, write, SERVER } from "./golden";
-import { backtest, trackRecord } from "../../web/src/engine/backtest";
+import { backtest, backtestWithRisk, regimeAt, regimeSplit, tradeStats, trackRecord } from "../../web/src/engine/backtest";
+import { sanitize } from "../../web/src/engine/signal";
 import { portfolioHistory, type Close } from "../../web/src/engine/history";
 import { headline, movers, type BriefBuy, type MarketLevel, type Mover } from "../../web/src/engine/brief";
 import { aggregate, decodeText, mentions, newsDigest, parseFeed, safeLink, sameStory, topStories, type NewsCategory, type RawNews } from "../../web/src/engine/news";
@@ -32,6 +33,25 @@ const attempt = <T>(f: () => T) => {
     }
   }
   write("backtest", cases);
+}
+
+// ---------- backtest statistics (risks, expectancy, R multiples, market regimes) ----------
+{
+  const cases = [];
+  for (const i of inputs.filter((x) => x.interval === "long" || x.interval === "1d")) {
+    const { result, risks } = backtestWithRisk(i.candles);
+    const returns = result.trades.map((t) => t.returnPercent);
+    // Returns after an extra cost per side (as metrics.rs does with the slippage and the spread).
+    const net = returns.map((r) => ((1 + r / 100) * (1 - 0.0006)) / (1 + 0.0006) * 100 - 100);
+    const candles = sanitize(i.candles);
+    const regimes = candles.map((_, k) => regimeAt(candles, k));
+    cases.push({
+      args: { symbol: i.symbol, interval: i.interval },
+      output: { risks, stats: tradeStats(returns, risks), statsNet: tradeStats(net, risks), split: regimeSplit(i.candles, result.trades, net), regimes },
+    });
+  }
+  cases.push({ args: { symbol: "none", interval: "stats" }, output: { stats: tradeStats([], []), mixed: tradeStats([2, -1, 0, 3.5], [1, 0, 2]) } });
+  write("backtest-stats", cases);
 }
 
 // ---------- history ----------

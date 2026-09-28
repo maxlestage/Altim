@@ -11,7 +11,12 @@ data class Holding(
     val quantity: Double,
     /** Average purchase price in dollars (optional: without it, no gain / loss). */
     val averagePrice: Double? = null,
-)
+    /** Stop set by the user in dollars (optional): "position devenue dangereuse" alerts in Mes avoirs. */
+    val stop: Double? = null,
+) {
+    /** The optional stop is dropped when it is not a positive number (the line itself stays), like the web app. */
+    fun cleaned(): Holding = if (stop == null || (stop.isFinite() && stop > 0)) this else copy(stop = null)
+}
 
 data class PortfolioLine(
     val holding: Holding,

@@ -8,6 +8,12 @@ import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./u
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { VerdictMini } from "./DecisionCard";
 import { formatPrice } from "../market";
+import { cacheDecision, cachedDecision, shortDateTime } from "./decision";
+import { clearTransitions, recordConfiguration, transitionTitle, useTransitions } from "./config-changes";
+import { readDangers } from "./danger-store";
+
+/** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
+const DECISION_EVERY = 15 * 60_000;
 
 export function Radar() {
   const { watchlist, interval } = useAppState();
@@ -99,6 +105,40 @@ export function Radar() {
     return () => clearInterval(id);
   }, [watchlist]);
 
+  // Decisions of the watched assets (market data only), re-read every 15 minutes: each one goes through the
+  // configuration diff (config-changes.ts). A fresher personal decision seen on the asset page stays in the cache.
+  const transitions = useTransitions();
+  const [showAll, setShowAll] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      const due = watchlist.slice(0, 20).filter((w) => {
+        const c = cachedDecision(w.kind, w.symbol);
+        return !c || Date.now() - c.at >= DECISION_EVERY;
+      });
+      // Two at a time: the server fetches fundamentals and order books for each one.
+      for (let i = 0; i < due.length && alive; i += 2) {
+        await Promise.all(due.slice(i, i + 2).map(async (w) => {
+          try {
+            const d = await api.decision(w.symbol, w.kind);
+            if (!alive) return;
+            if (cachedDecision(w.kind, w.symbol)?.personal) recordConfiguration(d, false);
+            else cacheDecision(d, false);
+          } catch {
+            /* unavailable: compared at the next refresh */
+          }
+        }));
+      }
+    };
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), DECISION_EVERY);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [watchlist]);
+  const dangers = readDangers();
+
   const opportunities = watchlist
     .map((w) => rows[assetKey(w)])
     .filter((r): r is RadarRow => !!r?.signal && r.signal.action !== "hold" && r.signal.confidence >= 40)
@@ -140,6 +180,59 @@ export function Radar() {
           <b>Contexte macro {macro.level === "high" ? "très tendu" : "tendu"} ({macro.score}/100)</b>
           <ul className="small">{macro.factors.slice(0, 3).map((f) => <li key={f.code}>{f.text}</li>)}</ul>
           <small>Les zones d'achat techniques résistent mal aux crises : tailles réduites, achats échelonnés.</small>
+        </div>
+      )}
+
+      {dangers && dangers.items.length > 0 && (
+        <div className="notice danger" role="status">
+          <b>⚠ {dangers.items.length > 1 ? "Positions devenues dangereuses" : "Position devenue dangereuse"} dans vos avoirs</b>
+          <ul className="small">
+            {dangers.items.map((d) => <li key={d.id}><b>{d.symbol}</b> : {d.reasons.map((r) => r.text).join(" ")}</li>)}
+          </ul>
+          <small>
+            Mesuré le {shortDateTime(dangers.at)} sur <a href="/app/avoirs" onClick={onLink} className="link">Mes avoirs</a> (ouvrez-le pour actualiser).
+          </small>
+        </div>
+      )}
+
+      {transitions.length > 0 && (
+        <div className="card">
+          <h2 className="card-title">Changements de configuration · {transitions.length}</h2>
+          <ul className="insights">
+            {(showAll ? transitions : transitions.slice(0, 5)).map((t) => (
+              <li key={`${t.kind}:${t.symbol}:${t.personal}:${t.at}`} className={`insight ${t.to.verdict === "buy" || t.to.verdict === "buyZone" ? "good" : t.to.verdict === "sell" || t.to.verdict === "trim" ? "danger" : "info"}`}>
+                <span aria-hidden>↻</span>
+                <span>
+                  <a href={`/app/actif/${t.kind}/${t.symbol}`} onClick={onLink} className="link"><b>{transitionTitle(t)}</b></a>
+                  <br />
+                  <small className="muted">
+                    {shortDateTime(t.at)} · niveau {t.from.levelLabel} → {t.to.levelLabel} · configuration précédente vue le {shortDateTime(t.since)}
+                    {t.personal ? " · mode personnel" : ""}
+                  </small>
+                  {t.missing.length > 0 && (
+                    <>
+                      <br />
+                      <small>Conditions manquantes : {t.missing.join(" ; ")}.</small>
+                    </>
+                  )}
+                  {t.triggers.length > 0 && (
+                    <>
+                      <br />
+                      <small>Ce qui changerait la décision : {t.triggers.join(" ; ")}.</small>
+                    </>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="row-actions">
+            {transitions.length > 5 && <button className="link-btn" onClick={() => setShowAll((v) => !v)}>{showAll ? "Voir moins" : `Voir les ${transitions.length}`}</button>}
+            <button className="link-btn" onClick={() => confirm("Effacer l'historique des changements ?") && clearTransitions()}>Effacer</button>
+          </div>
+          <small className="muted">
+            Comparaison avec la dernière décision vue dans ce navigateur. Nouvelle analyse toutes les 15 minutes tant que le radar est ouvert, et à chaque ouverture d'une fiche. 50 derniers
+            changements conservés ici uniquement.
+          </small>
         </div>
       )}
 

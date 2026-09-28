@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,11 +43,19 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.maxlestage.altim.kit.Bias
+import com.maxlestage.altim.kit.Calendar
 import com.maxlestage.altim.kit.Decision
+import com.maxlestage.altim.kit.Kind
+import com.maxlestage.altim.kit.MarketRegime
+import com.maxlestage.altim.kit.signedScore
 import com.maxlestage.altim.kit.DecisionLevel
 import com.maxlestage.altim.kit.FamilyStatus
 import com.maxlestage.altim.kit.Format
@@ -91,6 +100,21 @@ private fun pct(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let 
 private fun signed(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let { Format.percent(it, digits) } ?: NA
 private fun ratio(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let { Format.plain(it, digits) } ?: NA
 
+/** The web card's `pct`: "—" when missing, + only with [sign], true minus, no trailing zeros. */
+private fun pc(v: Double?, digits: Int = 1, sign: Boolean = false): String {
+    if (v == null || !v.isFinite()) return "—"
+    return "${if (v < 0) "−" else if (sign && v > 0) "+" else ""}${Format.plain(abs(v), digits)} %"
+}
+
+/** The web card's `num`: "—" when missing. */
+private fun num(v: Double?, digits: Int = 2): String = if (v == null || !v.isFinite()) "—" else "${if (v < 0) "−" else ""}${Format.plain(abs(v), digits)}"
+
+/** "+2,8 Md$" / "−271 M$". */
+private fun signedUsd(v: Double?): String = if (v == null) "—" else "${if (v < 0) "−" else if (v > 0) "+" else ""}${Format.compactUsd(abs(v))}"
+
+/** French flat tax (PFU) on the net gain, as in the sale tool: an assumption, not the user's own situation. */
+private const val FLAT_TAX = 30.0
+
 /** "Décision" card of the asset page: loading, error or the decision itself. */
 @Composable
 fun DecisionCard(state: Loadable<Decision>, held: Boolean, onSimulate: (() -> Unit)? = null, retry: () -> Unit) {
@@ -109,21 +133,38 @@ fun DecisionCard(state: Loadable<Decision>, held: Boolean, onSimulate: (() -> Un
 @Composable
 fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit)? = null) {
     val color = levelColor(d.level)
+    // The 6-level rating is the headline when the server gives it (older answers: the verdict).
+    val rating = d.rating
+    val headColor = rating?.let { levelColor(it.level) } ?: color
     Card(title = "Décision", glow = color) {
         ModeLine(d)
-        // Verdict and level: always the words, the colour only repeats them.
+        // Rating (or verdict) and level: always the words, the colour only repeats them.
         Column(
             Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-                contentDescription = "Décision : ${d.verdictLabel}. Niveau : ${d.levelText}."
+                contentDescription = "Décision : ${d.headlineLabel}. Niveau : ${d.levelText}."
             },
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(d.verdictLabel, color = color, fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
+            Text(d.headlineLabel, color = headColor, fontSize = 28.sp, fontWeight = FontWeight.Black, letterSpacing = 1.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Dot(color, outlined = d.level == DecisionLevel.WAITING)
                 Text(d.levelText, color = color, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 if (d.blocked) Badge("ACHAT BLOQUÉ", Tone.BAD)
             }
+        }
+        if (rating != null) {
+            Text(
+                buildAnnotatedString {
+                    append("Verdict du plan : ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(d.verdictLabel) }
+                    withStyle(SpanStyle(color = AltimColors.textSecondary)) { append(" · la note résume verdict, niveau et confiance") }
+                },
+                fontSize = 13.sp, color = Color.White,
+            )
+        }
+        d.marketRegime?.let { RegimeLine(it) }
+        d.degraded?.takeIf { it.active }?.let { g ->
+            Notice(g.headline + g.reasons.joinToString("") { "\n• $it" }, Tone.BAD)
         }
         if (d.headline.isNotBlank()) Text(d.headline, fontSize = 14.sp, color = Color.White.copy(alpha = 0.92f))
         d.price?.let { Caption("Prix analysé : ${Format.price(it)} · ${Format.date(d.asOf, time = true)}") }
@@ -139,7 +180,9 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
 
         d.exposure?.warning?.let { Notice(it, Tone.WARN) }
 
-        d.plan?.let { PlanBlock(it) } ?: Caption("Pas de plan d'entrée : aucun niveau d'achat net pour l'instant.")
+        d.score?.let { ScoreBlock(it) }
+
+        d.plan?.let { PlanBlock(it, d.horizon) } ?: Caption("Pas de plan d'entrée : aucun niveau d'achat net pour l'instant.")
 
         // Paper trading: follow this decision with virtual money to see whether it holds (no order placed).
         onSimulate?.let {
@@ -167,6 +210,25 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         if (d.families.isNotEmpty()) {
             val available = d.families.count { it.status != FamilyStatus.UNAVAILABLE }
             Section("Familles d'indicateurs", "$available/${d.families.size} disponibles", expanded) { d.families.forEach { FamilyDetail(it) } }
+        }
+        d.structure?.let { st ->
+            Section("Structure technique", st.score?.let { "direction ${signedScore(it)}" } ?: "non disponible", expanded) { StructureList(st) }
+        }
+        if (d.eventsKnown) {
+            val ev = d.events
+            Section(
+                "Agenda (7 jours)",
+                if (ev == null) "non vérifié" else if (ev.isNotEmpty()) "${ev.size} événement${if (ev.size > 1) "s" else ""}" else "rien de majeur",
+                expanded,
+            ) {
+                when {
+                    ev == null -> Caption("Calendrier indisponible ou incomplet : les annonces à venir n'ont pas pu être vérifiées.")
+                    ev.isEmpty() -> Caption(
+                        "Aucune annonce majeure (banques centrales, inflation, emploi, PIB)${if (d.kind == Kind.STOCK) ", ni résultats, dividende ou split" else ""} dans les 7 jours.",
+                    )
+                    else -> ev.forEach { e -> AgendaEventRow(e, "${Calendar.dayLabel(e.day)}${e.time?.let { " · $it" } ?: ""}") }
+                }
+            }
         }
         if (d.vetoes.isNotEmpty()) {
             val active = d.vetoes.count { it.active }
@@ -221,6 +283,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
                 KeyValue("Frais · glissement", "${pct(t.feesPct, 2)} · ${pct(t.slippagePct, 2)}")
                 KeyValue("Pire série de pertes", "${t.losingStreak} trade${if (t.losingStreak > 1) "s" else ""}")
                 if (t.note.isNotBlank()) Notice(t.note, if (t.totalReturn < t.buyAndHold) Tone.WARN else Tone.GOOD)
+                if (t.hasDetails) TrackDetails(t)
             }
         }
         d.exposure?.let { e ->
@@ -295,14 +358,26 @@ private fun FamilyLight(f: Decision.Family) {
 private fun SubTitle(text: String) = Text(text, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.White, modifier = Modifier.semantics { heading() })
 
 @Composable
-private fun PlanBlock(p: Decision.Plan) {
+private fun PlanBlock(p: Decision.Plan, horizon: Decision.HorizonClass?) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         SubTitle("Plan")
-        if (p.horizon.isNotBlank()) Caption(p.horizon)
+        // Horizon: the class computed from the plan's candles when the server gives it, else the zone's words.
+        if (horizon != null) {
+            Text(
+                buildAnnotatedString {
+                    append("Horizon : ")
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(horizon.label) }
+                    append(" — ${horizon.detail}")
+                },
+                fontSize = 12.sp, color = AltimColors.textSecondary,
+            )
+        } else if (p.horizon.isNotBlank()) Caption("Horizon : ${p.horizon}")
         PlanRow("Zone d'achat", "${px(p.zoneFrom)} – ${px(p.zoneTo)}", null, AltimColors.cyan)
         PlanRow("Stop / invalidation", px(p.stop), Format.percent(-p.riskPct, 1), AltimColors.sell)
         PlanRow("Objectif 1", px(p.target1), Format.percent(p.reward1Pct, 1), AltimColors.buy)
         p.target2?.let { PlanRow("Objectif 2", px(it), p.reward2Pct?.let { r -> Format.percent(r, 1) }, AltimColors.buy) }
+        p.target3?.let { PlanRow("Objectif 3", px(it), p.reward3Pct?.let { r -> Format.percent(r, 1) }, AltimColors.buy) }
+            ?: PlanRow("Objectif 3", "aucun", null, AltimColors.textSecondary)
         PlanRow(
             "Gain/risque",
             Format.plain(p.riskReward, 1),
@@ -310,6 +385,7 @@ private fun PlanBlock(p: Decision.Plan) {
             if (p.acceptable) AltimColors.buy else AltimColors.sell,
         )
         Caption("Calculé depuis ${px(p.entry)} : gain jusqu'à l'objectif 1 divisé par la perte jusqu'au stop.")
+        p.target3Source?.takeIf { it.isNotBlank() }?.let { Caption("Objectif 3 : ${it.replaceFirstChar { c -> c.lowercase() }}.") }
     }
 }
 
@@ -477,6 +553,8 @@ private fun ExitRow(e: Decision.Exit) {
 @Composable
 private fun StockFundamentals(f: Fundamentals.Stock) {
     Caption("TTM : les 12 derniers mois publiés.")
+    if (f.periodEnd != null && f.filedAt != null) Caption("Comptes arrêtés au ${Format.nyDate(f.periodEnd!!)}, déposés à la SEC le ${Format.nyDate(f.filedAt!!)}.")
+    f.sector?.let { Text("Secteur : ${it.label} · ${it.sicDescription} (code SIC ${it.sic})", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f)) }
     KeyValue("Chiffre d'affaires (TTM)", big(f.revenue))
     f.revenueGrowth?.let { KeyValue("Croissance du chiffre d'affaires", Format.percent(it, 1)) }
     KeyValue("Résultat net", big(f.netIncome))
@@ -494,6 +572,12 @@ private fun StockFundamentals(f: Fundamentals.Stock) {
     KeyValue("PER", ratio(f.per))
     KeyValue("PEG", ratio(f.peg, 2))
     KeyValue("EV/EBITDA", ratio(f.evEbitda))
+    KeyValue("P/S (capitalisation ÷ ventes)", ratio(f.ps))
+    KeyValue("P/B (capitalisation ÷ fonds propres)", ratio(f.pb))
+    Stacked(
+        "ROIC (rentabilité du capital investi)",
+        f.roic?.let { "${pc(it, 1)} (impôt ${pc(f.roicTaxRate, 1)}${if (f.roicTaxStatutory) " : taux légal américain, taux effectif non calculable" else ", taux effectif"})" },
+    )
     KeyValue("Rendement du dividende", pct(f.dividendYield, 2))
     KeyValue("Nombre d'actions (1 an)", signed(f.shareChange))
     KeyValue(
@@ -509,8 +593,93 @@ private fun StockFundamentals(f: Fundamentals.Stock) {
     f.revisions?.let { r ->
         KeyValue("Révisions du consensus (1 mois)", "${Format.price(r.monthAgo)} → ${Format.price(r.now)} (${Format.percent(r.changePct, 1)})", if (r.changePct >= 0) Tone.GOOD else Tone.BAD)
     }
-    if (f.sectorNote.isNotBlank()) Caption(f.sectorNote)
+    f.valuationHistory?.let { h ->
+        SubTitle("Valorisation par rapport à sa propre histoire")
+        f.valuationVerdict?.let { Text("$it.", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f)) }
+        HistoryRows("PER", h.per)
+        HistoryRows("P/S", h.ps)
+        Caption("${h.method}. Source : ${h.source}.")
+    }
+    val c = f.peers
+    if (c != null) {
+        SubTitle("Comparaison sectorielle")
+        if (f.sectorNote.isNotBlank()) Text(f.sectorNote, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+        Bullets(
+            null,
+            c.peers.map { p ->
+                "${p.name} (${p.symbol}) : PER ${num(p.per, 1)}, P/S ${num(p.ps, 1)}, marge opérationnelle ${pc(p.operatingMargin)}, chiffre d'affaires ${pc(p.revenueGrowth, 1, true)} sur un an"
+            },
+        )
+        Caption("Cours du ${Format.nyDate(c.date)}. Source : ${c.source}.")
+    } else if (f.sectorNote.isNotBlank()) Caption(f.sectorNote)
+    if (f.guidance.isNotBlank()) Caption(f.guidance)
     SourceLine(f.source)
+}
+
+/** Label above, value below: long values stay readable at 360 dp. "—" or null: "non disponible". */
+@Composable
+private fun Stacked(label: String, value: String?) {
+    val missing = value == null || value == "—"
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = AltimColors.textSecondary, fontSize = 14.sp)
+        Text(if (missing) NA else value!!, style = mono(13.sp), color = if (missing) AltimColors.textSecondary else Color.White)
+    }
+}
+
+/** Two rows per ratio: today vs median and range, then where today stands in the window. */
+@Composable
+private fun HistoryRows(name: String, r: Fundamentals.Stock.RatioHistory?) {
+    if (r == null) return
+    Stacked("$name sur la période", "${num(r.current, 1)} aujourd'hui · médiane ${num(r.median, 1)} · de ${num(r.min, 1)} à ${num(r.max, 1)}")
+    Stacked("Centile du $name", "plus haut que ${num(r.percentile, 0)} % des ${Format.count(r.days.toDouble())} jours (${Format.nyDate(r.from)} – ${Format.nyDate(r.to)})")
+}
+
+@Composable
+private fun StableRows(s: Fundamentals.Crypto.StablecoinFlows?, label: String) {
+    if (s == null) return
+    Stacked("Stablecoins ($label)", "${Format.compactUsd(s.total)} au ${Format.nyDate(s.date)}")
+    Stacked("… sur 7 jours", if (s.change7d != null) "${signedUsd(s.change7d)} (${pc(s.change7dPct, 2, true)})" else null)
+    Stacked("… sur 30 jours", if (s.change30d != null) "${signedUsd(s.change30d)} (${pc(s.change30dPct, 2, true)})" else null)
+}
+
+/**
+ * More of the signal's track record (web TrackDetails.tsx): spread cost, expectancy, R multiples, results by market
+ * regime, how the test avoids flattering itself, and the tax note.
+ */
+@Composable
+private fun TrackDetails(t: Decision.Track) {
+    val afterTax = if (t.totalReturn > 0) t.totalReturn * (1 - FLAT_TAX / 100) else t.totalReturn
+    KeyValue("Espérance par trade (coûts inclus)", pc(t.expectancy, 2, true), if ((t.expectancy ?: 0.0) >= 0) Tone.GOOD else Tone.BAD)
+    KeyValue("Multiple de R moyen (gain ÷ risque jusqu'au stop)", t.avgR?.let { "${num(it, 2)} R" } ?: "—")
+    t.spreadPct?.let { KeyValue("Écart achat/vente ${if (t.spreadMeasured) "mesuré" else "supposé"}", pc(it, 3)) }
+    if (t.spreadNote.isNotBlank()) Caption(t.spreadNote)
+    val regimes = t.regimes.orEmpty()
+    if (regimes.isNotEmpty()) {
+        SubTitle("Selon le régime de marché")
+        regimes.forEach { g ->
+            val color = if (g.lowSample) AltimColors.textSecondary else if ((g.avgReturn ?: 0.0) >= 0) AltimColors.buy else AltimColors.warning
+            val icon = when (g.regime) { "bull" -> "↗"; "bear" -> "↘"; "crisis" -> "⚠"; else -> "→" }
+            Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(icon, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(g.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    val figures = "${g.trades} trade${if (g.trades > 1) "s" else ""}" +
+                        if (g.trades > 0) " · réussite ${pc(g.winRate, 0)} · moyenne ${pc(g.avgReturn, 1, true)}" else ""
+                    Text(figures, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
+                    if (g.lowSample) Badge("échantillon trop faible", Tone.NEUTRAL)
+                }
+            }
+        }
+        Caption(
+            "Haussier : clôture au-dessus d'une moyenne 200 jours qui monte (sur 20 jours) ; baissier : sous une moyenne qui baisse ; crise : plus de 30 % sous le plus haut de l'année. " +
+                "Régime lu à la date du signal, sans données futures.",
+        )
+    }
+    Bullets("Comment ce test évite de se flatter", t.biasNotes)
+    Caption(
+        "Impôt (hypothèse : flat tax de ${Format.plain(FLAT_TAX, 0)} % sur le gain net, payée à la fin, pertes compensées) : rendement du signal après impôt ≈ ${pc(afterTax, 1, true)}. " +
+            "Votre situation fiscale peut différer.",
+    )
 }
 
 @Composable
@@ -533,5 +702,165 @@ private fun CryptoFundamentals(f: Fundamentals.Crypto) {
         Text("Déblocages de jetons", color = AltimColors.textSecondary, fontSize = 14.sp)
         Text(f.unlocks.ifBlank { NA }, fontSize = 13.sp)
     }
+    if (f.stablecoins != null || f.chainStablecoins != null) {
+        SubTitle("Flux de stablecoins")
+        StableRows(f.stablecoins, "tous réseaux")
+        StableRows(f.chainStablecoins, "réseau ${f.chainStablecoins?.scope ?: ""}")
+        Caption("Liquidité disponible sur le marché crypto. Source : ${(f.stablecoins ?: f.chainStablecoins)?.source}.")
+    }
+    if (f.devActivityKnown) {
+        SubTitle("Activité de développement")
+        val a = f.devActivity
+        if (a != null) {
+            Stacked("Commits sur 4 semaines", a.commits4w?.let { Format.count(it) })
+            Stacked(
+                "Lignes ajoutées / supprimées (4 semaines)",
+                if (a.additions4w != null && a.deletions4w != null) "+${Format.count(a.additions4w)} / −${Format.count(a.deletions4w)}" else null,
+            )
+            Stacked("Pull requests intégrées (total)", a.pullRequestsMerged?.let { Format.count(it) })
+            Stacked("Contributeurs", a.contributors?.let { Format.count(it) })
+            Stacked("Étoiles", a.stars?.let { Format.count(it) })
+            SourceLine(a.source)
+        } else Caption("Non disponible (CoinGecko ne la publie plus et le dépôt GitHub du projet n'a pas répondu).")
+    }
+    if (f.notCovered.isNotBlank()) Caption("${f.notCovered}.")
     SourceLine(f.source)
+}
+
+// ---------- Market regime, composite score and technical structure (web DecisionCard.tsx) ----------
+
+@Composable
+private fun RegimeLine(r: MarketRegime) {
+    Text(
+        buildAnnotatedString {
+            withStyle(SpanStyle(color = AltimColors.textSecondary)) { append("Régime de marché : ") }
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("${r.kind.emoji} ${r.kind.label}") }
+            if (r.reasons.isNotEmpty()) withStyle(SpanStyle(color = AltimColors.textSecondary, fontSize = 12.sp)) { append(" — ${r.reasons.joinToString(" · ")}") }
+        },
+        fontSize = 13.sp, color = Color.White,
+    )
+}
+
+/** Score −100 … +100 on one thin axis centred on 0. */
+@Composable
+private fun ScoreBar(v: Double, label: String) {
+    val w = (minOf(100.0, abs(v)) / 100).toFloat()
+    val c = if (v >= 0) AltimColors.buy else AltimColors.sell
+    Row(
+        Modifier.fillMaxWidth().height(4.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.08f))
+            .clearAndSetSemantics { contentDescription = "$label : ${signedScore(v)} sur une échelle de −100 à +100" },
+    ) {
+        Box(Modifier.weight(1f).height(4.dp)) {
+            if (v < 0 && w > 0f) Box(Modifier.align(Alignment.CenterEnd).fillMaxWidth(w).height(4.dp).background(c))
+        }
+        Box(Modifier.weight(1f).height(4.dp)) {
+            if (v > 0 && w > 0f) Box(Modifier.align(Alignment.CenterStart).fillMaxWidth(w).height(4.dp).background(c))
+        }
+    }
+}
+
+@Composable
+private fun ScoreBlock(s: Decision.CompositeScore) {
+    val v = s.value
+    if (v == null) {
+        Caption(s.text)
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        KeyValue("Score composite", "${signedScore(v)} · ${s.label}", if (v >= 20) Tone.GOOD else if (v <= -20) Tone.BAD else null)
+        ScoreBar(v, "Score composite")
+        s.factors.forEach { f ->
+            Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        buildAnnotatedString {
+                            append(f.label)
+                            withStyle(SpanStyle(color = AltimColors.textSecondary, fontSize = 11.sp)) {
+                                append(if (f.value == null) " non mesuré" else " poids ${num(f.applied, 1)} %")
+                            }
+                        },
+                        fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                    )
+                    Text(f.value?.let { signedScore(it) } ?: "—", style = mono(12.sp), color = Color.White)
+                }
+                f.value?.let { ScoreBar(it, f.label) }
+            }
+        }
+        Caption(s.text)
+    }
+}
+
+private fun pts(v: Double) = "${if (v > 0) "+" else if (v < 0) "−" else ""}${num(abs(v), 1)} pts"
+private fun usdPx(v: Double) = Format.price(v)
+
+private class StructureRow(val name: String, val bias: Bias? = null, val reading: String, val extra: String? = null, val list: List<String> = emptyList())
+
+/** Every item of the structure, measured or not (a missing one says why rather than disappearing). */
+@Composable
+private fun StructureList(st: Decision.Structure) {
+    val na = "Non disponible : historique trop court"
+    val noVolume = "Non disponible : volume absent ou historique trop court"
+    val rows = buildList {
+        add(
+            st.ichimoku?.let {
+                StructureRow(
+                    "Ichimoku (9, 26, 52)", it.bias, it.reading,
+                    "Tenkan ${usdPx(it.tenkan)} · Kijun ${usdPx(it.kijun)} · nuage ${usdPx(minOf(it.senkouA, it.senkouB))} – ${usdPx(maxOf(it.senkouA, it.senkouB))}",
+                )
+            } ?: StructureRow("Ichimoku (9, 26, 52)", reading = na),
+        )
+        add(st.supertrend?.let { StructureRow("Supertrend (ATR 10 × 3)", it.bias, it.reading) } ?: StructureRow("Supertrend (ATR 10 × 3)", reading = na))
+        add(
+            st.donchian?.let { StructureRow("Canal de Donchian (20)", it.bias, it.reading, "Haut ${usdPx(it.upper)} · milieu ${usdPx(it.mid)} · bas ${usdPx(it.lower)}") }
+                ?: StructureRow("Canal de Donchian (20)", reading = na),
+        )
+        add(st.vwap?.let { StructureRow("VWAP glissant (${it.bars} bougies)", it.bias, it.reading) } ?: StructureRow("VWAP glissant", reading = noVolume))
+        add(
+            st.volumeProfile?.let { StructureRow("Profil de volume (approximation)", it.bias, it.reading, it.note) }
+                ?: StructureRow("Profil de volume (approximation)", reading = noVolume),
+        )
+        add(
+            st.pivots?.let {
+                StructureRow(
+                    "Points pivots (dernière séance)", null, it.reading,
+                    "S2 ${usdPx(it.s2)} · S1 ${usdPx(it.s1)} · P ${usdPx(it.pivot)} · R1 ${usdPx(it.r1)} · R2 ${usdPx(it.r2)}",
+                )
+            } ?: StructureRow("Points pivots", reading = na),
+        )
+        add(
+            StructureRow(
+                "Supports et résistances", null, st.levelsReading,
+                list = st.levels.take(8).map { l -> "${if (l.kind == "support") "Support" else "Résistance"} ${usdPx(l.price)} · ${l.touches} contacts · ${pc(l.distancePct, 1, true)}" },
+            ),
+        )
+        add(st.breakout?.let { StructureRow("Cassure", it.bias, it.reading) } ?: StructureRow("Cassure", reading = na))
+        add(
+            st.marketStructure?.let { StructureRow("Structure (sommets et creux)", it.bias, it.reading) }
+                ?: StructureRow("Structure (sommets et creux)", reading = "Non disponible : pas assez de sommets et de creux"),
+        )
+        st.relative.forEach { r ->
+            add(
+                StructureRow(
+                    "Force relative contre ${r.benchmark}", r.bias, r.reading,
+                    list = r.periods.map { x -> "${x.label} : ${pc(x.assetPct, 1, true)} contre ${pc(x.benchmarkPct, 1, true)} (${pts(x.diff)})" },
+                ),
+            )
+        }
+        if (st.relative.isEmpty()) add(StructureRow("Force relative", reading = st.relativeNote ?: "Non disponible"))
+    }
+    Caption("${st.timeframe}.${st.score?.let { " Direction d'ensemble : ${signedScore(it)}/100." } ?: ""}")
+    rows.forEach { r ->
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(r.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                r.bias?.let { b ->
+                    val c = when (b) { Bias.BULLISH -> AltimColors.buy; Bias.BEARISH -> AltimColors.sell; Bias.NEUTRAL -> AltimColors.warning }
+                    Text("${b.arrow} ${b.label}", fontSize = 12.sp, color = c, fontWeight = FontWeight.SemiBold)
+                }
+            }
+            Text(r.reading, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+            r.extra?.let { Caption(it) }
+            r.list.forEach { Text("• $it", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f)) }
+        }
+    }
 }

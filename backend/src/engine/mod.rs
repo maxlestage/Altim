@@ -14,6 +14,8 @@ pub mod news;
 pub mod reliability;
 pub mod screener;
 pub mod signal;
+pub mod structure;
+pub mod synthesis;
 
 use serde::{Deserialize, Serialize};
 

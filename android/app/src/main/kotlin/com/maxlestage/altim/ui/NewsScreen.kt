@@ -22,6 +22,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -66,9 +69,16 @@ fun NewsScreen(model: AppModel, modifier: Modifier) {
     var refresh by remember { mutableIntStateOf(0) }
     var filter by remember { mutableStateOf(prefs.getString("filter", "all") ?: "all") }
     var frenchOnly by remember { mutableStateOf(prefs.getBoolean("frenchOnly", false)) }
+    // Articles or Agenda (remembered on this phone, like the web app).
+    var view by remember { mutableStateOf(if (prefs.getString("view", null) == "agenda") "agenda" else "articles") }
+    val chooseView = { v: String ->
+        view = v
+        prefs.edit { putString("view", v) }
+    }
 
     val assets = (model.watchlist + model.holdings.map { it.asset }).distinctBy { it.id }.take(20)
-    LaunchedEffect(refresh, assets.joinToString { it.id }) {
+    LaunchedEffect(refresh, assets.joinToString { it.id }, view) {
+        if (view != "articles") return@LaunchedEffect
         while (true) {
             val client = model.client ?: return@LaunchedEffect
             try {
@@ -89,13 +99,14 @@ fun NewsScreen(model: AppModel, modifier: Modifier) {
     val shown = r?.items.orEmpty().filter { (filter == "all" || it.category == filter) && (!frenchOnly || it.lang == "fr") }
     val upSources = r?.sources?.count { it.ok } ?: 0
 
+    if (view == "agenda") {
+        AgendaPane(model, modifier.statusBarsPadding()) { NewsHeader("Les événements à venir, chacun avec sa source.", view, chooseView) }
+        return
+    }
     PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier.statusBarsPadding()) {
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item {
-                Column {
-                    Text("Actualités", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-                    Caption(r?.let { "${it.items.size} articles de $upSources sources sur 48 h, mis à jour ${NewsItem.ago(it.asOf)}." } ?: "Chargement des sources…")
-                }
+                NewsHeader(r?.let { "${it.items.size} articles de $upSources sources sur 48 h, mis à jour ${NewsItem.ago(it.asOf)}." } ?: "Chargement des sources…", view, chooseView)
             }
             error?.let { e -> item { ErrorBox(e) { refresh++ } } }
             if (r == null && error == null) item { Loading("Lecture d'une vingtaine de sources…") }
@@ -146,6 +157,27 @@ fun NewsScreen(model: AppModel, modifier: Modifier) {
                 }
             }
             if (r != null) item { SourcesCard(r.sources) }
+        }
+    }
+}
+
+private val VIEWS = listOf("articles" to "Articles", "agenda" to "Agenda")
+
+/** Title, what is shown, and the "Articles / Agenda" choice. */
+@Composable
+private fun NewsHeader(caption: String, view: String, onView: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Actualités", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Caption(caption)
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Vue" }) {
+            VIEWS.forEachIndexed { i, (key, label) ->
+                SegmentedButton(
+                    selected = view == key,
+                    onClick = { onView(key) },
+                    shape = SegmentedButtonDefaults.itemShape(i, VIEWS.size),
+                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
+                ) { Text(label) }
+            }
         }
     }
 }

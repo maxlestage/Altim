@@ -78,7 +78,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -222,12 +222,21 @@ class AltimClient(
      * portfolio [weights] (percentages from [Decision.weights], never quantities nor amounts): the server uses them
      * for this answer only and keeps nothing.
      */
-    suspend fun decision(a: Asset, cost: Double? = null, weights: String? = null): Decision {
+    suspend fun decision(a: Asset, cost: Double? = null, weights: String? = null, scoreWeights: ScoreWeights? = null): Decision {
         val q = mutableMapOf("symbol" to a.symbol, "kind" to a.kind.raw)
         cost?.takeIf { it.isFinite() && it > 0 }?.let { q["cost"] = Decision.number(it, 8) }
         weights?.takeIf { it.isNotBlank() }?.let { q["weights"] = it }
+        // Composite score weights (Réglages), only when not the defaults: the request stays the same otherwise.
+        scoreWeights?.param()?.let { q["w"] = it }
         return get("/api/decision", q, Decision.serializer())
     }
+
+    /**
+     * Agenda of the next [days] days (7, 14 or 30): economy, central banks, earnings, dividends, splits, IPOs.
+     * [symbols] (stock symbols of the radar and holdings, 50 at most) limits the company events to these stocks.
+     */
+    suspend fun calendar(days: Int, symbols: List<String>?): CalendarReport =
+        get("/api/calendar", Calendar.query(days, symbols), CalendarReport.serializer())
 
     suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
         if (assets.isEmpty()) emptyList()

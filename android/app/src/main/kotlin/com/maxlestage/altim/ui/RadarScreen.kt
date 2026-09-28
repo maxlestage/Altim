@@ -57,13 +57,20 @@ import androidx.compose.foundation.background
 import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
+import com.maxlestage.altim.kit.ConfigChanges
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.MacroInfo
 import com.maxlestage.altim.kit.RadarRow
 import com.maxlestage.altim.kit.SearchItem
 import com.maxlestage.altim.kit.Tone
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
+private const val DECISION_EVERY = 15 * 60_000.0
 
 /** Watch list: live price, signal, reliability of the data, macro context. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +106,22 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
     }
 
     LaunchedEffect(model.watchlist.joinToString { it.id }) { load() }
+    // Decisions of the watched assets (market data only), re-read at most every 15 minutes while the Radar is open:
+    // each one goes through the configuration diff (ConfigChanges). Two at a time: the server fetches fundamentals and
+    // order books for each one; a decision that fails is simply compared at the next pass.
+    LaunchedEffect(model.watchlist.joinToString { it.id }, model.client) {
+        val client = model.client ?: return@LaunchedEffect
+        while (true) {
+            val now = System.currentTimeMillis().toDouble()
+            val due = model.watchlist.take(20).filter { a -> ConfigChanges.lastSeen(model.configChanges, a)?.let { now - it >= DECISION_EVERY } ?: true }
+            for (pair in due.chunked(2)) {
+                coroutineScope {
+                    pair.map { a -> async { runCatching { client.decision(a) }.getOrNull() } }.awaitAll()
+                }.filterNotNull().forEach { model.recordDecision(it, personal = false) }
+            }
+            delay(DECISION_EVERY.toLong())
+        }
+    }
     LaunchedEffect(query) {
         val q = query.trim()
         if (q.isEmpty()) {
@@ -142,6 +165,10 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { BriefCard(model, open) }
                 macro?.takeIf { it.level != "calm" }?.let { m -> item { MacroBanner(m) } }
+                model.dangers?.takeIf { it.items.isNotEmpty() }?.let { d -> item { DangersNotice(d) } }
+                if (model.configChanges.transitions.isNotEmpty()) {
+                    item { ConfigChangesCard(model.configChanges.transitions, open, onClear = { model.clearTransitions() }) }
+                }
                 error?.let { e -> item { ErrorBox(e) { scope.launch { load() } } } }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -234,6 +261,27 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifi
     }
 }
 
+/** "Régime de marché : Risk-on — Stress macro 10/100 (calme) · …" (/api/macro and the zones' macro context). */
+@Composable
+fun RegimeText(r: com.maxlestage.altim.kit.MarketRegime) {
+    Text(
+        androidx.compose.ui.text.buildAnnotatedString {
+            pushStyle(androidx.compose.ui.text.SpanStyle(color = AltimColors.textSecondary))
+            append("Régime de marché : ")
+            pop()
+            pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold))
+            append(r.label.ifBlank { r.kind.label })
+            pop()
+            if (r.reasons.isNotEmpty()) {
+                pushStyle(androidx.compose.ui.text.SpanStyle(color = AltimColors.textSecondary))
+                append(" — ${r.reasons.joinToString(" · ")}")
+                pop()
+            }
+        },
+        fontSize = 12.sp, color = Color.White,
+    )
+}
+
 @Composable
 fun MacroBanner(macro: MacroInfo) {
     val c = AltimColors.of(macro.tone)
@@ -245,6 +293,7 @@ fun MacroBanner(macro: MacroInfo) {
             Text("Contexte macro : ${macro.levelLabel}", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
             Badge("${Math.round(macro.score)}/100", macro.tone)
         }
+        macro.regime?.let { RegimeText(it) }
         macro.factors.take(3).forEach { Text("• ${it.text}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f)) }
         Caption("Une zone d'achat peut céder si la situation mondiale se dégrade (guerre, crise, taux) : tailles réduites conseillées.")
     }

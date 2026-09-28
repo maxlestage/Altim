@@ -2,6 +2,7 @@
 pub mod app;
 pub mod auth;
 pub mod cache;
+pub mod calendar;
 pub mod engine;
 pub mod fundamentals;
 pub mod guard;

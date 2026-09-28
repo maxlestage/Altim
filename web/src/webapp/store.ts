@@ -5,6 +5,7 @@ import { useSyncExternalStore } from "react";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import type { Kind } from "../engine/reliability";
 import type { Holding } from "../engine/holdings";
+import { DEFAULT_SCORE_WEIGHTS, sanitizeScoreWeights, type ScoreWeights } from "./decision";
 
 export type Interval = "1h" | "4h" | "1d";
 export type WatchItem = { symbol: string; kind: Kind; name: string };
@@ -18,6 +19,8 @@ export interface AppState {
   watchlist: WatchItem[];
   risk: RiskSettings;
   horizon: HorizonPref;
+  /** Weights of the decision's composite score (Réglages), sent as `w=` when not the defaults. */
+  scoreWeights: ScoreWeights;
 }
 
 export const DEFAULT_WATCHLIST: WatchItem[] = [
@@ -40,6 +43,7 @@ const initial = (): AppState => ({
   watchlist: DEFAULT_WATCHLIST,
   risk: DEFAULT_RISK,
   horizon: "medium",
+  scoreWeights: DEFAULT_SCORE_WEIGHTS,
 });
 
 function load(): AppState {
@@ -55,6 +59,7 @@ function load(): AppState {
           watchlist: Array.isArray(parsed.watchlist) ? parsed.watchlist : DEFAULT_WATCHLIST,
           risk: { ...DEFAULT_RISK, ...parsed.risk },
           horizon: ["short", "medium", "long"].includes(parsed.horizon as string) ? parsed.horizon! : "medium",
+          scoreWeights: sanitizeScoreWeights(parsed.scoreWeights),
         };
       }
     }
@@ -101,10 +106,17 @@ function loadHoldings(): HoldingsState {
     const raw = localStorage.getItem(HOLDINGS_KEY);
     if (raw) {
       const p = JSON.parse(raw) as HoldingsState;
-      if (p.version === 1 && Array.isArray(p.holdings)) return { ...p, holdings: p.holdings.filter(isValidHolding) };
+      if (p.version === 1 && Array.isArray(p.holdings)) return { ...p, holdings: p.holdings.filter(isValidHolding).map(cleanStop) };
     }
   } catch {}
   return { version: 1, cash: 0, holdings: [], updatedAt: 0 };
+}
+
+/** The optional stop is dropped when it is not a positive number (the line itself stays). */
+export function cleanStop(h: Holding): Holding {
+  if (h.stop === undefined || (Number.isFinite(h.stop) && h.stop > 0)) return h;
+  const { stop: _, ...rest } = h;
+  return rest;
 }
 
 export function isValidHolding(h: unknown): h is Holding {
@@ -173,7 +185,7 @@ export function importHoldings(json: string): string | null {
   try {
     const p = JSON.parse(json) as Partial<HoldingsState>;
     if (!Array.isArray(p.holdings)) return "Fichier invalide.";
-    const holdings = p.holdings.filter(isValidHolding);
+    const holdings = p.holdings.filter(isValidHolding).map(cleanStop);
     setHoldings({ holdings, cash: Number.isFinite(p.cash) && (p.cash as number) >= 0 ? (p.cash as number) : 0 });
     return null;
   } catch {
