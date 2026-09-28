@@ -7,6 +7,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
@@ -105,6 +106,14 @@ class ScreensTest {
         waitFor("Perte si le stop est touché", 30_000)
         compose.waitForIdle()
         shot("4-fiche-btc")
+        // Simulated purchase from the decision (no real money): amount, stop and target prefilled.
+        compose.onNode(hasText("Simuler cet achat")).performScrollTo().performClick()
+        waitFor("Simuler l'achat de BTC")
+        compose.waitUntil(30_000) { compose.onAllNodes(hasText("SIMULER L'ACHAT") and androidx.compose.ui.test.isEnabled()).fetchSemanticsNodes().isNotEmpty() }
+        compose.onNode(hasText("SIMULER L'ACHAT")).performScrollTo().performClick()
+        waitFor("Achat simulé de")
+        check(model.paper.positions.single().symbol == "BTC") { "position simulée absente" }
+        check(model.paper.positions.single().decision != null) { "décision non conservée" }
         compose.onNode(hasText("Retour", substring = false).or(androidx.compose.ui.test.hasContentDescription("Retour"))).performClick()
 
         // 5. Selection (cryptos, 1 month): first computation ≈ 30 s on the server.
@@ -133,6 +142,13 @@ class ScreensTest {
         waitFor("Pire recul depuis un sommet", 90_000)
         check(model.holdings.single().quantity == 0.5)
         shot("6-avoirs")
+        // The simulated BTC position, valued at the live price, in Mes avoirs → Simulation.
+        compose.onNode(hasText("Simulation")).performClick()
+        waitFor("POSITIONS OUVERTES · 1")
+        waitFor("Vendre (simulé)")
+        compose.waitForIdle()
+        shot("6b-simulation")
+        compose.onNode(hasText("Réel")).performClick()
 
         // 7. Price alert from the Bitcoin page, then the Alerts tab.
         compose.onAllNodes(hasText("Radar")).onFirst().performClick()

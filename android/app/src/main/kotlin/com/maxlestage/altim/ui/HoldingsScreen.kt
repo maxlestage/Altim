@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -31,6 +32,9 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -44,6 +48,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +86,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     var form by remember { mutableStateOf<Holding?>(null) }
     var adding by remember { mutableStateOf(false) }
     var refresh by remember { mutableIntStateOf(0) }
+    var simulation by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(model.holdings.joinToString { it.asset.id }, refresh) {
         val client = model.client ?: return@LaunchedEffect
@@ -104,11 +110,24 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     val portfolio = Portfolio(model.holdings, prices)
 
     Column(modifier.statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Mes avoirs", fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, contentDescription = "Ajouter un avoir", tint = AltimColors.cyan) }
+            if (!simulation) IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, contentDescription = "Ajouter un avoir", tint = AltimColors.cyan) }
         }
-        PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }) {
+        // Real holdings, or the simulated portfolio (no real money).
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+            listOf(false to "Réel", true to "Simulation").forEachIndexed { i, (sim, label) ->
+                SegmentedButton(
+                    selected = simulation == sim,
+                    onClick = { simulation = sim },
+                    shape = SegmentedButtonDefaults.itemShape(i, 2),
+                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
+                ) { Text(label) }
+            }
+        }
+        if (simulation) {
+            PaperPane(model, Modifier.fillMaxSize())
+        } else PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
                 if (model.holdings.isEmpty()) {
                     item {

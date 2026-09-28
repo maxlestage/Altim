@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.QuestionMark
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -91,21 +93,21 @@ private fun ratio(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.le
 
 /** "Décision" card of the asset page: loading, error or the decision itself. */
 @Composable
-fun DecisionCard(state: Loadable<Decision>, held: Boolean, retry: () -> Unit) {
+fun DecisionCard(state: Loadable<Decision>, held: Boolean, onSimulate: (() -> Unit)? = null, retry: () -> Unit) {
     when (state) {
         is Loadable.Loading -> Card(title = "Décision") {
             Caption(if (held) "Mode personnel : calcul avec votre prix d'achat et vos pondérations…" else "Mode informationnel…")
             Loading()
         }
         is Loadable.Failed -> Card(title = "Décision") { ErrorBox(state.message, retry) }
-        is Loadable.Loaded -> DecisionView(state.value)
+        is Loadable.Loaded -> DecisionView(state.value, onSimulate = onSimulate)
     }
 }
 
 /** The whole decision: verdict first, then the reasons, what would change it, and the details folded. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun DecisionView(d: Decision, expanded: Boolean = false) {
+fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit)? = null) {
     val color = levelColor(d.level)
     Card(title = "Décision", glow = color) {
         ModeLine(d)
@@ -138,6 +140,16 @@ fun DecisionView(d: Decision, expanded: Boolean = false) {
         d.exposure?.warning?.let { Notice(it, Tone.WARN) }
 
         d.plan?.let { PlanBlock(it) } ?: Caption("Pas de plan d'entrée : aucun niveau d'achat net pour l'instant.")
+
+        // Paper trading: follow this decision with virtual money to see whether it holds (no order placed).
+        onSimulate?.let {
+            OutlinedButton(
+                onClick = it,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                border = BorderStroke(1.2.dp, AltimColors.violet),
+            ) { Text("Simuler cet achat", color = Color(0xFFB9A3FF)) }
+            Caption("Sans argent réel : la position simulée apparaît dans Mes avoirs → Simulation.")
+        }
 
         Bullets("Pourquoi attendre ?", d.whyWait)
         Conditions("Pour passer en ACHAT", d.toBuy)

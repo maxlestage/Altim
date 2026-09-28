@@ -10,10 +10,33 @@ struct HoldingsView: View {
     @State private var editing: Holding?
     @State private var adding = false
     @State private var error: String?
+    /// 0 = real holdings, 1 = simulation (paper trading).
+    @State private var mode = 0
 
     var body: some View {
+        Group {
+            if mode == 1 {
+                PaperView(mode: $mode)
+            } else {
+                realList
+            }
+        }
+        .altimScreen()
+        .navigationTitle("Mes avoirs")
+        .navigationDestination(for: Asset.self) { AssetDetailView(asset: $0) }
+        .toolbar {
+            if mode == 0 {
+                Button { adding = true } label: { Image(systemName: "plus") }.accessibilityLabel("Ajouter un avoir")
+            }
+        }
+        .sheet(isPresented: $adding) { HoldingForm(holding: nil) }
+        .sheet(item: $editing) { HoldingForm(holding: $0) }
+    }
+
+    private var realList: some View {
         let portfolio = Portfolio(holdings: model.holdings, prices: prices)
-        List {
+        return List {
+            Section { PortfolioModePicker(mode: $mode) }.listRowBackground(Color.clear)
             if model.holdings.isEmpty {
                 Section {
                     VStack(spacing: 14) {
@@ -49,14 +72,6 @@ struct HoldingsView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .altimScreen()
-        .navigationTitle("Mes avoirs")
-        .navigationDestination(for: Asset.self) { AssetDetailView(asset: $0) }
-        .toolbar {
-            Button { adding = true } label: { Image(systemName: "plus") }.accessibilityLabel("Ajouter un avoir")
-        }
-        .sheet(isPresented: $adding) { HoldingForm(holding: nil) }
-        .sheet(item: $editing) { HoldingForm(holding: $0) }
         .task(id: model.holdings.map(\.asset.id).joined(separator: ",")) { await load() }
         .refreshable { await load() }
     }

@@ -28,6 +28,7 @@ export const GLOSSARY: [string, string][] = [
   ["EV/EBITDA", "Valeur de l'entreprise (capitalisation + dette nette) divisée par son résultat avant intérêts, impôts et amortissements. Compare des sociétés endettées ou non."],
   ["TVL", "Total Value Locked : montant déposé dans les contrats d'un réseau ou d'un protocole (prêts, échanges). Mesure son usage, pas sa rentabilité."],
   ["Funding (taux de financement)", "Sur les contrats perpétuels, paiement périodique entre acheteurs et vendeurs à effet de levier. Positif et élevé : la foule est très acheteuse à crédit, les baisses brutales deviennent plus probables."],
+  ["Simulation (paper trading)", "Portefeuille virtuel, sans argent réel ni ordre passé : on « achète » depuis la carte Décision, Altim suit le cours et vend au stop ou à l'objectif sur les bougies journalières, frais (0,1 %) et glissement (0,05 %) compris. Les résultats, regroupés par décision affichée à l'achat, montrent quels verdicts ont vraiment marché ; sous une vingtaine de trades, ils veulent dire peu."],
   ["Rééquilibrage", "Revenir à la répartition choisie (ex. 40 % crypto, 60 % actions) en vendant ce qui a trop monté et en achetant ce qui a pris du retard."],
 ];
 

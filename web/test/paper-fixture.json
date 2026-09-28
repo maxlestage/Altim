@@ -1,0 +1,2088 @@
+[
+ {
+  "step": {
+   "op": "new",
+   "capital": 10000,
+   "now": 1788271200000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10000,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p1",
+    "symbol": "BTC",
+    "kind": "crypto",
+    "name": "Bitcoin",
+    "price": 64000,
+    "amount": 20000,
+    "stop": 60000,
+    "target": 72000,
+    "decision": {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "confidence": 70,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271200000
+  },
+  "error": "Liquidités simulées insuffisantes (10000 $ disponibles).",
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10000,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p1",
+    "symbol": "BTC",
+    "kind": "crypto",
+    "name": "Bitcoin",
+    "price": 0,
+    "amount": 1000,
+    "decision": {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "confidence": 70,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271200000
+  },
+  "error": "Prix indisponible.",
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10000,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p1",
+    "symbol": "BTC",
+    "kind": "crypto",
+    "name": "Bitcoin",
+    "price": 64000,
+    "amount": 0,
+    "decision": {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "confidence": 70,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271200000
+  },
+  "error": "Montant invalide.",
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10000,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p1",
+    "symbol": "BTC",
+    "kind": "crypto",
+    "name": "Bitcoin",
+    "price": 64000,
+    "amount": 3000,
+    "stop": 60000,
+    "target": 72000,
+    "decision": {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "confidence": 70,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271200000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 7000,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    }
+   ],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "price": 250,
+    "amount": 2500,
+    "stop": 260,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271201000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 4500,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     }
+    }
+   ],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p3",
+    "symbol": "SOL",
+    "kind": "crypto",
+    "name": "Solana",
+    "price": 150,
+    "amount": 1500,
+    "decision": {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "confidence": 50,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788271202000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 3000,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     }
+    }
+   ],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "price": 2500,
+    "amount": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null
+   },
+   "now": 1788271203000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 2000,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null
+    }
+   ],
+   "trades": []
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "value",
+   "prices": {
+    "crypto:BTC": 66000,
+    "stock:AAPL": 240,
+    "crypto:SOL": 160,
+    "crypto:ETH": null
+   }
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 2000,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     }
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null
+    }
+   ],
+   "trades": []
+  },
+  "valuation": {
+   "cash": 2000,
+   "positionsValue": 8072.5,
+   "equity": 10072.5,
+   "pnl": 72.5,
+   "pnlPct": 0.725,
+   "lines": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "price": 66000,
+     "value": 3084.48,
+     "pnl": 84.48,
+     "pnlPct": 2.816
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "price": 240,
+     "value": 2392.81,
+     "pnl": -107.19,
+     "pnlPct": -4.2876
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "price": 160,
+     "value": 1595.21,
+     "pnl": 95.21,
+     "pnlPct": 6.3473
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "price": null,
+     "value": null,
+     "pnl": null,
+     "pnlPct": null
+    }
+   ],
+   "unpriced": 1
+  },
+  "stats": {
+   "trades": 0,
+   "wins": 0,
+   "winRate": 0,
+   "avgWinPct": null,
+   "avgLossPct": null,
+   "profitFactor": null,
+   "realizedPnl": 0,
+   "best": null,
+   "worst": null,
+   "maxDrawdownPct": 0,
+   "byReason": {
+    "stop": 0,
+    "target": 0,
+    "manual": 0
+   },
+   "byVerdict": []
+  }
+ },
+ {
+  "step": {
+   "op": "exits",
+   "candles": {
+    "crypto:BTC": [
+     {
+      "time": 1788220800000,
+      "open": 63000,
+      "high": 65000,
+      "low": 59000,
+      "close": 64500
+     },
+     {
+      "time": 1788307200000,
+      "open": 64500,
+      "high": 71000,
+      "low": 63000,
+      "close": 70000
+     },
+     {
+      "time": 1788393600000,
+      "open": 70000,
+      "high": 73000,
+      "low": 69000,
+      "close": 72500
+     }
+    ],
+    "stock:AAPL": [
+     {
+      "time": 1788307200000,
+      "open": 250,
+      "high": 280,
+      "low": 245,
+      "close": 270
+     },
+     {
+      "time": 1788480000000,
+      "open": 270,
+      "high": 305,
+      "low": 268,
+      "close": 301
+     }
+    ],
+    "crypto:ETH": [
+     {
+      "time": 1788307200000,
+      "open": 2200,
+      "high": 2250,
+      "low": 2150,
+      "close": 2210
+     }
+    ],
+    "crypto:SOL": [
+     {
+      "time": 1788307200000,
+      "open": 150,
+      "high": 400,
+      "low": 10,
+      "close": 160
+     }
+    ]
+   }
+  },
+  "closed": [
+   "p1",
+   "p2",
+   "p4"
+  ],
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 9233.26,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     }
+    }
+   ],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    }
+   ]
+  },
+  "stats": {
+   "trades": 3,
+   "wins": 2,
+   "winRate": 66.6667,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -12.264,
+   "profitFactor": 6.979,
+   "realizedPnl": 733.26,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -1.2264,
+   "byReason": {
+    "stop": 1,
+    "target": 2,
+    "manual": 0
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 12.163
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    }
+   ]
+  }
+ },
+ {
+  "step": {
+   "op": "close",
+   "id": "p3",
+   "price": 140,
+   "now": 1788703200000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10629.06,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788703200000,
+     "exit": 139.93,
+     "reason": "manual",
+     "proceeds": 1395.8,
+     "pnl": -104.2,
+     "pnlPct": -6.9467
+    }
+   ]
+  },
+  "stats": {
+   "trades": 4,
+   "wins": 2,
+   "winRate": 50,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -9.6053,
+   "profitFactor": 3.7731,
+   "realizedPnl": 629.06,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -1.2264,
+   "byReason": {
+    "stop": 1,
+    "target": 2,
+    "manual": 1
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 12.163
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    },
+    {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -6.9467
+    }
+   ]
+  }
+ },
+ {
+  "step": {
+   "op": "close",
+   "id": "missing",
+   "price": 140,
+   "now": 1788703200000
+  },
+  "error": "Position introuvable.",
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10629.06,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788703200000,
+     "exit": 139.93,
+     "reason": "manual",
+     "proceeds": 1395.8,
+     "pnl": -104.2,
+     "pnlPct": -6.9467
+    }
+   ]
+  },
+  "stats": {
+   "trades": 4,
+   "wins": 2,
+   "winRate": 50,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -9.6053,
+   "profitFactor": 3.7731,
+   "realizedPnl": 629.06,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -1.2264,
+   "byReason": {
+    "stop": 1,
+    "target": 2,
+    "manual": 1
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 12.163
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    },
+    {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -6.9467
+    }
+   ]
+  }
+ },
+ {
+  "step": {
+   "op": "open",
+   "order": {
+    "id": "p5",
+    "symbol": "BTC",
+    "kind": "crypto",
+    "name": "Bitcoin",
+    "price": 70000,
+    "amount": 2000,
+    "stop": 66000,
+    "target": 76000,
+    "decision": {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "confidence": 70,
+     "asOf": 1788271200000
+    }
+   },
+   "now": 1788789600000
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 8629.06,
+   "startedAt": 1788271200000,
+   "positions": [
+    {
+     "id": "p5",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788789600000,
+     "entry": 70035,
+     "quantity": 0.0285285928,
+     "invested": 2000,
+     "stop": 66000,
+     "target": 76000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     }
+    }
+   ],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788703200000,
+     "exit": 139.93,
+     "reason": "manual",
+     "proceeds": 1395.8,
+     "pnl": -104.2,
+     "pnlPct": -6.9467
+    }
+   ]
+  },
+  "stats": {
+   "trades": 4,
+   "wins": 2,
+   "winRate": 50,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -9.6053,
+   "profitFactor": 3.7731,
+   "realizedPnl": 629.06,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -1.2264,
+   "byReason": {
+    "stop": 1,
+    "target": 2,
+    "manual": 1
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 12.163
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    },
+    {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -6.9467
+    }
+   ]
+  }
+ },
+ {
+  "step": {
+   "op": "exits",
+   "candles": {
+    "crypto:BTC": [
+     {
+      "time": 1788825600000,
+      "open": 70000,
+      "high": 77000,
+      "low": 65000,
+      "close": 71000
+     }
+    ]
+   }
+  },
+  "closed": [
+   "p5"
+  ],
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10509.12,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788703200000,
+     "exit": 139.93,
+     "reason": "manual",
+     "proceeds": 1395.8,
+     "pnl": -104.2,
+     "pnlPct": -6.9467
+    },
+    {
+     "id": "p5",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788789600000,
+     "entry": 70035,
+     "quantity": 0.0285285928,
+     "invested": 2000,
+     "stop": 66000,
+     "target": 76000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788825600000,
+     "exit": 65967,
+     "reason": "stop",
+     "proceeds": 1880.06,
+     "pnl": -119.94,
+     "pnlPct": -5.997
+    }
+   ]
+  },
+  "stats": {
+   "trades": 5,
+   "wins": 2,
+   "winRate": 40,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -8.4026,
+   "profitFactor": 2.4681,
+   "realizedPnl": 509.12,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -2.0883,
+   "byReason": {
+    "stop": 2,
+    "target": 2,
+    "manual": 1
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 2,
+     "wins": 1,
+     "winRate": 50,
+     "avgPnlPct": 3.083
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    },
+    {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -6.9467
+    }
+   ]
+  }
+ },
+ {
+  "step": {
+   "op": "value",
+   "prices": {}
+  },
+  "state": {
+   "version": 1,
+   "startCapital": 10000,
+   "cash": 10509.12,
+   "startedAt": 1788271200000,
+   "positions": [],
+   "trades": [
+    {
+     "id": "p1",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788271200000,
+     "entry": 64032,
+     "quantity": 0.0468047226,
+     "invested": 3000,
+     "stop": 60000,
+     "target": 72000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788393600000,
+     "exit": 71964,
+     "reason": "target",
+     "proceeds": 3364.89,
+     "pnl": 364.89,
+     "pnlPct": 12.163
+    },
+    {
+     "id": "p2",
+     "symbol": "AAPL",
+     "kind": "stock",
+     "name": "Apple",
+     "openedAt": 1788271201000,
+     "entry": 250.125,
+     "quantity": 9.9850074963,
+     "invested": 2500,
+     "stop": null,
+     "target": 300,
+     "decision": {
+      "verdict": "buyZone",
+      "label": "ZONE D'ACHAT",
+      "confidence": 55,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788480000000,
+     "exit": 299.85,
+     "reason": "target",
+     "proceeds": 2991.01,
+     "pnl": 491.01,
+     "pnlPct": 19.6404
+    },
+    {
+     "id": "p4",
+     "symbol": "ETH",
+     "kind": "crypto",
+     "name": "Ethereum",
+     "openedAt": 1788271203000,
+     "entry": 2501.25,
+     "quantity": 0.3994002999,
+     "invested": 1000,
+     "stop": 2300,
+     "target": 3000,
+     "decision": null,
+     "closedAt": 1788307200000,
+     "exit": 2198.9,
+     "reason": "stop",
+     "proceeds": 877.36,
+     "pnl": -122.64,
+     "pnlPct": -12.264
+    },
+    {
+     "id": "p3",
+     "symbol": "SOL",
+     "kind": "crypto",
+     "name": "Solana",
+     "openedAt": 1788271202000,
+     "entry": 150.075,
+     "quantity": 9.9850074963,
+     "invested": 1500,
+     "stop": null,
+     "target": null,
+     "decision": {
+      "verdict": "wait",
+      "label": "ATTENDRE",
+      "confidence": 50,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788703200000,
+     "exit": 139.93,
+     "reason": "manual",
+     "proceeds": 1395.8,
+     "pnl": -104.2,
+     "pnlPct": -6.9467
+    },
+    {
+     "id": "p5",
+     "symbol": "BTC",
+     "kind": "crypto",
+     "name": "Bitcoin",
+     "openedAt": 1788789600000,
+     "entry": 70035,
+     "quantity": 0.0285285928,
+     "invested": 2000,
+     "stop": 66000,
+     "target": 76000,
+     "decision": {
+      "verdict": "buy",
+      "label": "ACHETER",
+      "confidence": 70,
+      "asOf": 1788271200000
+     },
+     "closedAt": 1788825600000,
+     "exit": 65967,
+     "reason": "stop",
+     "proceeds": 1880.06,
+     "pnl": -119.94,
+     "pnlPct": -5.997
+    }
+   ]
+  },
+  "valuation": {
+   "cash": 10509.12,
+   "positionsValue": 0,
+   "equity": 10509.12,
+   "pnl": 509.12,
+   "pnlPct": 5.0912,
+   "lines": [],
+   "unpriced": 0
+  },
+  "stats": {
+   "trades": 5,
+   "wins": 2,
+   "winRate": 40,
+   "avgWinPct": 15.9017,
+   "avgLossPct": -8.4026,
+   "profitFactor": 2.4681,
+   "realizedPnl": 509.12,
+   "best": {
+    "id": "p2",
+    "symbol": "AAPL",
+    "kind": "stock",
+    "name": "Apple",
+    "openedAt": 1788271201000,
+    "entry": 250.125,
+    "quantity": 9.9850074963,
+    "invested": 2500,
+    "stop": null,
+    "target": 300,
+    "decision": {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "confidence": 55,
+     "asOf": 1788271200000
+    },
+    "closedAt": 1788480000000,
+    "exit": 299.85,
+    "reason": "target",
+    "proceeds": 2991.01,
+    "pnl": 491.01,
+    "pnlPct": 19.6404
+   },
+   "worst": {
+    "id": "p4",
+    "symbol": "ETH",
+    "kind": "crypto",
+    "name": "Ethereum",
+    "openedAt": 1788271203000,
+    "entry": 2501.25,
+    "quantity": 0.3994002999,
+    "invested": 1000,
+    "stop": 2300,
+    "target": 3000,
+    "decision": null,
+    "closedAt": 1788307200000,
+    "exit": 2198.9,
+    "reason": "stop",
+    "proceeds": 877.36,
+    "pnl": -122.64,
+    "pnlPct": -12.264
+   },
+   "maxDrawdownPct": -2.0883,
+   "byReason": {
+    "stop": 2,
+    "target": 2,
+    "manual": 1
+   },
+   "byVerdict": [
+    {
+     "verdict": "buy",
+     "label": "ACHETER",
+     "trades": 2,
+     "wins": 1,
+     "winRate": 50,
+     "avgPnlPct": 3.083
+    },
+    {
+     "verdict": "buyZone",
+     "label": "ZONE D'ACHAT",
+     "trades": 1,
+     "wins": 1,
+     "winRate": 100,
+     "avgPnlPct": 19.6404
+    },
+    {
+     "verdict": "none",
+     "label": "Sans décision",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -12.264
+    },
+    {
+     "verdict": "wait",
+     "label": "ATTENDRE",
+     "trades": 1,
+     "wins": 0,
+     "winRate": 0,
+     "avgPnlPct": -6.9467
+    }
+   ]
+  }
+ }
+]

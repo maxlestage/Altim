@@ -136,6 +136,16 @@ En tête de la fiche de chaque actif (web, iPhone, Android), `GET /api/decision?
 - **Position détenue** : avec votre prix de revient, sorties progressives (vendre 20 %, puis 30 %, garder le reste) et sorties défensives ou macro ; avec vos pondérations, alerte d'exposition au même facteur de risque (Bitcoin ou S&P 500). Ces valeurs sont envoyées pour le calcul et jamais conservées.
 - **Mode informationnel par défaut** (données et scénarios observés) ; « personnel » seulement quand l'app envoie votre prix de revient ou vos pondérations. Altim reste un outil privé, réservé à son propriétaire, et ne passe aucun ordre ; ce n'est pas un conseil en investissement réglementé.
 
+## Simulation (paper trading)
+
+Avant l'argent réel : **Mes avoirs → Simulation** (web, iPhone, Android), un portefeuille virtuel qui suit les décisions sans argent réel ni ordre passé.
+
+- **« Simuler cet achat »** depuis la carte Décision : montant, stop et objectif du plan pré-remplis ; simuler contre la décision (par exemple quand elle dit ATTENDRE) reste possible, avec un avertissement, pour comparer.
+- **Coûts réels** : 0,1 % de frais et 0,05 % de glissement à chaque achat et chaque vente.
+- **Sorties automatiques** au stop ou à l'objectif, vérifiées sur les bougies journalières après le jour d'achat (la bougie du jour d'achat n'est pas utilisée : son plus bas peut être antérieur à l'achat). Si une même bougie touche les deux, c'est le stop (le pire cas) ; un écart d'ouverture sous le stop est vendu à l'ouverture.
+- **Signal → exécution → résultat** : les ventes sont regroupées par décision affichée à l'achat (ACHETER, ZONE D'ACHAT, ATTENDRE…), pour voir quels verdicts marchent vraiment ; sous une vingtaine de trades, l'écran rappelle que les chiffres veulent dire peu.
+- Tout reste sur l'appareil. Même moteur sur les trois plateformes, vérifié sur le même scénario de référence (`web/test/paper-fixture.json`), au centime près.
+
 ## Outils de décision
 
 Des calculs, pas des conseils ajoutés (web, iPhone, Android ; même calcul vérifié sur les mêmes cas dans les trois langages) :

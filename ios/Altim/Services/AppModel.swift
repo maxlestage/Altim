@@ -33,6 +33,11 @@ final class AppModel {
     /// Price alerts chosen by the user ("sous 80 000 $") and the journal of the notifications received.
     var priceTargets: [PriceTarget] { didSet { LocalStore.save(priceTargets, "priceTargets") } }
     var journal: [JournalEntry] { didSet { LocalStore.save(journal, "journal") } }
+    /// Simulation (paper trading): a virtual portfolio stored on the iPhone only. No real money, no order ever placed.
+    var paper: PaperState { didSet { LocalStore.save(paper, "paper") } }
+    /// Positions just closed by the automatic check (stop / target), shown once in the Simulation view.
+    var paperJustClosed: [PaperTrade] = []
+    @ObservationIgnored private var checkingPaper = false
     /// Asset to open, from a tapped notification.
     var pendingOpen: Asset? = nil
     /// Asset of the running Live Activity (its live price is followed to update it).
@@ -69,6 +74,9 @@ final class AppModel {
         lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
         priceTargets = LocalStore.load([PriceTarget].self, "priceTargets") ?? []
         journal = LocalStore.load([JournalEntry].self, "journal") ?? []
+        // A saved simulation is used only when well-formed (the file can be edited by hand), like on the web.
+        paper = LocalStore.load(PaperState.self, "paper").flatMap { Paper.isValid($0) ? $0 : nil }
+            ?? Paper.new(capital: Paper.defaultCapital, now: Date().timeIntervalSince1970 * 1000)
         lastAlertCheck = defaults.object(forKey: "lastAlertCheck") as? Date
         budget = defaults.double(forKey: "budget")
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
@@ -297,6 +305,57 @@ final class AppModel {
     }
 
     func clearJournal() { journal = [] }
+
+    // MARK: Simulation (paper trading)
+
+    private var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
+
+    /// Simulated purchase: the engine's error text when refused, nil when done.
+    func paperBuy(_ order: PaperOrder) -> String? {
+        let r = Paper.open(paper, order, now: nowMs)
+        if r.error == nil { paper = r.state }
+        return r.error
+    }
+
+    /// Simulated sale of the whole position at `price` (nil: no price, refused by the engine).
+    func paperSell(_ id: String, price: Double?) -> String? {
+        let r = Paper.close(paper, id: id, price: price ?? 0, now: nowMs)
+        if r.error == nil { paper = r.state }
+        return r.error
+    }
+
+    /// Starts again from `capital` dollars: positions and journal erased.
+    func paperReset(capital: Double) {
+        paper = Paper.new(capital: capital, now: nowMs)
+        paperJustClosed = []
+    }
+
+    /// Automatic exits: daily candles of the open positions that have a stop or a target, then the engine's rule
+    /// (day after the opening, stop first, gap at the open). An asset whose candles fail is checked next time.
+    func paperCheckExits() async {
+        guard phase == .ready, let client, !checkingPaper else { return }
+        var seen = Set<String>()
+        let assets = paper.positions.filter { ($0.stop != nil || $0.target != nil) && seen.insert($0.key).inserted }.map(\.asset)
+        guard !assets.isEmpty else { return }
+        checkingPaper = true
+        defer { checkingPaper = false }
+        var candles: [String: [Candle]] = [:]
+        for a in assets {
+            do {
+                candles[a.id] = try await client.candles(a, interval: "1d").candles
+            } catch AltimError.unauthorized {
+                return sessionLost()
+            } catch {
+                continue
+            }
+        }
+        persistSession()
+        // Applied to the state as it is now (a position may have been sold meanwhile).
+        let r = Paper.checkExits(paper, candles: candles)
+        guard !r.closed.isEmpty else { return }
+        paper = r.state
+        paperJustClosed += r.closed
+    }
 
     /// From a tapped notification: "crypto:BTC" → the asset to open.
     func open(assetID: String) {

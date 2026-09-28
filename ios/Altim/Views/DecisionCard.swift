@@ -7,6 +7,8 @@ import AltimKit
 struct DecisionCard: View {
     let decision: Decision
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Environment(AppModel.self) private var model
+    @State private var simulating = false
 
     private var nd: String { "non disponible" }
 
@@ -27,11 +29,24 @@ struct DecisionCard: View {
             if let p = decision.position { positionView(p) }
             if let e = decision.exposure { exposureView(e) }
             details
+            simulateButton
             Text("Calculé le \(Format.date(decision.asOf, time: true)).")
                 .font(.caption2).foregroundStyle(Theme.textSecondary)
             Text(decision.disclaimer)
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
+        .sheet(isPresented: $simulating) { PaperBuySheet(decision: decision).environment(model) }
+    }
+
+    /// Simulated purchase (paper trading): no real money, no order placed.
+    private var simulateButton: some View {
+        Button {
+            simulating = true
+        } label: {
+            Label("Simuler cet achat", systemImage: "testtube.2")
+        }
+        .buttonStyle(NeonButtonStyle(color: Theme.violet, filled: false))
+        .accessibilityHint("Achat fictif dans le portefeuille simulé : aucun argent réel, aucun ordre passé")
     }
 
     // MARK: Verdict
