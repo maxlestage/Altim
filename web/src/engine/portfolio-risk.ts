@@ -14,6 +14,10 @@ import { atr, type Candle } from "./signal";
 /** Window of the beta (same as the correlations of `analyzePortfolio`) and minimum of shared daily returns. */
 export const BETA_DAYS = 90;
 export const MIN_BETA_DAYS = 30;
+/** "Et si… ?": one year of shared sessions, steadier than 90 days for a shock on one market. */
+export const WHATIF_BETA_DAYS = 250;
+/** Below this |correlation| the beta explains little of the line's moves: said next to the line. */
+export const WEAK_CORRELATION = 0.3;
 /** Benchmark of each asset class: Bitcoin for cryptos, the S&P 500 (via the SPY ETF) for stocks. */
 export const BENCHMARK: Record<Kind, { symbol: string; kind: Kind; label: string }> = {
   crypto: { symbol: "BTC", kind: "crypto", label: "Bitcoin" },

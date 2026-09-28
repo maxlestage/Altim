@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { PortfolioAnalysis } from "../engine/holdings";
-import { FACTOR_SHOCKS, FACTORS, factorBeta, MIN_BETA_DAYS, whatIf, type FactorBeta, type FactorKey } from "../engine/portfolio-risk";
+import { FACTOR_SHOCKS, FACTORS, factorBeta, MIN_BETA_DAYS, WEAK_CORRELATION, WHATIF_BETA_DAYS, whatIf, type FactorBeta, type FactorKey } from "../engine/portfolio-risk";
 import type { Candle } from "../engine/signal";
 import { api } from "./api";
 import { parseAmount } from "./paper-ui";
@@ -44,7 +44,7 @@ export function WhatIfCard({ analysis, daily }: { analysis: PortfolioAnalysis; d
     if (!factorCandles?.length) return b;
     for (const l of analysis.lines) {
       const k = `${l.kind}:${l.symbol}`;
-      if (!(k in b)) b[k] = factorBeta(daily[k] ?? [], factorCandles);
+      if (!(k in b)) b[k] = factorBeta(daily[k] ?? [], factorCandles, WHATIF_BETA_DAYS);
     }
     return b;
   }, [analysis.lines, daily, factorCandles]);
@@ -112,7 +112,9 @@ export function WhatIfCard({ analysis, daily }: { analysis: PortfolioAnalysis; d
                     ? " · c'est ce marché lui-même (bêta 1)"
                     : l.beta == null
                       ? ` · moins de ${MIN_BETA_DAYS} jours communs avec ${f.label} : bêta non mesurable`
-                      : ` · bêta ${l.beta.toFixed(2)}${l.correlation != null ? `, corrélation ${l.correlation.toFixed(2)}` : ""} · ${signedPct(l.movePercent!)}`}
+                      : ` · bêta ${l.beta.toFixed(2)}${l.correlation != null ? `, corrélation ${l.correlation.toFixed(2)}` : ""} · ${signedPct(l.movePercent!)}${
+                          l.correlation != null && Math.abs(l.correlation) < WEAK_CORRELATION ? ` · lien faible avec ${f.label} : ce bêta explique mal les mouvements de la ligne, résultat peu fiable` : ""
+                        }`}
                 </small>
               </li>
             ))}
