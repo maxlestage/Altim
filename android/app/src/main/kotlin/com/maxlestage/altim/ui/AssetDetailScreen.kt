@@ -203,6 +203,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 is Loadable.Failed -> Card(title = "Garde-fou marché") { ErrorBox(g.message) { reload++ } }
                 is Loadable.Loaded -> GuardCard(g.value)
             }
+            AnomaliesCard(model, asset)
             WhyCard(model, asset)
             (guard.value?.macro ?: zones.value?.macro)?.let { MacroCard(it) }
             guard.value?.inputs?.headlines?.takeIf { it.isNotEmpty() }?.let { news ->

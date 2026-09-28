@@ -3,7 +3,7 @@ package com.maxlestage.altim.ui
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -49,7 +49,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 private fun openUrl(context: Context, url: String) {
     val safe = url.toHttpUrlOrNull()?.toString() ?: return
     try {
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(safe)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        context.startActivity(Intent(Intent.ACTION_VIEW, safe.toUri()).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
     } catch (_: ActivityNotFoundException) {
         // No browser installed: nothing to open.
     }
