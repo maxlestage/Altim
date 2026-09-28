@@ -8,6 +8,7 @@ pub mod format;
 pub mod guard;
 pub mod history;
 pub mod macro_ctx;
+pub mod metrics;
 pub mod news;
 pub mod reliability;
 pub mod screener;
