@@ -37,7 +37,16 @@ Ouvrez `https://www.heroku.com/deploy?template=https://github.com/maxlestage/alt
 
 Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
 
-Aucun buildpack à configurer : Heroku construit l'image du `Dockerfile` (pile « container », voir `heroku.yml`) : l'application web est compilée avec Bun, le serveur avec Rust, et seule l'image finale (≈ 150 Mo) est lancée. Le workflow passe automatiquement une ancienne app Node.js sur la pile « container » ; avec l'intégration GitHub de Heroku (option C), faites-le une fois dans un terminal : `heroku stack:set container -a VOTRE-APP`.
+Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent) : **Bun** (`https://github.com/jakeg/heroku-buildpack-bun`) compile le site dans `web/dist`, puis **Rust** (`emk/rust`) compile le serveur de `backend/` (voir `RustConfig`, version de Rust dans le même fichier). Le `Procfile` lance `backend/target/release/altim` ; sa phase `release` refuse le déploiement si le site n'a pas été construit. Première compilation ≈ 5 à 10 min, les suivantes réutilisent le cache.
+
+Avec l'intégration GitHub de Heroku (option C), réglez une fois dans un terminal :
+
+```bash
+heroku stack:set heroku-24 -a VOTRE-APP
+heroku buildpacks:clear -a VOTRE-APP
+heroku buildpacks:add https://github.com/jakeg/heroku-buildpack-bun -a VOTRE-APP
+heroku buildpacks:add emk/rust -a VOTRE-APP
+```
 
 ### Source WSJ / MarketWatch (facultatif)
 

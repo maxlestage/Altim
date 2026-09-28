@@ -1,8 +1,0 @@
-**/node_modules
-**/target
-web/dist
-ios
-android
-.git
-.github
-*.md
