@@ -226,7 +226,7 @@ export function SaleCard({ analysis }: { analysis: PortfolioAnalysis }) {
 
 /** What the portfolio plus a monthly contribution would become, under three yearly returns (hypotheses). */
 export function ProjectionCard({ start }: { start: number }) {
-  const [monthlyText, setMonthlyText] = useState("200");
+  const [monthlyText, setMonthlyText] = useState("0");
   const [years, setYears] = useState<"5" | "10" | "20">("10");
   const monthly = num(monthlyText) || 0;
   const runs = PROJECTION_RATES.map((rate) => ({ rate, points: projection(start, monthly, Number(years), rate) }));
@@ -234,9 +234,9 @@ export function ProjectionCard({ start }: { start: number }) {
   return (
     <div className="card projection-card">
       <h2 className="card-title">Projection</h2>
-      <label className="field"><span>Versement chaque mois ($)</span><input inputMode="decimal" value={monthlyText} onChange={(e) => setMonthlyText(e.target.value)} /></label>
+      <label className="field"><span>Versement chaque mois, facultatif ($)</span><input inputMode="decimal" value={monthlyText} onChange={(e) => setMonthlyText(e.target.value)} /></label>
       <Segmented label="Durée" value={years} options={[["5", "5 ans"], ["10", "10 ans"], ["20", "20 ans"]]} onChange={setYears} />
-      <p className="kv small"><span>Aujourd'hui {usd(start)} + versements</span><b>{usd(paid)} versés</b></p>
+      <p className="kv small"><span>{monthly > 0 ? `Aujourd'hui ${usd(start)} + versements` : "Vos avoirs aujourd'hui, sans rien ajouter"}</span><b>{usd(paid)}{monthly > 0 ? " versés" : ""}</b></p>
       {runs.map((r) => {
         const end = r.points.at(-1)!.value;
         return (

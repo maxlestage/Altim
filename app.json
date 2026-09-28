@@ -1,20 +1,16 @@
 {
   "name": "Altim",
-  "description": "Altim : site et application web de conseil crypto et actions (React + TypeScript + Bun).",
+  "description": "Altim : site et application web de conseil crypto et actions (React + TypeScript, serveur Rust + Axum).",
   "repository": "https://github.com/maxlestage/altim",
   "logo": "https://raw.githubusercontent.com/maxlestage/altim/master/web/public/icon-192.png",
   "keywords": [
-    "bun",
+    "rust",
+    "axum",
     "react",
     "typescript",
     "trading"
   ],
-  "stack": "heroku-24",
-  "buildpacks": [
-    {
-      "url": "heroku/nodejs"
-    }
-  ],
+  "stack": "container",
   "formation": {
     "web": {
       "quantity": 1,

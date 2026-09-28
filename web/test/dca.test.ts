@@ -51,6 +51,16 @@ describe("investissement programmé", () => {
     expect(r.lumpSum.gain).toBeGreaterThan(r.gain);
   });
 
+  test("achat unique : une seule fois, au premier jour", () => {
+    const r = simulateDca(btc, 1000, 100_000, 90)!;
+    expect(r.buys).toBe(1);
+    expect(r.invested).toBe(1000);
+    expect(r.value).toBeCloseTo(r.lumpSum.value, 9);
+    const bought = btc.find(([t]) => t === r.first)![1];
+    expect(r.averagePrice).toBeCloseTo(bought, 6);
+    expect(r.value).toBeCloseTo((1000 / bought) * r.lastPrice, 6);
+  });
+
   test("période plus longue que l'historique, montants invalides", () => {
     expect(simulateDca(btc, 100, 30, 365)).toBeNull();
     expect(simulateDca(btc, 0, 7, 90)).toBeNull();
