@@ -227,8 +227,9 @@ final class AppModel {
         BuyNotifications.schedule(enabled: needsChecks)
     }
 
-    func rearmTarget(_ id: UUID) {
-        if let i = priceTargets.firstIndex(where: { $0.id == id }) { priceTargets[i].triggered = nil }
+    /// Re-arms an alert (a move alert starts again from the current price).
+    func rearmTarget(_ id: UUID, current: Double? = nil) {
+        if let i = priceTargets.firstIndex(where: { $0.id == id }) { priceTargets[i] = priceTargets[i].rearmed(at: current) }
         BuyNotifications.schedule(enabled: needsChecks)
     }
 

@@ -126,6 +126,9 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 item { Summary(portfolio) }
                 error?.let { item { Notice(it, Tone.BAD) } }
                 item { HistoryCard(model) }
+                item { RebalanceCard(portfolio) }
+                item { SaleCard(portfolio) }
+                item { ProjectionCard(portfolio.total) }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("LIGNES · SIGNAL 1 JOUR", color = AltimColors.textSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
