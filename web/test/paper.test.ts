@@ -42,9 +42,9 @@ describe("simulation (paper trading)", () => {
   test("refus : plus que les liquidités, prix absent, montant nul ; stop au-dessus du prix ignoré", () => {
     const s = newPaper(1_000, T0);
     const o = { id: "x", symbol: "AAPL", kind: "stock" as const, name: "Apple", price: 250, amount: 500 };
-    expect(openPosition(s, { ...o, amount: 1_500 }).error).toContain("insuffisantes");
-    expect(openPosition(s, { ...o, price: Number.NaN }).error).toBe("Prix indisponible.");
-    expect(openPosition(s, { ...o, amount: -1 }).error).toBe("Montant invalide.");
+    expect(openPosition(s, { ...o, amount: 1_500 }, T0).error).toContain("insuffisantes");
+    expect(openPosition(s, { ...o, price: Number.NaN }, T0).error).toBe("Prix indisponible.");
+    expect(openPosition(s, { ...o, amount: -1 }, T0).error).toBe("Montant invalide.");
     expect(openPosition(s, { ...o, stop: 260 }, T0).state.positions[0]!.stop).toBeNull();
     expect(closePosition(s, "nope", 10, T0).error).toBe("Position introuvable.");
   });
