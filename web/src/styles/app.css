@@ -27,7 +27,7 @@
 .app-tabs a.on { color: var(--cyan); text-shadow: 0 0 12px rgba(0, 240, 255, 0.6); }
 .app-tabs a.on svg { filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.8)); }
 
-.app-screen { display: grid; gap: 14px; min-width: 0; }
+.app-screen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; min-width: 0; }
 .app-screen h1 { font-size: 26px; }
 .screen-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .screen-top p { margin: 4px 0 0; }
@@ -43,8 +43,8 @@
 .kv b { text-align: right; }
 
 /* Segmented control */
-.segmented { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
-.segmented button { min-height: 44px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-family: var(--mono); font-size: 14px; cursor: pointer; }
+.segmented { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.segmented button { flex: 1 1 auto; padding: 0 10px; min-height: 44px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-family: var(--mono); font-size: 14px; cursor: pointer; }
 .segmented button.on { background: var(--cyan); color: #02030a; box-shadow: 0 0 16px rgba(0, 240, 255, 0.55); }
 
 /* Fear & Greed */
@@ -158,7 +158,7 @@
 .journal small { display: block; font-size: 11px; }
 
 /* Settings */
-.search-results, .watch-edit { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 6px; }
+.search-results, .watch-edit { list-style: none; padding: 0; margin: 10px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
 .search-results button { width: 100%; min-height: 48px; padding: 8px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0, 240, 255, 0.05); color: inherit; text-align: left; cursor: pointer; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .tag { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--cyan); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; }
 .watch-edit li { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
@@ -412,7 +412,7 @@
 .news-item p { margin: 0; overflow-wrap: anywhere; }
 .news-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .news-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0, 240, 255, 0.35); color: var(--cyan); white-space: nowrap; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0, 240, 255, 0.35); color: var(--cyan); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .chip.muted { border-color: rgba(255, 255, 255, 0.15); color: var(--muted); }
 .tone-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; gap: 2px; margin: 10px 0 6px; }
 .tone-bar .neg { background: #ff3b5c; } .tone-bar .neu { background: rgba(255, 255, 255, 0.25); } .tone-bar .pos { background: #38ff87; }
@@ -447,11 +447,20 @@
 .chip.pick { cursor: pointer; font: inherit; font-size: 12px; padding: 4px 10px; width: auto; margin: 0; background: none; color: var(--muted); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 999px; }
 .chip.pick.on { color: var(--text); border-width: 2px; }
 .compare-card .segmented { margin: 8px 0 4px; }
-.table-scroll { overflow-x: auto; }
+.table-scroll { min-width: 0; }
 .compare-table { width: 100%; border-collapse: collapse; margin: 6px 0; }
 .compare-table th, .compare-table td { text-align: right; padding: 5px 4px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); white-space: nowrap; }
 .compare-table th:first-child, .compare-table td:first-child { text-align: left; }
 .compare-table th { color: var(--muted); font-weight: 500; }
+/* Narrow screens: each row becomes a small card (label on the left, value on the right) instead of a table wider than the screen. */
+@media (max-width: 560px) {
+  .compare-table thead { display: none; }
+  .compare-table, .compare-table tbody, .compare-table tr, .compare-table td { display: block; width: 100%; }
+  .compare-table tr { padding: 6px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+  .compare-table td { display: flex; justify-content: space-between; gap: 12px; border: 0; padding: 3px 0; white-space: normal; text-align: right; }
+  .compare-table td:first-child { font-weight: 600; }
+  .compare-table td[data-label]::before { content: attr(data-label); color: var(--muted); text-align: left; }
+}
 .compare-table .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }

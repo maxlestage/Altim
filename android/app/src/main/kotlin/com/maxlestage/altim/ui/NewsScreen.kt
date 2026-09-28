@@ -6,7 +6,6 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,7 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -58,6 +56,7 @@ import kotlinx.coroutines.delay
 private val FILTERS = listOf("all" to "Tout", "actifs" to "Mes actifs", "monde" to "Monde", "marches" to "Marchés", "crypto" to "Crypto")
 
 /** News tab: every feed in one place, stories told by several sources merged, the user's assets first. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun NewsScreen(model: AppModel, modifier: Modifier) {
     val context = LocalContext.current
@@ -115,7 +114,7 @@ fun NewsScreen(model: AppModel, modifier: Modifier) {
             }
 
             item {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FILTERS.forEach { (key, label) ->
                         FilterChip(
                             selected = filter == key,
