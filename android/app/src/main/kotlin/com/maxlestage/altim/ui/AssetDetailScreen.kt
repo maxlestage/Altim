@@ -93,7 +93,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                     assets.mapNotNull { a -> model.live.price(a)?.let { a.id to it.price } }
                 weights = Decision.weights(model.holdings, prices)
             }
-            Loadable.Loaded(client.decision(asset, cost, weights))
+            Loadable.Loaded(client.decision(asset, cost, weights).also { model.recordDecision(it, personal = held) })
         } catch (e: AltimException.Unauthorized) {
             model.sessionLost()
             return@LaunchedEffect

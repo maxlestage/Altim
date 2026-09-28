@@ -115,7 +115,7 @@ Dans Réglages, « Me prévenir des actualités importantes » : une notificatio
 
 Un même sujet raconté par plusieurs médias ne prévient qu'une fois (même article, ou titre aux mêmes mots, mémorisé 48 h). Au-delà de 2 sujets à la fois, une seule notification résume.
 
-### Agenda (Actu → Agenda, web)
+### Agenda (Actu → Agenda, web et Android)
 
 Les événements à venir, groupés par jour (« Aujourd'hui », « Demain », « mer. 30 sept. »), en heures de Paris, sur 7, 14 ou 30 jours. Filtres Tout / Macro / Banques centrales / Résultats / Dividendes / Splits / IPO, et **Mes actifs** (résultats, dividendes et splits des actions du radar et des avoirs, plus l'économie et les banques centrales, qui concernent aussi les cryptos). Point rouge : importance haute ; point jaune : moyenne.
 

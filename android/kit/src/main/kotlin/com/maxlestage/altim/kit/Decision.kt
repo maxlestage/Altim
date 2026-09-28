@@ -5,6 +5,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonContentPolymorphicSerializer
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.Locale
@@ -207,6 +210,35 @@ data class Decision(
         val slippagePct: Double = 0.0,
         val losingStreak: Int = 0,
         val note: String = "",
+        // Added later (absent from older answers): spread cost, expectancy, R multiples, results by market regime.
+        /** Full bid/ask spread used, %: half paid on the buy, half on the sell. */
+        val spreadPct: Double? = null,
+        /** true: measured on the order book; false: default assumption. */
+        val spreadMeasured: Boolean = false,
+        val spreadNote: String = "",
+        /** Average win × win rate − |average loss| × loss rate, % per trade, costs included. */
+        val expectancy: Double? = null,
+        /** Average of (trade return ÷ initial risk to the stop). */
+        val avgR: Double? = null,
+        /** null in an older answer (nothing more is shown then). */
+        val regimes: List<RegimeStat>? = null,
+        val testedBars: Int? = null,
+        val biasNotes: List<String> = emptyList(),
+    ) {
+        /** Older answers (before these fields) show nothing more, like the web card. */
+        val hasDetails: Boolean get() = regimes != null || expectancy != null
+    }
+
+    /** Results of the signal by market regime on the signal candle ("bull", "bear", "range", "crisis", "unknown"). */
+    @Serializable
+    data class RegimeStat(
+        val regime: String = "unknown",
+        val label: String = "",
+        val trades: Int = 0,
+        val winRate: Double? = null,
+        val avgReturn: Double? = null,
+        /** Fewer than 5 trades: "échantillon trop faible". */
+        val lowSample: Boolean = false,
     )
 
     @Serializable
@@ -304,7 +336,72 @@ sealed interface Fundamentals {
         val revisions: Revisions? = null,
         val sectorNote: String = "",
         val source: String = "",
+        // Added later: absent from older answers (null / empty then).
+        /** Price ÷ sales: market cap ÷ revenue (12 months). */
+        val ps: Double? = null,
+        /** Price ÷ book: market cap ÷ stockholders' equity. */
+        val pb: Double? = null,
+        /** Return on invested capital, %. */
+        val roic: Double? = null,
+        /** Tax rate used for the ROIC, %. */
+        val roicTaxRate: Double? = null,
+        /** true when the effective rate could not be computed and the 21 % US statutory rate is used. */
+        val roicTaxStatutory: Boolean = false,
+        /** End of the last period filed and date of that filing (ms). */
+        val periodEnd: Double? = null,
+        val filedAt: Double? = null,
+        val sector: Sector? = null,
+        val valuationHistory: ValuationHistory? = null,
+        val peers: PeerComparison? = null,
+        /** Valuation vs growth in one sentence. */
+        val valuationVerdict: String? = null,
+        /** Management guidance, or why it is not given. */
+        val guidance: String = "",
     ) : Fundamentals {
+        @Serializable
+        data class Sector(val label: String = "", val sic: String = "", val sicDescription: String = "", val source: String = "")
+
+        /** A ratio against its own daily history; `percentile`: % of days at or below today's value. */
+        @Serializable
+        data class RatioHistory(
+            val current: Double,
+            val median: Double,
+            val min: Double,
+            val max: Double,
+            val percentile: Double,
+            val days: Int = 0,
+            val from: Double = 0.0,
+            val to: Double = 0.0,
+        )
+
+        @Serializable
+        data class ValuationHistory(val per: RatioHistory? = null, val ps: RatioHistory? = null, val method: String = "", val source: String = "")
+
+        @Serializable
+        data class Peer(
+            val symbol: String,
+            val name: String = "",
+            val per: Double? = null,
+            val ps: Double? = null,
+            val operatingMargin: Double? = null,
+            val netMargin: Double? = null,
+            val revenueGrowth: Double? = null,
+            val periodEnd: Double = 0.0,
+        )
+
+        @Serializable
+        data class PeerComparison(
+            val group: String = "",
+            val peers: List<Peer> = emptyList(),
+            val medianPer: Double? = null,
+            val medianPs: Double? = null,
+            val medianOperatingMargin: Double? = null,
+            val medianNetMargin: Double? = null,
+            val medianRevenueGrowth: Double? = null,
+            val date: Double = 0.0,
+            val source: String = "",
+        )
+
         @Serializable
         data class EarningsDate(val date: Double, val estimated: Boolean = false)
 
@@ -336,17 +433,62 @@ sealed interface Fundamentals {
         val hashRate: Double? = null,
         val unlocks: String = "",
         val source: String = "",
-    ) : Fundamentals
+        // Added later: absent from older answers.
+        /** Developer activity of the project's code; null with [devActivityKnown] = "non disponible". */
+        val devActivity: DevActivity? = null,
+        /** The answer has the `devActivity` field (a newer server), even null: the section is shown. */
+        val devActivityKnown: Boolean = false,
+        /** Stablecoins on all chains, and on the asset's own chain when it is one. */
+        val stablecoins: StablecoinFlows? = null,
+        val chainStablecoins: StablecoinFlows? = null,
+        /** What is not covered and why (no free verifiable source). */
+        val notCovered: String = "",
+    ) : Fundamentals {
+        @Serializable
+        data class DevActivity(
+            val repo: String? = null,
+            val commits4w: Double? = null,
+            val pullRequestsMerged: Double? = null,
+            val contributors: Double? = null,
+            val stars: Double? = null,
+            val additions4w: Double? = null,
+            val deletions4w: Double? = null,
+            val smartContractPlatform: Boolean = false,
+            val source: String = "",
+        )
+
+        /** Stablecoins in circulation (USD value): the crypto market's cash, a liquidity indicator. */
+        @Serializable
+        data class StablecoinFlows(
+            /** "Tous réseaux" or the chain's name. */
+            val scope: String = "",
+            val date: Double = 0.0,
+            val total: Double,
+            val change7d: Double? = null,
+            val change7dPct: Double? = null,
+            val change30d: Double? = null,
+            val change30dPct: Double? = null,
+            val source: String = "",
+        )
+    }
 
     @Serializable
     data class Other(val kind: String = "") : Fundamentals
+}
+
+/** Crypto fundamentals, noting whether the answer has the `devActivity` field at all (null is not the same as absent). */
+internal object CryptoFundamentalsSerializer : JsonTransformingSerializer<Fundamentals.Crypto>(Fundamentals.Crypto.serializer()) {
+    override fun transformDeserialize(element: JsonElement): JsonElement {
+        val o = element as? JsonObject ?: return element
+        return JsonObject(o + ("devActivityKnown" to JsonPrimitive(o.containsKey("devActivity") || o["devActivityKnown"] == JsonPrimitive(true))))
+    }
 }
 
 internal object FundamentalsSerializer : JsonContentPolymorphicSerializer<Fundamentals>(Fundamentals::class) {
     override fun selectDeserializer(element: JsonElement): KSerializer<out Fundamentals> =
         when (runCatching { element.jsonObject["kind"]?.jsonPrimitive?.content }.getOrNull()) {
             "stock" -> Fundamentals.Stock.serializer()
-            "crypto" -> Fundamentals.Crypto.serializer()
+            "crypto" -> CryptoFundamentalsSerializer
             else -> Fundamentals.Other.serializer()
         }
 }

@@ -100,6 +100,46 @@ class DecisionCardTest {
         compose.onRoot().captureRoboImage("build/screens/decision-aapl.png")
     }
 
+    /** P/S, P/B, ROIC, valuation history, sector and peers, then the track details (expectancy, regimes, tax). */
+    @Test @Config(qualifiers = "w360dp-h13000dp-xhdpi")
+    fun appleFundamentalsAndTrackDetails() {
+        show(sample("decision-aapl-v2.json"), expanded = true)
+        expect(
+            "Comptes arrêtés au 27 juin 2026, déposés à la SEC le 31 juillet 2026", "Secteur : Industrie · Electronic Computers (code SIC 3571)",
+            "P/S (capitalisation ÷ ventes)", "10,7", "P/B (capitalisation ÷ fonds propres)", "46,3", "ROIC (rentabilité du capital investi)", "84,1 % (impôt 17,3 %, taux effectif)",
+            "Valorisation par rapport à sa propre histoire", "Valorisation élevée par rapport à sa propre histoire", "PER sur la période", "39,2 aujourd'hui · médiane 31,3 · de 20,5 à 42,6",
+            "Centile du PER", "plus haut que 95 % des 1\u202F255 jours (27 septembre 2021 – 25 septembre 2026)", "Centile du P/S", "Chaque jour : cours de clôture",
+            "Comparaison sectorielle", "Comparée à 3 sociétés de même activité", "A (A) : PER 10, P/S —, marge opérationnelle 5 %, chiffre d'affaires — sur un an",
+            "Cours du 25 septembre 2026", "Prévisions de la direction non disponibles",
+            "Espérance par trade (coûts inclus)", "+1 %", "0,4 R", "Écart achat/vente supposé", "0,02 %", "Hypothèse : écart achat/vente",
+            "Selon le régime de marché", "Marché haussier", "9 trades · réussite 56 % · moyenne +1,2 %", "échantillon trop faible", "0 trade",
+            "Comment ce test évite de se flatter", "aucune optimisation", "flat tax de 30", "+42,8 %",
+        )
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/decision-aapl-v2.png")
+    }
+
+    /** Stablecoin flows, developer activity said "non disponible", what is not covered; older answers show none of it. */
+    @Test @Config(qualifiers = "w360dp-h9000dp-xhdpi")
+    fun bitcoinOnChain() {
+        show(sample("decision-btc-v2.json"), expanded = true)
+        expect(
+            "Flux de stablecoins", "Stablecoins (tous réseaux)", "313 Md$ au 28 septembre 2026", "… sur 7 jours", "+2,8 Md$ (+0,9 %)", "+4,23 Md$ (+1,37 %)",
+            "Liquidité disponible sur le marché crypto. Source : DefiLlama (stablecoins).", "Activité de développement",
+            "Non disponible (CoinGecko ne la publie plus", "Non couverts, faute de source gratuite et vérifiable", "baleines",
+        )
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/decision-btc-v2.png")
+    }
+
+    @Test @Config(qualifiers = "w360dp-h7600dp-xhdpi")
+    fun olderAnswerShowsNothingMore() {
+        show(sample("decision-btc.json"), expanded = true)
+        assertTrue(!has("Espérance par trade"))
+        assertTrue(!has("Activité de développement"))
+        assertTrue(!has("Flux de stablecoins"))
+    }
+
     @Test @Config(qualifiers = "w360dp-h9400dp-xhdpi")
     fun personalAppleOpen() {
         show(sample("decision-aapl.json"), expanded = true)

@@ -91,6 +91,21 @@ private fun pct(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let 
 private fun signed(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let { Format.percent(it, digits) } ?: NA
 private fun ratio(v: Double?, digits: Int = 1) = v?.takeIf { it.isFinite() }?.let { Format.plain(it, digits) } ?: NA
 
+/** The web card's `pct`: "—" when missing, + only with [sign], true minus, no trailing zeros. */
+private fun pc(v: Double?, digits: Int = 1, sign: Boolean = false): String {
+    if (v == null || !v.isFinite()) return "—"
+    return "${if (v < 0) "−" else if (sign && v > 0) "+" else ""}${Format.plain(abs(v), digits)} %"
+}
+
+/** The web card's `num`: "—" when missing. */
+private fun num(v: Double?, digits: Int = 2): String = if (v == null || !v.isFinite()) "—" else "${if (v < 0) "−" else ""}${Format.plain(abs(v), digits)}"
+
+/** "+2,8 Md$" / "−271 M$". */
+private fun signedUsd(v: Double?): String = if (v == null) "—" else "${if (v < 0) "−" else if (v > 0) "+" else ""}${Format.compactUsd(abs(v))}"
+
+/** French flat tax (PFU) on the net gain, as in the sale tool: an assumption, not the user's own situation. */
+private const val FLAT_TAX = 30.0
+
 /** "Décision" card of the asset page: loading, error or the decision itself. */
 @Composable
 fun DecisionCard(state: Loadable<Decision>, held: Boolean, onSimulate: (() -> Unit)? = null, retry: () -> Unit) {
@@ -221,6 +236,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
                 KeyValue("Frais · glissement", "${pct(t.feesPct, 2)} · ${pct(t.slippagePct, 2)}")
                 KeyValue("Pire série de pertes", "${t.losingStreak} trade${if (t.losingStreak > 1) "s" else ""}")
                 if (t.note.isNotBlank()) Notice(t.note, if (t.totalReturn < t.buyAndHold) Tone.WARN else Tone.GOOD)
+                if (t.hasDetails) TrackDetails(t)
             }
         }
         d.exposure?.let { e ->
@@ -477,6 +493,8 @@ private fun ExitRow(e: Decision.Exit) {
 @Composable
 private fun StockFundamentals(f: Fundamentals.Stock) {
     Caption("TTM : les 12 derniers mois publiés.")
+    if (f.periodEnd != null && f.filedAt != null) Caption("Comptes arrêtés au ${Format.nyDate(f.periodEnd!!)}, déposés à la SEC le ${Format.nyDate(f.filedAt!!)}.")
+    f.sector?.let { Text("Secteur : ${it.label} · ${it.sicDescription} (code SIC ${it.sic})", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f)) }
     KeyValue("Chiffre d'affaires (TTM)", big(f.revenue))
     f.revenueGrowth?.let { KeyValue("Croissance du chiffre d'affaires", Format.percent(it, 1)) }
     KeyValue("Résultat net", big(f.netIncome))
@@ -494,6 +512,12 @@ private fun StockFundamentals(f: Fundamentals.Stock) {
     KeyValue("PER", ratio(f.per))
     KeyValue("PEG", ratio(f.peg, 2))
     KeyValue("EV/EBITDA", ratio(f.evEbitda))
+    KeyValue("P/S (capitalisation ÷ ventes)", ratio(f.ps))
+    KeyValue("P/B (capitalisation ÷ fonds propres)", ratio(f.pb))
+    Stacked(
+        "ROIC (rentabilité du capital investi)",
+        f.roic?.let { "${pc(it, 1)} (impôt ${pc(f.roicTaxRate, 1)}${if (f.roicTaxStatutory) " : taux légal américain, taux effectif non calculable" else ", taux effectif"})" },
+    )
     KeyValue("Rendement du dividende", pct(f.dividendYield, 2))
     KeyValue("Nombre d'actions (1 an)", signed(f.shareChange))
     KeyValue(
@@ -509,8 +533,93 @@ private fun StockFundamentals(f: Fundamentals.Stock) {
     f.revisions?.let { r ->
         KeyValue("Révisions du consensus (1 mois)", "${Format.price(r.monthAgo)} → ${Format.price(r.now)} (${Format.percent(r.changePct, 1)})", if (r.changePct >= 0) Tone.GOOD else Tone.BAD)
     }
-    if (f.sectorNote.isNotBlank()) Caption(f.sectorNote)
+    f.valuationHistory?.let { h ->
+        SubTitle("Valorisation par rapport à sa propre histoire")
+        f.valuationVerdict?.let { Text("$it.", fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f)) }
+        HistoryRows("PER", h.per)
+        HistoryRows("P/S", h.ps)
+        Caption("${h.method}. Source : ${h.source}.")
+    }
+    val c = f.peers
+    if (c != null) {
+        SubTitle("Comparaison sectorielle")
+        if (f.sectorNote.isNotBlank()) Text(f.sectorNote, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+        Bullets(
+            null,
+            c.peers.map { p ->
+                "${p.name} (${p.symbol}) : PER ${num(p.per, 1)}, P/S ${num(p.ps, 1)}, marge opérationnelle ${pc(p.operatingMargin)}, chiffre d'affaires ${pc(p.revenueGrowth, 1, true)} sur un an"
+            },
+        )
+        Caption("Cours du ${Format.nyDate(c.date)}. Source : ${c.source}.")
+    } else if (f.sectorNote.isNotBlank()) Caption(f.sectorNote)
+    if (f.guidance.isNotBlank()) Caption(f.guidance)
     SourceLine(f.source)
+}
+
+/** Label above, value below: long values stay readable at 360 dp. "—" or null: "non disponible". */
+@Composable
+private fun Stacked(label: String, value: String?) {
+    val missing = value == null || value == "—"
+    Column(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, color = AltimColors.textSecondary, fontSize = 14.sp)
+        Text(if (missing) NA else value!!, style = mono(13.sp), color = if (missing) AltimColors.textSecondary else Color.White)
+    }
+}
+
+/** Two rows per ratio: today vs median and range, then where today stands in the window. */
+@Composable
+private fun HistoryRows(name: String, r: Fundamentals.Stock.RatioHistory?) {
+    if (r == null) return
+    Stacked("$name sur la période", "${num(r.current, 1)} aujourd'hui · médiane ${num(r.median, 1)} · de ${num(r.min, 1)} à ${num(r.max, 1)}")
+    Stacked("Centile du $name", "plus haut que ${num(r.percentile, 0)} % des ${Format.count(r.days.toDouble())} jours (${Format.nyDate(r.from)} – ${Format.nyDate(r.to)})")
+}
+
+@Composable
+private fun StableRows(s: Fundamentals.Crypto.StablecoinFlows?, label: String) {
+    if (s == null) return
+    Stacked("Stablecoins ($label)", "${Format.compactUsd(s.total)} au ${Format.nyDate(s.date)}")
+    Stacked("… sur 7 jours", if (s.change7d != null) "${signedUsd(s.change7d)} (${pc(s.change7dPct, 2, true)})" else null)
+    Stacked("… sur 30 jours", if (s.change30d != null) "${signedUsd(s.change30d)} (${pc(s.change30dPct, 2, true)})" else null)
+}
+
+/**
+ * More of the signal's track record (web TrackDetails.tsx): spread cost, expectancy, R multiples, results by market
+ * regime, how the test avoids flattering itself, and the tax note.
+ */
+@Composable
+private fun TrackDetails(t: Decision.Track) {
+    val afterTax = if (t.totalReturn > 0) t.totalReturn * (1 - FLAT_TAX / 100) else t.totalReturn
+    KeyValue("Espérance par trade (coûts inclus)", pc(t.expectancy, 2, true), if ((t.expectancy ?: 0.0) >= 0) Tone.GOOD else Tone.BAD)
+    KeyValue("Multiple de R moyen (gain ÷ risque jusqu'au stop)", t.avgR?.let { "${num(it, 2)} R" } ?: "—")
+    t.spreadPct?.let { KeyValue("Écart achat/vente ${if (t.spreadMeasured) "mesuré" else "supposé"}", pc(it, 3)) }
+    if (t.spreadNote.isNotBlank()) Caption(t.spreadNote)
+    val regimes = t.regimes.orEmpty()
+    if (regimes.isNotEmpty()) {
+        SubTitle("Selon le régime de marché")
+        regimes.forEach { g ->
+            val color = if (g.lowSample) AltimColors.textSecondary else if ((g.avgReturn ?: 0.0) >= 0) AltimColors.buy else AltimColors.warning
+            val icon = when (g.regime) { "bull" -> "↗"; "bear" -> "↘"; "crisis" -> "⚠"; else -> "→" }
+            Row(Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(icon, color = color, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(g.label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    val figures = "${g.trades} trade${if (g.trades > 1) "s" else ""}" +
+                        if (g.trades > 0) " · réussite ${pc(g.winRate, 0)} · moyenne ${pc(g.avgReturn, 1, true)}" else ""
+                    Text(figures, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f))
+                    if (g.lowSample) Badge("échantillon trop faible", Tone.NEUTRAL)
+                }
+            }
+        }
+        Caption(
+            "Haussier : clôture au-dessus d'une moyenne 200 jours qui monte (sur 20 jours) ; baissier : sous une moyenne qui baisse ; crise : plus de 30 % sous le plus haut de l'année. " +
+                "Régime lu à la date du signal, sans données futures.",
+        )
+    }
+    Bullets("Comment ce test évite de se flatter", t.biasNotes)
+    Caption(
+        "Impôt (hypothèse : flat tax de ${Format.plain(FLAT_TAX, 0)} % sur le gain net, payée à la fin, pertes compensées) : rendement du signal après impôt ≈ ${pc(afterTax, 1, true)}. " +
+            "Votre situation fiscale peut différer.",
+    )
 }
 
 @Composable
@@ -533,5 +642,27 @@ private fun CryptoFundamentals(f: Fundamentals.Crypto) {
         Text("Déblocages de jetons", color = AltimColors.textSecondary, fontSize = 14.sp)
         Text(f.unlocks.ifBlank { NA }, fontSize = 13.sp)
     }
+    if (f.stablecoins != null || f.chainStablecoins != null) {
+        SubTitle("Flux de stablecoins")
+        StableRows(f.stablecoins, "tous réseaux")
+        StableRows(f.chainStablecoins, "réseau ${f.chainStablecoins?.scope ?: ""}")
+        Caption("Liquidité disponible sur le marché crypto. Source : ${(f.stablecoins ?: f.chainStablecoins)?.source}.")
+    }
+    if (f.devActivityKnown) {
+        SubTitle("Activité de développement")
+        val a = f.devActivity
+        if (a != null) {
+            Stacked("Commits sur 4 semaines", a.commits4w?.let { Format.count(it) })
+            Stacked(
+                "Lignes ajoutées / supprimées (4 semaines)",
+                if (a.additions4w != null && a.deletions4w != null) "+${Format.count(a.additions4w)} / −${Format.count(a.deletions4w)}" else null,
+            )
+            Stacked("Pull requests intégrées (total)", a.pullRequestsMerged?.let { Format.count(it) })
+            Stacked("Contributeurs", a.contributors?.let { Format.count(it) })
+            Stacked("Étoiles", a.stars?.let { Format.count(it) })
+            SourceLine(a.source)
+        } else Caption("Non disponible (CoinGecko ne la publie plus et le dépôt GitHub du projet n'a pas répondu).")
+    }
+    if (f.notCovered.isNotBlank()) Caption("${f.notCovered}.")
     SourceLine(f.source)
 }
