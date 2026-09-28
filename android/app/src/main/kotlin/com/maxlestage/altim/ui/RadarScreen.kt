@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -67,7 +68,7 @@ import kotlinx.coroutines.launch
 /** Watch list: live price, signal, reliability of the data, macro context. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
+fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSettings: () -> Unit = {}) {
     val rows = remember { mutableStateMapOf<String, RadarRow>() }
     var macro by remember { mutableStateOf<MacroInfo?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -112,6 +113,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Radar", fontSize = 30.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             TextButton(onClick = { editing = !editing }) { Text(if (editing) "OK" else "Modifier", color = AltimColors.cyan) }
+            IconButton(onClick = onSettings) { Icon(Icons.Filled.Settings, contentDescription = "Réglages", tint = AltimColors.cyan) }
         }
         OutlinedTextField(
             value = query,

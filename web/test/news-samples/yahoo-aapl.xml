@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<rss version="2.0">
+    <channel>
+        <copyright>Copyright (c) 2026 Yahoo Inc. All rights reserved.</copyright>
+        <description>Latest Financial News for AAPL</description>
+        <image>
+            <height>45</height>
+            <link>http://finance.yahoo.com/q/h?s=AAPL</link>
+            <title>Yahoo! Finance: AAPL News</title>
+            <url>https://s.yimg.com/rz/stage/p/yahoo_finance_en-US_h_p_finance_2.png</url>
+            <width>144</width>
+        </image>
+        <item>
+            <description>On September 11, 2026, Reuters reported that Apple Inc. (NASDAQ:AAPL)’s new foldable iPhone Duo launched with impressive features and a premium starting price of $1,999. However, analysts in the room at the Cupertino launch event questioned its appeal beyond wealthy tech enthusiasts, noting Apple demonstrated the device running Zoom, Slack, and Netflix on its expanded […]</description>
+            <guid isPermaLink="false">2dc12936-d26b-32cb-8f1f-06e0ee2ced5c</guid>
+            <link>https://finance.yahoo.com/technology/articles/apple-aapl-premium-iphone-strategy-003254588.html?.tsrc=rss</link>
+            <pubDate>Mon, 28 Sep 2026 00:32:54 +0000</pubDate>
+            <title>Apple (AAPL)’s Premium iPhone Strategy Faces a Test Beyond Early Adopters</title>
+        </item><item>
+            <description>On September 9, 2026, the Wall Street Journal reported that John Ternus took the stage for the first time as Apple Inc. (NASDAQ:AAPL)’s chief executive. He became just the third CEO since Steve Jobs returned to the company in 1997 and used his debut product launch to introduce the foldable iPhone Duo alongside a strategic […]</description>
+            <guid isPermaLink="false">fdce35b5-37c9-3fe1-a474-3ddf06f4cbb7</guid>
+            <link>https://finance.yahoo.com/technology/articles/apple-aapl-opens-ternus-era-234433247.html?.tsrc=rss</link>
+            <pubDate>Sun, 27 Sep 2026 23:44:33 +0000</pubDate>
+            <title>Apple (AAPL) Opens the Ternus Era with a Foldable iPhone. Can Premium Devices Lift Revenue?</title>
+        </item><item>
+            <description>Apple Inc. (NASDAQ:AAPL) doesn’t operate a major social-media platform, but Australia’s latest push to regulate how people use social media has unexpectedly put the iPhone maker into the conversation. Australian Prime Minister Anthony Albanese met Apple Executive Chair Tim Cook at Apple Park this month and later said Cook regarded Australia’s work on social media […]</description>
+            <guid isPermaLink="false">ad88b7a0-56a7-3b99-a10c-65d20e102397</guid>
+            <link>https://finance.yahoo.com/technology/articles/australia-cracking-down-social-media-233330727.html?.tsrc=rss</link>
+            <pubDate>Sun, 27 Sep 2026 23:33:30 +0000</pubDate>
+            <title>Australia is Cracking Down on Social Media. Could Apple Benefit from the Shift?</title>
+        </item><item>
+            <description>Apple Inc. (NASDAQ:AAPL) is facing another regulatory headache in India, but this one isn’t centered on the App Store or competition. It is about what happens when a software update allegedly leaves an iPhone needing an expensive repair. India’s Central Consumer Protection Authority has escalated complaints involving Apple’s iOS 18 update to its investigation wing […]</description>
+            <guid isPermaLink="false">f1f26f58-dd05-33b6-957d-53b1dd0ab848</guid>
+            <link>https://finance.yahoo.com/technology/articles/apple-faces-deeper-iphone-probe-224131792.html?.tsrc=rss</link>
+            <pubDate>Sun, 27 Sep 2026 22:41:31 +0000</pubDate>
+            <title>Apple Faces a Deeper iPhone Probe in India. Could its Software Warranty Become the Bigger Issue?</title>
+        </item><item>
+            <description>Apple Inc. (NASDAQ:AAPL) has one less AI battle to fight. Elon Musk’s X Corp and SpaceXAI have moved to dismiss their antitrust claims against Apple in a lawsuit that accused the iPhone maker and OpenAI of restricting competition in smartphones and generative AI chatbots. The filing ends Apple’s involvement in the case, although Musk’s companies […]</description>
+            <guid isPermaLink="false">cbb53dab-f947-37c6-b1d5-716385638299</guid>
+            <link>https://finance.yahoo.com/technology/ai/articles/musk-x-corp-spacexai-drop-223128041.html?.tsrc=rss</link>
+            <pubDate>Sun, 27 Sep 2026 22:31:28 +0000</pubDate>
+            <title>Musk’s X Corp and SpaceXAI Drop Apple From AI Antitrust Fight. Is One Legal Headache Gone for the iPhone Maker?</title>
+        </item><item>
+            <description>Nvidia and Apple generated nearly the same amount of revenue during their most recent quarters.</description>
+            <guid isPermaLink="false">2146d96b-cef8-32b4-889c-2a60e4972d28</guid>
+            <link>https://www.fool.com/investing/2026/09/27/apple-nvidia-largest-companies-better-stock/?.tsrc=rss</link>
+            <pubDate>Sun, 27 Sep 2026 20:05:00 +0000</pubDate>
+            <title>Apple and Nvidia Are the Two Largest Companies in the World. Which is the Better Stock to Buy?</title>
+        </item></channel></rss>

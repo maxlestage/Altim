@@ -18,7 +18,7 @@
 
 .app-tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: rgba(7, 9, 20, 0.92); border-top: 1px solid var(--line);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -400,3 +400,21 @@
 .horizon-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 4px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); }
 .horizon-grid button { min-height: 44px; border: 0; border-radius: 12px; background: none; color: var(--muted); font: inherit; font-family: var(--mono); font-size: 13px; cursor: pointer; }
 .horizon-grid button.on { background: var(--cyan); color: #05070f; font-weight: 700; box-shadow: 0 0 16px rgba(0, 240, 255, 0.4); }
+
+/* ---------- Actualités ---------- */
+.news .check { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+.news-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.news-item { padding: 12px 14px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); display: grid; gap: 6px; min-width: 0; }
+.news-item a { color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.news-item a:hover b, .news-item a:focus-visible b { text-decoration: underline; }
+.news-item.featured { background: rgba(0, 240, 255, 0.05); border-color: rgba(0, 240, 255, 0.25); }
+.news-item.alert { border-color: rgba(255, 59, 92, 0.6); }
+.news-item p { margin: 0; overflow-wrap: anywhere; }
+.news-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.news-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(0, 240, 255, 0.35); color: var(--cyan); white-space: nowrap; }
+.chip.muted { border-color: rgba(255, 255, 255, 0.15); color: var(--muted); }
+.tone-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; gap: 2px; margin: 10px 0 6px; }
+.tone-bar .neg { background: #ff3b5c; } .tone-bar .neu { background: rgba(255, 255, 255, 0.25); } .tone-bar .pos { background: #38ff87; }
+.news-sources { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 4px; }
+.news .chip { display: inline-flex; width: auto; margin: 0; padding: 2px 8px; font-family: inherit; font-size: 11px; background: none; }

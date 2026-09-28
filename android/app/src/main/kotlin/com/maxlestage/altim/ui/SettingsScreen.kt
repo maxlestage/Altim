@@ -7,7 +7,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -33,7 +37,7 @@ import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(model: AppModel, modifier: Modifier) {
+fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = null) {
     var confirmLogout by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -48,7 +52,10 @@ fun SettingsScreen(model: AppModel, modifier: Modifier) {
         modifier.statusBarsPadding().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Réglages", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            onBack?.let { IconButton(onClick = it) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") } }
+            Text("Réglages", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        }
         Card(title = "Serveur") {
             KeyValue("Adresse", model.serverUrl?.host ?: "—")
             KeyValue("Identifiant", model.user ?: "accès ouvert")

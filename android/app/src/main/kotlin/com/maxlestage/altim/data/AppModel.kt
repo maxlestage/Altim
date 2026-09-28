@@ -16,6 +16,7 @@ import com.maxlestage.altim.kit.PriceTarget
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Credentials
+import com.maxlestage.altim.kit.FileResponseCache
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Horizon
 import com.maxlestage.altim.kit.Kind
@@ -76,6 +77,15 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     /** Asset to open, from a tapped notification. */
     var pendingOpen by mutableStateOf<Asset?>(null)
+
+    /** Offline mode: date of the data shown when the server cannot be reached (null = online). */
+    var offlineSince by mutableStateOf<Long?>(null)
+        private set
+    private val responseCache = FileResponseCache(java.io.File(context.cacheDir, "api"))
+
+    /** Client with the offline cache: the last good answers are shown, dated, when the network or the server fails. */
+    private fun makeClient(url: HttpUrl, creds: Credentials?, cookie: String?) =
+        AltimClient(url, creds, cookie, cache = responseCache, onStatus = { offlineSince = it })
 
     /** Asset open on screen (its live price is followed too). */
     var focus by mutableStateOf<Asset?>(null)
@@ -198,7 +208,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         user = creds?.user
         // Empty password = 2FA account: no silent re-login (a wrong attempt would count towards the lockout).
         val usable = creds?.takeIf { it.password.isNotEmpty() }
-        client = AltimClient(url, usable, secure.get(SecureStore.Key.SESSION))
+        client = makeClient(url, usable, secure.get(SecureStore.Key.SESSION))
         phase = if (biometricLock) Phase.LOCKED else Phase.READY
     }
 
@@ -219,9 +229,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
             // With 2FA, a silent re-login is impossible (the code changes): the password is kept only without 2FA.
             val stored = if (mode.needsCode) c.copy(password = "") else c
             secure.set(SecureStore.Key.CREDENTIALS, AltimJson.encodeToString(Credentials.serializer(), stored))
-            client = AltimClient(url, if (mode.needsCode) null else c, first.sessionCookie)
+            client = makeClient(url, if (mode.needsCode) null else c, first.sessionCookie)
         } else {
-            client = AltimClient(url, null)
+            client = makeClient(url, null, null)
         }
         prefs.edit().putString("server", url.toString()).putBoolean("openServer", mode is AccessMode.Open).apply()
         serverUrl = url
@@ -231,6 +241,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     suspend fun logout() {
         live.stop()
+        responseCache.clear()
+        offlineSince = null
         client?.logout()
         secure.clear()
         prefs.edit().remove("openServer").apply()
