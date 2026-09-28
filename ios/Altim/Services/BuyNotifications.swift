@@ -65,6 +65,7 @@ enum BuyNotifications {
             WatchBridge.shared.send(model.lastAlerts, checked: model.lastAlertCheck)
             LiveActivities.shared.refresh(with: model.lastAlerts)
             if model.alertsEnabled { await post(result.buy) }
+            await postNews(result.news)
             for (t, price) in result.targets {
                 await add(id: "altim.target.\(t.id)", title: "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Format.price(t.price))",
                           body: "Prix actuel \(Format.price(price)) : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.", asset: t.asset.id)
@@ -90,6 +91,26 @@ enum BuyNotifications {
         }
     }
 
+    /// Up to 2 stories: one notification each; beyond, a single summary. A tap opens the Actu tab.
+    static func postNews(_ items: [NewsItem]) async {
+        guard !items.isEmpty, await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .authorized else { return }
+        let list: [(String, String, String)] = items.count <= 2
+            ? items.map { n in
+                ("altim.news.\(n.id)", n.alert ? "Alerte actualité" : "Actualité : \(n.assets.map { $0.components(separatedBy: ":").last ?? $0 }.joined(separator: ", "))",
+                 "\(n.title) (\(n.source)\(n.alsoIn.isEmpty ? "" : " +\(n.alsoIn.count)"))")
+            }
+            : [("altim.news.summary", "\(items.count) actualités importantes", items.prefix(3).map(\.title).joined(separator: " · "))]
+        for (id, title, body) in list {
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            content.threadIdentifier = "actualites"
+            content.userInfo = ["news": true]
+            try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: content, trigger: nil))
+        }
+    }
+
     private static func add(id: String, title: String, body: String, asset: String?) async {
         let content = UNMutableNotificationContent()
         content.title = title
@@ -105,12 +126,17 @@ enum BuyNotifications {
 /// Tapped notification → opens the asset; notifications also shown while the app is open.
 final class NotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     var open: (@MainActor (String) -> Void)?
+    var openNews: (@MainActor () -> Void)?
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
+        if response.notification.request.content.userInfo["news"] as? Bool == true {
+            await MainActor.run { openNews?() }
+            return
+        }
         guard let id = response.notification.request.content.userInfo["asset"] as? String else { return }
         await MainActor.run { open?(id) }
     }

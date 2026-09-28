@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="widget_description">Les actifs de votre radar et de vos avoirs achetables maintenant selon Altim.</string>
+    <string name="widget_title">Achetables maintenant</string>
+    <string name="widget_empty">Ouvrez Altim pour la première vérification.</string>
+    <string name="widget_footer">Conseil indicatif · aucun ordre passé</string>
+</resources>

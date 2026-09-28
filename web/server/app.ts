@@ -22,6 +22,7 @@ import { fibZones } from "../src/engine/fibonacci";
 import { buyAlert } from "../src/engine/alerts";
 import { aggregate, newsDigest, topStories } from "../src/engine/news";
 import { fetchNews } from "./news";
+import { BENCHMARKS } from "../src/engine/history";
 import { macroAdvice, macroEvidence } from "../src/engine/macro";
 import { cryptoUniverse, searchAll, searchUniverse, stockUniverse, universe, type UniverseEntry } from "./universe";
 
@@ -434,6 +435,26 @@ export function createApp({ live, auth = { cfg: authConfig(), production: proces
       return { symbol: a.symbol, kind: a.kind, name: a.name, price, asOf: Date.now(), ...alert };
     }));
     res.json(items);
+  }));
+
+  // Daily closes of the held assets over 30, 90 or 365 days, plus Bitcoin and the S&P 500 to compare: the apps
+  // multiply by their own quantities (which never leave the device).
+  api.get("/history", wrap(async (req, res) => {
+    const days = Number(req.query.days ?? 90);
+    if (![30, 90, 365].includes(days)) throw new BadRequest("days invalide (30 | 90 | 365)");
+    const held = req.query.symbols ? parseAssets(req.query.symbols) : [];
+    const all = [...held, ...BENCHMARKS.map((b) => { const [kind, symbol] = b.id.split(":"); return makeAsset(symbol!, kind as Kind); })];
+    const unique = [...new Map(all.map((a) => [`${a.kind}:${a.symbol}`, a])).values()];
+    const from = Date.now() - (days + 7) * 86_400_000;
+    const series = await Promise.all(unique.map(async (a) => {
+      try {
+        const h = await long(a.symbol, a.kind);
+        return { symbol: a.symbol, kind: a.kind, closes: h.candles.filter((c) => c.time >= from).map((c) => [c.time, c.close] as [number, number]) };
+      } catch {
+        return { symbol: a.symbol, kind: a.kind, closes: [] as [number, number][], error: "historique indisponible" };
+      }
+    }));
+    res.json({ asOf: Date.now(), days, series });
   }));
 
   // News section: world economy and geopolitics, markets, crypto and the user's own assets, from ~15 feeds (FR + EN)
