@@ -675,3 +675,22 @@
 .agenda-source { overflow-wrap: anywhere; justify-self: start; }
 .agenda .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .agenda-gaps { margin: 0 0 8px; padding-left: 18px; display: grid; gap: 4px; }
+
+/* News: "N événements importants aujourd'hui" */
+.news-summary .news-list { margin: 8px 0; }
+.news-summary .news-tags { align-items: center; }
+.chip.impact.high { border-color: rgba(255, 59, 92, 0.6); color: #ff6b85; }
+.chip.impact.medium { border-color: rgba(255, 199, 51, 0.6); color: #ffc733; }
+.chip.impact.low { border-color: rgba(56, 255, 135, 0.4); color: #38ff87; }
+.news-summary a.chip { text-decoration: none; }
+.news-summary details summary { cursor: pointer; }
+.news-summary .news-sources li { overflow-wrap: anywhere; }
+
+/* Agenda: risk by day (stacked rows) */
+.risk-days { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.risk-day { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.06); min-width: 0; }
+.risk-day.high { border-color: rgba(255, 59, 92, 0.45); }
+.risk-day.medium { border-color: rgba(255, 199, 51, 0.35); }
+.risk-day-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.risk-day-head b { overflow-wrap: anywhere; }
+.risk-day-events { overflow-wrap: anywhere; }

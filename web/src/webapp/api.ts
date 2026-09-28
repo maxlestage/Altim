@@ -79,6 +79,8 @@ export type NewsReport = {
   top: string[];
   digest: { total: number; themes: { theme: string; label: string; count: number }[]; tone: { negative: number; positive: number; neutral: number } };
   sources: { name: string; ok: boolean; count: number; error?: string }[];
+  /** The day's important events (at most 5); absent from an older server. */
+  summary?: import("./news-summary").StorySummary[];
 };
 
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
@@ -127,7 +129,7 @@ export const api = {
   decision: (symbol: string, kind: Kind, personal?: PersonalInput | null, scoreWeights?: ScoreWeights | null) =>
     get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights)).then(parseDecision),
   /** Agenda: economy, central banks, earnings, dividends, splits, IPOs; `symbols` limits the company events. */
-  calendar: (days: number, symbols: string[] | null) => get<CalendarReport>(calendarUrl(days, symbols)),
+  calendar: (days: number, symbols: string[] | null, top = false) => get<CalendarReport>(calendarUrl(days, symbols, top)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

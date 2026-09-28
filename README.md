@@ -92,8 +92,8 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | `GET /api/brief?symbols=…` | **Point du jour** : contexte de marché, actifs achetables (règle des notifications), variations depuis la dernière clôture, sujets à la une |
 | `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90, 365 ou 730 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
 | `GET /api/decision?symbol=BTC&kind=crypto[&cost=…&weights=…]` | **Décision** : verdict, familles, interdictions d'achat, configuration, plan, scénarios, pourquoi pas, fondamentaux, historique du signal, sorties progressives |
-| `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
-| `GET /api/calendar?days=14[&symbols=AAPL,NVDA]` | **Agenda** : publications économiques majeures, décisions des banques centrales, résultats, dividendes, splits et introductions en bourse des 1 à 30 prochains jours, avec la source de chaque événement, l'état de chaque source et ce qui n'est pas couvert |
+| `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source ; `summary` : les 5 événements importants du jour au plus (impact potentiel faible / moyen / important par règle ou mesuré sur les bougies horaires déjà en cache, actifs concernés, consensus des sources, liens, lecture face à la tendance technique si le garde-fou est en cache ; règle dans `backend/src/engine/news_summary.rs`) |
+| `GET /api/calendar?days=14[&symbols=AAPL,NVDA][&top=1]` | **Agenda** : publications économiques majeures, décisions des banques centrales, résultats, dividendes, splits et introductions en bourse des 1 à 30 prochains jours, avec la source de chaque événement, l'état de chaque source et ce qui n'est pas couvert ; `top=1` garde aussi les événements des plus grandes sociétés avec ceux de `symbols` (calendrier de risque sur 7 jours, règle dans `web/src/webapp/calendar.ts`) |
 
 ## Actualités (onglet « Actu »)
 

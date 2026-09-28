@@ -52,6 +52,9 @@ export const GLOSSARY: [string, string][] = [
   ["Cassure et fausse cassure", "Cassure confirmée : clôture au-delà d'un support ou d'une résistance avec un volume d'au moins 1,5 fois la moyenne de 20 bougies. Fausse cassure : le niveau est franchi, puis le prix revient de l'autre côté en moins de 3 bougies ; souvent un piège pour ceux qui ont suivi."],
   ["Structure de marché", "Suite des sommets et des creux : de plus en plus hauts, la tendance monte ; de plus en plus bas, elle baisse ; sinon, pas de direction."],
   ["Force relative", "Performance de l'actif moins celle de son indice de référence (bitcoin pour une crypto, S&P 500 et Nasdaq-100 pour une action) sur 1, 3 et 6 mois, en points. Positive : l'actif fait mieux que son marché."],
+  ["Impact potentiel d'une actualité", "Faible, moyen ou important. « Estimé par règle » : nombre de sources indépendantes, thème (escalade grave, banques centrales, régulation, piratage) et mention de vos actifs. « Mesuré » : variation de l'actif cité depuis la publication, sur ses bougies horaires ; elle ne prouve pas que l'article en est la cause."],
+  ["Consensus des sources", "Accord du ton des titres de chaque source sur un même sujet (repérage par mots-clés). Convergent : aucun titre positif face à un négatif ; divergent : les sources se contredisent."],
+  ["Calendrier de risque", "Risque de chaque jour des 7 prochains d'après l'Agenda. 🔴 : décision de taux, inflation, emploi ou PIB majeurs, ou résultats d'une action que vous suivez ; 🟠 : autres annonces, résultats des grandes sociétés, dividende ou split d'une action détenue ; 🟢 : aucun événement majeur."],
 ];
 
 /** Glossary screen (/app/lexique). */

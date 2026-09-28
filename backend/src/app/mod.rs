@@ -345,10 +345,14 @@ async fn decision_route(Query(p): Q) -> ApiResult<Response> {
 }
 
 /// Upcoming events (economy, central banks, earnings, dividends, splits, IPOs) over `days` days (14 by default, 30
-/// at most); with `symbols=AAPL,NVDA`, earnings, dividends and splits of these stocks only.
+/// at most); with `symbols=AAPL,NVDA`, earnings, dividends and splits of these stocks only; `top=1` keeps those of the
+/// largest companies too.
 async fn calendar_route(Query(p): Q) -> ApiResult<Response> {
     let days = parse_days(q(&p, "days"), crate::calendar::DEFAULT_DAYS, crate::calendar::MAX_DAYS)?;
     let symbols = parse_symbol_list(q(&p, "symbols"))?;
+    if q(&p, "top") == Some("1") {
+        return Ok(json_of(&crate::calendar::calendar_top(days, symbols.as_deref()).await));
+    }
     Ok(json_of(&crate::calendar::calendar(days, symbols.as_deref()).await))
 }
 

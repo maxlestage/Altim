@@ -11,6 +11,7 @@ pub mod history;
 pub mod macro_ctx;
 pub mod metrics;
 pub mod news;
+pub mod news_summary;
 pub mod reliability;
 pub mod screener;
 pub mod signal;
