@@ -60,6 +60,15 @@ export type BuyAlert = {
   reasons?: string[]; blockers?: string[]; cautions?: string[]; key?: string; title?: string; body?: string; error?: string;
 };
 
+/** News section (/api/news). */
+export type NewsReport = {
+  asOf: number;
+  items: import("../engine/news").NewsItem[];
+  top: string[];
+  digest: { total: number; themes: { theme: string; label: string; count: number }[]; tone: { negative: number; positive: number; neutral: number } };
+  sources: { name: string; ok: boolean; count: number; error?: string }[];
+};
+
 export type UniverseItem = { symbol: string; name: string; kind: Kind; rank: number | null; etf?: boolean; exchanges?: number };
 
 async function get<T>(url: string): Promise<T> {
@@ -94,6 +103,7 @@ export const api = {
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   macro: () => get<MacroInfo>("/api/macro"),
+  news: (items: { symbol: string; kind: Kind }[]) => get<NewsReport>(`/api/news${items.length ? `?symbols=${list(items.slice(0, 20))}` : ""}`),
   alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),

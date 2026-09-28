@@ -44,7 +44,13 @@ struct RadarView: View {
         .navigationDestination(for: Asset.self) { AssetDetailView(asset: $0) }
         .searchable(text: $query, prompt: "Ajouter : BTC, Apple, NVDA…")
         .task(id: query) { await search() }
-        .toolbar { EditButton() }
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink { SettingsView() } label: { Image(systemName: "gearshape") }
+                    .accessibilityLabel("Réglages")
+            }
+            ToolbarItem(placement: .topBarTrailing) { EditButton() }
+        }
         .refreshable { await load() }
         .task(id: model.watchlist.map(\.id).joined()) { await load() }
         .overlay { if loading && rows.isEmpty { ProgressView("Analyse des marchés…") } }

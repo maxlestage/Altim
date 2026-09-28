@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:wfw="http://wellformedweb.org/CommentAPI/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:sy="http://purl.org/rss/1.0/modules/syndication/" xmlns:slash="http://purl.org/rss/1.0/modules/slash/">
+  <channel>
+    <title>Cointelegraph.com News</title>
+    <link>https://cointelegraph.com</link>
+    <atom:link href="https://cointelegraph.com/rss" rel="self" type="application/rss+xml"/>
+    <description>Cointelegraph covers fintech, blockchain and Bitcoin bringing you the latest crypto news and analyses on the future of money.</description>
+    <generator>cointelegraph.com</generator>
+    <lastBuildDate>Mon, 28 Sep 2026 06:17:08 +0000</lastBuildDate>
+    <language>en</language>
+    <sy:updatePeriod>hourly</sy:updatePeriod>
+    <sy:updateFrequency>1</sy:updateFrequency>
+    <image>
+      <title>Cointelegraph.com News</title>
+      <link>https://cointelegraph.com</link>
+      <url>https://s3.cointelegraph.com/storage/uploads/view/b9ea15d46738b4df64e6e100ab59b373.png</url>
+      <description>Cointelegraph covers fintech, blockchain and Bitcoin bringing you the latest crypto news and analyses on the future of money.</description>
+    </image>
+    <item>
+      <title>South Korea weighs crypto market makers after JPYC trades at 4 times peg </title>
+      <pubDate>Mon, 28 Sep 2026 05:42:45 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 05:59:48 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/south-korea-weighs-crypto-market-makers-after-jpyc-trades-at-4-times-peg</guid>
+      <link><![CDATA[https://cointelegraph.com/news/south-korea-weighs-crypto-market-makers-after-jpyc-trades-at-4-times-peg?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K8G09TJR75WD4RB7BDGCQW/south-korea-market-makers.jpg" alt="South Korea weighs crypto market makers after JPYC trades at 4 times peg " class="type:primaryImage"></p><p>Crypto market making is effectively restricted under South Korea’s manipulation rules, but regulators are reconsidering the approach after a JPYC spiked on Upbit this month. </p>]]></description>
+      <dc:creator>Cointelegraph by Felix Ng</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K8G09TJR75WD4RB7BDGCQW/south-korea-market-makers.jpg" fileSize="337561" type="image/jpeg" medium="image" height="966" width="1450">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K8G09TJR75WD4RB7BDGCQW/south-korea-market-makers.jpg" length="337561" type="image/jpeg"/>
+      <category>Latest News</category>
+    </item><item>
+      <title>Here’s what happened in crypto today</title>
+      <pubDate>Mon, 28 Sep 2026 04:57:00 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 05:00:11 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/what-happened-in-crypto-today</guid>
+      <link><![CDATA[https://cointelegraph.com/news/what-happened-in-crypto-today?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/article-covers-110589-what-happened-in-crypto-today.jpg" alt="Here’s what happened in crypto today" class="type:primaryImage"></p><p>Need to know what happened in crypto today? Here is the latest news on daily trends and events impacting Bitcoin price, blockchain, DeFi, Web3 and crypto regulation.</p>]]></description>
+      <dc:creator>Cointelegraph by Ezra Reguerra</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/article-covers-110589-what-happened-in-crypto-today.jpg" fileSize="848525" type="image/jpeg" medium="image" height="966" width="1450">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/article-covers-110589-what-happened-in-crypto-today.jpg" length="848525" type="image/jpeg"/>
+      <category>Latest News</category>
+    </item><item>
+      <title>Vitalik Buterin says Hegotá could be Ethereum’s last ‘normal’ fork</title>
+      <pubDate>Mon, 28 Sep 2026 04:44:15 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 06:03:32 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/vitalik-hegota-ethereum-last-normal-fork</guid>
+      <link><![CDATA[https://cointelegraph.com/news/vitalik-hegota-ethereum-last-normal-fork?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K4SEN7H2DNWHCZQ26DGD49/vitalik-ethereum.png" alt="Vitalik Buterin says Hegotá could be Ethereum’s last ‘normal’ fork" class="type:primaryImage"></p><p>Ethereum’s Vitalik Buterin said PeerDAS marked the start of Ethereum’s transition “from being just a blockchain to being something much more powerful.”</p>]]></description>
+      <dc:creator>Cointelegraph by Ezra Reguerra</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K4SEN7H2DNWHCZQ26DGD49/vitalik-ethereum.png" fileSize="1796635" type="image/png" medium="image" height="848" width="1264">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3K4SEN7H2DNWHCZQ26DGD49/vitalik-ethereum.png" length="1796635" type="image/png"/>
+      <category>Latest News</category>
+    </item><item>
+      <title>Newsom signs California ban on public officials issuing memecoins </title>
+      <pubDate>Mon, 28 Sep 2026 02:23:42 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 02:26:49 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/newsom-signs-california-ban-on-public-officials-issuing-memecoins</guid>
+      <link><![CDATA[https://cointelegraph.com/news/newsom-signs-california-ban-on-public-officials-issuing-memecoins?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JX3KVEP7E99FBBRT94FX62/regulation-office-document-paper-california.jpg" alt="Newsom signs California ban on public officials issuing memecoins " class="type:primaryImage"></p><p>The law also restricts crypto companies from offering certain memecoins tied to public officials to California residents and takes effect for tokens issued from Jan. 1, 2027.</p>]]></description>
+      <dc:creator>Cointelegraph by Felix Ng</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JX3KVEP7E99FBBRT94FX62/regulation-office-document-paper-california.jpg" fileSize="239975" type="image/jpeg" medium="image" height="966" width="1450">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JX3KVEP7E99FBBRT94FX62/regulation-office-document-paper-california.jpg" length="239975" type="image/jpeg"/>
+      <category>Latest News</category>
+    </item><item>
+      <title>Zano rolls blockchain back a month after Gateway Address exploit</title>
+      <pubDate>Mon, 28 Sep 2026 01:09:22 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 06:06:56 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/news/zano-rolls-blockchain-back-a-month-after-gateway-address-exploit</guid>
+      <link><![CDATA[https://cointelegraph.com/news/zano-rolls-blockchain-back-a-month-after-gateway-address-exploit?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JREXHTP98GQ5DQZXPMZ889/zano-rollback.jpg" alt="Zano rolls blockchain back a month after Gateway Address exploit" class="type:primaryImage"></p><p>The Zano blockchain has been restarted at the block height that came immediately before Hard Fork 6, which introduced Gateway Addresses. 
+</p>]]></description>
+      <dc:creator>Cointelegraph by Felix Ng</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JREXHTP98GQ5DQZXPMZ889/zano-rollback.jpg" fileSize="372474" type="image/jpeg" medium="image" height="1332" width="2000">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JREXHTP98GQ5DQZXPMZ889/zano-rollback.jpg" length="372474" type="image/jpeg"/>
+      <category>Latest News</category>
+    </item><item>
+      <title>THORChain under fire over Bitget, ETH evolves beyond blockchain: Hodler’s Digest</title>
+      <pubDate>Sun, 27 Sep 2026 23:43:18 +0000</pubDate>
+      <atom:updated>Mon, 28 Sep 2026 03:12:10 +0000</atom:updated>
+      <guid isPermaLink="true">https://cointelegraph.com/magazine/thorchain-under-fire-over-bitget-hack-eth-is-beyond-blockchain-now</guid>
+      <link><![CDATA[https://cointelegraph.com/magazine/thorchain-under-fire-over-bitget-hack-eth-is-beyond-blockchain-now?utm_source=rss_feed&utm_medium=rss&utm_campaign=rss_partner_inbound]]></link>
+      <description><![CDATA[<p style="float:right; margin:0 0 10px 15px; width:240px;"><img src="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JEK5KXMZ1A92DZ2YW9Y7A9/cover-collage-revised.png" alt="THORChain under fire over Bitget, ETH evolves beyond blockchain: Hodler’s Digest" class="type:primaryImage"></p><p>THORChain refuses to blacklist addresses linked to the Bitget hack. Vitalik Buterin says Ethereum is evolving from being a mere blockchain, into a world cryptographic computer. </p>]]></description>
+      <dc:creator>Cointelegraph by Andrew Fenton</dc:creator>
+      <media:content url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JEK5KXMZ1A92DZ2YW9Y7A9/cover-collage-revised.png" fileSize="1924575" type="image/png" medium="image" height="842" width="1264">
+        <credit>Cointelegraph</credit>
+        <media:credit role="publishing company">Cointelegraph</media:credit>
+      </media:content>
+      <enclosure url="https://s3-images.ctmedia.io/media/article-covers/2026/09/01M3JEK5KXMZ1A92DZ2YW9Y7A9/cover-collage-revised.png" length="1924575" type="image/png"/>
+      <category>Magazine</category>
+    </item></channel></rss>

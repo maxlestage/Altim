@@ -105,6 +105,24 @@ final class AlertTests: XCTestCase {
     }
 }
 
+final class NewsTests: XCTestCase {
+    func testDecodeRealNews() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "news", withExtension: "json", subdirectory: "Fixtures"))
+        let r = try JSONDecoder().decode(NewsReport.self, from: Data(contentsOf: url))
+        XCTAssertGreaterThan(r.items.count, 10)
+        XCTAssertEqual(r.topItems.count, r.top.count)
+        XCTAssertGreaterThan(r.sources.count, 10)
+        XCTAssertTrue(r.items.allSatisfy { $0.url != nil })
+        XCTAssertTrue(r.items.contains { $0.category == "actifs" && !$0.assets.isEmpty })
+        XCTAssertFalse(r.digest.themes.isEmpty)
+        var bad = r.items[0]
+        bad.link = "javascript:alert(1)"
+        XCTAssertNil(bad.url)
+        bad.time = Date().timeIntervalSince1970 * 1000 - 3 * 3_600_000
+        XCTAssertEqual(bad.age(), "il y a 3 h")
+    }
+}
+
 final class PriceAlertTests: XCTestCase {
     let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
     let aapl = Asset(symbol: "AAPL", kind: .stock, name: "Apple")

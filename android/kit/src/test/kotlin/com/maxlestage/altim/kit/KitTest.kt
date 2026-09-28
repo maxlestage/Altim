@@ -112,6 +112,47 @@ class AlertTest {
     }
 }
 
+class PriceAlertTest {
+    private val btc = Asset("BTC", Kind.CRYPTO, "Bitcoin")
+    private val aapl = Asset("AAPL", Kind.STOCK, "Apple")
+
+    @Test fun targetsFireOnceWhenReached() {
+        val below = PriceTarget(asset = btc, above = false, price = 80_000.0)
+        val above = PriceTarget(asset = aapl, above = true, price = 350.0)
+        var (list, fired) = PriceTarget.evaluate(listOf(below, above), mapOf("crypto:BTC" to 84_000.0, "stock:AAPL" to 341.0))
+        assertTrue(fired.isEmpty())
+        PriceTarget.evaluate(list, mapOf("crypto:BTC" to 79_900.0, "stock:AAPL" to 350.0)).let { (l, f) -> list = l; fired = f }
+        assertEquals(listOf("AAPL", "BTC"), fired.map { it.first.asset.symbol }.sorted())
+        assertEquals(79_900.0, fired.first { it.first.asset.symbol == "BTC" }.second)
+        assertTrue(list.all { it.triggered != null })
+        assertTrue(PriceTarget.evaluate(list, mapOf("crypto:BTC" to 70_000.0, "stock:AAPL" to 400.0)).second.isEmpty(), "never twice")
+        assertTrue(PriceTarget.evaluate(listOf(below), emptyMap()).second.isEmpty())
+        assertEquals("En dessous de 80\u202F000,00 $", below.label)
+    }
+
+    @Test fun journalSummaryIsHonest() {
+        val now = System.currentTimeMillis()
+        val old = now - 86_400_000
+        val journal = AlertJournal.add(
+            listOf(
+                JournalEntry(asset = btc, source = JournalEntry.Source.BUY, title = "BTC", price = 80_000.0, date = old),
+                JournalEntry(asset = aapl, source = JournalEntry.Source.STRONG_BUY, title = "AAPL", price = 400.0, date = old),
+                JournalEntry(asset = btc, source = JournalEntry.Source.TARGET, title = "cible", price = 80_000.0, date = old),
+                JournalEntry(asset = aapl, source = JournalEntry.Source.BUY, title = "trop récent", price = 300.0, date = now),
+            ),
+            emptyList(),
+        )
+        assertEquals("trop récent", journal.first().title)
+        val s = AlertJournal.summary(journal, mapOf("crypto:BTC" to 88_000.0, "stock:AAPL" to 360.0), now)!!
+        assertEquals(2, s.count)
+        assertEquals(1, s.up)
+        assertEquals(0.0, s.average, 1e-9)
+        assertEquals(50.0, s.upShare)
+        assertNull(AlertJournal.summary(emptyList(), emptyMap()))
+        assertEquals(AlertJournal.LIMIT, AlertJournal.add(List(300) { journal[0].copy(id = "$it") }, emptyList()).size)
+    }
+}
+
 class SseTest {
     @Test fun realStreamCutAnywhere() {
         val raw = fixture("live.txt").toByteArray()

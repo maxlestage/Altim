@@ -146,9 +146,18 @@ class ScreensTest {
         compose.waitForIdle()
         shot("7-alertes")
 
-        // 8. Settings.
-        compose.onAllNodes(hasText("Réglages")).onFirst().performClick()
+        // 8. News: the feeds of the server, merged, with the sources status.
+        compose.onAllNodes(hasText("Actu")).onFirst().performClick()
+        waitFor("articles de", 90_000)
+        waitFor("Ce qui domine")
+        waitFor("Mes actifs")
+        compose.waitForIdle()
+        shot("8-actu")
+
+        // 9. Settings, from the gear of the Radar.
+        compose.onAllNodes(hasText("Radar")).onFirst().performClick()
+        compose.onNode(androidx.compose.ui.test.hasContentDescription("Réglages")).performClick()
         waitFor("Se déconnecter")
-        shot("8-reglages")
+        shot("9-reglages")
     }
 }

@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,6 +26,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Newspaper
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.Radar
 import androidx.compose.material.icons.filled.Security
@@ -93,7 +97,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     SELECTION("Sélection", Icons.AutoMirrored.Filled.List),
     HOLDINGS("Mes avoirs", Icons.Filled.Work),
     ALERTS("Alertes", Icons.Filled.NotificationsActive),
-    SETTINGS("Réglages", Icons.Filled.Settings),
+    NEWS("Actu", Icons.Filled.Newspaper),
 }
 
 /** Each tab keeps its own stack of opened assets (like one NavigationStack per tab on iPhone). */
@@ -102,8 +106,13 @@ fun MainTabs(model: AppModel) {
     var tab by rememberSaveable { mutableStateOf(Tab.RADAR) }
     val stacks = remember { Tab.entries.associateWith { mutableStateListOf<Asset>() } }
     val stack: SnapshotStateList<Asset> = stacks.getValue(tab)
-    val open: (Asset) -> Unit = { stack.add(it) }
-    BackHandler(enabled = stack.isNotEmpty()) { stack.removeAt(stack.lastIndex) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    val open: (Asset) -> Unit = {
+        settingsOpen = false
+        stack.add(it)
+    }
+    BackHandler(enabled = settingsOpen) { settingsOpen = false }
+    BackHandler(enabled = stack.isNotEmpty() && !settingsOpen) { stack.removeAt(stack.lastIndex) }
     LaunchedEffect(stack.lastOrNull()) { model.focus = stack.lastOrNull() }
     // Tapped notification: open the asset on top of the Radar.
     LaunchedEffect(model.pendingOpen) {
@@ -116,11 +125,16 @@ fun MainTabs(model: AppModel) {
     Scaffold(
         containerColor = Color.Transparent,
         bottomBar = {
+            Column {
+            model.offlineSince?.let { OfflineBanner(it) }
             NavigationBar(containerColor = AltimColors.surface) {
                 Tab.entries.forEach { t ->
                     NavigationBarItem(
                         selected = t == tab,
-                        onClick = { if (t == tab) stack.clear() else tab = t },
+                        onClick = {
+                            settingsOpen = false
+                            if (t == tab) stack.clear() else tab = t
+                        },
                         icon = { Icon(t.icon, contentDescription = null) },
                         label = { Text(t.label, fontSize = 11.sp) },
                         colors = NavigationBarItemDefaults.colors(
@@ -133,24 +147,31 @@ fun MainTabs(model: AppModel) {
                     )
                 }
             }
+            }
         },
     ) { padding ->
         val m = Modifier.padding(padding).fillMaxSize()
         val covered = stack.isNotEmpty()
         // The tab stays composed under the open asset: coming back keeps its list, scroll and loaded data.
         // While covered, it is hidden from TalkBack and receives no touch.
-        Box(if (covered) Modifier.clearAndSetSemantics { } else Modifier) {
+        Box(if (covered || settingsOpen) Modifier.clearAndSetSemantics { } else Modifier) {
             when (tab) {
-            Tab.RADAR -> RadarScreen(model, m, open)
+            Tab.RADAR -> RadarScreen(model, m, open, onSettings = { settingsOpen = true })
             Tab.SELECTION -> SelectionScreen(model, m, open)
             Tab.HOLDINGS -> HoldingsScreen(model, m, open)
             Tab.ALERTS -> AlertsScreen(model, m, open)
-            Tab.SETTINGS -> SettingsScreen(model, m)
+            Tab.NEWS -> NewsScreen(model, m)
             }
         }
         stack.lastOrNull()?.let { top ->
             AppBackground(m.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() } } }) {
                 key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+            }
+        }
+        // Réglages, opened from the gear of the Radar, above everything.
+        if (settingsOpen) {
+            AppBackground(m.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() } } }) {
+                SettingsScreen(model, Modifier.fillMaxSize(), onBack = { settingsOpen = false })
             }
         }
     }
@@ -228,5 +249,23 @@ fun LockScreen(model: AppModel) {
             color = AltimColors.textSecondary, textAlign = TextAlign.Center, fontSize = 14.sp,
         )
         NeonButton("Déverrouiller", modifier = Modifier.fillMaxWidth()) { prompt() }
+    }
+}
+
+/** Shown above the tabs while the server cannot be reached: the screens show the last data received, dated. */
+@Composable
+fun OfflineBanner(since: Long) {
+    Row(
+        Modifier.fillMaxWidth().background(AltimColors.warning.copy(alpha = 0.18f)).padding(horizontal = 16.dp, vertical = 8.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Icons.Filled.CloudOff, contentDescription = null, tint = AltimColors.warning, modifier = Modifier.size(18.dp))
+        Text(
+            "Hors ligne : données du ${com.maxlestage.altim.kit.Format.date(since.toDouble(), time = true)}. Reconnexion automatique.",
+            fontSize = 12.sp,
+            color = Color.White,
+        )
     }
 }
