@@ -140,7 +140,8 @@ pub struct Setup {
 pub struct Plan {
     pub zone_from: f64,
     pub zone_to: f64,
-    /// Price used for the ratio: the current price when inside the zone, else the top of the zone.
+    /// Price used for the ratio: the current price when inside the zone, else the highest price of the zone that
+    /// still gives the minimum risk/reward (the top of the zone when all of it does, its bottom when none does).
     pub entry: f64,
     pub stop: f64,
     pub target1: f64,

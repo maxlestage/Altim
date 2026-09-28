@@ -2,6 +2,7 @@
 pub mod alerts;
 pub mod backtest;
 pub mod brief;
+pub mod decision;
 pub mod decision_types;
 pub mod fibonacci;
 pub mod format;
