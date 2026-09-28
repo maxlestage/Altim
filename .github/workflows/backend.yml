@@ -46,7 +46,7 @@ jobs:
           test "$(curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w '%{http_code}')" = "404"
           test "$(curl -sS 'localhost:3000/api/candles?base=../x&interval=1h' -o /dev/null -w '%{http_code}')" = "400"
           curl -fsSI localhost:3000/ | grep -qi "content-security-policy"
-      - name: Production sans configuration : tout est fermé (comme sur Heroku, DYNO est défini)
+      - name: "Production sans configuration : tout est fermé (comme sur Heroku, DYNO est défini)"
         run: |
           docker run -d --name prod -p 3001:3001 -e PORT=3001 -e DYNO=web.1 altim
           for i in $(seq 1 30); do curl -fsS localhost:3001/health && break; sleep 1; done
