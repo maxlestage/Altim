@@ -56,7 +56,7 @@ const HIGHER: Record<string, string | null> = { "1h": "4h", "4h": "1d", "1d": nu
 }
 
 // Other engines: one file per module, imported here (parity/golden-*.ts).
-for (const m of ["engines-a", "engines-b", "server"]) {
+for (const m of ["engines-a", "engines-b", "engines-b1", "server"]) {
   try {
     await import(`./golden-${m}.ts`);
   } catch (e) {
