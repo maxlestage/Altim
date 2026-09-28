@@ -11,6 +11,7 @@ struct AssetDetailView: View {
     @State private var signal: RadarRow?
     @State private var zones: Loadable<ZonesReport> = .idle
     @State private var guardReport: Loadable<GuardReport> = .idle
+    @State private var targetSheet = false
 
     private static let intervals = [("1h", "1 h"), ("4h", "4 h"), ("1d", "1 j")]
 
@@ -32,7 +33,17 @@ struct AssetDetailView: View {
         .altimScreen()
         .navigationTitle(asset.symbol)
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $targetSheet) {
+            PriceTargetSheet(asset: asset, current: model.live.price(asset)?.price ?? signal?.price ?? zones.value?.price)
+                .environment(model)
+        }
         .toolbar {
+            Button {
+                targetSheet = true
+            } label: {
+                Image(systemName: "bell.badge")
+            }
+            .accessibilityLabel("Alerte de prix")
             if model.liveActivityEnabled && LiveActivities.shared.available {
                 Button {
                     Task { await toggleLiveActivity() }
