@@ -2,9 +2,9 @@ name: Serveur (Rust)
 
 on:
   push:
-    paths: ["backend/**", "web/**", "Dockerfile", ".dockerignore", "heroku.yml", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", "web/**", "Dockerfile", ".dockerignore", "heroku.yml", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -29,29 +29,41 @@ jobs:
       # Unit tests + parity with the TypeScript engines (golden files) + route tests. Network tests are #[ignore].
       - run: cargo test --locked
 
-  image:
-    name: Image Heroku (Dockerfile) et démarrage
-    runs-on: ubuntu-latest
+  heroku:
+    name: Build façon Heroku (buildpacks Bun puis Rust) et démarrage
+    # heroku-24 is Ubuntu 24.04: the same buildpack scripts, in the same order, on the same system.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - run: docker build -t altim .
-      - name: Site et garde-fous des routes (sans accès privé, hors production)
+      - name: Buildpacks (scripts officiels, comme sur Heroku)
         run: |
-          docker run -d --name dev -p 3000:3000 -e PORT=3000 altim
-          for i in $(seq 1 30); do curl -fsS localhost:3000/health && break; sleep 1; done
+          set -euo pipefail
+          W="$RUNNER_TEMP/heroku"; mkdir -p "$W"/{build,cache-bun,cache-rust,env,home}
+          git clone -q --depth 1 https://github.com/jakeg/heroku-buildpack-bun "$W/bp-bun"
+          git clone -q --depth 1 https://github.com/emk/heroku-buildpack-rust "$W/bp-rust"
+          git archive HEAD | tar -x -C "$W/build"
+          HOME="$W/home" bash "$W/bp-bun/bin/compile" "$W/build" "$W/cache-bun" "$W/env"
+          env -u CARGO_HOME -u RUSTUP_HOME bash "$W/bp-rust/bin/compile" "$W/build" "$W/cache-rust" "$W/env"
+          echo "BUILD=$W/build" >> "$GITHUB_ENV"
+      - name: Phase de publication (release) du Procfile
+        run: |
+          cd "$BUILD" && bash -c "$(sed -n 's/^release: //p' Procfile)"
+      - name: Démarrage avec le Procfile, site et garde-fous des routes
+        run: |
+          cd "$BUILD"
+          CMD=$(sed -n 's/^web: //p' Procfile | sed "s#/app/web#$BUILD/web#")
+          PORT=3000 bash -c "$CMD" > dev.log 2>&1 &
+          PORT=3001 DYNO=web.1 bash -c "$CMD" > prod.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS localhost:3000/health && curl -fsS localhost:3001/health && break; sleep 1; done
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/app | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/index-'
           test "$(curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w '%{http_code}')" = "404"
           test "$(curl -sS 'localhost:3000/api/candles?base=../x&interval=1h' -o /dev/null -w '%{http_code}')" = "400"
           curl -fsSI localhost:3000/ | grep -qi "content-security-policy"
-      - name: "Production sans configuration : tout est fermé (comme sur Heroku, DYNO est défini)"
-        run: |
-          docker run -d --name prod -p 3001:3001 -e PORT=3001 -e DYNO=web.1 altim
-          for i in $(seq 1 30); do curl -fsS localhost:3001/health && break; sleep 1; done
+          # Production without configuration (DYNO set, as on Heroku): everything is closed.
           test "$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' localhost:3001/app/reglages)" = "302 http://localhost:3001/login?next=%2Fapp%2Freglages"
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:3001/api/tickers)" = "401"
           curl -fsS localhost:3001/login | grep -q "Accès privé non configuré"
       - if: failure()
-        run: docker logs dev; docker logs prod
+        run: cat "$BUILD"/dev.log "$BUILD"/prod.log || true

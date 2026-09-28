@@ -6,7 +6,7 @@
   ],
   "scripts": {
     "build": "cd web && bun run build",
-    "start": "cd backend && cargo run --release",
+    "start": "ALTIM_WEB_ROOT=web ./backend/target/release/altim",
     "test": "cd web && bun test && cd ../backend && cargo test"
   }
 }
