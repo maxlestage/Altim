@@ -46,6 +46,14 @@ final class AppModel {
     var budget: Double { didSet { defaults.set(budget, forKey: "budget") } }
     var selectionMarket: Kind { didSet { defaults.set(selectionMarket.rawValue, forKey: "selectionMarket") } }
     var selectionHorizon: Horizon { didSet { defaults.set(selectionHorizon.rawValue, forKey: "selectionHorizon") } }
+    /// Risk limits (Réglages → Prudence des conseils), checked on Mes avoirs.
+    var risk: RiskSettings { didSet { defaults.set(try? JSONEncoder().encode(risk), forKey: "riskSettings") } }
+    /// Weights of the decision's composite score (Réglages), sent as `w=` only when not the defaults.
+    var scoreWeights: ScoreWeights { didSet { defaults.set(try? JSONEncoder().encode(scoreWeights), forKey: "scoreWeights") } }
+    /// Last decision seen per asset and the configuration changes (Radar), stored on the iPhone only.
+    var configChanges: ConfigState { didSet { LocalStore.save(configChanges, "configChanges") } }
+    /// Positions that became dangerous, last measured on Mes avoirs (shown again on the Radar with their time).
+    var dangers: DangerState? { didSet { LocalStore.save(dangers, "dangers") } }
 
     /// Server unreachable: date of the saved answers shown instead (nil when online).
     var offlineSince: Date? = nil
@@ -66,7 +74,8 @@ final class AppModel {
         faceIDLock = defaults.object(forKey: "faceIDLock") as? Bool ?? true
         // Former versions kept the lists in UserDefaults (backed up): moved once to the protected local store.
         watchlist = LocalStore.load([Asset].self, "watchlist") ?? Self.migrate([Asset].self, "watchlist") ?? Asset.defaults
-        holdings = LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []
+        // A stop that is not a positive number is dropped (the line itself stays), like on the web.
+        holdings = (LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []).map(\.cleaned)
         alertsEnabled = defaults.bool(forKey: "alertsEnabled")
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
         newsAlertsEnabled = defaults.bool(forKey: "newsAlertsEnabled")
@@ -81,6 +90,11 @@ final class AppModel {
         budget = defaults.double(forKey: "budget")
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
         selectionHorizon = Horizon(rawValue: defaults.string(forKey: "selectionHorizon") ?? "") ?? .mo1
+        risk = defaults.data(forKey: "riskSettings").flatMap { try? JSONDecoder().decode(RiskSettings.self, from: $0) } ?? .defaults
+        scoreWeights = defaults.data(forKey: "scoreWeights").flatMap { try? JSONDecoder().decode(ScoreWeights.self, from: $0) } ?? .defaults
+        // Damaged or older entries are dropped on reading (ConfigState validates each one).
+        configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
+        dangers = LocalStore.load(DangerState.self, "dangers")
         restore()
     }
 
@@ -305,6 +319,26 @@ final class AppModel {
     }
 
     func clearJournal() { journal = [] }
+
+    // MARK: Configuration changes
+
+    /// Every decision received goes through the configuration diff (verdict or level changed since the last one seen).
+    /// An answer more than an hour old (served from the offline cache) is not compared: it would tell a false change.
+    @discardableResult
+    func recordDecision(_ d: Decision, personal: Bool, now: Date = Date()) -> ConfigTransition? {
+        let ms = now.timeIntervalSince1970 * 1000
+        guard ms - d.asOf < 3_600_000 else { return nil }
+        let r = ConfigChanges.apply(configChanges, d, personal: personal, now: ms)
+        configChanges = r.state
+        return r.transition
+    }
+
+    func clearTransitions() { configChanges.transitions = [] }
+
+    /// When the informational decision of this asset was last compared (nil: never).
+    func lastDecisionCheck(_ a: Asset) -> Date? {
+        configChanges.last[ConfigChanges.key(kind: a.kind, symbol: a.symbol, personal: false)].map { Date(timeIntervalSince1970: $0.at / 1000) }
+    }
 
     // MARK: Simulation (paper trading)
 

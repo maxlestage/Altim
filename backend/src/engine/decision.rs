@@ -20,7 +20,12 @@
 //! - held (average cost given): VENDRE when a defensive exit is met now (close under the stop, move broken,
 //!   background trend down), ALLÉGER when a profit or macro exit is met now, otherwise ATTENDRE (keep);
 //! - confidence = 45 % agreement of the families + 35 % data reliability (sources and available families)
-//!   + 20 % the signal's own track record (50 when unknown).
+//!   + 20 % the signal's own track record (50 when unknown);
+//! - technical structure (`structure.rs`, daily candles): Ichimoku and Supertrend agreeing add or remove 10 points
+//!   to the trend family, the nearest resistance and a fake breakout are cited in "pourquoi attendre", target 3 is
+//!   the next level beyond target 2;
+//! - rating, composite score, "signal dégradé", market regime and horizon (`synthesis.rs`) summarise the decision
+//!   without changing the verdict.
 use serde::{Deserialize, Serialize};
 
 use super::Evidence;
@@ -31,6 +36,9 @@ use super::guard::{Direction, GuardResult, NewsItem, Regime, ShockLevel, Trend, 
 use super::macro_ctx::{MACRO, MacroLevel, MacroReport};
 use super::reliability::{Reliability, ReliabilityLevel, gate};
 use super::signal::{AnalyzeOptions, Candle, Signal, adx, analyze, atr, is_sell, rsi, sanitize, sma};
+use super::structure::{Benchmark, Bias, BreakoutKind, Structure, structure};
+use super::synthesis::{self, PlanCandles, ScoreWeights};
+use crate::calendar::{CalendarEvent, EventKind, Importance};
 use crate::js::{fr, iso_date, round};
 use crate::types::{DAY_MS, Interval, Kind};
 
@@ -126,6 +134,13 @@ pub struct DecisionInput<'a> {
     pub cost: Option<f64>,
     /// The user's weights (personal mode).
     pub exposure: Option<ExposureInput>,
+    /// Benchmarks' daily candles (Bitcoin for a crypto; S&P 500 then Nasdaq-100 for a stock): relative strength,
+    /// correlation, and the first one's trend for the market regime. Empty when not loaded.
+    pub benchmarks: Vec<Benchmark>,
+    /// Weights of the composite score (`w=`); None = default weights.
+    pub score_weights: Option<ScoreWeights>,
+    /// Upcoming events of the next days (calendar::upcoming_for); None when the calendar could not be loaded.
+    pub events: Option<Vec<CalendarEvent>>,
 }
 
 // ---------- Formatting ----------
@@ -219,6 +234,8 @@ struct Metrics {
     month: usize,
     div_d: bool,
     div_4h: bool,
+    /// Technical structure of the daily candles.
+    st: Structure,
 }
 
 fn change(c: &[Candle], price: f64, bars: usize) -> Option<f64> {
@@ -265,8 +282,10 @@ fn metrics(inp: &DecisionInput) -> Metrics {
         let c4: Vec<f64> = h4.iter().map(|c| c.close).collect();
         divergence(&h4, &rsi(&c4, 14), Direction::Down, h4.len() as i64 - 1, 60)
     };
+    let st = structure(&d, price, inp.symbol, inp.kind, &inp.benchmarks);
     Metrics {
         price,
+        st,
         atr_d,
         atr_pct,
         atr_rank,
@@ -388,8 +407,21 @@ fn plan_calc(m: &Metrics) -> Option<PlanCalc> {
     None
 }
 
-fn plan_out(p: &PlanCalc) -> Plan {
+/// Target 3: the nearest level (2 touches or more) above target 2, capped by the projection target 2 + (target 2 −
+/// target 1).
+fn target3(p: &PlanCalc, st: &Structure) -> Option<(f64, String)> {
+    let t2 = p.target2.filter(|t| *t > p.target1)?;
+    let projection = t2 + (t2 - p.target1);
+    let level = st.levels.iter().filter(|l| l.price > t2 * 1.001 && l.price < projection).min_by(|a, b| a.price.total_cmp(&b.price));
+    Some(match level {
+        Some(l) => (l.price, format!("Niveau touché {} fois au-dessus de l'objectif 2", l.touches)),
+        None => (projection, "Projection : objectif 2 + (objectif 2 − objectif 1), aucun niveau touché avant".into()),
+    })
+}
+
+fn plan_out(p: &PlanCalc, st: &Structure) -> Plan {
     let e = p.entry;
+    let t3 = target3(p, st);
     Plan {
         zone_from: p.zone_from,
         zone_to: p.zone_to,
@@ -404,6 +436,9 @@ fn plan_out(p: &PlanCalc) -> Plan {
         min_risk_reward: MIN_RISK_REWARD,
         acceptable: p.rr >= MIN_RISK_REWARD - 1e-9,
         horizon: format!("{} · {}", p.zone.label.to_lowercase(), p.zone.holding),
+        target3: t3.as_ref().map(|t| t.0),
+        reward3_pct: t3.as_ref().map(|t| r1((t.0 - e) / e * 100.0)),
+        target3_source: t3.map(|t| t.1),
     }
 }
 
@@ -453,6 +488,19 @@ fn trend_family(inp: &DecisionInput, m: &Metrics) -> Family {
         Trend::Range => 0.0,
     };
     points.push(m.regime.text.clone());
+    // Ichimoku and Supertrend (daily) agreeing confirm the direction: ±10 points.
+    match (m.st.ichimoku.as_ref().map(|i| i.bias), m.st.supertrend.as_ref().map(|s| s.bias)) {
+        (Some(Bias::Bullish), Some(Bias::Bullish)) => {
+            score += 10.0;
+            points.push("Ichimoku et Supertrend haussiers : ils confirment la hausse".into());
+        }
+        (Some(Bias::Bearish), Some(Bias::Bearish)) => {
+            score -= 10.0;
+            points.push("Ichimoku et Supertrend baissiers : ils confirment la baisse".into());
+        }
+        (Some(_), Some(_)) => points.push("Ichimoku et Supertrend pas d'accord : direction à confirmer".into()),
+        _ => {}
+    }
     // A weak ADX: the direction is there but the trend is not marked, the score is scaled down (×0.6 at ADX ≤ 15).
     if let Some(a) = m.adx_d {
         score *= 0.6 + 0.4 * clamp((a - 15.0) / 15.0, 0.0, 1.0);
@@ -616,6 +664,16 @@ fn stock_valuation(f: &StockFundamentals) -> Family {
     if let Some(y) = f.dividend_yield {
         points.push(format!("Rendement du dividende {}", pct(y)));
     }
+    if let Some(ps) = f.ps {
+        points.push(format!("Prix ÷ ventes (P/S) {}", fr(ps, 0, 1)));
+    }
+    // Against its own history: dearer than 80 % of the days → −0.3, cheaper than 80 % → +0.3.
+    if let Some(r) = f.valuation_history.as_ref().and_then(|h| h.per.as_ref().or(h.ps.as_ref())) {
+        comps.push(grade(r.percentile, &[(80.0, -0.3), (20.0, 0.0)], 0.3));
+    }
+    if let Some(v) = &f.valuation_verdict {
+        points.push(v.clone());
+    }
     if comps.is_empty() {
         return family("valuation", "Valorisation", None, "Données de valorisation indisponibles".into(), points, &f.source);
     }
@@ -679,6 +737,9 @@ fn stock_fundamentals(f: &StockFundamentals) -> Family {
     }
     if let Some(sc) = f.share_change {
         points.push(format!("Nombre d'actions {} sur un an{}", signed(sc), if sc < 0.0 { " (rachats)" } else { "" }));
+    }
+    if let Some(r) = f.roic {
+        points.push(format!("Rentabilité du capital investi (ROIC) {}", pct(r)));
     }
     if comps.is_empty() {
         return family("fundamentals", "Fondamentaux", None, "Données financières indisponibles".into(), points, &f.source);
@@ -945,13 +1006,67 @@ fn families(inp: &DecisionInput, m: &Metrics) -> Vec<Family> {
     out.push(news_family(inp));
     out.push(liquidity_family(inp, m));
     if inp.kind == Kind::Crypto {
-        out.push(unavailable(
-            "onchain",
-            "On-chain",
-            "Pas de source gratuite et vérifiable des flux on-chain (entrées et sorties des plateformes, portefeuilles actifs)",
-        ));
+        out.push(onchain_family(match &inp.fundamentals {
+            Some(Fundamentals::Crypto(f)) => Some(f),
+            _ => None,
+        }));
     }
     out
+}
+
+/// Market-wide liquidity (stablecoins in circulation over 30 days: > +2 % → +0.4, rising → +0.15, falling → −0.15,
+/// < −2 % → −0.4; half weight over 7 days) and the project's developer activity (commits over 4 weeks: under 5 on a
+/// smart-contract platform → −0.4, 50 or more → +0.2). Exchange flows and active wallets stay uncovered.
+fn onchain_family(f: Option<&CryptoFundamentals>) -> Family {
+    const NONE: &str = "Pas de source gratuite et vérifiable des flux on-chain (entrées et sorties des plateformes, portefeuilles actifs)";
+    let Some(f) = f else { return unavailable("onchain", "On-chain", NONE) };
+    let mut comps: Vec<f64> = vec![];
+    let mut points = vec![];
+    let mut sources = vec![];
+    if let Some(s) = &f.stablecoins {
+        if let Some(p) = s.change30d_pct {
+            comps.push(grade(p, &[(2.0, 0.4), (0.0, 0.15), (-2.0, -0.15)], -0.4));
+            points.push(format!(
+                "Stablecoins en circulation : {} ({} sur 30 jours{})",
+                money(s.total),
+                signed(p),
+                if p > 0.0 { ", liquidité qui entre sur le marché crypto" } else { ", liquidité qui sort du marché crypto" }
+            ));
+        }
+        if let Some(p) = s.change7d_pct {
+            comps.push(grade(p, &[(1.0, 0.2), (0.0, 0.07), (-1.0, -0.07)], -0.2));
+            points.push(format!("Stablecoins sur 7 jours : {}", signed(p)));
+        }
+        sources.push(s.source.as_str());
+    }
+    if let Some(c) = f.chain_stablecoins.as_ref().and_then(|c| c.change30d_pct.map(|p| (c, p))) {
+        points.push(format!("Stablecoins sur le réseau {} : {} ({} sur 30 jours)", c.0.scope, money(c.0.total), signed(c.1)));
+    }
+    if let Some(d) = &f.dev_activity {
+        if let Some(n) = d.commits4w {
+            if n < 5.0 && d.smart_contract_platform {
+                comps.push(-0.4);
+                points
+                    .push(format!("Activité de développement quasi nulle : {} commit(s) en 4 semaines pour une plateforme de contrats", fr(n, 0, 0)));
+            } else {
+                if n >= 50.0 {
+                    comps.push(0.2);
+                }
+                points.push(format!("{} commits en 4 semaines", fr(n, 0, 0)));
+            }
+        }
+        if let Some(n) = d.pull_requests_merged {
+            points.push(format!("{} demandes de modification (pull requests) intégrées au total", fr(n, 0, 0)));
+        }
+        sources.push(d.source.as_str());
+    }
+    if comps.is_empty() {
+        return family("onchain", "On-chain", None, NONE.into(), points, &if sources.is_empty() { "—".to_string() } else { sources.join(", ") });
+    }
+    points.push(f.not_covered.clone());
+    let score = mean(&comps) * 100.0;
+    let summary = points.first().cloned().unwrap_or_default();
+    family("onchain", "On-chain", Some(score), summary, points, &sources.join(", "))
 }
 
 // ---------- Vetoes ----------
@@ -962,7 +1077,7 @@ fn veto(code: &str, label: &str, active: bool, verifiable: bool, detail: String)
 
 /// Vetoes that keep the asset off-limits for now (AUCUNE POSITION); the others are a matter of timing (ATTENDRE).
 fn is_blocking(code: &str) -> bool {
-    !matches!(code, "riskReward" | "earnings" | "divergence")
+    !matches!(code, "riskReward" | "earnings" | "divergence" | "announcement")
 }
 
 static REGULATION: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
@@ -1030,15 +1145,25 @@ fn vetoes(inp: &DecisionInput, m: &Metrics, p: Option<&PlanCalc>) -> Vec<Veto> {
                     if shock { format!(" ; secousse mesurée sur l'actif (score {score}/100)") } else { String::new() }
                 ),
                 None if active => format!("Secousse mesurée sur l'actif (score {score}/100)"),
-                None => format!(
-                    "Aucune secousse ni titre d'escalade (score {}/100) ; calendrier des annonces (banques centrales, inflation) non couvert",
-                    fr(own.min(100.0), 0, 0)
-                ),
+                None => format!("Aucune secousse ni titre d'escalade (score {}/100)", fr(own.min(100.0), 0, 0)),
             };
             v.push(veto("event", "Événement majeur imminent", active, true, detail));
         }
         None => v.push(veto("event", "Événement majeur imminent", false, false, na.clone())),
     }
+    // Scheduled announcements (central banks, inflation, jobs, GDP) within 48 h: the price can jump either way on the
+    // figure, whatever the chart says. A matter of timing (wait for the figure), not a reason to stay out.
+    let soon = imminent_events(inp);
+    let detail = match (&inp.events, soon.first()) {
+        (None, _) => "Calendrier des annonces indisponible ou incomplet : non vérifié".to_string(),
+        (Some(_), None) => "Aucune annonce majeure (banques centrales, inflation, emploi, PIB) dans les 48 h".to_string(),
+        (Some(_), Some(e)) => format!(
+            "{}{} : attendre la publication, le prix peut bouger fortement dans un sens ou dans l'autre",
+            event_text(e),
+            if soon.len() > 1 { format!(" (+{} autre(s))", soon.len() - 1) } else { String::new() }
+        ),
+    };
+    v.push(veto("announcement", "Annonce économique dans les 48 h", !soon.is_empty(), inp.events.is_some(), detail));
     // Earnings (stocks).
     match (inp.kind, &inp.fundamentals) {
         (Kind::Crypto, _) => v.push(veto("earnings", "Résultats imminents", false, true, "Sans objet pour une crypto".into())),
@@ -1803,6 +1928,29 @@ fn confidence(inp: &DecisionInput, fams: &[Family], verdict: Verdict) -> (f64, S
 
 // ---------- Decision ----------
 
+/// High-importance macro and central bank announcements from one hour ago to 48 h ahead (the stock's earnings
+/// have their own veto).
+fn imminent_events<'a>(inp: &'a DecisionInput) -> Vec<&'a CalendarEvent> {
+    inp.events
+        .iter()
+        .flatten()
+        .filter(|e| matches!(e.kind, EventKind::Macro | EventKind::CentralBank) && e.importance == Importance::High)
+        .filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 2 * DAY_MS)
+        .collect()
+}
+
+/// "Décision de la Fed, États-Unis, le 30/09 à 20:00".
+fn event_text(e: &CalendarEvent) -> String {
+    let day = e.day.get(8..10).zip(e.day.get(5..7)).map(|(d, m)| format!("{d}/{m}")).unwrap_or_else(|| e.day.clone());
+    let country = e.country.as_ref().map(|c| format!(", {c},")).unwrap_or_default();
+    let time = match &e.time {
+        Some(t) if t.contains(':') => format!(" à {t}"),
+        Some(t) => format!(" {t}"),
+        None => String::new(),
+    };
+    format!("{}{country} le {day}{time}", e.title)
+}
+
 pub fn decide(inp: &DecisionInput) -> Decision {
     let m = metrics(inp);
     let p = plan_calc(&m);
@@ -1857,7 +2005,41 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         Verdict::Sell => Level::Exit,
     };
 
-    let plan = p.as_ref().map(plan_out);
+    let plan = p.as_ref().map(|p| plan_out(p, &m.st));
+    // Summaries (they never change the verdict).
+    let score = synthesis::composite(&fams, m.st.score, inp.score_weights);
+    let unreliable = (inp.reliability.level == ReliabilityLevel::Low || inp.reliability.conflict).then(|| {
+        format!(
+            "Données peu fiables ({}/100{})",
+            fr(inp.reliability.score, 0, 0),
+            if inp.reliability.conflict { ", sources de prix en désaccord" } else { "" }
+        )
+    });
+    let lost = match (&inp.track, track_edge(inp.track.as_ref())) {
+        (Some(t), Some(Edge::Loses)) => Some(format!(
+            "Aucune avance prouvée : sur cet actif, le signal a perdu de l'argent ({}, {}, frais inclus)",
+            signed(t.total_return),
+            t.period
+        )),
+        _ => None,
+    };
+    let degraded = synthesis::degraded(&fams, &score, unreliable, lost);
+    let rating = synthesis::rating(verdict, level, conf, m.regime.trend == Trend::Down, degraded.active);
+    let market_regime = match inp.benchmarks.first() {
+        Some(b) => {
+            let closes: Vec<f64> = sanitize(&b.daily).iter().map(|c| c.close).collect();
+            synthesis::market_regime(inp.macro_report, &b.name, &closes)
+        }
+        None => synthesis::market_regime(inp.macro_report, "Indice de référence", &[]),
+    };
+    let horizon = p.as_ref().and_then(|p| {
+        let candles = match p.zone.horizon {
+            Horizon::Short => PlanCandles::H4,
+            Horizon::Medium => PlanCandles::D1,
+            Horizon::Long => PlanCandles::W1,
+        };
+        synthesis::horizon(candles, p.entry, p.target1, p.atr)
+    });
     let texts = Texts { inp, m: &m, p: p.as_ref(), fams: &fams, vetoes: &vetoes, sc: &sc, pos: pos.as_ref(), verdict };
     let headline = texts.headline();
     let why_wait = if verdict == Verdict::Buy { vec![] } else { texts.why_wait() };
@@ -1923,6 +2105,17 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         exposure: expo,
         sources: sources(inp),
         disclaimer,
+        rating,
+        rating_label: rating.label().into(),
+        score,
+        degraded,
+        market_regime,
+        horizon,
+        structure: Some(m.st.clone()),
+        events: inp
+            .events
+            .as_ref()
+            .map(|es| es.iter().filter(|e| e.date >= inp.now - 3_600_000 && e.date <= inp.now + 7 * DAY_MS).cloned().collect()),
     }
 }
 
@@ -2166,6 +2359,21 @@ impl Texts<'_> {
         {
             out.push(format!("Étape manquante — {} : {}", s.label, s.detail));
         }
+        // Structure: a resistance close above the price, a recent fake breakout.
+        let st = &self.m.st;
+        if let (Some(r), Some(a)) = (&st.nearest_resistance, self.m.atr_d) {
+            if r.price - self.m.price <= a {
+                out.push(format!(
+                    "Résistance proche : {} (touchée {} fois), {} au-dessus du prix, moins d'un ATR journalier",
+                    usd(r.price),
+                    r.touches,
+                    pct(r.distance_pct.max(0.0))
+                ));
+            }
+        }
+        if let Some(b) = st.breakout.as_ref().filter(|b| b.kind == BreakoutKind::Fake && b.bias == Bias::Bearish) {
+            out.push(b.reading.clone());
+        }
         if self.verdict == Verdict::Wait && self.pos.is_some() && self.sc.complete {
             out.push("Configuration d'achat complète, mais la position est déjà détenue : renforcer reste un choix de taille".into());
         }
@@ -2334,6 +2542,14 @@ impl Texts<'_> {
                         fr(e.samples, 0, 0)
                     ));
                 }
+            }
+        }
+        // Breakouts and fake breakouts of the structure (daily candles).
+        if let Some(b) = self.m.st.breakout.as_ref().filter(|b| matches!(b.kind, BreakoutKind::Confirmed | BreakoutKind::Fake)) {
+            match b.bias {
+                Bias::Bullish => pros.push(b.reading.clone()),
+                Bias::Bearish => cons.push(b.reading.clone()),
+                Bias::Neutral => {}
             }
         }
         match self.inp.reliability.level {

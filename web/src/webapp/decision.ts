@@ -4,6 +4,8 @@
  * Pure functions (no React, no fetch) so they are tested with `bun test`.
  */
 import type { Kind } from "../engine/reliability";
+import type { CalendarEvent } from "./calendar";
+import { recordConfiguration } from "./config-changes";
 
 export type Verdict = "buy" | "buyZone" | "wait" | "noPosition" | "trim" | "sell";
 export type Level = "strong" | "moderate" | "waiting" | "highRisk" | "exit";
@@ -21,6 +23,8 @@ export interface Plan {
   zoneFrom: number; zoneTo: number; entry: number; stop: number; target1: number; target2: number | null;
   riskPct: number; reward1Pct: number; reward2Pct: number | null; riskReward: number; minRiskReward: number;
   acceptable: boolean; horizon: string;
+  /** Next level beyond target 2 (or target 2 + (target 2 − target 1)); absent from older answers. */
+  target3?: number | null; reward3Pct?: number | null; target3Source?: string | null;
 }
 export interface Condition { text: string; level: number | null }
 export interface Scenario { kind: ScenarioKind; title: string; condition: string; consequence: string; level: number | null }
@@ -28,6 +32,26 @@ export interface WhyNot { risks: string[]; uncertainty: Uncertainty; invalidatio
 export interface EarningsDate { date: number; estimated: boolean }
 export interface EarningsSurprise { quarter: string; eps: number; consensus: number; surprisePct: number }
 export interface Revisions { monthAgo: number; now: number; changePct: number }
+export interface Sector { label: string; sic: string; sicDescription: string; source: string }
+/** A ratio against its own daily history; `percentile`: % of days at or below today's value. */
+export interface RatioHistory { current: number; median: number; min: number; max: number; percentile: number; days: number; from: number; to: number }
+export interface ValuationHistory { per: RatioHistory | null; ps: RatioHistory | null; method: string; source: string }
+export interface Peer {
+  symbol: string; name: string; per: number | null; ps: number | null; operatingMargin: number | null; netMargin: number | null;
+  revenueGrowth: number | null; periodEnd: number;
+}
+export interface PeerComparison {
+  group: string; peers: Peer[]; medianPer: number | null; medianPs: number | null; medianOperatingMargin: number | null;
+  medianNetMargin: number | null; medianRevenueGrowth: number | null; date: number; source: string;
+}
+export interface DevActivity {
+  repo: string | null; commits4w: number | null; pullRequestsMerged: number | null; contributors: number | null; stars: number | null;
+  additions4w: number | null; deletions4w: number | null; smartContractPlatform: boolean; source: string;
+}
+export interface StablecoinFlows {
+  scope: string; date: number; total: number; change7d: number | null; change7dPct: number | null; change30d: number | null;
+  change30dPct: number | null; source: string;
+}
 export interface StockFundamentals {
   kind: "stock"; period: string;
   revenue: number | null; revenueGrowth: number | null; netIncome: number | null; eps: number | null; epsGrowth: number | null;
@@ -35,12 +59,17 @@ export interface StockFundamentals {
   debt: number | null; cash: number | null; netDebt: number | null; roe: number | null; per: number | null; peg: number | null;
   evEbitda: number | null; dividendYield: number | null; shareChange: number | null; nextEarnings: EarningsDate | null;
   surprises: EarningsSurprise[]; revisions: Revisions | null; sectorNote: string; source: string;
+  // Added later: absent from decisions cached by an older version.
+  ps?: number | null; pb?: number | null; roic?: number | null; roicTaxRate?: number | null; roicTaxStatutory?: boolean;
+  periodEnd?: number | null; filedAt?: number | null; sector?: Sector | null; valuationHistory?: ValuationHistory | null;
+  peers?: PeerComparison | null; valuationVerdict?: string | null; guidance?: string;
 }
 export interface CryptoFundamentals {
   kind: "crypto";
   marketCap: number | null; fdv: number | null; mcFdv: number | null; circulatingSupply: number | null; totalSupply: number | null;
   maxSupply: number | null; circulatingPct: number | null; tvl: number | null; fees30d: number | null; btcDominance: number | null;
   fundingRate: number | null; openInterest: number | null; txPerDay: number | null; hashRate: number | null; unlocks: string; source: string;
+  devActivity?: DevActivity | null; stablecoins?: StablecoinFlows | null; chainStablecoins?: StablecoinFlows | null; notCovered?: string;
 }
 export type Fundamentals = StockFundamentals | CryptoFundamentals;
 export interface Liquidity { spreadPct: number | null; dailyValue: number | null; relativeVolume: number | null; source: string }
@@ -48,11 +77,47 @@ export interface Track {
   period: string; trades: number; winRate: number; avgWin: number | null; avgLoss: number | null; profitFactor: number | null;
   sharpe: number | null; sortino: number | null; maxDrawdown: number; totalReturn: number; buyAndHold: number;
   feesPct: number; slippagePct: number; losingStreak: number; note: string;
+  // Added later (absent from older answers): spread cost, expectancy, R multiples, results by market regime.
+  spreadPct?: number; spreadMeasured?: boolean; spreadNote?: string; expectancy?: number | null; avgR?: number | null;
+  regimes?: import("../engine/backtest").RegimeStat[]; testedBars?: number; biasNotes?: string[];
 }
 export interface Exit { kind: ExitKind; share: number; trigger: string; price: number | null; now: boolean }
 export interface Position { cost: number; pnlPct: number | null; advice: string; exits: Exit[] }
 export interface Exposure { factor: string; weight: number; assets: string[]; correlation: number | null; warning: string | null }
 export interface DataSource { name: string; ok: boolean; detail: string }
+
+// Summaries and technical structure (added fields: absent from older servers' answers and from cached decisions).
+export type Rating = "strongBuy" | "buy" | "hold" | "reduce" | "sell" | "strongSell";
+export interface ScoreFactor { key: string; label: string; weight: number; applied: number; value: number | null; contribution: number | null; sources: string[] }
+export interface CompositeScore { value: number | null; label: string; factors: ScoreFactor[]; missing: string[]; custom: boolean; text: string }
+export interface Degraded { active: boolean; headline: string; reasons: string[] }
+export type RegimeKind = "riskOn" | "riskOff" | "neutral";
+export interface MarketRegime { kind: RegimeKind; label: string; benchmark: string | null; reasons: string[] }
+export type HorizonKind = "scalping" | "dayTrading" | "swing" | "mediumTerm" | "longTerm";
+export interface HorizonClass { kind: HorizonKind; label: string; atrDistance: number; detail: string }
+export type Bias = "bullish" | "neutral" | "bearish";
+export type Side = "up" | "down";
+export interface Ichimoku {
+  tenkan: number; kijun: number; senkouA: number; senkouB: number; futureA: number; futureB: number;
+  position: "above" | "inside" | "below"; tkCross: Side | null; tkCrossBars: number | null; bias: Bias; reading: string;
+}
+export interface Supertrend { direction: Side; level: number; bars: number; bias: Bias; reading: string }
+export interface Donchian { upper: number; lower: number; mid: number; breakout: Side | null; bias: Bias; reading: string }
+export interface Vwap { value: number; bars: number; deviationPct: number; bias: Bias; reading: string }
+export interface VolumeProfile { poc: number; valueAreaHigh: number; valueAreaLow: number; bars: number; bins: number; bias: Bias; reading: string; note: string }
+export interface FloorPivots { pivot: number; r1: number; r2: number; s1: number; s2: number; from: number; reading: string }
+export interface SrLevel { price: number; touches: number; kind: "support" | "resistance"; distancePct: number }
+export interface Breakout { kind: "confirmed" | "unconfirmed" | "fake" | "none"; side: Side | null; level: number | null; volumeRatio: number | null; bias: Bias; reading: string }
+export interface MarketStructure { trend: "up" | "down" | "mixed"; highs: number[]; lows: number[]; bias: Bias; reading: string }
+export interface RsPeriod { label: string; days: number; assetPct: number; benchmarkPct: number; diff: number }
+export interface RelativeStrength { benchmark: string; symbol: string; periods: RsPeriod[]; correlation: number | null; bias: Bias; reading: string }
+export interface Structure {
+  timeframe: string; score: number | null;
+  ichimoku: Ichimoku | null; supertrend: Supertrend | null; donchian: Donchian | null; vwap: Vwap | null;
+  volumeProfile: VolumeProfile | null; pivots: FloorPivots | null;
+  levels: SrLevel[]; nearestSupport: SrLevel | null; nearestResistance: SrLevel | null; levelsReading: string;
+  breakout: Breakout | null; marketStructure: MarketStructure | null; relative: RelativeStrength[]; relativeNote: string | null;
+}
 
 export interface Decision {
   symbol: string; kind: Kind; name: string; asOf: number; price: number | null;
@@ -64,12 +129,17 @@ export interface Decision {
   pros: string[]; cons: string[]; whyNot: WhyNot;
   fundamentals: Fundamentals | null; liquidity: Liquidity | null; track: Track | null;
   position: Position | null; exposure: Exposure | null; sources: DataSource[]; disclaimer: string;
+  rating?: Rating; ratingLabel?: string; score?: CompositeScore; degraded?: Degraded;
+  marketRegime?: MarketRegime | null; horizon?: HorizonClass | null; structure?: Structure | null;
+  /** Next 7 days' events (economy, central banks; a stock's earnings, dividends, splits); null: calendar not loaded. */
+  events?: CalendarEvent[] | null;
 }
 
 // ---------- Runtime check (a wrong answer shows an error instead of a broken card) ----------
 
 const VERDICTS: Verdict[] = ["buy", "buyZone", "wait", "noPosition", "trim", "sell"];
 const LEVELS: Level[] = ["strong", "moderate", "waiting", "highRisk", "exit"];
+const RATINGS: Rating[] = ["strongBuy", "buy", "hold", "reduce", "sell", "strongSell"];
 
 /** Checks the fields the card relies on; throws a French message naming the first bad field. */
 export function parseDecision(raw: unknown): Decision {
@@ -94,6 +164,15 @@ export function parseDecision(raw: unknown): Decision {
   const p = d.position as Position | null | undefined;
   if (p != null && !Array.isArray(p.exits)) throw bad("position.exits");
   if (typeof d.disclaimer !== "string" || !d.disclaimer) throw bad("disclaimer");
+  // Added fields: optional, checked when present.
+  if (d.rating != null && !RATINGS.includes(d.rating as Rating)) throw bad("rating");
+  const sc = d.score as CompositeScore | null | undefined;
+  if (sc != null && !Array.isArray(sc.factors)) throw bad("score.factors");
+  const dg = d.degraded as Degraded | null | undefined;
+  if (dg != null && !Array.isArray(dg.reasons)) throw bad("degraded.reasons");
+  const st = d.structure as Structure | null | undefined;
+  if (st != null && (!Array.isArray(st.levels) || !Array.isArray(st.relative))) throw bad("structure");
+  if (d.events != null && !Array.isArray(d.events)) throw bad("events");
   return d as unknown as Decision;
 }
 
@@ -141,11 +220,45 @@ export const weightsParam = (w: Weight[]) => w.map((x) => `${x.symbol}:${x.kind}
 
 export type PersonalInput = { cost: number | null; weights: Weight[] };
 
-/** URL of the endpoint; personal inputs only when given (average cost rounded to the cent, weights). */
-export function decisionUrl(symbol: string, kind: Kind, personal?: PersonalInput | null): string {
+// ---------- Composite score weights (Réglages, sent as w=) ----------
+
+export type ScoreWeights = { tech: number; mom: number; fund: number; sent: number; news: number; macro: number };
+/** Same factors and default weights as the server (backend/src/engine/synthesis.rs). */
+export const SCORE_FACTORS: { key: keyof ScoreWeights; label: string; hint: string; def: number }[] = [
+  { key: "tech", label: "Technique", hint: "tendance, volume, volatilité, structure", def: 32 },
+  { key: "mom", label: "Momentum", hint: "MACD, RSI, variation sur 1 mois", def: 18 },
+  { key: "fund", label: "Fondamentaux", hint: "valorisation, comptes ou réseau", def: 20 },
+  { key: "sent", label: "Sentiment", hint: "Fear & Greed, financement, StockTwits", def: 10 },
+  { key: "news", label: "Actualités", hint: "ton des titres sur 24 h", def: 10 },
+  { key: "macro", label: "Macro", hint: "stress des marchés, VIX, taux", def: 10 },
+];
+export const DEFAULT_SCORE_WEIGHTS = Object.fromEntries(SCORE_FACTORS.map((f) => [f.key, f.def])) as ScoreWeights;
+
+/** Whole numbers 0 – 100 (a bad or missing value takes its default); all at 0 → the defaults. */
+export function sanitizeScoreWeights(raw: unknown): ScoreWeights {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const w = Object.fromEntries(SCORE_FACTORS.map((f) => {
+    const v = r[f.key];
+    return [f.key, typeof v === "number" && Number.isFinite(v) ? Math.min(100, Math.max(0, Math.round(v))) : f.def];
+  })) as ScoreWeights;
+  return SCORE_FACTORS.some((f) => w[f.key] > 0) ? w : { ...DEFAULT_SCORE_WEIGHTS };
+}
+
+/** "tech:40,mom:18,…", or null for the default weights (the URL stays the same). */
+export function scoreWeightsParam(w: ScoreWeights | null | undefined): string | null {
+  if (!w) return null;
+  const s = sanitizeScoreWeights(w);
+  if (SCORE_FACTORS.every((f) => s[f.key] === f.def)) return null;
+  return SCORE_FACTORS.map((f) => `${f.key}:${s[f.key]}`).join(",");
+}
+
+/** URL of the endpoint; personal inputs only when given (average cost rounded to the cent, weights), score weights when not the defaults. */
+export function decisionUrl(symbol: string, kind: Kind, personal?: PersonalInput | null, scoreWeights?: ScoreWeights | null): string {
   let u = `/api/decision?symbol=${encodeURIComponent(symbol)}&kind=${kind}`;
   if (personal?.cost != null && Number.isFinite(personal.cost) && personal.cost > 0) u += `&cost=${Math.round(personal.cost * 100) / 100}`;
   if (personal?.weights.length) u += `&weights=${encodeURIComponent(weightsParam(personal.weights))}`;
+  const w = scoreWeightsParam(scoreWeights);
+  if (w) u += `&w=${encodeURIComponent(w)}`;
   return u;
 }
 
@@ -214,6 +327,30 @@ export const LEVEL_UI: Record<Level, { icon: string; label: string }> = {
   highRisk: { icon: "🟠", label: "Risque élevé" },
   exit: { icon: "🔴", label: "Sortie / risque d'invalidation" },
 };
+
+/** 6-level rating: an icon and a word, with the colour of the matching level. */
+export const RATING_UI: Record<Rating, { icon: string; label: string; tone: Level }> = {
+  strongBuy: { icon: "🟢", label: "ACHAT FORT", tone: "strong" },
+  buy: { icon: "🟢", label: "ACHAT", tone: "strong" },
+  hold: { icon: "⚪", label: "ATTENDRE", tone: "waiting" },
+  reduce: { icon: "🟠", label: "ALLÉGER", tone: "highRisk" },
+  sell: { icon: "🔴", label: "VENDRE", tone: "exit" },
+  strongSell: { icon: "🔴", label: "VENTE FORTE", tone: "exit" },
+};
+
+export const BIAS_UI: Record<Bias, { icon: string; label: string }> = {
+  bullish: { icon: "↗", label: "haussier" },
+  neutral: { icon: "→", label: "neutre" },
+  bearish: { icon: "↘", label: "baissier" },
+};
+export const REGIME_UI: Record<RegimeKind, { icon: string; label: string }> = {
+  riskOn: { icon: "🟢", label: "Risk-on (appétit pour le risque)" },
+  neutral: { icon: "⚪", label: "Neutre" },
+  riskOff: { icon: "🔴", label: "Risk-off (aversion au risque)" },
+};
+
+/** "+34", "−12", "0" (scores −100 … +100). */
+export const signedScore = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v))}`;
 
 export const VERDICT_LABEL: Record<Verdict, string> = {
   buy: "ACHETER", buyZone: "ZONE D'ACHAT", wait: "ATTENDRE", noPosition: "AUCUNE POSITION", trim: "ALLÉGER", sell: "VENDRE",
@@ -304,6 +441,7 @@ export function cacheDecision(d: Decision, personal: boolean, now = Date.now(), 
   if (!s) return;
   const all = readAll(s);
   all[`${d.kind}:${d.symbol}`] = { at: now, personal, decision: d };
+  recordConfiguration(d, personal, now, s);
   const keep = Object.entries(all).sort((a, b) => b[1].at - a[1].at).slice(0, CACHE_MAX);
   try {
     s.setItem(CACHE_KEY, JSON.stringify(Object.fromEntries(keep)));

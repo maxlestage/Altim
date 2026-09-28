@@ -7,10 +7,11 @@ use crate::types::{Candle, Kind};
 pub async fn extras(symbol: &str, kind: Kind, price: Option<f64>, daily: &[Candle]) -> (Option<Fundamentals>, Option<Liquidity>, Option<Track>) {
     let fundamentals = async {
         match kind {
-            Kind::Stock => crate::fundamentals::stock_fundamentals(symbol, price).await.ok().map(Fundamentals::Stock),
+            Kind::Stock => crate::fundamentals::stock_fundamentals(symbol, price, daily).await.ok().map(Fundamentals::Stock),
             Kind::Crypto => crate::tokenomics::crypto_fundamentals(symbol).await.ok().map(Fundamentals::Crypto),
         }
     };
     let (fundamentals, liquidity) = tokio::join!(fundamentals, crate::liquidity::liquidity(symbol, kind, daily));
-    (fundamentals, Some(liquidity), crate::engine::metrics::track(daily, kind))
+    let track = crate::engine::metrics::track_with_spread(daily, kind, liquidity.spread_pct);
+    (fundamentals, Some(liquidity), track)
 }

@@ -93,6 +93,7 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | `GET /api/history?symbols=…&days=90` | Clôtures journalières des actifs détenus sur 30, 90, 365 ou 730 jours, plus Bitcoin et SPY pour comparer (les quantités restent sur l'appareil) |
 | `GET /api/decision?symbol=BTC&kind=crypto[&cost=…&weights=…]` | **Décision** : verdict, familles, interdictions d'achat, configuration, plan, scénarios, pourquoi pas, fondamentaux, historique du signal, sorties progressives |
 | `GET /api/news?symbols=…` | **Actualités** : ~20 sources regroupées, histoires en double fusionnées, à la une, thèmes et ton des 24 h, état de chaque source |
+| `GET /api/calendar?days=14[&symbols=AAPL,NVDA]` | **Agenda** : publications économiques majeures, décisions des banques centrales, résultats, dividendes, splits et introductions en bourse des 1 à 30 prochains jours, avec la source de chaque événement, l'état de chaque source et ce qui n'est pas couvert |
 
 ## Actualités (onglet « Actu »)
 
@@ -114,6 +115,24 @@ Dans Réglages, « Me prévenir des actualités importantes » : une notificatio
 
 Un même sujet raconté par plusieurs médias ne prévient qu'une fois (même article, ou titre aux mêmes mots, mémorisé 48 h). Au-delà de 2 sujets à la fois, une seule notification résume.
 
+### Agenda (Actu → Agenda, web et Android)
+
+Les événements à venir, groupés par jour (« Aujourd'hui », « Demain », « mer. 30 sept. »), en heures de Paris, sur 7, 14 ou 30 jours. Filtres Tout / Macro / Banques centrales / Résultats / Dividendes / Splits / IPO, et **Mes actifs** (résultats, dividendes et splits des actions du radar et des avoirs, plus l'économie et les banques centrales, qui concernent aussi les cryptos). Point rouge : importance haute ; point jaune : moyenne.
+
+**Sources** (gratuites, sans clé) :
+
+| Événements | Source |
+|---|---|
+| Publications économiques (inflation CPI / PCE / PPI / HICP, emploi, PIB, ISM, ventes au détail, confiance) et décisions de taux | Nasdaq, calendrier économique (`api.nasdaq.com/api/calendar/economicevents`), jour par jour. Attention : ce calendrier répond à `?date=J` avec les publications de la veille (vérifié le 28/09/2026 : la décision de la Fed du 28/10 sort sous le 29/10, les créations d'emplois du vendredi sous le samedi) ; Altim demande donc le lendemain, et si les inscriptions hebdomadaires au chômage (toujours un jeudi, un mercredi en semaine fériée) tombent un autre jour, le jour est marqué en échec plutôt que montré à une mauvaise date. États-Unis et zone euro ; Allemagne, France, Royaume-Uni, Japon et Chine pour leurs publications majeures seulement. Réel, consensus et précédent tels que publiés. |
+| Jours de décision de la Fed | Calendrier officiel du FOMC (federalreserve.gov), confirmé contre Nasdaq : en cas d'écart, la date officielle est retenue et l'écart est affiché (fin septembre 2026, Nasdaq annonçait la décision d'octobre le 29, la Fed le 28). |
+| Jours de décision de la BCE | Calendrier officiel du Conseil des gouverneurs (ecb.europa.eu) : réunions de politique monétaire seulement (jour 2 d'une réunion sur deux jours). |
+| Résultats, dividendes (date de détachement, montant, date de versement), splits et regroupements | Nasdaq (`calendar/earnings`, `calendar/dividends`, `calendar/splits`) ; sans « Mes actifs », limités aux 500 plus grandes capitalisations américaines (classement Nasdaq). |
+| Introductions en bourse | Nasdaq (`ipo/calendar`), à venir (date prévue, fourchette de prix) et prix fixés. |
+
+Chaque jour et chaque source sont gardés en cache séparément (15 min pour le jour même, 3 h pour les jours suivants, 24 h pour les calendriers officiels) ; une source ou un jour en panne est signalé (« Sources incomplètes ») sans bloquer le reste, et la réponse part au plus tard après 20 s. Les heures de Nasdaq sont celles de New York, converties en heure de Paris.
+
+**Non couvert** (affiché sous l'agenda) : déblocages de jetons (aucune source gratuite vérifiable), régulation crypto (suivie via l'actualité, pas de calendrier officiel), mises à jour des réseaux crypto, autres pays, confirmation officielle pour la Banque d'Angleterre, la Banque du Japon et la Banque populaire de Chine, sociétés hors marchés américains.
+
 ## Historique du portefeuille
 
 Carte **« Évolution de mes lignes »** dans Mes avoirs (web, iPhone, Android), sur 30 jours, 90 jours ou 1 an :
@@ -128,7 +147,7 @@ Carte **« Évolution de mes lignes »** dans Mes avoirs (web, iPhone, Android),
 En tête de la fiche de chaque actif (web, iPhone, Android), `GET /api/decision?symbol=BTC&kind=crypto` : **ACHETER**, **ZONE D'ACHAT**, **ATTENDRE**, **AUCUNE POSITION**, **ALLÉGER** ou **VENDRE**, avec le pourquoi, le quand et surtout le quand ne pas agir.
 
 - **10 familles indépendantes** notées de −100 à +100, chacune avec sa source : tendance, momentum, volume, volatilité / risque, valorisation, fondamentaux (réseau pour une crypto), macro, sentiment, actualités, liquidité. Sans source gratuite et vérifiable, la famille est « non disponible », jamais estimée.
-- **Interdictions d'achat** (15 contrôles, tous affichés, actifs ou non) : écart achat/vente, liquidité, volatilité extrême, choc confirmé par les marchés, résultats dans les 5 jours, chute sans stabilisation, hausse anormale, volume artificiel, régulation, déblocage de jetons (non vérifiable : sources payantes), divergence baissière, tendance de fond baissière, rapport gain/risque sous 2, choc macro, données peu fiables.
+- **Interdictions d'achat** (16 contrôles, tous affichés, actifs ou non) : écart achat/vente, liquidité, volatilité extrême, choc confirmé par les marchés, annonce économique dans les 48 h (Fed, BCE, inflation, emploi, PIB ; calendrier de l'Agenda, un moment à attendre et non une interdiction), résultats dans les 5 jours, chute sans stabilisation, hausse anormale, volume artificiel, régulation, déblocage de jetons (non vérifiable : sources payantes), divergence baissière, tendance de fond baissière, rapport gain/risque sous 2, choc macro, données peu fiables.
 - **Configuration d'entrée en 9 étapes** (tendance de fond, correction, retour sur la zone d'achat, volume en baisse pendant le repli, signal de retournement, retour des acheteurs, confirmation, stop, objectif) : « ACHETER » seulement quand elle est complète, sans interdiction, avec un gain/risque d'au moins 2.
 - **Plan** (zone, entrée, stop / invalidation, objectifs 1 et 2, gain/risque), **scénarios** haussier / neutre / baissier avec leurs niveaux, conditions pour passer à l'achat ou à la vente, **points favorables et défavorables** séparés et **« Pourquoi pas ? »** : ce qui pourrait rendre la décision mauvaise, cherché volontairement.
 - **Confiance du modèle** (0–100) : accord des familles, fiabilité des données et **historique du signal sur l'actif** (sans regard vers l'avenir, frais et glissement inclus ; Sharpe, Sortino, profit factor, pire recul). Mesuré honnêtement : sur BTC, ETH, AAPL ou SPY le signal technique a fait moins bien que la simple détention ; la confiance est alors plafonnée et la carte le dit.

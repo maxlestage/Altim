@@ -13,12 +13,14 @@ struct DecisionCard: View {
     private var nd: String { "non disponible" }
 
     var body: some View {
-        Card(title: "Décision", glow: DecisionStyle.color(decision.level)) {
+        Card(title: "Décision", glow: DecisionStyle.color(headlineLevel)) {
             verdict
             Meter(label: "Confiance", value: decision.confidence, tone: decision.confidence >= 65 ? .good : decision.confidence >= 40 ? .warn : .bad)
             Text(decision.confidenceText).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             lights
             modeLine
+            if let r = decision.marketRegime { RegimeLine(regime: r) }
+            if let s = decision.score { ScoreBlock(score: s) }
             if let plan = decision.plan { planView(plan) }
             if !decision.whyWait.isEmpty {
                 section("Pourquoi attendre ?")
@@ -51,15 +53,34 @@ struct DecisionCard: View {
 
     // MARK: Verdict
 
+    /// Level whose colour the headline takes: the rating's when there is one.
+    private var headlineLevel: Decision.Level { decision.rating?.level ?? decision.level }
+
+    private var verdictLabel: String { decision.label.isEmpty ? decision.verdict.label : decision.label }
+
     private var verdict: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(decision.label.isEmpty ? decision.verdict.label : decision.label)
-                .font(.title2.weight(.heavy))
-                .foregroundStyle(DecisionStyle.color(decision.level))
-                .fixedSize(horizontal: false, vertical: true)
+            if let rating = decision.rating {
+                let label = decision.ratingLabel.flatMap { $0.isEmpty ? nil : $0 } ?? rating.label
+                Text("\(rating.emoji) \(label)")
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DecisionStyle.color(rating.level))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text(verdictLabel)
+                    .font(.title2.weight(.heavy))
+                    .foregroundStyle(DecisionStyle.color(decision.level))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Text("\(decision.level.emoji) \(decision.levelLabel.isEmpty ? decision.level.label : decision.levelLabel)")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.white)
+            if decision.rating != nil {
+                (Text("Verdict du plan : ").foregroundStyle(.white.opacity(0.9)) + Text(verdictLabel).bold().foregroundStyle(.white)
+                    + Text(" · la note résume verdict, niveau et confiance").foregroundStyle(Theme.textSecondary))
+                    .font(.footnote).fixedSize(horizontal: false, vertical: true)
+            }
+            if let dg = decision.degraded, dg.active { DegradedBanner(degraded: dg) }
             Text(decision.headline).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             if decision.blocked {
                 Notice(text: "Achat interdit pour l'instant : " + decision.vetoes.filter(\.active).map(\.label).joined(separator: ", ") + ".", tone: .bad)
@@ -97,10 +118,23 @@ struct DecisionCard: View {
             if let t2 = p.target2 {
                 DecisionRow(key: "Objectif 2", value: "\(Format.price(t2))" + (p.reward2Pct.map { " (\(Format.percent($0, digits: 1)))" } ?? ""), tone: .good)
             }
+            if let t3 = p.target3 {
+                DecisionRow(key: "Objectif 3", value: "\(Format.price(t3))" + (p.reward3Pct.map { " (\(Format.percent($0, digits: 1)))" } ?? ""), tone: .good)
+            } else if decision.rating != nil {
+                DecisionRow(key: "Objectif 3", value: "aucun")
+            }
             DecisionRow(key: "Gain/risque", value: "\(Format.plain(p.riskReward, digits: 1)) (minimum \(Format.plain(p.minRiskReward, digits: 1)))",
                         tone: p.acceptable ? .good : .bad)
             Text("Calculé depuis \(Format.price(p.entry)) : " + (p.acceptable ? "rapport suffisant." : "rapport insuffisant, pas d'entrée à ce prix."))
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let h = decision.horizon {
+                (Text("Horizon : ").foregroundStyle(Theme.textSecondary) + Text(h.label).bold().foregroundStyle(.white)
+                    + Text(" — \(h.detail)").foregroundStyle(Theme.textSecondary))
+                    .font(.caption).fixedSize(horizontal: false, vertical: true)
+            }
+            if let src = p.target3Source, !src.isEmpty {
+                Text(DecisionText.target3Source(src)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -179,6 +213,28 @@ struct DecisionCard: View {
             .padding(.top, 6)
         }
         .tint(.white)
+        if let st = decision.structure {
+            DisclosureGroup("Structure technique · \(st.score.map { "direction \(DecisionText.signedScore($0))" } ?? "non disponible")") {
+                StructureList(structure: st).padding(.top, 6)
+            }
+            .tint(.white)
+        }
+        if decision.knowsEvents {
+            DisclosureGroup("Agenda (7 jours) · \(DecisionText.eventsBadge(decision.events))") {
+                VStack(alignment: .leading, spacing: 10) {
+                    if let note = DecisionText.eventsNote(decision.events, kind: decision.kind) {
+                        Text(note).font(.footnote).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    ForEach(Array((decision.events ?? []).enumerated()), id: \.offset) { item in
+                        let e = item.element
+                        EventRow(event: e, timeLabel: Agenda.dayLabel(e.day) + (e.time.map { " · \($0)" } ?? ""))
+                        Divider().opacity(0.3)
+                    }
+                }
+                .padding(.top, 6)
+            }
+            .tint(.white)
+        }
         DisclosureGroup(vetoesTitle) {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(decision.sortedVetoes) { vetoRow($0) }
@@ -348,6 +404,13 @@ struct DecisionCard: View {
 
     @ViewBuilder private func stockView(_ s: Decision.StockFundamentals) -> some View {
         Text(s.period).font(.caption).foregroundStyle(Theme.textSecondary)
+        if let end = s.periodEnd, let filed = s.filedAt {
+            note("Comptes arrêtés au \(DecisionText.nyDate(end)), déposés à la SEC le \(DecisionText.nyDate(filed)).")
+        }
+        if let sector = s.sector {
+            Text("Secteur : \(sector.label) · \(sector.sicDescription) (code SIC \(sector.sic))")
+                .font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+        }
         DecisionRow(key: "Chiffre d'affaires", value: "\(amount(s.revenue)) (\(signed(s.revenueGrowth)))")
         DecisionRow(key: "Bénéfice net", value: amount(s.netIncome))
         DecisionRow(key: "Bénéfice par action", value: "\(s.eps.map { Format.price($0) } ?? nd) (\(signed(s.epsGrowth)))")
@@ -357,6 +420,11 @@ struct DecisionCard: View {
         DecisionRow(key: "Dette nette", value: amount(s.netDebt))
         DecisionRow(key: "Rentabilité des capitaux propres", value: pct(s.roe))
         DecisionRow(key: "PER · PEG · EV/EBITDA", value: "\(ratio(s.per)) · \(ratio(s.peg, digits: 2)) · \(ratio(s.evEbitda))")
+        if s.guidance != nil || s.ps != nil || s.pb != nil || s.roic != nil {
+            DecisionRow(key: "P/S (capitalisation ÷ ventes)", value: ratio(s.ps))
+            DecisionRow(key: "P/B (capitalisation ÷ fonds propres)", value: ratio(s.pb))
+            DecisionRow(key: "ROIC (rentabilité du capital investi)", value: DecisionText.roic(s) ?? nd)
+        }
         DecisionRow(key: "Rendement du dividende", value: pct(s.dividendYield, digits: 2))
         DecisionRow(key: "Nombre d'actions sur 1 an", value: signed(s.shareChange))
         DecisionRow(key: "Prochains résultats",
@@ -373,7 +441,25 @@ struct DecisionCard: View {
             Text("Révisions : BPA attendu de l'année \(Format.price(r.monthAgo)) il y a un mois, \(Format.price(r.now)) aujourd'hui (\(Format.percent(r.changePct, digits: 1))).")
                 .font(.caption.monospacedDigit()).fixedSize(horizontal: false, vertical: true)
         }
-        Text(s.sectorNote).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if let h = s.valuationHistory {
+            block("Valorisation par rapport à sa propre histoire")
+            if let v = s.valuationVerdict { note("\(v).", strong: true) }
+            ForEach(Array((DecisionText.historyRows("PER", h.per) + DecisionText.historyRows("P/S", h.ps)).enumerated()), id: \.offset) { item in
+                DecisionRow(key: item.element.0, value: item.element.1)
+            }
+            note("\(h.method). Source : \(h.source).")
+        }
+        if let c = s.peers {
+            block("Comparaison sectorielle")
+            note(s.sectorNote, strong: true)
+            ForEach(Array(c.peers.enumerated()), id: \.offset) { item in
+                Text("• \(DecisionText.peer(item.element))").font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            }
+            note("Cours du \(DecisionText.nyDate(c.date)). Source : \(c.source).")
+        } else {
+            Text(s.sectorNote).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        }
+        if let g = s.guidance, !g.isEmpty { note(g) }
         source(s.source)
     }
 
@@ -391,6 +477,30 @@ struct DecisionCard: View {
         if let tx = c.txPerDay { DecisionRow(key: "Transactions par jour", value: Format.large(tx, unit: "")) }
         if let h = c.hashRate { DecisionRow(key: "Taux de hachage", value: "\(Format.plain(h / 1e18, digits: 0)) EH/s") }
         Text("Déblocages de jetons : \(c.unlocks)").font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if c.stablecoins != nil || c.chainStablecoins != nil {
+            block("Flux de stablecoins")
+            let rows = DecisionText.stableRows(c.stablecoins, label: "tous réseaux")
+                + DecisionText.stableRows(c.chainStablecoins, label: "réseau \(c.chainStablecoins?.scope ?? "")")
+            ForEach(Array(rows.enumerated()), id: \.offset) { item in
+                DecisionRow(key: item.element.0, value: item.element.1 ?? nd)
+            }
+            note("Liquidité disponible sur le marché crypto. Source : \((c.stablecoins ?? c.chainStablecoins)?.source ?? nd).")
+        }
+        if c.knowsDevActivity {
+            block("Activité de développement")
+            if let dev = c.devActivity {
+                DecisionRow(key: "Commits sur 4 semaines", value: dev.commits4w.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Lignes ajoutées / supprimées (4 semaines)",
+                            value: dev.additions4w.flatMap { a in dev.deletions4w.map { "+\(DecisionText.count(a)) / −\(DecisionText.count($0))" } } ?? nd)
+                DecisionRow(key: "Pull requests intégrées (total)", value: dev.pullRequestsMerged.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Contributeurs", value: dev.contributors.map { DecisionText.count($0) } ?? nd)
+                DecisionRow(key: "Étoiles", value: dev.stars.map { DecisionText.count($0) } ?? nd)
+                source(dev.source)
+            } else {
+                note("Non disponible (CoinGecko ne la publie plus et le dépôt GitHub du projet n'a pas répondu).")
+            }
+        }
+        if let n = c.notCovered, !n.isEmpty { note("\(n).") }
         source(c.source)
     }
 
@@ -409,9 +519,19 @@ struct DecisionCard: View {
         DecisionRow(key: "Frais · glissement par ordre", value: "\(pct(t.feesPct, digits: 2)) · \(pct(t.slippagePct, digits: 2))")
         DecisionRow(key: "Pire série de pertes", value: "\(t.losingStreak) trade\(t.losingStreak > 1 ? "s" : "")")
         Text(t.note).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        if t.hasDetails { TrackDetails(track: t) }
     }
 
     // MARK: Helpers
+
+    /// Title of a block inside a disclosure (valuation history, peers, stablecoins, developer activity).
+    private func block(_ title: String) -> some View {
+        Text(title).font(.caption.weight(.semibold)).foregroundStyle(.white).padding(.top, 6).fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func note(_ text: String, strong: Bool = false) -> some View {
+        Text(text).font(.caption).foregroundStyle(strong ? Color.white.opacity(0.9) : Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+    }
 
     private func section(_ title: String) -> some View {
         Text(title).font(.subheadline.weight(.semibold)).foregroundStyle(.white).padding(.top, 4).fixedSize(horizontal: false, vertical: true)

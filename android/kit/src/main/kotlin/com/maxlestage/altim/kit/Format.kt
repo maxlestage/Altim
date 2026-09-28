@@ -54,6 +54,37 @@ object Format {
         return DateTimeFormatter.ofPattern(pattern, FR).withZone(PARIS).format(Instant.ofEpochMilli(ms.toLong()))
     }
 
+    /** "28/09 à 14:02" (Paris time). */
+    fun shortDateTime(ms: Double): String = DateTimeFormatter.ofPattern("dd/MM 'à' HH:mm", FR).withZone(PARIS).format(Instant.ofEpochMilli(ms.toLong()))
+
+    /** Filing and price dates: New York calendar day (a timestamp at 00:00 UTC is a bare date, read as such). */
+    fun nyDate(ms: Double): String {
+        val zone = if (ms % 86_400_000.0 == 0.0) ZoneId.of("UTC") else ZoneId.of("America/New_York")
+        return DateTimeFormatter.ofPattern("d MMMM yyyy", FR).withZone(zone).format(Instant.ofEpochMilli(ms.toLong()))
+    }
+
+    /** Large amounts: 421 Md$, 3,16 Md$, 850 M$, 12,5 k$ (same as the web card). */
+    fun compactUsd(v: Double?): String {
+        if (v == null || !v.isFinite()) return "—"
+        val a = abs(v)
+        val (div, unit) = when {
+            a >= 1e9 -> 1e9 to "Md$"
+            a >= 1e6 -> 1e6 to "M$"
+            a >= 1e4 -> 1e3 to "k$"
+            else -> 1.0 to "$"
+        }
+        val x = v / div
+        return "${number(x, 0, if (abs(x) >= 100) 0 else if (abs(x) >= 10) 1 else 2)} $unit"
+    }
+
+    /** Large counts: 19,93 millions; below a million, whole. */
+    fun count(v: Double?): String {
+        if (v == null || !v.isFinite()) return "—"
+        if (v >= 1e9) return "${number(v / 1e9, 0, 2)} milliards"
+        if (v >= 1e6) return "${number(v / 1e6, 0, 2)} millions"
+        return number(v, 0, 0)
+    }
+
     /** "10 000", "0,25", "1 234,5" → number (spaces, narrow spaces and French comma accepted). */
     fun parse(text: String): Double? =
         text.replace(" ", "").replace(" ", "").replace(" ", "").replace(",", ".").toDoubleOrNull()?.takeIf { it.isFinite() }

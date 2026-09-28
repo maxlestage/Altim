@@ -13,6 +13,8 @@ export interface Holding {
   quantity: number;
   /** Average cost price (PRU) in USD. */
   averagePrice: number;
+  /** Stop set by the user (USD), optional: "position devenue dangereuse" alerts. */
+  stop?: number;
 }
 
 export interface MarketInput {
