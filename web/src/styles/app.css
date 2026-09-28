@@ -549,6 +549,34 @@
 .sc-bull b { color: var(--buy); }
 .sc-neutral b { color: var(--cyan); }
 .sc-bear b { color: #ff6b82; }
+/* Guidance: when not to trade, watched scenarios, action ladder, counter-argument, why the signal changed. */
+.dec-section > summary > span { min-width: min-content; overflow-wrap: break-word; }
+.dec-notrade { display: grid; gap: 6px; }
+.dec-notrade .dec-chip { border-color: rgba(255, 199, 51, 0.45); }
+.dec-scenarios li.sc-unfolding { border-color: var(--cyan); background: rgba(0, 229, 255, 0.05); }
+.dec-checks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.dec-scenarios .dec-checks li { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 8px; align-items: start; padding: 4px 0 0; border: 0; border-top: 1px solid rgba(255, 255, 255, 0.06); border-radius: 0; font-size: 13px; }
+.dec-checks li > div { display: grid; min-width: 0; }
+.check-met .dec-step-mark { color: var(--buy); }
+.check-unmet .dec-step-mark { color: #ff9f43; }
+.check-unknown .dec-step-mark { color: var(--muted); }
+.dec-ladder { list-style: none; margin: 0; padding: 0 0 0 4px; display: grid; gap: 0; border-left: 2px solid rgba(255, 255, 255, 0.14); }
+.dec-ladder .az { --az: #c7d0e6; display: grid; grid-template-columns: 6px minmax(0, 1fr); gap: 10px; padding: 6px 0 6px 6px; min-width: 0; }
+.dec-ladder .az > div { display: grid; gap: 1px; min-width: 0; overflow-wrap: anywhere; }
+.az-band { width: 6px; border-radius: 3px; background: var(--az); opacity: 0.8; }
+.az-label { color: var(--az); font-size: 14px; }
+.dec-ladder .az-invalidation { --az: #ff6b82; }
+.az-invalidation .az-band { height: 2px; align-self: center; }
+.dec-ladder .az-exit { --az: #ff9f43; }
+.dec-ladder .az-buy { --az: var(--buy); }
+.dec-ladder .az-wait { --az: #c7d0e6; }
+.dec-ladder .az-profit { --az: var(--cyan); }
+.dec-ladder .az.here { background: rgba(255, 255, 255, 0.05); border-radius: 0 10px 10px 0; }
+.az-here, .az-marker { font-size: 12px; font-weight: 700; color: var(--warn); }
+.az-marker { padding: 4px 0 4px 8px; border-top: 1px dashed var(--warn); border-bottom: 1px dashed var(--warn); overflow-wrap: anywhere; }
+.dec-counter-counts { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; font-size: 14px; }
+.dec-change { padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(0, 229, 255, 0.35); background: rgba(0, 229, 255, 0.04); }
+.dec-change h3, .dec-counter h3 { margin: 0; }
 .dec-proscons { display: grid; gap: 12px; }
 .dec-proscons > div { display: grid; gap: 6px; align-content: start; min-width: 0; }
 .dec-figures { margin: 0; display: grid; gap: 6px; }

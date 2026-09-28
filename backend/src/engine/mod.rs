@@ -7,6 +7,7 @@ pub mod decision_types;
 pub mod fibonacci;
 pub mod format;
 pub mod guard;
+pub mod guidance;
 pub mod history;
 pub mod macro_ctx;
 pub mod metrics;

@@ -169,7 +169,7 @@ async fn decision_parameter_validation() {
 /// The example answers given to the web, iPhone and Android screens follow the contract.
 #[test]
 fn decision_samples_follow_the_contract() {
-    for f in ["decision-btc.json", "decision-aapl.json"] {
+    for f in ["decision-btc.json", "decision-aapl.json", "decision-guidance.json"] {
         let path = format!("{}/tests/samples/{f}", env!("CARGO_MANIFEST_DIR"));
         let d: altim::engine::decision_types::Decision = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert!(!d.families.is_empty() && !d.vetoes.is_empty(), "{f}");
