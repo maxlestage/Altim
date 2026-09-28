@@ -55,25 +55,38 @@ public struct BuyAlert: Codable, Sendable, Identifiable, Hashable {
     }
 }
 
-/// Decides which alerts deserve a notification: only when an asset becomes buyable, or when the reason changes
-/// (a zone is reached after a signal…). An asset that stops being buyable is forgotten, so its next buy
-/// opportunity notifies again. Persisted between background checks.
+/// Decides which alerts deserve a notification: when an asset becomes buyable, or when a new reason appears (a zone
+/// is reached after a signal…). A price that hovers at the edge of a zone makes the verdict flicker: an asset is
+/// forgotten only after `cooldown` without being buyable, and a reason already notified never notifies again meanwhile.
+/// Persisted between background checks.
 public struct AlertTracker: Codable, Sendable, Equatable {
+    /// Asset → every reason already notified ("signal+zone:medium").
     public private(set) var notified: [String: String] = [:]
+    /// Asset → since when it is no longer buyable.
+    public private(set) var lost: [String: Date] = [:]
+    public static let cooldown: TimeInterval = 6 * 3600
 
     public init() {}
 
-    public mutating func newAlerts(_ items: [BuyAlert], onlyStrong: Bool) -> [BuyAlert] {
+    private static func parts(_ key: String) -> Set<String> { Set(key.split(separator: "+").map(String.init)) }
+
+    public mutating func newAlerts(_ items: [BuyAlert], onlyStrong: Bool, now: Date = Date()) -> [BuyAlert] {
         var out: [BuyAlert] = []
         for it in items {
             let wanted = it.buy && (!onlyStrong || it.strong)
             if wanted {
-                if notified[it.id] != it.key {
-                    out.append(it)
-                    notified[it.id] = it.key
+                lost[it.id] = nil
+                let before = notified[it.id].map(Self.parts)
+                let reasons = Self.parts(it.key)
+                if before == nil || !reasons.isSubset(of: before!) { out.append(it) }
+                notified[it.id] = (before ?? []).union(reasons).sorted().joined(separator: "+")
+            } else if !it.buy, notified[it.id] != nil {
+                let since = lost[it.id] ?? now
+                lost[it.id] = since
+                if now.timeIntervalSince(since) >= Self.cooldown {
+                    notified[it.id] = nil
+                    lost[it.id] = nil
                 }
-            } else if !it.buy {
-                notified[it.id] = nil
             }
         }
         return out

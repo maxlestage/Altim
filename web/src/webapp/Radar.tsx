@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, INTERVAL_LABEL, type MacroInfo, type RadarRow, type Sentiment } from "./api";
+import { api, INTERVAL_LABEL, type BuyAlert, type MacroInfo, type RadarRow, type Sentiment } from "./api";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval } from "./store";
 import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
@@ -14,6 +14,7 @@ export function Radar() {
   const [error, setError] = useState<string | null>(null);
   const [fg, setFg] = useState<Sentiment["fearGreed"]>();
   const [macro, setMacro] = useState<MacroInfo | null>(null);
+  const [buyable, setBuyable] = useState<BuyAlert[] | null>(null);
   const busy = useRef(false);
   const live = useLive(watchlist);
 
@@ -57,6 +58,15 @@ export function Radar() {
     return () => clearInterval(id);
   }, []);
 
+  // Same rule as the notifications of the iPhone, Apple Watch and Android apps, refreshed every 5 minutes.
+  useEffect(() => {
+    if (!watchlist.length) return setBuyable([]);
+    const load = () => api.alerts(watchlist).then((a) => setBuyable(a.filter((x) => x.buy))).catch(() => setBuyable(null));
+    load();
+    const id = setInterval(() => document.visibilityState === "visible" && load(), 300_000);
+    return () => clearInterval(id);
+  }, [watchlist]);
+
   const opportunities = watchlist
     .map((w) => rows[assetKey(w)])
     .filter((r): r is RadarRow => !!r?.signal && r.signal.action !== "hold" && r.signal.confidence >= 40)
@@ -96,6 +106,27 @@ export function Radar() {
           <b>Contexte macro {macro.level === "high" ? "très tendu" : "tendu"} ({macro.score}/100)</b>
           <ul className="small">{macro.factors.slice(0, 3).map((f) => <li key={f.code}>{f.text}</li>)}</ul>
           <small>Les zones d'achat techniques résistent mal aux crises : tailles réduites, achats échelonnés.</small>
+        </div>
+      )}
+
+      {buyable && buyable.length > 0 && (
+        <div className="card buyable">
+          <h2 className="card-title">Achetables maintenant · {buyable.length}</h2>
+          <ul className="buyable-list">
+            {buyable.map((a) => (
+              <li key={`${a.kind}:${a.symbol}`}>
+                <a href={`/app/actif/${a.kind}/${a.symbol}`} onClick={onLink} className="opp-row">
+                  <b>{a.name}</b>
+                  <span className="mono">{a.price != null ? `${formatPrice(a.price)} $` : "—"}</span>
+                  <span className="badge buy">{a.strong ? "ACHAT CONSEILLÉ" : "ACHAT POSSIBLE"}</span>
+                </a>
+                <small className="muted">{[...(a.reasons ?? []), ...(a.cautions ?? [])].join(" ")}</small>
+              </li>
+            ))}
+          </ul>
+          <small className="muted">
+            Signal 4 h ACHAT ou prix dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée : la même règle que les notifications des apps. Conseil indicatif.
+          </small>
         </div>
       )}
 
