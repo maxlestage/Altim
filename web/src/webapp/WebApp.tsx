@@ -6,6 +6,7 @@ import { AssetScreen } from "./AssetScreen";
 import { Settings } from "./Settings";
 import { MyHoldings } from "./MyHoldings";
 import { Selection } from "./Selection";
+import { Opportunities } from "./Opportunities";
 import { News } from "./News";
 import { Glossary } from "./Glossary";
 import { Simulation } from "./Simulation";
@@ -42,6 +43,7 @@ export function WebApp() {
   if (asset) screen = <AssetScreen key={path} kind={asset[1] as "crypto" | "stock"} symbol={asset[2]!.toUpperCase()} />;
   else if (path === "/app/avoirs") screen = <MyHoldings />;
   else if (path === "/app/selection") screen = <Selection />;
+  else if (path === "/app/opportunites") screen = <Opportunities />;
   else if (path === "/app/reglages") screen = <Settings />;
   else if (path === "/app/actu") screen = <News />;
   else if (path === "/app/lexique") screen = <Glossary />;
@@ -49,8 +51,13 @@ export function WebApp() {
   else if (path === "/app/journal") screen = <Journal />;
   else screen = <Radar />;
 
-  // The simulation and the journal sit next to the real holdings (tab "Mes avoirs").
-  const active = asset ? "/app" : path === "/app/simulation" || path === "/app/journal" ? "/app/avoirs" : TABS.find((t) => t.href === path)?.href ?? "/app";
+  // The simulation and the journal sit next to the real holdings (tab "Mes avoirs"), the opportunities next to the
+  // selection.
+  const active = asset
+    ? "/app"
+    : path === "/app/simulation" || path === "/app/journal"
+      ? "/app/avoirs"
+      : path === "/app/opportunites" ? "/app/selection" : TABS.find((t) => t.href === path)?.href ?? "/app";
 
   return (
     <div className="webapp">

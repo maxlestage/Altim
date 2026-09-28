@@ -134,6 +134,8 @@ export const api = {
   /** Strategy comparator of one asset (fixed textbook parameters, daily history). */
   strategies: (symbol: string, kind: Kind) => get<StrategiesReport>(strategiesUrl(symbol, kind)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  opportunities: (kind: Kind) => get<import("../engine/opportunities").OpportunityReport | { pending: true }>(`/api/opportunities?kind=${kind}`),
+  anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 
 export const HIGHER: Record<Interval, Interval | null> = { "1h": "4h", "4h": "1d", "1d": null };

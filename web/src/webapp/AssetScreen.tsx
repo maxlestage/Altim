@@ -6,6 +6,7 @@ import { formatPrice } from "../market";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot, type ZonesReport } from "./api";
 import { GuardCard } from "./GuardCard";
 import { WhyCard } from "./WhyCard";
+import { AnomaliesCard } from "./AnomaliesCard";
 import { ZonesCard } from "./ZonesCard";
 import { DcaCard } from "./DcaCard";
 import { StrategiesCard } from "./StrategiesCard";
@@ -214,6 +215,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {zonesReport ? <ZonesCard report={zonesReport} price={price} horizon={horizon} /> : data && <div className="skeleton" aria-label="Chargement des zones d'achat" />}
 
       {guardReport ? <GuardCard g={guardReport} /> : data && <div className="skeleton" aria-label="Chargement du garde-fou" />}
+      <AnomaliesCard symbol={symbol} kind={kind} />
 
       <WhyCard symbol={symbol} kind={kind} />
 

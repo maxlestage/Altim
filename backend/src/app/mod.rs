@@ -2,6 +2,7 @@
 pub mod data;
 pub mod error;
 pub mod extras;
+pub mod scan;
 pub mod strategies;
 pub mod validate;
 pub mod web;
@@ -417,6 +418,8 @@ pub fn api(state: AppState) -> Router {
         .route("/why", get(why::why_route))
         // A few questions per minute and per address: each one costs an Anthropic API call.
         .route("/ask", post(why::ask_route).layer(RateLimit::new(4, 60_000)))
+        .route("/opportunities", get(scan::opportunities_route))
+        .route("/anomalies", get(scan::anomalies_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))

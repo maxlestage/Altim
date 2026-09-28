@@ -1154,3 +1154,58 @@ pub async fn stock_fundamentals(symbol: &str, price: Option<f64>, daily: &[Candl
     }
     Ok(out)
 }
+
+// ---------- Change of the growth at the last filing (opportunities scan) ----------
+
+/// Growth of the last filed period against the period before it (trailing twelve months, %).
+#[derive(Debug, Clone, PartialEq)]
+pub struct FilingTrend {
+    /// "10-Q" | "10-K", its filing date and the end of its period (days since 1970-01-01).
+    pub form: String,
+    pub filed: i64,
+    pub end: i64,
+    pub revenue_growth: Option<f64>,
+    pub revenue_growth_before: Option<f64>,
+    pub eps_growth: Option<f64>,
+    pub eps_growth_before: Option<f64>,
+}
+
+fn growth_at(f: &Facts, names: &[&str], end: i64) -> Option<f64> {
+    let prev = year_before(f, &[REVENUE, NET_INCOME].concat(), end)?;
+    growth(concept_ttm(f, names, end), concept_ttm(f, names, prev))
+}
+
+/// Last filed period (its filing date) and the revenue / EPS growth there and one period earlier.
+pub fn filing_trend(f: &Facts) -> Option<FilingTrend> {
+    let facts: Vec<&Fact> = NET_INCOME.iter().filter_map(|n| f.concepts.get(*n)).flatten().filter(|x| x.start.is_some()).collect();
+    let last = facts.iter().max_by_key(|x| (x.end, x.filed))?;
+    // The period before: the latest end at least two months earlier.
+    let before = facts.iter().map(|x| x.end).filter(|e| *e <= last.end - 60).max();
+    let at = |end: i64| (growth_at(f, REVENUE, end), growth_at(f, EPS, end));
+    let (rg, eg) = at(last.end);
+    let (rb, eb) = before.map(at).unwrap_or((None, None));
+    Some(FilingTrend {
+        form: if last.form.starts_with("10-K") { "10-K" } else { "10-Q" }.to_string(),
+        filed: last.filed,
+        end: last.end,
+        revenue_growth: rg,
+        revenue_growth_before: rb,
+        eps_growth: eg,
+        eps_growth_before: eb,
+    })
+}
+
+/// `filing_trend` of a listed company (cached filings); Ok(None) for a fund or a non-filer.
+pub async fn filing_trend_for(symbol: &str) -> Result<Option<FilingTrend>> {
+    Ok(company_facts(symbol).await?.and_then(|f| filing_trend(&f)))
+}
+
+/// Consensus EPS revisions over a month (Nasdaq, Zacks data; cached).
+pub async fn revisions_for(symbol: &str) -> Result<Option<Revisions>> {
+    Ok(street(symbol).await?.revisions.clone())
+}
+
+/// A date in days since 1970-01-01, in words ("01/08/2026").
+pub fn day_label(days: i64) -> String {
+    fr_date(days)
+}

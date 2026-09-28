@@ -61,6 +61,9 @@ export const GLOSSARY: [string, string][] = [
   ["Scénario en cours", "Chaque scénario (haussier, neutre, baissier) a ses conditions vérifiées sur les dernières données : clôture au-delà d'un niveau, volume au-dessus de sa moyenne de 20 séances, RSI au-dessus ou sous 50, ADX. Le scénario « en cours » est celui dont la plus grande part des conditions est remplie ; en cas d'égalité, le neutre. Une lecture de l'instant, pas une prévision."],
   ["Contre-argument", "Le nombre de raisons favorables et défavorables de la carte Décision, et ce qui prouverait le scénario faux : cassure d'un support ou d'une résistance, volume qui retombe sous sa moyenne de 20 séances (ou qui la dépasse de 50 % en cas d'attente), événement à venir."],
   ["Pourquoi le signal a changé", "Quand le verdict, le niveau ou la note d'un actif change, Altim compare les mesures de la décision précédente, gardées dans ce navigateur, aux nouvelles : score composite, familles d'indices (écart d'au moins 10 points), volume relatif, RSI, support et résistance les plus proches, ton des actualités."],
+  ["Open interest", "Valeur totale des contrats à terme encore ouverts sur une crypto. S'il monte vite : beaucoup de nouvelles positions à effet de levier, le prix peut ensuite bouger plus brutalement."],
+  ["Liquidation", "Fermeture forcée par la plateforme d'une position à effet de levier dont la garantie ne suffit plus. Beaucoup de liquidations d'un même côté accélèrent souvent le mouvement, sans en prédire la suite."],
+  ["Z-score (écart à la moyenne)", "Distance du prix à sa moyenne de 20 séances, en écarts types de ces 20 clôtures. Au-delà de ±2,5, l'écart est inhabituel ; il peut se résorber comme marquer le début d'une tendance."],
 ];
 
 /** Glossary screen (/app/lexique). */

@@ -795,3 +795,31 @@
   .journal-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .journal-group .journal-figures { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 }
+/* Opportunities of the moment, anomalies of an asset */
+.opp-link { display: block; color: var(--text); text-decoration: none; border-color: rgba(0, 240, 255, 0.4); background: rgba(0, 240, 255, 0.06); }
+.opp-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.opp-selects { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 10px; margin-top: 12px; }
+.opp-field select { width: 100%; min-width: 0; min-height: 44px; padding: 0 10px; border-radius: 12px; border: 1px solid rgba(0, 240, 255, 0.3); background: var(--surface); color: var(--text); font: inherit; font-size: 14px; }
+.opp-filters p { margin: 10px 0 0; }
+.opp-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.opp-card { display: grid; gap: 8px; min-width: 0; }
+.opp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; min-width: 0; }
+.opp-id { display: grid; min-width: 0; }
+.opp-id a { overflow-wrap: anywhere; }
+.opp-price { display: grid; justify-items: end; flex-shrink: 0; }
+.opp-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.opp-hits li { display: grid; gap: 4px; justify-items: start; overflow-wrap: anywhere; }
+.opp-hits .chip { display: inline-block; }
+.opp-metrics { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 0; }
+.opp-card .btn-small { justify-self: start; }
+.opp-rules { display: grid; gap: 6px; padding-left: 18px; }
+.anomalies .kv { flex-wrap: wrap; }
+.anomalies .kv b { min-width: 0; overflow-wrap: anywhere; }
+.anom-list, .anom-normal { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.anom-normal { gap: 4px; margin-top: 6px; }
+.anom { display: grid; gap: 4px; padding: 10px 12px; border-radius: 12px; border: 1px solid rgba(255, 199, 51, 0.35); background: rgba(255, 199, 51, 0.06); overflow-wrap: anywhere; }
+.anom-high { border-color: rgba(255, 59, 92, 0.45); background: rgba(255, 59, 92, 0.07); }
+.anom p { margin: 0; }
+.anom-deriv { margin-top: 12px; display: grid; gap: 4px; }
+.anom-block { display: grid; gap: 0; }
+.anom-nc { padding-left: 18px; margin: 4px 0 0; }

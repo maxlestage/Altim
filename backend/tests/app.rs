@@ -65,6 +65,9 @@ async fn api_parameter_validation() {
         "/api/selection?horizon=forever",
         "/api/selection?horizon=medium&kind=forex",
         "/api/history?days=12",
+        "/api/anomalies?symbol=../x&kind=crypto",
+        "/api/anomalies?symbol=BTC&kind=forex",
+        "/api/opportunities?kind=forex",
     ] {
         let (s, h, b) = get(path).await;
         assert_eq!(s, StatusCode::BAD_REQUEST, "{path}");

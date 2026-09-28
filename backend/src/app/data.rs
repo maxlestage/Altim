@@ -143,6 +143,8 @@ pub fn warm_selections() {
                 for h in [Horizon::Mo1, Horizon::Mo3, Horizon::Mo6, Horizon::D7, Horizon::D14] {
                     let _ = selection(h, m).await;
                 }
+                // The opportunities scan reads the same (now cached) daily candles.
+                let _ = crate::opportunities::opportunities(m).await;
             }
         }
     });

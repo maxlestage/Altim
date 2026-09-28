@@ -1,5 +1,6 @@
 //! Pure engines, ported line for line from `web/src/engine/*.ts` (the web app keeps using the TypeScript ones).
 pub mod alerts;
+pub mod anomalies;
 pub mod ask;
 pub mod backtest;
 pub mod brief;
@@ -14,6 +15,7 @@ pub mod macro_ctx;
 pub mod metrics;
 pub mod news;
 pub mod news_summary;
+pub mod opportunities;
 pub mod reliability;
 pub mod screener;
 pub mod signal;
