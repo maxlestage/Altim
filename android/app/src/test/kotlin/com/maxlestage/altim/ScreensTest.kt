@@ -118,6 +118,9 @@ class ScreensTest {
         waitFor("Valeur totale")
         waitFor("depuis l'achat", 30_000)
         compose.waitForIdle()
+        waitFor("Pire recul depuis un sommet", 90_000)
+        compose.onAllNodes(hasText("1 an")).onFirst().performClick()
+        waitFor("Pire recul depuis un sommet", 90_000)
         check(model.holdings.single().quantity == 0.5)
         shot("6-avoirs")
 

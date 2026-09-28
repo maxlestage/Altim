@@ -34,6 +34,7 @@ class MainActivity : FragmentActivity() {
         if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         else window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
         model.openFromNotification(intent?.getStringExtra(BuyAlerts.EXTRA_ASSET))
+        if (intent?.getBooleanExtra(BuyAlerts.EXTRA_NEWS, false) == true) model.pendingNews = true
         setContent {
             AltimTheme { Root(model) }
         }
@@ -42,6 +43,7 @@ class MainActivity : FragmentActivity() {
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         model.openFromNotification(intent.getStringExtra(BuyAlerts.EXTRA_ASSET))
+        if (intent.getBooleanExtra(BuyAlerts.EXTRA_NEWS, false)) model.pendingNews = true
     }
 
     override fun onStart() {

@@ -23,6 +23,7 @@ import com.maxlestage.altim.R
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.NewsItem
 import com.maxlestage.altim.kit.PriceTarget
 import java.util.concurrent.TimeUnit
 
@@ -35,6 +36,8 @@ object BuyAlerts {
     const val CHANNEL = "achats"
     private const val WORK = "altim.alerts"
     const val EXTRA_ASSET = "altim.asset"
+    const val EXTRA_NEWS = "altim.news"
+    const val NEWS_CHANNEL = "actualites"
 
     fun schedule(context: Context, enabled: Boolean) {
         val wm = WorkManager.getInstance(context)
@@ -49,7 +52,40 @@ object BuyAlerts {
         val channel = NotificationChannel(CHANNEL, "Achats possibles", NotificationManager.IMPORTANCE_HIGH).apply {
             description = "Quand un actif de votre radar ou de vos avoirs devient achetable selon Altim."
         }
-        context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        val news = NotificationChannel(NEWS_CHANNEL, "Actualités importantes", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "Escalade grave (guerre, panique bancaire…) ou sujet sur un de vos actifs repris par au moins 3 sources."
+        }
+        context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(channel, news))
+    }
+
+    /** Up to 2 stories: one notification each; beyond, a single summary. A tap opens the Actu tab. */
+    fun postNews(context: Context, items: List<NewsItem>) {
+        if (items.isEmpty() || !canNotify(context)) return
+        val list = if (items.size <= 2) items.map { n ->
+            Triple("news:${n.id}", if (n.alert) "Alerte actualité" else "Actualité : ${n.assets.joinToString { it.substringAfter(":") }}", "${n.title} (${n.source}${if (n.alsoIn.isNotEmpty()) " +${n.alsoIn.size}" else ""})")
+        } else listOf(Triple("news:summary", "${items.size} actualités importantes", items.take(3).joinToString(" · ") { it.title }))
+        val open = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_NEWS, true)
+        }
+        val pending = PendingIntent.getActivity(context, "news".hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        for ((tag, title, body) in list) {
+            val n = NotificationCompat.Builder(context, NEWS_CHANNEL)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+                .setContentIntent(pending)
+                .setAutoCancel(true)
+                .build()
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+            try {
+                NotificationManagerCompat.from(context).notify(tag.hashCode(), n)
+            } catch (_: SecurityException) {
+                return
+            }
+        }
     }
 
     fun canNotify(context: Context) =
@@ -128,6 +164,7 @@ class AlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
             model.checkAlerts()?.let { r ->
                 BuyAlerts.postAll(applicationContext, r.buy)
                 r.targets.forEach { (t, price) -> BuyAlerts.postTarget(applicationContext, t, price) }
+                BuyAlerts.postNews(applicationContext, r.news)
             }
             Result.success()
         } catch (e: AltimException.Unauthorized) {

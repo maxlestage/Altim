@@ -8,6 +8,7 @@ import { KIND_LABEL } from "./AssetPicker";
 import { exportHoldings, importHoldings, setHoldings, upsertHolding, useHoldings } from "./store";
 import { Change } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
+import { HistoryCard } from "./HistoryCard";
 
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 const REC_CLASS: Record<Recommendation, string> = { sell: "sell", protect: "sell", lighten: "hold", strengthen: "buy", hold: "hold", unknown: "unknown" };
@@ -139,6 +140,8 @@ export function MyHoldings() {
             {ready && <AllocationBar a={analysis.allocation} />}
             {loading && <p className="muted small">Actualisation des cours et des signaux…</p>}
           </div>
+
+          <HistoryCard holdings={holdings} />
 
           {ready && (
             <div className="card insights-card">

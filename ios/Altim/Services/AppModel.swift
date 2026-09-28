@@ -21,6 +21,10 @@ final class AppModel {
     /// Buy notifications (Réglages) and "strong only" (signal and zone together).
     var alertsEnabled: Bool { didSet { defaults.set(alertsEnabled, forKey: "alertsEnabled") } }
     var alertsStrongOnly: Bool { didSet { defaults.set(alertsStrongOnly, forKey: "alertsStrongOnly") } }
+    /// News alerts (Réglages): serious escalation told by 2 sources, or a story about one of my assets told by 3.
+    var newsAlertsEnabled: Bool { didSet { defaults.set(newsAlertsEnabled, forKey: "newsAlertsEnabled") } }
+    /// A news notification was tapped: the Actu tab opens.
+    var pendingNews = false
     /// Live Activity (lock screen + Dynamic Island) offered on the asset pages.
     var liveActivityEnabled: Bool { didSet { defaults.set(liveActivityEnabled, forKey: "liveActivityEnabled") } }
     /// Last alerts computed (Watch, Réglages) and when.
@@ -60,6 +64,7 @@ final class AppModel {
         holdings = LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []
         alertsEnabled = defaults.bool(forKey: "alertsEnabled")
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
+        newsAlertsEnabled = defaults.bool(forKey: "newsAlertsEnabled")
         liveActivityEnabled = defaults.object(forKey: "liveActivityEnabled") as? Bool ?? true
         lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
         priceTargets = LocalStore.load([PriceTarget].self, "priceTargets") ?? []
@@ -133,6 +138,7 @@ final class AppModel {
         live.stop()
         LocalStore.remove("alertTracker")
         LocalStore.remove("lastAlerts")
+        LocalStore.remove("newsTracker")
         lastAlerts = []
         await client?.logout()
         KeychainStore.clear()
@@ -209,7 +215,7 @@ final class AppModel {
     /// One check of the buy alerts (background refresh, app opening): the server's rule applied to the watch list and
     /// the holdings; returns the alerts to notify (new or changed situation only), nil without access.
     /// The background check runs for the buy alerts or for at least one armed price alert.
-    var needsChecks: Bool { alertsEnabled || priceTargets.contains { $0.triggered == nil } }
+    var needsChecks: Bool { alertsEnabled || newsAlertsEnabled || priceTargets.contains { $0.triggered == nil } }
 
     func addTarget(_ t: PriceTarget) {
         priceTargets.append(t)
@@ -230,6 +236,7 @@ final class AppModel {
     struct CheckResult {
         var buy: [BuyAlert]
         var targets: [(PriceTarget, Double)]
+        var news: [NewsItem] = []
     }
 
     func checkAlerts() async throws -> CheckResult? {
@@ -250,7 +257,26 @@ final class AppModel {
             a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) }
         } + reached.map { t, p in JournalEntry(asset: t.asset, source: .target, title: "\(t.asset.symbol) : \(t.label.lowercased())", price: p, date: now) }
         if !entries.isEmpty { journal = AlertJournal.add(entries, to: journal) }
-        return CheckResult(buy: fresh, targets: reached)
+        let news = newsAlertsEnabled ? try await checkNews(client, now: now) : []
+        return CheckResult(buy: fresh, targets: reached, news: news)
+    }
+
+    /// News to notify (NewsAlertTracker): a feed that fails does not stop the buy and price alerts.
+    private func checkNews(_ client: AltimClient, now: Date) async throws -> [NewsItem] {
+        var seen = Set<String>()
+        let mine = (watchlist + holdings.map(\.asset)).filter { seen.insert($0.id).inserted }
+        let report: NewsReport
+        do {
+            report = try await client.news(mine)
+        } catch AltimError.unauthorized {
+            throw AltimError.unauthorized
+        } catch {
+            return []
+        }
+        var tracker = LocalStore.load(NewsAlertTracker.self, "newsTracker") ?? NewsAlertTracker()
+        let fresh = tracker.newAlerts(report.items, owned: Set(mine.map(\.id)), now: now)
+        LocalStore.save(tracker, "newsTracker")
+        return fresh
     }
 
     private func checkBuyAlerts(_ client: AltimClient) async throws -> [BuyAlert] {

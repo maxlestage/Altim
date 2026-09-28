@@ -46,6 +46,10 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
         denied = !granted
         if (granted) model.updateAlerts(context, enabled = true)
     }
+    val newsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        denied = !granted
+        if (granted) model.updateNewsAlerts(context, true)
+    }
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "—" }
 
     Column(
@@ -76,6 +80,16 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             if (denied) Notice("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim → Notifications.", Tone.WARN)
             Caption("Toutes les 15 minutes, votre serveur vérifie le radar et vos avoirs : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée. Une notification seulement quand un actif devient achetable ou que la raison change. Conseil indicatif : Altim ne passe aucun ordre.")
             model.lastAlertCheck?.let { Caption("Dernière vérification : ${Format.date(it.toDouble(), time = true)} · ${model.lastBuyable} actif(s) achetable(s).") }
+        }
+        Card(title = "Alertes actualité") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Me prévenir des actualités importantes", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Switch(model.newsAlertsEnabled, { on ->
+                    if (on && android.os.Build.VERSION.SDK_INT >= 33 && !BuyAlerts.canNotify(context)) newsPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    else model.updateNewsAlerts(context, on)
+                }, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
+            }
+            Caption("Toutes les 15 minutes : une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
         }
         Card(title = "Sécurité") {
             Row(verticalAlignment = Alignment.CenterVertically) {

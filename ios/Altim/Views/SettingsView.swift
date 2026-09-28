@@ -41,6 +41,28 @@ struct SettingsView: View {
                 Text("Votre serveur vérifie le radar et vos avoirs : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée. Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit quand l'iPhone est verrouillé. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
             }
             Section {
+                Toggle("Me prévenir des actualités importantes", isOn: Binding(
+                    get: { model.newsAlertsEnabled },
+                    set: { on in
+                        if on {
+                            Task {
+                                let granted = await BuyNotifications.authorize()
+                                denied = !granted
+                                model.newsAlertsEnabled = granted
+                                BuyNotifications.schedule(enabled: model.needsChecks)
+                            }
+                        } else {
+                            model.newsAlertsEnabled = false
+                            BuyNotifications.schedule(enabled: model.needsChecks)
+                        }
+                    }
+                ))
+            } header: {
+                Text("Alertes actualité")
+            } footer: {
+                Text("Une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
+            }
+            Section {
                 Toggle("Suivi en direct (écran verrouillé et Dynamic Island)", isOn: $model.liveActivityEnabled)
                 if let a = model.activityAsset {
                     Button("Arrêter le suivi de \(a.symbol)", role: .destructive) {
