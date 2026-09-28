@@ -1,0 +1,419 @@
+{
+ "symbol": "BTC",
+ "kind": "crypto",
+ "name": "Bitcoin",
+ "asOf": 1790612000000,
+ "price": 83120.5,
+ "mode": "informational",
+ "verdict": "wait",
+ "label": "ATTENDRE",
+ "level": "waiting",
+ "levelLabel": "Attente",
+ "confidence": 67,
+ "confidenceText": "6 familles sur 9 concordent ; données recoupées sur 21 sources ; le signal a fait mieux que la moyenne 58 % du temps sur ce titre.",
+ "headline": "Tendance de fond haussière, mais prix au-dessus de la zone d'achat et rapport gain/risque insuffisant (1,4) : attendre un repli vers 78 400 – 80 100 $.",
+ "families": [
+  {
+   "key": "trend",
+   "label": "Tendance",
+   "score": 78,
+   "status": "positive",
+   "summary": "Moyennes 50 et 200 jours alignées à la hausse, ADX 31",
+   "points": [
+    "Au-dessus de la moyenne 200 jours (+18 %)",
+    "Structure : plus hauts et plus bas croissants"
+   ],
+   "source": "Consensus de 21 plateformes"
+  },
+  {
+   "key": "momentum",
+   "label": "Momentum",
+   "score": 42,
+   "status": "positive",
+   "summary": "MACD positif, RSI 61",
+   "points": [
+    "+12,4 % sur 1 mois",
+    "Mieux que 80 % des cryptos sur 3 mois"
+   ],
+   "source": "Consensus de 21 plateformes"
+  },
+  {
+   "key": "volume",
+   "label": "Volume",
+   "score": 25,
+   "status": "neutral",
+   "summary": "Volume relatif 1,1",
+   "points": [
+    "Accumulation (OBV en hausse)"
+   ],
+   "source": "Consensus de 21 plateformes"
+  },
+  {
+   "key": "volatility",
+   "label": "Volatilité / risque",
+   "score": -55,
+   "status": "negative",
+   "summary": "ATR 4,1 % par jour, au-dessus de 80 % de son histoire",
+   "points": [
+    "Volatilité élevée : taille réduite"
+   ],
+   "source": "Consensus de 21 plateformes"
+  },
+  {
+   "key": "valuation",
+   "label": "Valorisation",
+   "score": null,
+   "status": "unavailable",
+   "summary": "Pas de valorisation par les flux pour le bitcoin",
+   "points": [],
+   "source": "—"
+  },
+  {
+   "key": "fundamentals",
+   "label": "Réseau",
+   "score": 35,
+   "status": "positive",
+   "summary": "Taux de hachage record, 819 900 transactions par jour",
+   "points": [
+    "Offre en circulation : 95,1 % du maximum"
+   ],
+   "source": "blockchain.com, CoinGecko"
+  },
+  {
+   "key": "macro",
+   "label": "Macro",
+   "score": -20,
+   "status": "negative",
+   "summary": "Contexte tendu (score 30/100)",
+   "points": [
+    "Taux américains à 10 ans +6,1 % en 5 séances"
+   ],
+   "source": "Yahoo Finance, Google Actualités"
+  },
+  {
+   "key": "sentiment",
+   "label": "Sentiment",
+   "score": 15,
+   "status": "neutral",
+   "summary": "Fear & Greed 74 (avidité)",
+   "points": [
+    "Financement 0,0069 % par 8 h",
+    "StockTwits : 31 % haussiers"
+   ],
+   "source": "alternative.me, OKX, StockTwits"
+  },
+  {
+   "key": "news",
+   "label": "Actualités",
+   "score": 10,
+   "status": "neutral",
+   "summary": "19 articles en 24 h, ton plutôt positif",
+   "points": [
+    "Rafale d'actualités : 3,9 fois plus que d'habitude"
+   ],
+   "source": "Google Actualités"
+  },
+  {
+   "key": "liquidity",
+   "label": "Liquidité",
+   "score": 90,
+   "status": "positive",
+   "summary": "Écart achat/vente 0,001 %, 38 Md$ échangés par jour",
+   "points": [],
+   "source": "OKX, Coinbase"
+  }
+ ],
+ "vetoes": [
+  {
+   "code": "spread",
+   "label": "Écart achat/vente trop grand",
+   "active": false,
+   "verifiable": true,
+   "detail": "0,001 % (seuil 0,5 %)"
+  },
+  {
+   "code": "liquidity",
+   "label": "Liquidité insuffisante",
+   "active": false,
+   "verifiable": true,
+   "detail": "38 Md$ par jour"
+  },
+  {
+   "code": "volatility",
+   "label": "Volatilité extrême",
+   "active": false,
+   "verifiable": true,
+   "detail": "ATR 4,1 % (seuil 8 %)"
+  },
+  {
+   "code": "earnings",
+   "label": "Résultats imminents",
+   "active": false,
+   "verifiable": true,
+   "detail": "Sans objet pour une crypto"
+  },
+  {
+   "code": "crash",
+   "label": "Chute brutale sans stabilisation",
+   "active": false,
+   "verifiable": true,
+   "detail": "−1,8 % en 24 h"
+  },
+  {
+   "code": "pump",
+   "label": "Hausse anormale",
+   "active": false,
+   "verifiable": true,
+   "detail": "+2,1 % sur 3 jours (seuil : 3 écarts-types)"
+  },
+  {
+   "code": "unlock",
+   "label": "Déblocage de jetons imminent",
+   "active": false,
+   "verifiable": false,
+   "detail": "Non vérifiable : aucune source gratuite"
+  },
+  {
+   "code": "divergence",
+   "label": "Divergence baissière importante",
+   "active": false,
+   "verifiable": true,
+   "detail": "Aucune sur 4 h et 1 j"
+  },
+  {
+   "code": "downtrend",
+   "label": "Tendance principale baissière",
+   "active": false,
+   "verifiable": true,
+   "detail": "Tendance de fond haussière"
+  },
+  {
+   "code": "riskReward",
+   "label": "Rapport gain/risque insuffisant",
+   "active": true,
+   "verifiable": true,
+   "detail": "1,4 depuis le prix actuel (minimum 2)"
+  },
+  {
+   "code": "macro",
+   "label": "Choc macro",
+   "active": false,
+   "verifiable": true,
+   "detail": "Contexte tendu, pas de choc"
+  },
+  {
+   "code": "reliability",
+   "label": "Données peu fiables",
+   "active": false,
+   "verifiable": true,
+   "detail": "Fiabilité élevée (21 sources)"
+  }
+ ],
+ "blocked": true,
+ "setup": {
+  "name": "Achat sur repli en tendance haussière",
+  "met": 3,
+  "total": 9,
+  "steps": [
+   {
+    "label": "Tendance de long terme positive",
+    "state": "ok",
+    "detail": "Au-dessus de la moyenne 200 jours"
+   },
+   {
+    "label": "Correction en cours",
+    "state": "no",
+    "detail": "Prix à 2 % de son plus haut récent"
+   },
+   {
+    "label": "Retour sur un support (zone d'achat)",
+    "state": "no",
+    "detail": "Zone à 3,6 % sous le prix"
+   },
+   {
+    "label": "Volume en baisse pendant la correction",
+    "state": "unknown",
+    "detail": "Pas de correction en cours"
+   },
+   {
+    "label": "Signal de retournement",
+    "state": "no",
+    "detail": "—"
+   },
+   {
+    "label": "Retour du volume acheteur",
+    "state": "ok",
+    "detail": "OBV en hausse"
+   },
+   {
+    "label": "Confirmation (clôture au-dessus du plus haut de la veille)",
+    "state": "no",
+    "detail": "—"
+   },
+   {
+    "label": "Stop défini",
+    "state": "ok",
+    "detail": "Sous le plus bas du mouvement : 74 900 $"
+   },
+   {
+    "label": "Objectif défini",
+    "state": "ok",
+    "detail": "Ancien plus haut : 86 400 $"
+   }
+  ]
+ },
+ "plan": {
+  "zoneFrom": 78400,
+  "zoneTo": 80100,
+  "entry": 80100,
+  "stop": 74900,
+  "target1": 86400,
+  "target2": 92300,
+  "riskPct": 6.5,
+  "reward1Pct": 7.9,
+  "reward2Pct": 15.2,
+  "riskReward": 1.2,
+  "minRiskReward": 2,
+  "acceptable": false,
+  "horizon": "moyen terme · quelques semaines"
+ },
+ "whyWait": [
+  "Prix au-dessus de la zone d'achat (repli de 3,6 % nécessaire)",
+  "Rapport gain/risque 1,4 depuis le prix actuel (minimum 2)",
+  "Volatilité élevée"
+ ],
+ "toBuy": [
+  {
+   "text": "Repli dans la zone 78 400 – 80 100 $",
+   "level": 80100
+  },
+  {
+   "text": "Puis une clôture journalière au-dessus du plus haut de la veille",
+   "level": null
+  },
+  {
+   "text": "Ou une cassure au-dessus de 86 400 $ avec un volume supérieur à 1,5 fois la moyenne",
+   "level": 86400
+  }
+ ],
+ "toSell": [
+  {
+   "text": "Clôture sous 74 900 $ (plus bas du mouvement)",
+   "level": 74900
+  },
+  {
+   "text": "Moyenne 50 jours qui passe sous la 200 jours",
+   "level": null
+  }
+ ],
+ "scenarios": [
+  {
+   "kind": "bull",
+   "title": "Scénario haussier",
+   "condition": "Cassure de 86 400 $ avec du volume",
+   "consequence": "Objectifs 86 400 puis 92 300 $",
+   "level": 86400
+  },
+  {
+   "kind": "neutral",
+   "title": "Scénario neutre",
+   "condition": "Prix entre 78 400 et 86 400 $",
+   "consequence": "Attendre le repli dans la zone",
+   "level": null
+  },
+  {
+   "kind": "bear",
+   "title": "Scénario baissier",
+   "condition": "Clôture sous 74 900 $",
+   "consequence": "Scénario invalidé : plus d'achat",
+   "level": 74900
+  }
+ ],
+ "pros": [
+  "Tendance de fond haussière (1 j et 4 h)",
+  "Accumulation (OBV en hausse)",
+  "Liquidité très élevée",
+  "Données recoupées sur 21 sources"
+ ],
+ "cons": [
+  "Volatilité élevée",
+  "Macro tendue (taux en hausse)",
+  "Sentiment en avidité (74) : foule déjà acheteuse",
+  "Prix loin de la zone d'achat"
+ ],
+ "whyNot": {
+  "risks": [
+   "Avidité élevée : les replis suivent souvent",
+   "Taux américains en hausse rapide",
+   "Volatilité au-dessus de 80 % de son histoire",
+   "Déblocages de jetons non vérifiables"
+  ],
+  "uncertainty": "medium",
+  "invalidation": [
+   "Clôture sous 74 900 $",
+   "Choc macro (VIX au-dessus de 30)"
+  ]
+ },
+ "fundamentals": {
+  "kind": "crypto",
+  "marketCap": 1654000000000,
+  "fdv": 1745000000000,
+  "mcFdv": 0.948,
+  "circulatingSupply": 19930000,
+  "totalSupply": 19930000,
+  "maxSupply": 21000000,
+  "circulatingPct": 94.9,
+  "tvl": null,
+  "fees30d": null,
+  "btcDominance": 58.2,
+  "fundingRate": 6.88e-05,
+  "openInterest": 3160000000,
+  "txPerDay": 819900,
+  "hashRate": 1.069e+21,
+  "unlocks": "Sans objet : pas de déblocage prévu pour le bitcoin",
+  "source": "CoinGecko, OKX, blockchain.com"
+ },
+ "liquidity": {
+  "spreadPct": 0.0012,
+  "dailyValue": 38000000000,
+  "relativeVolume": 1.1,
+  "source": "OKX, Coinbase"
+ },
+ "track": {
+  "period": "sept. 2023 – sept. 2026 (bougies journalières)",
+  "trades": 14,
+  "winRate": 57.1,
+  "avgWin": 9.8,
+  "avgLoss": -4.2,
+  "profitFactor": 2.1,
+  "sharpe": 1.05,
+  "sortino": 1.62,
+  "maxDrawdown": -18.4,
+  "totalReturn": 61.2,
+  "buyAndHold": 142.0,
+  "feesPct": 0.1,
+  "slippagePct": 0.05,
+  "losingStreak": 3,
+  "note": "Chaque décision ne voit que les bougies d'avant (pas de regard vers l'avenir). A fait moins bien que la simple détention sur cette période haussière."
+ },
+ "position": null,
+ "exposure": null,
+ "sources": [
+  {
+   "name": "Bougies (consensus)",
+   "ok": true,
+   "detail": "21 plateformes en accord"
+  },
+  {
+   "name": "CoinGecko",
+   "ok": true,
+   "detail": "capitalisation, offre"
+  },
+  {
+   "name": "Déblocages de jetons",
+   "ok": false,
+   "detail": "source payante uniquement"
+  }
+ ],
+ "disclaimer": "Mode informationnel : données et scénarios observés, pas une recommandation personnalisée. Altim ne passe aucun ordre ; rien ne garantit l'avenir."
+}
