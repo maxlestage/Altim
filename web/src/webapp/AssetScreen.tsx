@@ -7,6 +7,7 @@ import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, typ
 import { GuardCard } from "./GuardCard";
 import { ZonesCard } from "./ZonesCard";
 import { DcaCard } from "./DcaCard";
+import { StrategiesCard } from "./StrategiesCard";
 import { PositionCard } from "./ToolCards";
 import { NoteCard } from "./NoteCard";
 import { zoneState } from "../engine/fibonacci";
@@ -228,6 +229,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       <NoteCard id={`${kind}:${symbol}`} symbol={symbol} />
 
       <DcaCard symbol={symbol} kind={kind} />
+      <StrategiesCard symbol={symbol} kind={kind} />
 
       {data && (
         <div className="asset-grid">

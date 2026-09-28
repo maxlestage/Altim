@@ -4,6 +4,7 @@ import type { Kind, QualityReport, Reliability } from "../engine/reliability";
 import type { Interval, WatchItem } from "./store";
 import { decisionUrl, parseDecision, type MarketRegime, type PersonalInput, type ScoreWeights } from "./decision";
 import { calendarUrl, type CalendarReport } from "./calendar";
+import { strategiesUrl, type StrategiesReport } from "./strategies";
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -130,6 +131,8 @@ export const api = {
     get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights)).then(parseDecision),
   /** Agenda: economy, central banks, earnings, dividends, splits, IPOs; `symbols` limits the company events. */
   calendar: (days: number, symbols: string[] | null, top = false) => get<CalendarReport>(calendarUrl(days, symbols, top)),
+  /** Strategy comparator of one asset (fixed textbook parameters, daily history). */
+  strategies: (symbol: string, kind: Kind) => get<StrategiesReport>(strategiesUrl(symbol, kind)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

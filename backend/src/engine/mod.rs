@@ -15,6 +15,7 @@ pub mod news_summary;
 pub mod reliability;
 pub mod screener;
 pub mod signal;
+pub mod strategies;
 pub mod structure;
 pub mod synthesis;
 

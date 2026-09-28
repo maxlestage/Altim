@@ -755,6 +755,29 @@ fn stats(current: f64, values: &[(i64, f64)]) -> Option<RatioHistory> {
 
 pub const HISTORY_METHOD: &str = "Chaque jour : cours de clôture ÷ BPA dilué des 12 derniers mois (PER), capitalisation ÷ chiffre d'affaires des 12 derniers mois (P/S), chiffres retenus 45 jours après la fin de leur trimestre ; jours antérieurs à un fractionnement d'actions pas encore retraité dans les comptes exclus";
 
+/// P/E of each day of `window` (ms, day number, close): close ÷ diluted twelve-month EPS usable that day (published
+/// 45 days after its period end), its basis checked with the implied share count (net income ÷ EPS); days with a
+/// loss or a share basis different from today's left out.
+fn per_series(f: &Facts, window: &[(i64, i64, f64)]) -> Vec<(i64, f64)> {
+    let eps = ttm_points(f, EPS);
+    let income = ttm_points(f, NET_INCOME);
+    let implied = |end: i64, e: f64| income.iter().find(|(x, _)| near(*x, end, TOL)).map(|(_, n)| n / e).filter(|s| *s > 0.0);
+    let Some(latest) = eps.iter().rev().filter(|(_, e)| *e > 0.0).find_map(|(end, e)| implied(*end, *e)) else { return vec![] };
+    window
+        .iter()
+        .filter_map(|(ms, day, c)| {
+            let (end, e) = usable(&eps, *day)?;
+            (e > 0.0 && same_basis(implied(end, e)?, latest)).then(|| (*ms, c / e))
+        })
+        .collect()
+}
+
+/// Daily P/E over all of `closes` (ms, close), same rules as the valuation history (strategy comparator).
+pub fn daily_per(f: &Facts, closes: &[(i64, f64)]) -> Vec<(i64, f64)> {
+    let window: Vec<(i64, i64, f64)> = closes.iter().filter(|(_, c)| *c > 0.0).map(|(t, c)| (*t, t.div_euclid(86_400_000), *c)).collect();
+    per_series(f, &window)
+}
+
 /// P/E and P/S of each day (close, twelve months filed) over up to 5 years, against today's. `closes`: (ms, close),
 /// split-adjusted as the price sources publish them. A day whose share basis differs from today's (split not yet
 /// restated in the filings) is left out rather than adjusted.
@@ -762,21 +785,7 @@ pub fn valuation_history(f: &Facts, closes: &[(i64, f64)], per: Option<f64>, ps:
     let last = closes.last()?.0;
     let window: Vec<(i64, i64, f64)> =
         closes.iter().filter(|(t, c)| *c > 0.0 && last - t <= ms_of(HISTORY_DAYS)).map(|(t, c)| (*t, t.div_euclid(86_400_000), *c)).collect();
-    // P/E: diluted EPS, its basis checked with the implied share count (net income ÷ EPS).
-    let eps = ttm_points(f, EPS);
-    let income = ttm_points(f, NET_INCOME);
-    let implied = |end: i64, e: f64| income.iter().find(|(x, _)| near(*x, end, TOL)).map(|(_, n)| n / e).filter(|s| *s > 0.0);
-    let latest_implied = eps.iter().rev().filter(|(_, e)| *e > 0.0).find_map(|(end, e)| implied(*end, *e));
-    let per_days: Vec<(i64, f64)> = match (per, latest_implied) {
-        (Some(_), Some(latest)) => window
-            .iter()
-            .filter_map(|(ms, day, c)| {
-                let (end, e) = usable(&eps, *day)?;
-                (e > 0.0 && same_basis(implied(end, e)?, latest)).then(|| (*ms, c / e))
-            })
-            .collect(),
-        _ => vec![],
-    };
+    let per_days: Vec<(i64, f64)> = if per.is_some() { per_series(f, &window) } else { vec![] };
     // P/S: close × shares outstanding (last count filed) ÷ revenue.
     let revenue = ttm_points(f, REVENUE);
     let shares: Vec<(i64, f64)> = shares_series(f).map(|s| s.iter().filter(|x| x.val > 0.0).map(|x| (x.end, x.val)).collect()).unwrap_or_default();
@@ -1099,6 +1108,18 @@ async fn long_closes(symbol: &str, fallback: &[Candle]) -> (Vec<(i64, f64)>, Str
         Ok(v) => (*v).clone(),
         Err(_) => (fallback.iter().map(|x| (x.time, x.close)).collect(), "consensus des plateformes".to_string()),
     }
+}
+
+/// Daily P/E of a stock over up to 5 years (SEC EDGAR twelve-month EPS, daily closes) with its sources, for the
+/// strategy comparator. Err with the reason when the filings or a usable EPS are missing.
+pub async fn per_history(symbol: &str, daily: &[Candle]) -> Result<(Vec<(i64, f64)>, String)> {
+    let facts = company_facts(symbol).await?.ok_or_else(|| Error("aucun état financier déposé à la SEC sous ce symbole".into()))?;
+    let (closes, source) = long_closes(symbol, daily).await;
+    let per = daily_per(&facts, &closes);
+    if per.is_empty() {
+        return Err(Error("aucun PER calculable (pertes, ou BPA absent des comptes)".into()));
+    }
+    Ok((per, format!("SEC EDGAR (BPA dilué 12 mois), cours de clôture {source}")))
 }
 
 /// Fundamentals of a US-listed stock or fund. An error only when neither the SEC nor Nasdaq answered; a fund

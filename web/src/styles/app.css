@@ -694,3 +694,35 @@
 .risk-day-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
 .risk-day-head b { overflow-wrap: anywhere; }
 .risk-day-events { overflow-wrap: anywhere; }
+/* Strategy comparator: wrapping chips, one-axis chart (value of 100 invested), stacked metric cards. */
+.strat-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.strat-card > * { margin: 0; }
+.strat-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.strat-chips .chip.pick { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; white-space: normal; text-align: left; }
+.strat-swatch { display: inline-block; flex: none; width: 14px; height: 0; border-top: 3px solid currentColor; border-radius: 2px; margin-right: 6px; vertical-align: 3px; }
+.strat-swatch.ref { border-top-style: dashed; }
+.strat-chips .strat-swatch { margin-right: 0; }
+.strat-period { color: var(--muted); }
+.strat-period b { color: var(--text); font-weight: 600; }
+.strat-chart path.strat-ref { stroke-dasharray: 5 4; stroke-width: 2; opacity: 1; }
+.strat-chart .strat-label { fill: var(--muted); font-size: 9px; font-family: inherit; }
+.strat-chart .strat-tick { stroke-width: 2; stroke-linecap: round; }
+.strat-chart .strat-tick.ref { stroke-dasharray: 2 2; }
+.strat-read { display: inline-block; margin-left: 8px; white-space: nowrap; }
+.strat-head .chip { white-space: normal; }
+.strat-rows, .strat-steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.strat-rows > li { padding: 8px 10px; border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.08); }
+.strat-rows p { margin: 0 0 4px; }
+.strat-steps { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px 10px; }
+.strat-steps li { display: grid; }
+.strat-list { display: grid; gap: 10px; }
+.strat-block { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px; border-radius: 14px; border: 1px solid rgba(255, 255, 255, 0.1); background: rgba(255, 255, 255, 0.02); min-width: 0; }
+.strat-block p { margin: 0; }
+.strat-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.strat-head .strat-swatch { margin-right: 0; }
+.strat-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); gap: 0 16px; margin-top: 4px; }
+.strat-metrics .kv { margin: 3px 0; }
+.strat-metrics .kv b { white-space: nowrap; }
+.strat-regimes { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
+.strat-regimes li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+.strat-regimes span:first-child { color: var(--muted); }
