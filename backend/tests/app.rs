@@ -127,6 +127,39 @@ async fn api_rate_limit() {
     assert!(limited);
 }
 
+/// `/api/decision`: every bad parameter is a 400 with a French message, before any upstream call.
+#[tokio::test]
+async fn decision_parameter_validation() {
+    let many = (0..21).map(|i| format!("A{i}:stock:1")).collect::<Vec<_>>().join(",");
+    for (path, message) in [
+        ("/api/decision?symbol=../x&kind=crypto", "symbole invalide"),
+        ("/api/decision?symbol=BTC&kind=bond", "kind invalide"),
+        ("/api/decision?kind=crypto", "symbole invalide"),
+        ("/api/decision?symbol=BTC&cost=-1", "cost invalide"),
+        ("/api/decision?symbol=BTC&cost=0", "cost invalide"),
+        ("/api/decision?symbol=BTC&cost=abc", "cost invalide"),
+        ("/api/decision?symbol=BTC&cost=Infinity", "cost invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto:150", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto:-1", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto:", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto:x", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:crypto:60,ETH:crypto:60", "weights invalide"),
+        ("/api/decision?symbol=BTC&weights=BTC:forex:10", "kind invalide"),
+        ("/api/decision?symbol=BTC&weights=..%2Fx:crypto:10", "symbole invalide"),
+    ] {
+        let (s, h, b) = get(path).await;
+        assert_eq!(s, StatusCode::BAD_REQUEST, "{path}");
+        let v: serde_json::Value = serde_json::from_str(&b).unwrap();
+        assert!(v["error"].as_str().is_some_and(|e| e.starts_with(message)), "{path}: {b}");
+        assert_eq!(h["cache-control"], "private, no-store");
+    }
+    let (s, _, b) = get(&format!("/api/decision?symbol=BTC&weights={many}")).await;
+    assert_eq!(s, StatusCode::BAD_REQUEST);
+    assert!(b.contains("20 lignes au plus"), "{b}");
+}
+
 /// The example answers given to the web, iPhone and Android screens follow the contract.
 #[test]
 fn decision_samples_follow_the_contract() {

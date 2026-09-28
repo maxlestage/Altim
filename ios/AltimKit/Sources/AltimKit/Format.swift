@@ -32,6 +32,21 @@ public enum Format {
         return "\(v >= 0 ? "+" : "−")\(number(abs(v), min: digits, max: digits)) %"
     }
 
+    /// Large amounts and counts: "421 Md$", "3,2 Md$", "38 M$", "19,9 M" (unit ""); below a million, whole numbers.
+    public static func large(_ v: Double?, unit: String = "$") -> String {
+        guard let v, v.isFinite else { return "—" }
+        let a = abs(v)
+        let n: String
+        if a >= 1e9 {
+            n = "\(number(v / 1e9, min: 0, max: a >= 1e11 ? 0 : 1)) Md"
+        } else if a >= 1e6 {
+            n = "\(number(v / 1e6, min: 0, max: a >= 1e8 ? 0 : 1)) M"
+        } else {
+            return unit.isEmpty ? number(v, min: 0, max: a >= 100 ? 0 : 2) : "\(number(v, min: 0, max: a >= 100 ? 0 : 2)) \(unit)"
+        }
+        return n + unit
+    }
+
     public static func plain(_ v: Double, digits: Int = 2) -> String { number(v, min: 0, max: digits) }
 
     /// Quantity of units: up to 8 decimals for cryptos, no trailing zeros.

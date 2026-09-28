@@ -2,6 +2,7 @@
 import type { Candle } from "../engine/signal";
 import type { Kind, QualityReport, Reliability } from "../engine/reliability";
 import type { Interval, WatchItem } from "./store";
+import { decisionUrl, parseDecision, type PersonalInput } from "./decision";
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -121,6 +122,8 @@ export const api = {
   news: (items: { symbol: string; kind: Kind }[]) => get<NewsReport>(`/api/news${items.length ? `?symbols=${list(items.slice(0, 20))}` : ""}`),
   alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
+  /** Decision for one asset; `personal` (average cost, portfolio weights) only for a held asset, never stored by the server. */
+  decision: (symbol: string, kind: Kind, personal?: PersonalInput | null) => get<unknown>(decisionUrl(symbol, kind, personal)).then(parseDecision),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

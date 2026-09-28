@@ -4,6 +4,11 @@
 //!
 //! Every figure comes from a named source; what no free and verifiable source gives is marked unavailable,
 //! never estimated.
+//!
+//! Units: prices and amounts in USD; fields named `*_pct`, `*_margin`, `*_growth`, `*_yield`, `*_change`,
+//! `win_rate`, `confidence`, `weight`, `share`, `circulating_pct`, `btc_dominance`, `roe` are percentages
+//! (46.8 = 46,8 %); `mc_fdv` and correlations are ratios; `funding_rate` is the fraction per 8-hour period as
+//! published by the exchange (6.88e-05 = 0,0069 %); `hash_rate` in hashes per second; times in ms since the epoch.
 use serde::{Deserialize, Serialize};
 
 use crate::types::Kind;
@@ -135,7 +140,8 @@ pub struct Setup {
 pub struct Plan {
     pub zone_from: f64,
     pub zone_to: f64,
-    /// Price used for the ratio: the current price when inside the zone, else the top of the zone.
+    /// Price used for the ratio: the current price when inside the zone, else the highest price of the zone that
+    /// still gives the minimum risk/reward (the top of the zone when all of it does, its bottom when none does).
     pub entry: f64,
     pub stop: f64,
     pub target1: f64,

@@ -6,6 +6,7 @@ import { BriefCard } from "./BriefCard";
 import { CompareCard } from "./ToolCards";
 import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
+import { VerdictMini } from "./DecisionCard";
 import { formatPrice } from "../market";
 
 export function Radar() {
@@ -200,6 +201,7 @@ export function Radar() {
                 </div>
                 <div className="asset-meta">
                   {r?.signal ? <ActionBadge action={r.signal.action} /> : r?.error ? <span className="badge hold">INDISPONIBLE</span> : <span className="skeleton-line" />}
+                  <VerdictMini kind={w.kind} symbol={w.symbol} />
                   {r?.reliability && <ReliabilityBadge rel={r.reliability} />}
                   {t ? <small className="muted">prix {t.agreeing}/{t.total} sources</small> : r?.priceSources && <small className="muted">prix {r.priceSources} sources</small>}
                 </div>

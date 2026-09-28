@@ -11,6 +11,7 @@ struct AssetDetailView: View {
     @State private var signal: RadarRow?
     @State private var zones: Loadable<ZonesReport> = .idle
     @State private var guardReport: Loadable<GuardReport> = .idle
+    @State private var decision: Loadable<Decision> = .idle
     @State private var targetSheet = false
 
     private static let intervals = [("1h", "1 h"), ("4h", "4 h"), ("1d", "1 j")]
@@ -19,6 +20,7 @@ struct AssetDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
+                decisionCard
                 chartCard
                 signalCard
                 zonesCard
@@ -65,8 +67,10 @@ struct AssetDetailView: View {
         .onAppear { model.focus = asset }
         .onDisappear { if model.focus == asset { model.focus = nil } }
         .task { await loadStatic() }
+        .task { await loadDecision() }
         .task(id: interval) { await loadChart() }
         .refreshable {
+            await loadDecision()
             await loadStatic()
             await loadChart()
         }
@@ -149,6 +153,19 @@ struct AssetDetailView: View {
         }
     }
 
+    // MARK: Decision
+
+    @ViewBuilder private var decisionCard: some View {
+        switch decision {
+        case .idle, .loading:
+            Card(title: "Décision") { ProgressView().frame(maxWidth: .infinity) }
+        case let .failed(m):
+            Card(title: "Décision") { ErrorView(message: m) { Task { await loadDecision() } } }
+        case let .loaded(d):
+            DecisionCard(decision: d)
+        }
+    }
+
     // MARK: Zones
 
     @ViewBuilder private var zonesCard: some View {
@@ -216,6 +233,41 @@ struct AssetDetailView: View {
         do { zones = .loaded(try await z) } catch { zones = .failed(error.localizedDescription) }
         do { guardReport = .loaded(try await g) } catch { guardReport = .failed(error.localizedDescription) }
         model.persistSession()
+    }
+
+    /// Informational decision, or personal when the asset is held: its average cost and the share (%) of each line of
+    /// the portfolio are sent for this answer only (never the quantities nor the amounts; the server keeps nothing).
+    private func loadDecision() async {
+        guard let client = model.client else { return }
+        if decision.value == nil { decision = .loading }
+        var cost: Double?
+        var weights: [DecisionWeight] = []
+        if model.holdings.contains(where: { $0.asset.id == asset.id }) {
+            cost = DecisionInputs.cost(of: asset, in: model.holdings)
+            weights = DecisionInputs.weights(model.holdings, prices: await holdingPrices(client))
+        }
+        do {
+            decision = .loaded(try await client.decision(asset: asset, cost: cost, weights: weights))
+            model.persistSession()
+        } catch AltimError.unauthorized {
+            model.sessionLost()
+        } catch is CancellationError {
+        } catch {
+            if decision.value == nil { decision = .failed(error.localizedDescription) }
+        }
+    }
+
+    /// Live price of each held asset, the consensus quote for those without a tick yet.
+    private func holdingPrices(_ client: AltimClient) async -> [String: Double] {
+        var prices: [String: Double] = [:]
+        for h in model.holdings {
+            if let t = model.live.price(h.asset) { prices[h.asset.id] = t.price }
+        }
+        let missing = Array(Dictionary(model.holdings.filter { prices[$0.asset.id] == nil }.map { ($0.asset.id, $0.asset) }, uniquingKeysWith: { a, _ in a }).values)
+        if !missing.isEmpty, let quotes = try? await client.quotes(missing) {
+            for q in quotes { prices["\(q.kind.rawValue):\(q.symbol)"] = q.price }
+        }
+        return prices
     }
 
     private func loadChart() async {
