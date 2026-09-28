@@ -25,5 +25,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Home screen widget: the assets buyable now, from the last background check. -->
+        <receiver
+            android:name=".data.BuyWidget"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/buy_widget_info" />
+        </receiver>
     </application>
 </manifest>

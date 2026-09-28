@@ -12,6 +12,7 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.maxlestage.altim.kit.AltimClient
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Kind
+import com.maxlestage.altim.kit.NewsItem
 import com.maxlestage.altim.kit.PriceTarget
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -77,6 +78,18 @@ class AlertsTest {
         assertEquals(0, again.buy.size)
         assertEquals("a reached price alert does not fire twice", 0, again.targets.size)
         assertTrue("the other price alert is still armed", model.needsChecks)
+        // News alerts on the real feeds: whatever the day brings, a story is never notified twice.
+        model.updateNewsAlerts(app, true)
+        val news = model.checkAlerts()!!.news
+        println("Actualités notifiées : ${news.joinToString { it.title }}")
+        assertTrue(news.all { (it.alert && it.alsoIn.isNotEmpty()) || it.alsoIn.size >= 2 })
+        assertEquals(0, model.checkAlerts()!!.news.size)
+        // Posting: its own channel, a tap opens the Actu tab.
+        val before = nm.allNotifications.size
+        BuyAlerts.postNews(app, listOf(NewsItem(id = "t", title = "Russia declares war on neighbour", link = "https://ex.com", time = System.currentTimeMillis().toDouble(), source = "Reuters", category = "monde", alert = true, alsoIn = listOf("CNBC"))))
+        assertEquals(before + 1, nm.allNotifications.size)
+        val posted = nm.allNotifications.single { it.channelId == BuyAlerts.NEWS_CHANNEL && it.extras.getString("android.title") == "Alerte actualité" }
+        assertTrue(shadowOf(posted.contentIntent).savedIntent.getBooleanExtra(BuyAlerts.EXTRA_NEWS, false))
         println("Alertes : ${first.joinToString { it.title }}")
         check(AltimClient.normalize(server) != null)
     }

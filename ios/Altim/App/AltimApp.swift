@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         BuyNotifications.register { model }
         BuyNotifications.schedule(enabled: model.needsChecks)
         notifications.open = { model.open(assetID: $0) }
+        notifications.openNews = { model.pendingNews = true }
         UNUserNotificationCenter.current().delegate = notifications
         WatchBridge.shared.refresh = { await BuyNotifications.run(model) }
         WatchBridge.shared.activate()
@@ -92,20 +93,27 @@ struct RootView: View {
 
 struct MainTabs: View {
     @Environment(AppModel.self) private var model
+    @State private var tab = 0
 
     var body: some View {
         @Bindable var model = model
-        TabView {
+        TabView(selection: $tab) {
             NavigationStack { RadarView() }
-                .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }
+                .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }.tag(0)
             NavigationStack { SelectionView() }
-                .tabItem { Label("Sélection", systemImage: "list.number") }
+                .tabItem { Label("Sélection", systemImage: "list.number") }.tag(1)
             NavigationStack { HoldingsView() }
-                .tabItem { Label("Mes avoirs", systemImage: "briefcase") }
+                .tabItem { Label("Mes avoirs", systemImage: "briefcase") }.tag(2)
             NavigationStack { AlertsView() }
-                .tabItem { Label("Alertes", systemImage: "bell.badge") }
+                .tabItem { Label("Alertes", systemImage: "bell.badge") }.tag(3)
             NavigationStack { NewsView() }
-                .tabItem { Label("Actu", systemImage: "newspaper") }
+                .tabItem { Label("Actu", systemImage: "newspaper") }.tag(4)
+        }
+        // Tapped news notification: the Actu tab.
+        .onChange(of: model.pendingNews, initial: true) { _, open in
+            guard open else { return }
+            tab = 4
+            model.pendingNews = false
         }
         // Server or network down: the saved answers are shown, with their date.
         .safeAreaInset(edge: .top, spacing: 0) {
