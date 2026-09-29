@@ -550,6 +550,11 @@ public struct Decision: Codable, Sendable {
     public var counterArgument: CounterArgument?
     /// Compact numbers kept on the iPhone to explain a later change of the signal.
     public var snapshot: DecisionSnapshot?
+    // « Preuve du modèle » (added later, absent from older answers).
+    /// Why the model's evidence lowered a strong rating (ACHAT FORT → ACHAT, VENTE FORTE → VENDRE); nil otherwise.
+    public var ratingReason: String?
+    /// What the cross-asset validation says about the asset's class and current regime.
+    public var modelEvidence: ModelEvidence?
 
     /// A server that knows the rating also sends `events` (null when the calendar could not be verified): an answer
     /// without a rating comes from an older server, whose missing events mean nothing.

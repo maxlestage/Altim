@@ -16,6 +16,7 @@ pub use super::guidance::{
     ActionZone, ActionZones, CheckState, CounterArgument, DecisionSnapshot, Invalidator, NoTrade, NoTradeReason, ScenarioCheck, SnapshotFamily,
     SnapshotLevel, SnapshotNews, Unfolding,
 };
+pub use super::model_evidence::ModelEvidence;
 pub use super::structure::Structure;
 pub use super::synthesis::{CompositeScore, Degraded, HorizonClass, MarketRegime, Rating};
 use crate::types::Kind;
@@ -612,6 +613,9 @@ pub struct Decision {
     /// "ACHAT FORT" | "ACHAT" | "ATTENDRE" | "ALLÉGER" | "VENDRE" | "VENTE FORTE"
     #[serde(default)]
     pub rating_label: String,
+    /// Why the rating was lowered by the model's evidence (ACHAT FORT → ACHAT, VENTE FORTE → VENDRE); None otherwise.
+    #[serde(default)]
+    pub rating_reason: Option<String>,
     /// Composite multi-factor score (weights tunable with `w=`).
     #[serde(default)]
     pub score: CompositeScore,
@@ -646,4 +650,7 @@ pub struct Decision {
     /// Compact numbers kept by the clients to explain a later change of the signal.
     #[serde(default)]
     pub snapshot: DecisionSnapshot,
+    /// « Preuve du modèle »: what the cross-asset validation says about this asset's class and current regime.
+    #[serde(default)]
+    pub model_evidence: ModelEvidence,
 }

@@ -15,7 +15,12 @@ import com.maxlestage.altim.kit.AltimJson
 import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.ui.AltimTheme
 import com.maxlestage.altim.ui.AppBackground
+import com.maxlestage.altim.kit.ModelEvidence
+import com.maxlestage.altim.kit.Rating
 import com.maxlestage.altim.ui.DecisionView
+import com.maxlestage.altim.ui.LocalOpenValidation
+import androidx.compose.runtime.CompositionLocalProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -192,6 +197,57 @@ class DecisionCardTest {
         assertTrue(!has("Espérance par trade"))
         assertTrue(!has("Activité de développement"))
         assertTrue(!has("Flux de stablecoins"))
+        assertTrue(!has("Preuve du modèle"))
+    }
+
+    /**
+     * « Preuve du modèle » under the confidence (real Apple answer with the evidence block the server adds, see the
+     * kit's DecisionTest.modelEvidence) and a lowered rating's reason under the rating; the link opens the validation.
+     */
+    @Test @Config(qualifiers = "w360dp-h1800dp-xhdpi")
+    fun modelEvidenceTop() {
+        val d = sample("decision-evidence.json").copy(
+            rating = Rating.BUY, ratingLabel = "ACHAT",
+            ratingReason = "ACHAT plutôt que ACHAT FORT : la validation du modèle sur les actions et ETF américains (22 actifs) ne montre pas d'avantage du signal (la simple détention a fait mieux sur la plupart des actifs).",
+        )
+        var opens = 0
+        compose.setContent {
+            AltimTheme {
+                AppBackground {
+                    CompositionLocalProvider(LocalOpenValidation provides { opens++ }) {
+                        Box(Modifier.fillMaxWidth().padding(16.dp)) { DecisionView(d, false) }
+                    }
+                }
+            }
+        }
+        compose.waitForIdle()
+        expect(
+            "Preuve du modèle", "bat la détention : 2/22", "la simple détention a fait mieux dans 20 cas sur 22",
+            "Voir la validation du modèle →", "calculée le 29/09 à", "ACHAT plutôt que ACHAT FORT",
+        )
+        // Under the confidence, and the reason under the rating.
+        fun top(t: String) = compose.onAllNodes(hasText(t, substring = true), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInRoot.top
+        assertTrue(top("Preuve du modèle") > top(d.confidenceText.take(30)))
+        assertTrue(top("ACHAT plutôt que") > top("Verdict du plan"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/decision-evidence-top.png")
+        compose.onNode(hasText("Voir la validation du modèle", substring = true)).performClick()
+        assertEquals(1, opens)
+    }
+
+    /** Validation not computed yet: said plainly, no chip, no date. */
+    @Test @Config(qualifiers = "w360dp-h1800dp-xhdpi")
+    fun modelEvidenceNotComputed() {
+        val na = ModelEvidence(
+            available = false, assetClass = "btc", classLabel = "Bitcoin", regimeLabel = "régime inconnu (historique trop court)",
+            text = "Validation pas encore calculée : ouvrez l'écran « Validation du modèle » pour la lancer (quelques minutes).",
+        )
+        show(sample("decision-btc-v2.json").copy(modelEvidence = na), expanded = false)
+        expect("Preuve du modèle", "Validation pas encore calculée", "Voir la validation du modèle →")
+        assertTrue(!has("bat la détention"))
+        assertTrue(!has("calculée le"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/decision-evidence-na.png")
     }
 
     @Test @Config(qualifiers = "w360dp-h9400dp-xhdpi")

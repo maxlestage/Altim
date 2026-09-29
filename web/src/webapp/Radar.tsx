@@ -1,15 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, INTERVAL_LABEL, type BuyAlert, type MacroInfo, type RadarRow, type Sentiment } from "./api";
 import { onLink } from "./router";
-import { assetKey, setState, useAppState, type Interval } from "./store";
+import { assetKey, setState, useAppState, type Interval, type WatchItem } from "./store";
 import { BriefCard } from "./BriefCard";
 import { CompareCard } from "./ToolCards";
-import { ActionBadge, Change, ReliabilityBadge, Segmented, Sparkline } from "./ui";
+import { Change, ReliabilityBadge, Segmented, Sparkline, technicalText } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
-import { VerdictMini } from "./DecisionCard";
+import { DecisionBadge, RATING_RANK, ratingTone } from "./DecisionCard";
 import { formatPrice } from "../market";
-import { cacheDecision, cachedDecision, shortDateTime } from "./decision";
+import { cacheDecision, cachedDecision, shortDateTime, type Decision } from "./decision";
 import { clearTransitions, recordConfiguration, transitionTitle, useTransitions } from "./config-changes";
+
+/** The cached full decision when under 12 h old (like the badge): an older one never sorts nor lists an asset. */
+function freshDecision(w: WatchItem): Decision | undefined {
+  const c = cachedDecision(w.kind, w.symbol);
+  return c && Date.now() - c.at <= 12 * 3_600_000 ? c.decision : undefined;
+}
 import { readDangers } from "./danger-store";
 
 /** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
@@ -53,7 +59,11 @@ export function Radar() {
           const cb = live.ticks[assetKey(b)]?.change ?? rb?.change ?? null;
           return Math.abs(cb ?? -1) - Math.abs(ca ?? -1);
         }
-        return (rb?.signal?.score ?? -1000) - (ra?.signal?.score ?? -1000);
+        // "Décision": the full decision's rating (buy side first), then its confidence.
+        const da = freshDecision(a);
+        const db = freshDecision(b);
+        const rank = (d: typeof da) => (d?.rating ? RATING_RANK[d.rating] : 9);
+        return rank(da) - rank(db) || (db?.confidence ?? 0) - (da?.confidence ?? 0);
       });
 
   const refresh = useCallback(async () => {
@@ -108,6 +118,8 @@ export function Radar() {
   // Decisions of the watched assets (market data only), re-read every 15 minutes: each one goes through the
   // configuration diff (config-changes.ts). A fresher personal decision seen on the asset page stays in the cache.
   const transitions = useTransitions();
+  // The badges read the decisions from the browser's cache: a new one re-renders the list.
+  const [, setDecisionsSeen] = useState(0);
   const [showAll, setShowAll] = useState(false);
   useEffect(() => {
     let alive = true;
@@ -124,6 +136,7 @@ export function Radar() {
             if (!alive) return;
             if (cachedDecision(w.kind, w.symbol)?.personal) recordConfiguration(d, false);
             else cacheDecision(d, false);
+            setDecisionsSeen((n) => n + 1);
           } catch {
             /* unavailable: compared at the next refresh */
           }
@@ -139,10 +152,16 @@ export function Radar() {
   }, [watchlist]);
   const dangers = readDangers();
 
+  const cardTone = (w: WatchItem) => {
+    const d = freshDecision(w);
+    return d ? ratingTone(d.rating, d.verdict) : "";
+  };
+
+  // Assets whose full decision is ACHETER or ZONE D'ACHAT (not the 4 h technical signal alone).
   const opportunities = watchlist
-    .map((w) => rows[assetKey(w)])
-    .filter((r): r is RadarRow => !!r?.signal && r.signal.action !== "hold" && r.signal.confidence >= 40)
-    .sort((a, b) => b.signal!.confidence - a.signal!.confidence)
+    .map((w) => ({ w, d: freshDecision(w) }))
+    .filter((x): x is { w: WatchItem; d: Decision } => !!x.d && (x.d.verdict === "buy" || x.d.verdict === "buyZone"))
+    .sort((a, b) => b.d.confidence - a.d.confidence)
     .slice(0, 3);
 
   return (
@@ -251,14 +270,14 @@ export function Radar() {
                 <a href={`/app/actif/${a.kind}/${a.symbol}`} onClick={onLink} className="opp-row">
                   <b>{a.name}</b>
                   <span className="mono">{a.price != null ? `${formatPrice(a.price)} $` : "—"}</span>
-                  <span className="badge buy">{a.strong ? "ACHAT CONSEILLÉ" : "ACHAT POSSIBLE"}</span>
+                  <span className="badge buy">{a.strong ? "ACHETER" : "ZONE D'ACHAT"}</span>
                 </a>
                 <small className="muted">{[...(a.reasons ?? []), ...(a.cautions ?? [])].join(" ")}</small>
               </li>
             ))}
           </ul>
           <small className="muted">
-            Signal 4 h ACHAT ou prix dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée : la même règle que les notifications des apps. Conseil indicatif.
+            Listés seulement quand la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h ou zone Fibonacci, sans source en désaccord, choc ni zone cassée) : la même règle que les notifications des apps. Conseil indicatif.
           </small>
         </div>
       )}
@@ -266,18 +285,18 @@ export function Radar() {
       {opportunities.length > 0 && (
         <div className="card opportunities">
           <h2 className="card-title">Opportunités détectées</h2>
-          {opportunities.map((r) => (
-            <a key={assetKey(r)} href={`/app/actif/${r.kind}/${r.symbol}`} onClick={onLink} className="opp-row">
-              <b>{r.name}</b>
-              <span className="muted">{Math.round(r.signal!.confidence)} %</span>
-              <ActionBadge action={r.signal!.action} />
+          {opportunities.map(({ w, d }) => (
+            <a key={assetKey(w)} href={`/app/actif/${w.kind}/${w.symbol}`} onClick={onLink} className="opp-row">
+              <b>{w.name}</b>
+              <span className="muted">confiance {Math.round(d.confidence)}</span>
+              <DecisionBadge kind={w.kind} symbol={w.symbol} />
             </a>
           ))}
         </div>
       )}
 
       {watchlist.length > 1 && (
-        <Segmented label="Trier le radar" value={sort} options={[["mine", "Mon ordre"], ["change", "Variation"], ["signal", "Signal"]]} onChange={chooseSort} />
+        <Segmented label="Trier le radar" value={sort} options={[["mine", "Mon ordre"], ["change", "Variation"], ["signal", "Décision"]]} onChange={chooseSort} />
       )}
       <ul className="asset-list">
         {sorted.map((w) => {
@@ -287,7 +306,7 @@ export function Radar() {
           const spark = r?.sparkline?.length && t ? [...r.sparkline, t.price] : (r?.sparkline ?? []);
           return (
             <li key={assetKey(w)}>
-              <a href={`/app/actif/${w.kind}/${w.symbol}`} onClick={onLink} className={`asset-card ${r?.signal ? r.signal.action : ""}`}>
+              <a href={`/app/actif/${w.kind}/${w.symbol}`} onClick={onLink} className={`asset-card ${cardTone(w)}`}>
                 <div className="asset-id">
                   <b>{w.name}</b>
                   <small>{w.symbol} · {w.kind === "crypto" ? "Crypto" : "Action"}</small>
@@ -299,8 +318,10 @@ export function Radar() {
                   {t?.market === "closed" && <small className="market-closed" title="Bourse de New York fermée : dernier cours connu">Bourse fermée</small>}
                 </div>
                 <div className="asset-meta">
-                  {r?.signal ? <ActionBadge action={r.signal.action} /> : r?.error ? <span className="badge hold">INDISPONIBLE</span> : <span className="skeleton-line" />}
-                  <VerdictMini kind={w.kind} symbol={w.symbol} />
+                  <DecisionBadge kind={w.kind} symbol={w.symbol} />
+                  {r?.signal ? (
+                    <small className="muted" title="Signal technique sur bougies de 4 h : un indice parmi d'autres de la décision">technique {INTERVAL_LABEL[interval]} : {technicalText(r.signal.action)}</small>
+                  ) : r?.error ? <small className="muted">signal technique indisponible</small> : <span className="skeleton-line" />}
                   {r?.reliability && <ReliabilityBadge rel={r.reliability} />}
                   {t ? <small className="muted">prix {t.agreeing}/{t.total} sources</small> : r?.priceSources && <small className="muted">prix {r.priceSources} sources</small>}
                 </div>

@@ -150,6 +150,24 @@ export interface DecisionSnapshot {
   nearestSupport: SnapshotLevel | null; nearestResistance: SnapshotLevel | null; newsScore: number | null; topNews: SnapshotNews | null;
 }
 
+/** Verdict of the cross-asset validation (`/api/validation`) on a group of trades. */
+export type ProofVerdict = "insufficient" | "edge" | "negative" | "unproven";
+/**
+ * « Preuve du modèle »: what the cross-asset validation says about the asset's class and the regime it is in now
+ * (validation's rule on the last closed daily candle). `available` false: no report computed yet (text says so).
+ * `weak` (class verdict "negative" or buy-and-hold better on more than two thirds of the class): confidence capped at 60.
+ */
+export interface ModelEvidence {
+  available: boolean; assetClass: "stock" | "btc" | "eth" | "altcoin"; classLabel: string;
+  classVerdict: ProofVerdict | null; classVerdictLabel: string | null;
+  /** Assets of the class tested; those where the signal beat buy-and-hold ("n/m" in beatHold). */
+  assets: number; beatHoldCount: number; beatHold: string | null;
+  trades: number; tStat: number | null;
+  regime: "bull" | "bear" | "range" | "crisis" | "unknown"; regimeLabel: string;
+  regimeVerdict: ProofVerdict | null; regimeTrades: number; regimeTStat: number | null;
+  weak: boolean; text: string; asOf: number | null; link: string;
+}
+
 export interface Decision {
   symbol: string; kind: Kind; name: string; asOf: number; price: number | null;
   mode: "informational" | "personal" | (string & {});
@@ -165,6 +183,9 @@ export interface Decision {
   /** Next 7 days' events (economy, central banks; a stock's earnings, dividends, splits); null: calendar not loaded. */
   events?: CalendarEvent[] | null;
   noTrade?: NoTrade; actionZones?: ActionZones | null; unfolding?: Unfolding | null; counterArgument?: CounterArgument; snapshot?: DecisionSnapshot;
+  /** Why the model's evidence lowered a strong rating (ACHAT FORT → ACHAT, VENTE FORTE → VENDRE); null otherwise. */
+  ratingReason?: string | null;
+  modelEvidence?: ModelEvidence;
 }
 
 // ---------- Runtime check (a wrong answer shows an error instead of a broken card) ----------
@@ -213,6 +234,8 @@ export function parseDecision(raw: unknown): Decision {
   if (ca != null && !Array.isArray(ca.invalidators)) throw bad("counterArgument");
   const sn = d.snapshot as DecisionSnapshot | null | undefined;
   if (sn != null && !Array.isArray(sn.families)) throw bad("snapshot");
+  const me = d.modelEvidence as ModelEvidence | null | undefined;
+  if (me != null && (typeof me.available !== "boolean" || typeof me.text !== "string")) throw bad("modelEvidence");
   return d as unknown as Decision;
 }
 

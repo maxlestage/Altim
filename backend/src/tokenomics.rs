@@ -481,7 +481,7 @@ async fn tvl_and_fees(gecko: &str) -> (Option<f64>, Option<f64>) {
     } else if let Some((_, slug)) = index.parents.iter().find(|p| p.0 == gecko) {
         let s = slug.clone();
         let tvl = cached(&format!("llama:tvl:{s}"), 6 * HOUR, move || async move {
-            Ok(positive(num(Some(&get(&format!("https://api.llama.fi/tvl/{s}")).await?))))
+            Ok(positive(num(Some(&get(&format!("https://api.llama.fi/tvl/{}", crate::guard::encode_uri_component(&s))).await?))))
         })
         .await
         .ok()

@@ -161,8 +161,11 @@ fn prompt_builder() {
     assert_eq!(data["derniereDecision"]["verdict"], "wait");
     let req = build_request("Pourquoi ça baisse ?", &data);
     assert_eq!(req["model"], "claude-sonnet-5-5");
-    assert_eq!(req["max_tokens"], 600);
+    assert_eq!(req["max_tokens"], 1500);
     assert_eq!(req["fallbacks"], "default");
+    // No `between_tools`: the refusal fallback re-runs the request on a model that would reject it.
+    assert!(req.get("thinking").is_none());
+    assert_eq!(req["output_config"]["effort"], "low");
     let sys = req["system"].as_str().unwrap();
     for must in [
         "français",

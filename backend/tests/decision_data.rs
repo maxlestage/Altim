@@ -101,7 +101,14 @@ fn apple_ttm_by_hand() {
 fn ttm_uses_the_annual_figure_or_four_quarters() {
     use fundamentals::{Fact, ttm};
     let d = |s: &str| (chrono::NaiveDate::parse_from_str(s, "%Y-%m-%d").unwrap() - chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()).num_days();
-    let f = |start: &str, end: &str, val: f64| Fact { start: Some(d(start)), end: d(end), val, form: "10-Q".into(), filed: d(end) + 30 };
+    let f = |start: &str, end: &str, val: f64| Fact {
+        start: Some(d(start)),
+        end: d(end),
+        val,
+        form: "10-Q".into(),
+        filed: d(end) + 30,
+        first_filed: d(end) + 30,
+    };
     // Latest filing is a 10-K: the annual figure.
     let facts = vec![f("2025-01-01", "2025-12-31", 400.0), f("2025-10-01", "2025-12-31", 120.0)];
     assert_eq!(ttm(&facts, d("2025-12-31")), Some(400.0));

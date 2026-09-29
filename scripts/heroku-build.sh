@@ -34,7 +34,7 @@ fi
 echo "-----> Altim : aucun buildpack Rust, installation de Rust et compilation du serveur (≈ 5 min)"
 version=$(sed -n 's/^VERSION=//p' RustConfig)
 export RUSTUP_HOME=/tmp/altim-rust/rustup CARGO_HOME=/tmp/altim-rust/cargo CARGO_TARGET_DIR=/tmp/altim-rust/target
-curl -sSf https://sh.rustup.rs | sh -s -- -y --quiet --profile minimal --default-toolchain "$version" --no-modify-path
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --quiet --profile minimal --default-toolchain "$version" --no-modify-path
 "$CARGO_HOME/bin/cargo" build --release --locked --bin altim --manifest-path backend/Cargo.toml
 mkdir -p backend/target/release
 cp "$CARGO_TARGET_DIR/release/altim" backend/target/release/altim

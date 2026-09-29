@@ -65,6 +65,7 @@ import com.maxlestage.altim.kit.Calendar
 import com.maxlestage.altim.kit.Decision
 import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.kit.MarketRegime
+import com.maxlestage.altim.kit.ModelEvidence
 import com.maxlestage.altim.kit.signedScore
 import com.maxlestage.altim.kit.DecisionLevel
 import com.maxlestage.altim.kit.FamilyStatus
@@ -172,6 +173,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
                 fontSize = 13.sp, color = Color.White,
             )
         }
+        d.ratingReason?.takeIf { it.isNotBlank() }?.let { Caption(it) }
         d.marketRegime?.let { RegimeLine(it) }
         d.degraded?.takeIf { it.active }?.let { g ->
             Notice(g.headline + g.reasons.joinToString("") { "\n• $it" }, Tone.BAD)
@@ -184,6 +186,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
 
         Meter("Confiance du modèle", d.confidence, if (d.confidence >= 65) Tone.GOOD else if (d.confidence >= 40) Tone.WARN else Tone.BAD)
         if (d.confidenceText.isNotBlank()) Caption(d.confidenceText)
+        d.modelEvidence?.let { EvidenceLine(it) }
 
         if (d.families.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -333,6 +336,48 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
         // Always visible, never folded.
         Caption(d.disclaimer.ifBlank { "Pas un conseil en investissement réglementé ; Altim ne passe aucun ordre." })
+    }
+}
+
+/**
+ * « Preuve du modèle » (web DecisionCard.tsx `EvidenceLine`): the cross-asset validation of the signal on this asset's
+ * class, next to the confidence, with the link to the « Validation du modèle » screen and the report's date.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun EvidenceLine(e: ModelEvidence) {
+    val accent = when (e.tone) {
+        "edge" -> AltimColors.buy
+        "weak" -> AltimColors.orange
+        "unproven" -> AltimColors.warning
+        else -> AltimColors.textSecondary
+    }
+    val shape = RoundedCornerShape(12.dp)
+    val openValidation = LocalOpenValidation.current
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(shape)
+            .background(Color.White.copy(alpha = 0.03f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(accent))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                Text("Preuve du modèle", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.semantics { heading() })
+                val beat = e.beatHold
+                if (e.available && !beat.isNullOrBlank()) Badge("bat la détention : $beat", Tone.NEUTRAL)
+            }
+            if (e.text.isNotBlank()) Text(e.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = AltimColors.cyan, fontWeight = FontWeight.SemiBold)) { append("Voir la validation du modèle →") }
+                    e.asOf?.let { withStyle(SpanStyle(color = AltimColors.textSecondary)) { append(" · calculée le ${Format.shortDateTime(it)}") } }
+                },
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (openValidation != null) Modifier.clickable(role = Role.Button, onClick = openValidation) else Modifier)
+                    .padding(vertical = 4.dp),
+            )
+        }
     }
 }
 

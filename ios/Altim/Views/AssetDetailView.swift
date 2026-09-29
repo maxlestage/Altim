@@ -145,12 +145,15 @@ struct AssetDetailView: View {
 
     @ViewBuilder private var signalCard: some View {
         if let s = signal?.signal {
-            Card(title: "Signal \(Self.intervals.first { $0.0 == interval }?.1 ?? interval)") {
-                HStack {
-                    ActionBadge(action: s.action)
-                    Spacer()
-                    Text("score \(Int(s.score.rounded())) · confiance \(Int(s.confidence.rounded())) %").font(Theme.mono(13))
-                }
+            // A direction, never a verdict: the only verdict and plan are the Décision card's.
+            Card(title: "Signal technique · \(Self.intervals.first { $0.0 == interval }?.1 ?? interval)") {
+                Text("Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Tendance technique : \(s.action.technicalText)")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(s.action.directionTone == .neutral ? Color.white : Theme.color(s.action.directionTone))
+                Text("score \(Int(s.score.rounded())) · confiance \(Int(s.confidence.rounded())) %").font(Theme.mono(13))
                 Text("Calculé sur les bougies médianes de toutes les sources ; la confiance tient compte de l'accord entre indicateurs et unités de temps.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }

@@ -54,6 +54,12 @@ fn a_shifted_economic_calendar_fails_instead_of_showing_wrong_dates() {
     // Read without the one-day offset, Thursday's jobless claims of `?date=2026-10-02` would land on Friday 2/10.
     let shifted = parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 10, 2));
     assert!(shifted.unwrap_err().0.contains("dates décalées"));
+    // Nasdaq back to answering with the day itself: Thursday's claims read for a plain Wednesday → refused too.
+    assert!(parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 9, 30)).is_err());
+    // A real holiday week: claims on the Wednesday before Thanksgiving (26/11/2026) are accepted.
+    assert!(parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 11, 25)).is_ok());
+    assert!(parse::us_federal_holiday(date(2026, 11, 26)) && !parse::us_federal_holiday(date(2026, 11, 19)));
+    assert!(parse::us_federal_holiday(date(2025, 12, 25)) && parse::us_federal_holiday(date(2026, 1, 1)));
     let ok = parse::economic(&json("nasdaq-economic-2026-10-02.json"), date(2026, 10, 1)).unwrap();
     assert!(ok.iter().any(|e| e.original_name.as_deref() == Some("Initial Jobless Claims") && e.day == "2026-10-01"));
 }

@@ -489,6 +489,12 @@
 .dec-level-label { font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 999px; color: var(--lv); border: 1px solid currentColor; }
 .dec-confidence { flex: 1 1 220px; display: grid; gap: 4px; font-size: 14px; }
 .dec-confidence .weight-track i { background: var(--cyan); }
+.dec-proof { display: grid; gap: 4px; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); border-left: 3px solid var(--muted); background: rgba(255, 255, 255, 0.03); min-width: 0; overflow-wrap: anywhere; }
+.dec-proof p { margin: 0; }
+.dec-proof-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.dec-proof.weak { border-left-color: #ff9f43; }
+.dec-proof.unproven { border-left-color: var(--warn); }
+.dec-proof.edge { border-left-color: var(--buy); }
 .dec-mode { font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px dashed rgba(255, 255, 255, 0.18); color: var(--muted); }
 .dec-mode.personal { border: 1px solid rgba(125, 77, 255, 0.6); color: var(--text); }
 .dec-headline { font-size: 16px; font-weight: 600; line-height: 1.45; }
@@ -861,3 +867,9 @@
 .val-asset-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .val-sym { color: var(--text); text-decoration: none; margin-right: auto; }
 .validation .chip { margin: 0; }
+
+/* The 4 h technical signal as a direction (the verdict is the Décision card's). */
+.tech-dir { font-size: 15px; }
+.tech-dir.up { color: var(--buy); }
+.tech-dir.down { color: var(--sell); }
+.badge.dec-pending { opacity: 0.7; }

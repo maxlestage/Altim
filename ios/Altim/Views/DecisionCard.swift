@@ -18,6 +18,7 @@ struct DecisionCard: View {
             if let t = ConfigChanges.latestChange(model.configChanges.transitions, decision) { ChangeBlockView(transition: t) }
             Meter(label: "Confiance", value: decision.confidence, tone: decision.confidence >= 65 ? .good : decision.confidence >= 40 ? .warn : .bad)
             Text(decision.confidenceText).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let e = decision.modelEvidence { EvidenceBlockView(evidence: e) }
             lights
             modeLine
             if let r = decision.marketRegime { RegimeLine(regime: r) }
@@ -82,6 +83,9 @@ struct DecisionCard: View {
                 (Text("Verdict du plan : ").foregroundStyle(.white.opacity(0.9)) + Text(verdictLabel).bold().foregroundStyle(.white)
                     + Text(" · la note résume verdict, niveau et confiance").foregroundStyle(Theme.textSecondary))
                     .font(.footnote).fixedSize(horizontal: false, vertical: true)
+            }
+            if let why = decision.ratingReason, !why.isEmpty {
+                Text(why).font(.footnote).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
             if let dg = decision.degraded, dg.active { DegradedBanner(degraded: dg) }
             if let nt = decision.noTrade, nt.active { NoTradeBanner(noTrade: nt) }

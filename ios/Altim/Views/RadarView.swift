@@ -1,7 +1,21 @@
 import SwiftUI
 import AltimKit
 
-/// Watch list: live price, signal, reliability of the data, macro context.
+/// Sort of the Radar (web: "Mon ordre", "Variation", "Décision").
+enum RadarSort: String, CaseIterable {
+    case mine, change, decision
+
+    var label: String {
+        switch self {
+        case .mine: return "Mon ordre"
+        case .change: return "Variation"
+        case .decision: return "Décision"
+        }
+    }
+}
+
+/// Watch list: live price, full decision (the technical 4 h signal only as a direction), reliability of the data,
+/// macro context.
 struct RadarView: View {
     @Environment(AppModel.self) private var model
     @State private var rows: [String: RadarRow] = [:]
@@ -10,6 +24,24 @@ struct RadarView: View {
     @State private var loading = false
     @State private var query = ""
     @State private var results: [SearchItem] = []
+    @AppStorage("radar.sort") private var sortRaw = RadarSort.mine.rawValue
+
+    private var sort: RadarSort { RadarSort(rawValue: sortRaw) ?? .mine }
+    private var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
+
+    /// "Décision": the full decision's rating (buy side first), then its confidence; "Variation": the largest move.
+    private var sortedWatchlist: [Asset] {
+        switch sort {
+        case .mine:
+            return model.watchlist
+        case .change:
+            return DecisionDigests.sortByChange(model.watchlist) { a in model.live.price(a)?.change ?? rows[a.id]?.change }
+        case .decision:
+            return DecisionDigests.sortByDecision(model.watchlist, model.decisionDigests, now: nowMs)
+        }
+    }
+
+    private func moveRows(_ from: IndexSet, _ to: Int) { model.watchlist.move(fromOffsets: from, toOffset: to) }
 
     var body: some View {
         List {
@@ -27,21 +59,53 @@ struct RadarView: View {
                 if !model.configChanges.transitions.isEmpty {
                     Section { ConfigChangesCard() }.listRowBackground(Color.clear)
                 }
+                let opportunities = DecisionDigests.opportunities(model.watchlist, model.decisionDigests, now: nowMs)
+                if !opportunities.isEmpty {
+                    Section {
+                        ForEach(opportunities) { o in
+                            NavigationLink(value: o.asset) {
+                                HStack(spacing: 8) {
+                                    Text(o.asset.name).font(.subheadline.bold()).foregroundStyle(.white).lineLimit(1)
+                                    Spacer(minLength: 4)
+                                    Text("confiance \(Int(o.decision.confidence.rounded()))").font(.caption).foregroundStyle(Theme.textSecondary)
+                                    DecisionBadge(asset: o.asset)
+                                }
+                            }
+                            .listRowBackground(Theme.surface.opacity(0.6))
+                        }
+                    } header: {
+                        Text("Opportunités détectées")
+                    }
+                }
+                if model.watchlist.count > 1 {
+                    Section {
+                        Picker("Trier le radar", selection: $sortRaw) {
+                            ForEach(RadarSort.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .listRowBackground(Color.clear)
+                }
                 Section {
-                    ForEach(model.watchlist) { asset in
+                    let shown = sortedWatchlist
+                    ForEach(shown) { asset in
                         NavigationLink(value: asset) { RadarRowView(asset: asset, row: rows[asset.id]) }
                             .listRowBackground(Theme.surface.opacity(0.6))
                     }
-                    .onDelete { model.watchlist.remove(atOffsets: $0) }
-                    .onMove { model.watchlist.move(fromOffsets: $0, toOffset: $1) }
+                    .onDelete { offsets in
+                        let ids = Set(offsets.map { shown[$0].id })
+                        model.watchlist.removeAll { ids.contains($0.id) }
+                    }
+                    // Reordering only in "Mon ordre" (another sort would move the rows back).
+                    .onMove(perform: sort == .mine ? moveRows : nil)
                 } header: {
                     HStack {
-                        Text("Signal 4 h · prix médian de 40 sources")
+                        Text("Décision · prix médian de 40 sources")
                         Spacer()
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Le signal est une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique 4 h n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -156,27 +220,35 @@ struct RadarRowView: View {
 
     var body: some View {
         let tick = model.live.price(asset)
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(asset.symbol).font(Theme.mono(16, weight: .bold)).foregroundStyle(.white)
-                Text(asset.name).font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(asset.symbol).font(Theme.mono(16, weight: .bold)).foregroundStyle(.white)
+                    Text(asset.name).font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                }
+                .frame(minWidth: 70, alignment: .leading)
+                if let spark = row?.sparkline, spark.count > 2 {
+                    Sparkline(values: spark).frame(width: 56, height: 26)
+                }
+                Spacer(minLength: 4)
+                VStack(alignment: .trailing, spacing: 3) {
+                    Text(Format.price(tick?.price ?? row?.price)).font(Theme.mono(14)).foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                        .animation(.default, value: tick?.price)
+                    ChangeText(value: tick?.change ?? row?.change)
+                }
             }
-            .frame(minWidth: 70, alignment: .leading)
-            if let spark = row?.sparkline, spark.count > 2 {
-                Sparkline(values: spark).frame(width: 56, height: 26)
-            }
-            Spacer(minLength: 4)
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(Format.price(tick?.price ?? row?.price)).font(Theme.mono(14)).foregroundStyle(.white)
-                    .contentTransition(.numericText())
-                    .animation(.default, value: tick?.price)
-                ChangeText(value: tick?.change ?? row?.change)
-            }
-            VStack(alignment: .trailing, spacing: 4) {
-                if let s = row?.signal { ActionBadge(action: s.action) } else if row?.error != nil { Badge(text: "INDISPO.", tone: .neutral) }
+            HStack(spacing: 8) {
+                // The verdict: the full decision, never the 4 h technical signal alone.
+                DecisionBadge(asset: asset)
+                if let s = row?.signal {
+                    TechnicalLine(action: s.action, interval: "4 h")
+                } else if row?.error != nil {
+                    Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                }
+                Spacer(minLength: 0)
                 if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
             }
-            .frame(minWidth: 70, alignment: .trailing)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

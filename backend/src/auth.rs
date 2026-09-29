@@ -397,7 +397,8 @@ where
     }
 
     fn call(&mut self, req: Request) -> Self::Future {
-        let key = client_ip(&req).unwrap_or_else(|| "?".into());
+        // IPv6 by /64, like the login limiter: rotating addresses inside one subscriber's /64 doesn't reset it.
+        let key = client_ip(&req).map(|ip| client_key(&ip)).unwrap_or_else(|| "?".into());
         if let Some(res) = self.limit.check(&key, req.method(), req.headers()) {
             return Box::pin(async move { Ok(res) });
         }

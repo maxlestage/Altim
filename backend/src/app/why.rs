@@ -207,12 +207,15 @@ pub async fn ask_route(headers: HeaderMap, body: Bytes) -> ApiResult<Response> {
         Ok(q) => q,
         Err(e) => return bad(e),
     };
-    let report = why_for(&symbol, kind).await?;
+    // Heroku cuts a request at 30 s: 8 s for the data, 18 s for the answer.
+    let report = tokio::time::timeout(Duration::from_secs(8), why_for(&symbol, kind))
+        .await
+        .map_err(|_| ApiError::Upstream("Données de l'actif trop lentes à réunir : réessayez dans un instant".into()))??;
     let decision = last_decision(&symbol, kind).map(|d| decision_summary(&d));
     let data = ask::data_block(&to_value(&*report), decision.as_ref());
     let res = crate::http::CLIENT
         .post(ask::API_URL)
-        .timeout(Duration::from_secs(25))
+        .timeout(Duration::from_secs(18))
         .header("x-api-key", key)
         .header("anthropic-version", ask::API_VERSION)
         .header("anthropic-beta", ask::FALLBACK_BETA)

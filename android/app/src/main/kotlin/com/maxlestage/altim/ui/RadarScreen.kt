@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -29,6 +30,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -41,6 +45,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -58,6 +63,8 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.ConfigChanges
+import com.maxlestage.altim.kit.ConfigSnapshot
+import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.MacroInfo
 import com.maxlestage.altim.kit.RadarRow
@@ -68,11 +75,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
 private const val DECISION_EVERY = 15 * 60_000.0
 
-/** Watch list: live price, signal, reliability of the data, macro context. */
+/** Watch list: live price, full decision (the 4 h technical signal as one input), reliability of the data, macro context. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSettings: () -> Unit = {}) {
@@ -83,6 +91,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchItem>>(emptyList()) }
     var editing by remember { mutableStateOf(false) }
+    var sort by rememberSaveable { mutableStateOf("mine") }
     val scope = rememberCoroutineScope()
 
     suspend fun load() {
@@ -170,14 +179,26 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                     item { ConfigChangesCard(model.configChanges.transitions, open, onClear = { model.clearTransitions() }) }
                 }
                 error?.let { e -> item { ErrorBox(e) { scope.launch { load() } } } }
+                val now = System.currentTimeMillis().toDouble()
+                // Assets whose full decision is ACHETER or ZONE D'ACHAT (not the 4 h technical signal alone).
+                val opportunities = RadarDecisions.opportunities(model.watchlist, model.configChanges, now)
+                if (opportunities.isNotEmpty()) item { OpportunitiesCard(opportunities, open) }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Caption("SIGNAL 4 H · PRIX MÉDIAN DE 40 SOURCES", Modifier.weight(1f))
+                        Caption("DÉCISION · PRIX MÉDIAN DE 40 SOURCES", Modifier.weight(1f))
                         LiveBadge(model.live)
                     }
                 }
+                if (model.watchlist.size > 1 && !editing) item { SortChoice(sort) { sort = it } }
                 if (loading && rows.isEmpty()) item { Loading("Analyse des marchés…") }
-                items(model.watchlist, key = { it.id }) { asset ->
+                val shown = when {
+                    editing || sort == "mine" -> model.watchlist
+                    // Largest move first, whatever its direction; no price last.
+                    sort == "change" -> model.watchlist.sortedByDescending { a -> abs(model.live.price(a)?.change ?: rows[a.id]?.change ?: -1.0) }
+                    // "Décision": the full decision's rating (buy side first), then its confidence.
+                    else -> RadarDecisions.sorted(model.watchlist, model.configChanges, now)
+                }
+                items(shown, key = { it.id }) { asset ->
                     val index = model.watchlist.indexOf(asset)
                     val dismiss = rememberSwipeToDismissBoxState()
                     LaunchedEffect(dismiss.currentValue) {
@@ -208,7 +229,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                     }
                 }
                 item {
-                    Caption("Le signal est une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Caption("La décision est une probabilité mesurée sur l'historique, jamais une certitude ; le signal technique 4 h n'en est qu'un indice parmi d'autres. Glissez vers la gauche pour retirer un actif.")
                 }
                 if (model.watchlist.size >= 2) item { CompareCard(model) }
             }
@@ -218,6 +239,41 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
 
 @Composable
 private fun Caption(text: String, modifier: Modifier) = Text(text, color = AltimColors.textSecondary, fontSize = 12.sp, modifier = modifier)
+
+/** "Trier le radar": the user's order, the largest move, or the full decision. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SortChoice(sort: String, onChange: (String) -> Unit) {
+    val options = listOf("mine" to "Mon ordre", "change" to "Variation", "signal" to "Décision")
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Trier le radar" }) {
+        options.forEachIndexed { i, (k, label) ->
+            SegmentedButton(
+                selected = sort == k,
+                onClick = { onChange(k) },
+                shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
+            ) { Text(label, maxLines = 1) }
+        }
+    }
+}
+
+/** The watched assets whose full decision says ACHETER or ZONE D'ACHAT, most confident first. */
+@Composable
+private fun OpportunitiesCard(items: List<Pair<Asset, ConfigSnapshot>>, open: (Asset) -> Unit) {
+    Card(title = "Opportunités détectées") {
+        items.forEach { (a, d) ->
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(a) },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(a.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                d.confidence?.let { Text("confiance ${Math.round(it)}", color = AltimColors.textSecondary, fontSize = 12.sp) }
+                DecisionBadge(d)
+            }
+        }
+    }
+}
 
 @Composable
 private fun SearchRow(item: SearchItem, watched: Boolean, onClick: () -> Unit) {
@@ -238,26 +294,31 @@ private fun SearchRow(item: SearchItem, watched: Boolean, onClick: () -> Unit) {
 @Composable
 fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifier = Modifier) {
     val tick = model.live.price(asset)
-    Row(
+    val decision = model.radarDecision(asset)
+    Column(
         modifier.clip(RoundedCornerShape(14.dp)).background(AltimColors.surface).padding(horizontal = 14.dp, vertical = 12.dp)
             .semantics(mergeDescendants = true) { contentDescription = "${asset.name}, ${Format.price(tick?.price ?: row?.price)}" },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(Modifier.widthIn(min = 70.dp).weight(1f)) {
-            Text(asset.symbol, style = mono(16.sp, FontWeight.Bold))
-            Text(asset.name, color = AltimColors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.widthIn(min = 70.dp).weight(1f)) {
+                Text(asset.symbol, style = mono(16.sp, FontWeight.Bold))
+                Text(asset.name, color = AltimColors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            row?.sparkline?.takeIf { it.size > 2 }?.let { Sparkline(it, Modifier.width(56.dp).height(26.dp)) }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(Format.price(tick?.price ?: row?.price), style = mono(14.sp))
+                ChangeText(tick?.change ?: row?.change)
+            }
+            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(min = 70.dp)) {
+                // The verdict is the full decision's; the 4 h technical signal is only one of its inputs (line below).
+                DecisionBadge(decision)
+                row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
+            }
         }
-        row?.sparkline?.takeIf { it.size > 2 }?.let { Sparkline(it, Modifier.width(56.dp).height(26.dp)) }
-        Column(horizontalAlignment = Alignment.End) {
-            Text(Format.price(tick?.price ?: row?.price), style = mono(14.sp))
-            ChangeText(tick?.change ?: row?.change)
-        }
-        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(min = 70.dp)) {
-            val s = row?.signal
-            if (s != null) ActionBadge(s.action) else if (row?.error != null) Badge("INDISPO.", Tone.NEUTRAL)
-            row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
-        }
+        val s = row?.signal
+        if (s != null) TechnicalText(s.action)
+        else if (row?.error != null) Text("signal technique indisponible", color = AltimColors.textSecondary, fontSize = 11.sp)
     }
 }
 

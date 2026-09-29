@@ -260,7 +260,8 @@ export function isJournalState(v: unknown): v is JournalState {
   const s = v as JournalState;
   return !!s && s.version === 1 && Array.isArray(s.entries) && s.entries.every(
     (e) => !!e && typeof e.id === "string" && typeof e.symbol === "string" && (e.kind === "crypto" || e.kind === "stock")
-      && (e.side === "buy" || e.side === "sell") && Number.isFinite(e.createdAt) && Number.isFinite(e.price) && e.price > 0 && !!e.market,
+      && (e.side === "buy" || e.side === "sell") && Number.isFinite(e.createdAt) && Number.isFinite(e.price) && e.price > 0 && !!e.market
+      && Array.isArray(e.targets) && e.targets.every((t) => Number.isFinite(t)),
   );
 }
 

@@ -37,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -50,12 +51,15 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maxlestage.altim.data.LivePrices
 import com.maxlestage.altim.kit.Action
+import com.maxlestage.altim.kit.ConfigSnapshot
 import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.delay
 
@@ -95,8 +99,20 @@ fun Badge(text: String, tone: Tone, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * The full decision's verdict (the asset's Décision card) as seen on this phone less than 12 h ago; "Décision…" while
+ * none is known. The 4 h technical signal is never shown as a verdict: see [TechnicalText].
+ */
 @Composable
-fun ActionBadge(action: Action) = Badge(action.label, action.tone)
+fun DecisionBadge(snapshot: ConfigSnapshot?, modifier: Modifier = Modifier) {
+    if (snapshot == null) Badge("Décision…", Tone.NEUTRAL, modifier.alpha(0.7f))
+    else Badge(RadarDecisions.label(snapshot), RadarDecisions.tone(snapshot), modifier)
+}
+
+/** « technique 4 h : haussier »: the technical signal as a small direction, one input of the decision. */
+@Composable
+fun TechnicalText(action: Action, interval: String = "4 h", modifier: Modifier = Modifier) =
+    Text("technique $interval : ${RadarDecisions.technicalText(action)}", color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
 
 @Composable
 fun ChangeText(value: Double?) {

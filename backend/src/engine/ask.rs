@@ -5,9 +5,9 @@
 //! when the data does not say. Network, key and rate limit live in `app::why`.
 use serde_json::{Value, json};
 
-/// Model and output budget (a short answer: ≈ 600 tokens, a few cents at most per question).
+/// Model and output budget (a short answer after a brief thinking pass: a few cents at most per question).
 pub const MODEL: &str = "claude-sonnet-5-5";
-pub const MAX_TOKENS: u32 = 600;
+pub const MAX_TOKENS: u32 = 1500;
 pub const API_URL: &str = "https://api.anthropic.com/v1/messages";
 pub const API_VERSION: &str = "2023-06-01";
 /// Server-side fallback on a refusal (Claude API only).
@@ -56,8 +56,9 @@ pub fn build_request(question: &str, data: &Value) -> Value {
     json!({
         "model": MODEL,
         "max_tokens": MAX_TOKENS,
-        // A short factual answer: no thinking pass (it would eat the small output budget).
-        "thinking": { "type": "between_tools" },
+        // A short factual answer: default (adaptive) thinking at low effort. Not `between_tools`: only this model
+        // accepts it, and the refusal fallback re-runs the same request on another model.
+        "output_config": { "effort": "low" },
         "fallbacks": "default",
         "system": SYSTEM,
         "messages": [{ "role": "user", "content": user }],

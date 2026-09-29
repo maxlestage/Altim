@@ -16,13 +16,19 @@ pub async fn strategies_for(symbol: &str, kind: Kind) -> Result<Arc<StrategiesRe
             Kind::Crypto => None,
             Kind::Stock => Some(crate::fundamentals::per_history(&s, &hist.candles).await),
         };
-        let input = match &per {
-            None => PerInput::NotApplicable,
-            Some(Ok((series, source))) => PerInput::Series(series, source.clone()),
-            Some(Err(e)) => PerInput::Missing(format!("PER indisponible ({e})")),
-        };
-        compare(&s, kind, &hist.candles, &hist.source, input, now_ms())
-            .ok_or_else(|| Error(format!("historique journalier trop court ({} bougies, il en faut 260)", hist.candles.len())))
+        // Pure CPU (the value strategy's percentiles are O(n²)): off the async workers.
+        let n = hist.candles.len();
+        let report = tokio::task::spawn_blocking(move || {
+            let input = match &per {
+                None => PerInput::NotApplicable,
+                Some(Ok((series, source))) => PerInput::Series(series, source.clone()),
+                Some(Err(e)) => PerInput::Missing(format!("PER indisponible ({e})")),
+            };
+            compare(&s, kind, &hist.candles, &hist.source, input, now_ms())
+        })
+        .await
+        .map_err(|e| Error(format!("calcul interrompu ({e})")))?;
+        report.ok_or_else(|| Error(format!("historique journalier trop court ({n} bougies, il en faut 260)")))
     })
     .await
 }

@@ -183,3 +183,83 @@ pub fn buy_alert(a: &AlertInput) -> BuyAlert {
     };
     BuyAlert { buy, strong, key: if buy { parts.join("+") } else { String::new() }, reasons, blockers, cautions, title, body }
 }
+
+/// What the full decision (`/api/decision`) says of the asset, to keep the notifications and the brief consistent with
+/// the decision card: its verdict, label ("ATTENDRE") and first reason to wait (or its headline).
+#[derive(Debug, Clone, PartialEq)]
+pub struct DecisionGate {
+    pub verdict: super::decision_types::Verdict,
+    pub label: String,
+    pub reason: String,
+}
+
+/// The alert once checked against the full decision. The quick rule above (4 h signal, buy zone, guard) only
+/// proposes; a buy is announced only when the decision itself is ACHETER or ZONE D'ACHAT — otherwise the decision's
+/// own reason becomes the first blocker. Without a decision (not computed in time), no buy is announced either.
+pub fn with_decision(mut alert: BuyAlert, symbol: &str, gate: Option<&DecisionGate>) -> BuyAlert {
+    use super::decision_types::Verdict;
+    let blocker = match gate {
+        Some(g) if matches!(g.verdict, Verdict::Buy | Verdict::BuyZone) => {
+            // The badge and the title follow the decision: ACHETER (conseillé) or ZONE D'ACHAT (possible).
+            let strong = g.verdict == Verdict::Buy;
+            let from = if alert.strong { "achat conseillé" } else { "achat possible" };
+            alert.title = alert.title.replacen(from, if strong { "achat conseillé" } else { "achat possible" }, 1);
+            alert.strong = strong;
+            alert.key = format!("{}:{}", alert.key, if strong { "acheter" } else { "zone" });
+            alert.reasons.push(format!("Décision complète : {}.", g.label));
+            return alert;
+        }
+        Some(g) => format!("La décision complète dit {} : {}.", g.label, g.reason.trim().trim_end_matches('.')),
+        // Never announce a buy the full decision has not confirmed: the next pass (decision warmed by then) decides.
+        None => "Décision complète pas encore calculée : aucun achat n'est annoncé tant qu'elle ne l'a pas confirmé.".into(),
+    };
+    alert.blockers.insert(0, blocker.clone());
+    alert.buy = false;
+    alert.strong = false;
+    alert.key = String::new();
+    alert.title = format!("{symbol} : pas d'achat pour l'instant");
+    alert.body = blocker;
+    alert
+}
+
+#[cfg(test)]
+mod decision_gate_tests {
+    use super::*;
+    use crate::engine::decision_types::Verdict;
+
+    fn buy() -> BuyAlert {
+        BuyAlert {
+            buy: true,
+            strong: true,
+            reasons: vec!["Signal ACHAT en 4 h (confiance 70 %).".into()],
+            blockers: vec![],
+            cautions: vec![],
+            key: "signal+zone:medium".into(),
+            title: "BTC : achat conseillé à 83 000 $".into(),
+            body: "…".into(),
+        }
+    }
+
+    #[test]
+    fn a_wait_decision_cancels_the_buy() {
+        let g = DecisionGate { verdict: Verdict::Wait, label: "ATTENDRE".into(), reason: "Prix au-dessus de la zone d'achat".into() };
+        let a = with_decision(buy(), "BTC", Some(&g));
+        assert!(!a.buy && !a.strong && a.key.is_empty());
+        assert_eq!(a.title, "BTC : pas d'achat pour l'instant");
+        assert_eq!(a.body, "La décision complète dit ATTENDRE : Prix au-dessus de la zone d'achat.");
+        assert_eq!(a.blockers[0], a.body);
+    }
+
+    #[test]
+    fn a_buy_decision_confirms_and_a_missing_one_blocks() {
+        let g = DecisionGate { verdict: Verdict::BuyZone, label: "ZONE D'ACHAT".into(), reason: String::new() };
+        let a = with_decision(buy(), "BTC", Some(&g));
+        assert!(a.buy && a.reasons.last().unwrap() == "Décision complète : ZONE D'ACHAT.");
+        assert!(!a.strong && a.title == "BTC : achat possible à 83 000 $" && a.key == "signal+zone:medium:zone");
+        let g = DecisionGate { verdict: Verdict::Buy, label: "ACHETER".into(), reason: String::new() };
+        let a = with_decision(BuyAlert { strong: false, title: "BTC : achat possible à 83 000 $".into(), ..buy() }, "BTC", Some(&g));
+        assert!(a.strong && a.title == "BTC : achat conseillé à 83 000 $");
+        let a = with_decision(buy(), "BTC", None);
+        assert!(!a.buy && a.blockers[0].starts_with("Décision complète pas encore calculée"));
+    }
+}

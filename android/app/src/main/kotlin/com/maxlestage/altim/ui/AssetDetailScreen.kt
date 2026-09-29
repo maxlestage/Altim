@@ -54,6 +54,7 @@ import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.GuardFactor
 import com.maxlestage.altim.kit.GuardReport
 import com.maxlestage.altim.kit.MacroInfo
+import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.RadarRow
 import com.maxlestage.altim.kit.Snapshot
 import com.maxlestage.altim.kit.Tone
@@ -182,11 +183,16 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 }
             }
             signal?.signal?.let { s ->
-                Card(title = "Signal ${INTERVALS.first { it.first == interval }.second}") {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ActionBadge(s.action)
-                        Text("score ${Math.round(s.score)} · confiance ${Math.round(s.confidence)} %", style = mono(13.sp), modifier = Modifier.weight(1f), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    }
+                // A direction, not a verdict: the only verdict and plan (stop, target) are the Décision card's.
+                Card(title = "Signal technique · ${INTERVALS.first { it.first == interval }.second}") {
+                    Caption("Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.")
+                    val direction = RadarDecisions.technicalTone(s.action)
+                    Text(
+                        "Tendance technique : ${RadarDecisions.technicalText(s.action)}",
+                        color = if (direction == Tone.NEUTRAL) Color.White else AltimColors.of(direction),
+                        fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    )
+                    Text("score ${Math.round(s.score)} · confiance ${Math.round(s.confidence)} %", style = mono(13.sp), color = AltimColors.textSecondary)
                     Caption("Calculé sur les bougies médianes de toutes les sources ; la confiance tient compte de l'accord entre indicateurs et unités de temps.")
                 }
             }
