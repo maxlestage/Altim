@@ -179,7 +179,7 @@ fun ValidationView(
 }
 
 @Composable
-private fun Label(text: String) =
+internal fun Label(text: String) =
     Text(text, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White, modifier = Modifier.padding(top = 8.dp).semantics { heading() })
 
 /** Wrapping filter chips, one of them chosen. */
@@ -193,7 +193,7 @@ private fun <T> Chips(description: String, options: List<Pair<T, String>>, value
 }
 
 @Composable
-private fun Bulleted(items: List<String>) {
+internal fun Bulleted(items: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         items.forEach { t ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -206,7 +206,7 @@ private fun Bulleted(items: List<String>) {
 
 /** Verdict of a group as a chip that wraps (long labels on a narrow phone). */
 @Composable
-private fun VerdictChip(verdict: String, label: String) {
+internal fun VerdictChip(verdict: String, label: String) {
     val c = AltimColors.of(ModelValidation.verdictTone(verdict))
     val shape = RoundedCornerShape(12.dp)
     Text(
@@ -255,7 +255,7 @@ private fun HeadCard(r: ValidationReport) {
 }
 
 @Composable
-private fun Tile(label: String, value: String) {
+internal fun Tile(label: String, value: String) {
     val shape = RoundedCornerShape(12.dp)
     Column(
         Modifier.clip(shape).background(Color.White.copy(alpha = 0.05f)).padding(horizontal = 10.dp, vertical = 6.dp).semantics(mergeDescendants = true) {},
