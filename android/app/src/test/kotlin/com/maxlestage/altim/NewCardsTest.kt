@@ -22,6 +22,7 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.data.SecretStore
 import com.maxlestage.altim.data.SecureStore
+import com.maxlestage.altim.kit.Action
 import com.maxlestage.altim.kit.AltimJson
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.CalendarReport
@@ -34,10 +35,13 @@ import com.maxlestage.altim.kit.DecisionLevel
 import com.maxlestage.altim.kit.Holding
 import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.kit.PortfolioRisk
+import com.maxlestage.altim.kit.RadarRow
+import com.maxlestage.altim.kit.Rating
 import com.maxlestage.altim.kit.RiskPortfolio
 import com.maxlestage.altim.kit.RiskSettings
 import com.maxlestage.altim.kit.SectorItem
 import com.maxlestage.altim.kit.SectorLine
+import com.maxlestage.altim.kit.SignalSummary
 import com.maxlestage.altim.kit.Sectors
 import com.maxlestage.altim.kit.Verdict
 import com.maxlestage.altim.ui.AgendaUi
@@ -47,6 +51,7 @@ import com.maxlestage.altim.ui.ConfigChangesCard
 import com.maxlestage.altim.ui.DangerBlock
 import com.maxlestage.altim.ui.DangersNotice
 import com.maxlestage.altim.ui.LimitsCard
+import com.maxlestage.altim.ui.RadarRowView
 import com.maxlestage.altim.ui.RiskBanners
 import com.maxlestage.altim.ui.SettingsScreen
 import com.maxlestage.altim.ui.SectorExposureCard
@@ -310,5 +315,29 @@ class NewCardsTest {
         assertEquals(listOf(Verdict.BUY), again.configChanges.transitions.map { it.to.verdict })
         again.clearTransitions()
         assertTrue(AppModel(app, NewCardsMemory()).configChanges.transitions.isEmpty())
+    }
+
+    /**
+     * Radar row: the chip is the full decision (ATTENDRE), the 4 h technical signal only a small direction next to it, so
+     * « ACHAT » never sits beside « ATTENDRE »; an asset without a recent decision reads "Décision…".
+     */
+    @Test fun radarRowShowsTheFullDecision() {
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        app.getSharedPreferences("altim", Context.MODE_PRIVATE).edit().clear().commit()
+        val model = AppModel(app, NewCardsMemory())
+        val now = System.currentTimeMillis().toDouble()
+        model.recordDecision(decision("decision-btc.json").copy(verdict = Verdict.WAIT, label = "ATTENDRE", rating = Rating.HOLD, ratingLabel = "ATTENDRE"), personal = false, now = now)
+        val btc = Asset("BTC", Kind.CRYPTO, "Bitcoin")
+        val eth = Asset("ETH", Kind.CRYPTO, "Ethereum")
+        screen {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                RadarRowView(model, btc, RadarRow("BTC", Kind.CRYPTO, price = 64_000.0, change = 1.2, signal = SignalSummary(Action.BUY, 42.0, 61.0)))
+                RadarRowView(model, eth, RadarRow("ETH", Kind.CRYPTO, price = 3_100.0, change = -0.4, signal = SignalSummary(Action.STRONG_SELL, -60.0, 70.0)))
+            }
+        }
+        expect("ATTENDRE", "technique 4 h : haussier", "Décision…", "technique 4 h : nettement baissier")
+        assertTrue(!has("ACHAT") && !has("VENTE"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/new-radar-decision.png")
     }
 }

@@ -13,6 +13,7 @@ pub mod guidance;
 pub mod history;
 pub mod macro_ctx;
 pub mod metrics;
+pub mod model_evidence;
 pub mod news;
 pub mod news_summary;
 pub mod opportunities;

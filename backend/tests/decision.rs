@@ -7,9 +7,11 @@ use altim::engine::decision::{DecisionInput, ExposureInput, HoldingSeries, Marke
 use altim::engine::decision_types::*;
 use altim::engine::guard::{GuardInput, GuardResult, NewsItem, guard};
 use altim::engine::macro_ctx::{MacroFactor, MacroLevel, MacroReport, MacroValue, MacroValues};
+use altim::engine::model_evidence::{EVIDENCE_CAP, NOT_COMPUTED};
 use altim::engine::reliability::{Reliability, assess_quality, reliability};
 use altim::engine::structure::Benchmark;
 use altim::engine::synthesis::{DEGRADED_DATA_HEADLINE, DEGRADED_HEADLINE, DEGRADED_RECORD_HEADLINE, Rating, RegimeKind, ScoreWeights};
+use altim::engine::validation::{AssetClass, ValidationReport, Verdict as Proof};
 use altim::types::{Candle, DAY_MS, Interval, Kind};
 use common::{INPUTS, find, now};
 
@@ -62,6 +64,7 @@ fn input<'a>(symbol: &'a str, s: &'a Series, g: Option<&'a GuardResult>, t: i64)
         benchmarks: vec![],
         score_weights: None,
         events: None,
+        validation: None,
     }
 }
 
@@ -165,6 +168,7 @@ fn assert_coherent(d: &Decision, what: &str) {
     let st = d.structure.as_ref().expect("structure");
     assert!(st.levels.iter().all(|l| l.touches >= 2), "{what}");
     assert_guidance(d, what);
+    assert_evidence(d, what);
     // Round trip through the contract.
     let json = serde_json::to_string(d).unwrap();
     let back: Decision = serde_json::from_str(&json).unwrap();
@@ -235,6 +239,35 @@ fn assert_guidance(d: &Decision, what: &str) {
     assert_eq!(sn.momentum, d.families.iter().find(|f| f.key == "momentum").and_then(|f| f.score), "{what}");
     assert_eq!(sn.nearest_resistance.as_ref().map(|l| l.price), st_price(d, true), "{what}");
     assert_eq!(sn.nearest_support.as_ref().map(|l| l.price), st_price(d, false), "{what}");
+}
+
+/// « Preuve du modèle »: consistent figures, a con whenever the validation shows no edge, the cap when weak, no
+/// strong rating without an edge, nothing at all without a cached report.
+fn assert_evidence(d: &Decision, what: &str) {
+    let e = &d.model_evidence;
+    assert_eq!(e.link, "/app/validation", "{what}");
+    assert!(!e.text.is_empty(), "{what}");
+    let con = d.cons.iter().any(|c| c.starts_with("Le signal n'a pas démontré d'avantage sur cette classe d'actifs (validation sur "));
+    if !e.available {
+        assert!(e.class_verdict.is_none() && e.beat_hold.is_none() && !e.weak, "{what}: {e:?}");
+        assert!(!con && d.rating_reason.is_none() && !d.confidence_text.contains("plafonnée"), "{what}");
+        return;
+    }
+    let v = e.class_verdict.expect("class verdict");
+    assert!(e.as_of.is_some() && e.assets > 0, "{what}");
+    assert_eq!(e.beat_hold.as_deref(), Some(format!("{}/{}", e.beat_hold_count, e.assets).as_str()), "{what}");
+    assert_eq!(e.weak, v == Proof::Negative || e.beat_hold_count * 3 < e.assets, "{what}");
+    let edge = v == Proof::Edge && !e.weak;
+    assert_eq!(con, !edge, "{what}: {:?}", d.cons);
+    if e.weak {
+        assert!(d.confidence <= EVIDENCE_CAP, "{what}: {}", d.confidence);
+    }
+    if !edge {
+        assert!(!matches!(d.rating, Rating::StrongBuy | Rating::StrongSell), "{what}: {:?}", d.rating);
+    }
+    if let Some(r) = &d.rating_reason {
+        assert!(matches!(d.rating, Rating::Buy | Rating::Sell) && r.contains("validation du modèle"), "{what}: {r}");
+    }
 }
 
 fn st_price(d: &Decision, resistance: bool) -> Option<f64> {
@@ -1096,4 +1129,129 @@ fn action_zones_and_watched_scenarios() {
     let c = &d.counter_argument;
     assert!(c.invalidators.iter().any(|i| i.kind == "volume" && i.text.contains("1,5 × la moyenne 20 j")), "{c:?}");
     assert!(c.unfavourable > 0);
+}
+
+// ---------- « Preuve du modèle » ----------
+
+fn validation_sample() -> ValidationReport {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/validation.json");
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// Without a cached report nothing changes (checked against the previous engine's output when this was added); with
+/// the saved real run, each class is told honestly and the confidence is only ever lowered.
+#[test]
+fn model_evidence_from_the_saved_validation() {
+    let t = now();
+    let report = validation_sample();
+    for (sym, class, weak) in [
+        ("BTC", AssetClass::Btc, true),
+        ("ETH", AssetClass::Eth, true),
+        ("SOL", AssetClass::Altcoin, false),
+        ("DOGE", AssetClass::Altcoin, false),
+        ("AAPL", AssetClass::Stock, true),
+        ("NVDA", AssetClass::Stock, true),
+        ("SPY", AssetClass::Stock, true),
+    ] {
+        let s = real(sym);
+        let g = guard_of(&s, t);
+        let without = decide(&input(sym, &s, Some(&g), t));
+        let e = &without.model_evidence;
+        assert!(!e.available && e.text == NOT_COMPUTED && e.as_of.is_none() && e.asset_class == class, "{sym}: {e:?}");
+        assert!(without.rating_reason.is_none());
+        let mut i = input(sym, &s, Some(&g), t);
+        i.validation = Some(&report);
+        let d = decide(&i);
+        assert_coherent(&d, sym);
+        let e = &d.model_evidence;
+        let group = report.classes.iter().find(|c| c.id == class.id()).unwrap();
+        assert!(e.available && e.asset_class == class && e.as_of == Some(report.as_of), "{sym}: {e:?}");
+        assert_eq!((e.class_verdict, e.t_stat, e.trades, e.assets), (Some(group.verdict), group.pooled.t_stat, group.pooled.trades, group.assets));
+        assert_eq!(e.weak, weak, "{sym}");
+        // The regime is the one the validation's rule gives on the last closed daily candle, same for both.
+        assert_eq!(e.regime, without.model_evidence.regime, "{sym}");
+        let known = e.regime != altim::engine::backtest::Regime::Unknown;
+        assert_eq!(e.regime_verdict, group.regimes.iter().find(|r| known && r.regime == e.regime).map(|r| r.verdict), "{sym}");
+        // Same verdict; confidence capped at 60 when weak, else unchanged; never raised.
+        assert_eq!(d.verdict, without.verdict, "{sym}");
+        let expected = if weak { without.confidence.min(EVIDENCE_CAP) } else { without.confidence };
+        assert_eq!(d.confidence, expected, "{sym}");
+        assert_eq!(d.confidence_text.contains("plafonnée à 60"), without.confidence > EVIDENCE_CAP && weak, "{sym}: {}", d.confidence_text);
+        assert!(d.cons.last().unwrap().contains(&format!("(validation sur {} actif", group.assets)), "{sym}: {:?}", d.cons);
+        assert!(e.text.ends_with("Résultats passés, sans garantie pour la suite."), "{sym}: {}", e.text);
+        if class == AssetClass::Stock {
+            // Stocks: positive mean per trade (t ≈ 2,2) but holding did better on 20 of the 22.
+            assert!(
+                e.text.starts_with(
+                    "Sur les actions et ETF testés (22), gain moyen positif par trade (t = 2,2) mais la simple détention a fait mieux dans 20 cas sur 22 ; en "
+                ),
+                "{}",
+                e.text
+            );
+            assert_eq!(e.beat_hold.as_deref(), Some("2/22"));
+        }
+        if class == AssetClass::Altcoin {
+            assert!(
+                e.text.starts_with("Sur les altcoins testés (10), avantage par trade non démontré (t = −1,6) ; la simple détention a fait mieux dans 6 cas sur 10 ; en "),
+                "{}",
+                e.text
+            );
+        }
+        println!("{sym}: {}", e.text);
+        let back: Decision = serde_json::from_str(&serde_json::to_string(&d).unwrap()).unwrap();
+        assert_eq!(back.model_evidence, d.model_evidence);
+    }
+}
+
+/// Hand-made reports: a weak class caps the confidence and removes "ACHAT FORT" (with the reason), an unproven one
+/// Hand-made class verdicts on real candles (NVDA, confidence above 60 without validation): an edge changes nothing,
+/// an unproven class adds the con without a cap, a weak one (holding better on more than two thirds, or a negative
+/// verdict) caps the confidence at 60 and says so. (The strong-rating downgrade is unit-tested in `model_evidence`.)
+#[test]
+fn model_evidence_caps_only_weak_classes() {
+    let t = now();
+    let s = real("NVDA");
+    let g = guard_of(&s, t);
+    let base = decide(&input("NVDA", &s, Some(&g), t));
+    assert!(base.confidence > EVIDENCE_CAP, "{}", base.confidence);
+    let with = |verdict: Proof, beat: usize, assets: usize| {
+        let mut r = validation_sample();
+        let c = r.classes.iter_mut().find(|c| c.id == "stock").unwrap();
+        (c.verdict, c.beat_hold, c.assets) = (verdict, beat, assets);
+        r
+    };
+    let run = |r: &ValidationReport| {
+        let mut i = input("NVDA", &s, Some(&g), t);
+        i.validation = Some(r);
+        let d = decide(&i);
+        assert_coherent(&d, "NVDA");
+        d
+    };
+    // Edge, beating holding on half the assets: nothing changes but the evidence itself.
+    let d = run(&with(Proof::Edge, 5, 10));
+    assert!(d.model_evidence.available && !d.model_evidence.weak);
+    let mut same = d.clone();
+    same.model_evidence = base.model_evidence.clone();
+    assert_eq!(same, base, "an edge never changes the decision");
+    // Unproven, not weak: the con only.
+    let d = run(&with(Proof::Unproven, 5, 10));
+    assert_eq!((d.verdict, d.confidence, d.level, d.rating), (base.verdict, base.confidence, base.level, base.rating));
+    assert!(d.cons.iter().any(|c| c == "Le signal n'a pas démontré d'avantage sur cette classe d'actifs (validation sur 10 actifs)"), "{:?}", d.cons);
+    assert_eq!(d.cons.len(), base.cons.len() + 1);
+    // Insufficient: the con only.
+    let d = run(&with(Proof::Insufficient, 4, 10));
+    assert_eq!(d.confidence, base.confidence);
+    assert!(d.model_evidence.text.contains("trop peu de trades"), "{}", d.model_evidence.text);
+    // Edge per trade but holding did better on 8 of 10 (beat < a third): weak, capped at 60.
+    let d = run(&with(Proof::Edge, 2, 10));
+    assert!(d.model_evidence.weak);
+    assert_eq!((d.verdict, d.confidence), (base.verdict, EVIDENCE_CAP));
+    assert!(d.confidence_text.contains(&format!("plafonnée à 60 (au lieu de {})", base.confidence)), "{}", d.confidence_text);
+    assert!(d.cons.iter().any(|c| c.ends_with("(validation sur 10 actifs : la simple détention a fait mieux dans 8 cas)")), "{:?}", d.cons);
+    // Exactly a third is not weak.
+    assert!(!run(&with(Proof::Unproven, 3, 9)).model_evidence.weak);
+    // Negative: weak even when it beat holding everywhere.
+    let d = run(&with(Proof::Negative, 10, 10));
+    assert!(d.model_evidence.weak && d.confidence == EVIDENCE_CAP);
+    assert!(d.model_evidence.text.contains("perte moyenne par trade"), "{}", d.model_evidence.text);
 }

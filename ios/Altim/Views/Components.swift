@@ -37,9 +37,37 @@ struct Badge: View {
     }
 }
 
-struct ActionBadge: View {
+/// The verdict of an asset outside its page: the full decision (the same as its Décision card), seen on this iPhone
+/// less than 12 h ago; "Décision…" until then. The 4 h technical signal is only one of its inputs (web DecisionBadge).
+struct DecisionBadge: View {
+    @Environment(AppModel.self) private var model
+    var asset: Asset
+
+    var body: some View {
+        if let d = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000) {
+            Badge(text: d.badgeLabel, tone: d.tone)
+                .accessibilityLabel("Décision Altim : \(d.badgeLabel), confiance \(Int(d.confidence.rounded()))")
+        } else {
+            Badge(text: DecisionDigests.pendingLabel, tone: .neutral)
+                .opacity(0.7)
+                .accessibilityLabel("Décision en cours de calcul")
+        }
+    }
+}
+
+/// The technical signal as a small direction line, never a verdict: "technique 4 h : haussier" (web `technicalText`).
+struct TechnicalLine: View {
     var action: Action
-    var body: some View { Badge(text: action.label, tone: action.tone) }
+    var interval: String
+
+    var body: some View {
+        Text("technique \(interval) : \(action.technicalText)")
+            .font(.caption2)
+            .foregroundStyle(Theme.textSecondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("Signal technique sur bougies de \(interval) : \(action.technicalText), un indice parmi d'autres de la décision")
+    }
 }
 
 struct ChangeText: View {

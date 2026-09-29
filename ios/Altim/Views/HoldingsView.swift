@@ -201,13 +201,14 @@ struct HoldingsView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(h.asset.symbol).font(Theme.mono(15, weight: .bold)).foregroundStyle(.white)
                 Text("\(Format.quantity(h.quantity)) · \(Format.price(line.price))").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                // The daily technical signal as a direction only: the verdict is the asset's Décision card.
+                if let s = signals[h.asset.id]?.signal { TechnicalLine(action: s.action, interval: "1 j") }
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 3) {
                 Text(line.value.map { Format.money($0) } ?? "—").font(Theme.mono(14)).foregroundStyle(.white)
                 if let gp = line.gainPercent { ChangeText(value: gp) } else if let w = line.weight { Text("\(Int(w.rounded())) %").font(.caption).foregroundStyle(Theme.textSecondary) }
             }
-            if let s = signals[h.asset.id]?.signal { ActionBadge(action: s.action) }
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

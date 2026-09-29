@@ -38,7 +38,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications d'achat")
             } footer: {
-                Text("Votre serveur vérifie le radar et vos avoirs : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou zone cassée. Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit quand l'iPhone est verrouillé. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("Votre serveur vérifie le radar et vos avoirs : achetable seulement si la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h ou zone Fibonacci, sans source en désaccord, choc ni zone cassée). Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit quand l'iPhone est verrouillé. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
             }
             Section {
                 Toggle("Me prévenir des actualités importantes", isOn: Binding(

@@ -83,7 +83,10 @@ pub struct Fact {
     pub end: i64,
     pub val: f64,
     pub form: String,
+    /// Filing of the value kept (the latest: a restated figure replaces the first one).
     pub filed: i64,
+    /// First filing of this period: when the figure became public.
+    pub first_filed: i64,
 }
 
 impl Fact {
@@ -189,9 +192,10 @@ pub mod parse {
                 continue;
             };
             let start = f.get("start").and_then(|x| x.as_str()).and_then(day);
-            let fact = Fact { start, end, val, form: form.to_string(), filed };
-            match by_period.get(&(start, end)) {
-                Some(old) if old.filed > filed => {}
+            let first = by_period.get(&(start, end)).map_or(filed, |old| old.first_filed.min(filed));
+            let fact = Fact { start, end, val, form: form.to_string(), filed, first_filed: first };
+            match by_period.get_mut(&(start, end)) {
+                Some(old) if old.filed > filed => old.first_filed = first,
                 _ => {
                     by_period.insert((start, end), fact);
                 }
@@ -722,8 +726,8 @@ pub fn assemble(filed: Option<&Filed>, street: Option<&Street>, price: Option<f6
 
 // ---------- Valuation against its own history ----------
 
-/// Filings are due 40 days after a quarter (large filers): a twelve-month figure is used from 45 days after its
-/// period end, so that no day uses a figure not yet published.
+/// Filings are due 40 days after a quarter (large filers): a twelve-month figure is used from its first filing date
+/// with the SEC, and never before 45 days after its period end, so that no day uses a figure not yet published.
 const PUBLICATION_LAG: i64 = 45;
 /// A figure older than this (days after its period end) is stale: no ratio that day.
 const STALE_AFTER: i64 = 400;
@@ -732,17 +736,24 @@ const HISTORY_DAYS: i64 = 5 * 365;
 /// At least a year of daily values to compare with.
 const MIN_HISTORY: usize = 250;
 
-/// Twelve-month values of `names` at each period end filed: (end, value), by end.
-fn ttm_points(f: &Facts, names: &[&str]) -> Vec<(i64, f64)> {
-    let mut ends: Vec<i64> = names.iter().filter_map(|n| f.concepts.get(*n)).flatten().filter(|x| x.start.is_some()).map(|x| x.end).collect();
+/// Twelve-month values of `names` at each period end filed: (end, value, first day it was public), by end.
+fn ttm_points(f: &Facts, names: &[&str]) -> Vec<(i64, f64, i64)> {
+    let facts: Vec<&Fact> = names.iter().filter_map(|n| f.concepts.get(*n)).flatten().filter(|x| x.start.is_some()).collect();
+    let mut ends: Vec<i64> = facts.iter().map(|x| x.end).collect();
     ends.sort_unstable();
     ends.dedup_by(|a, b| near(*a, *b, TOL));
-    ends.into_iter().filter_map(|end| concept_ttm(f, names, end).map(|v| (end, v))).collect()
+    ends.into_iter()
+        .filter_map(|end| {
+            // The period's own filing (the 10-Q or 10-K that closes it), not a later restatement.
+            let filed = facts.iter().filter(|x| near(x.end, end, TOL)).map(|x| x.first_filed).min().unwrap_or(end);
+            concept_ttm(f, names, end).map(|v| (end, v, filed.max(end + PUBLICATION_LAG)))
+        })
+        .collect()
 }
 
-/// The last point usable on day `t`: published (period end + 45 days) and not stale.
-fn usable(points: &[(i64, f64)], t: i64) -> Option<(i64, f64)> {
-    points.iter().rev().find(|(end, _)| end + PUBLICATION_LAG <= t && t - end <= STALE_AFTER).copied()
+/// The last point usable on day `t`: already filed with the SEC (and 45 days past its period end) and not stale.
+fn usable(points: &[(i64, f64, i64)], t: i64) -> Option<(i64, f64)> {
+    points.iter().rev().find(|(end, _, public)| *public <= t && t - end <= STALE_AFTER).map(|(end, v, _)| (*end, *v))
 }
 
 /// A share count on the same basis as today's (a stock split multiplies it): within ×0.67–×1.5 of the latest.
@@ -778,7 +789,7 @@ fn stats(current: f64, values: &[(i64, f64)]) -> Option<RatioHistory> {
     })
 }
 
-pub const HISTORY_METHOD: &str = "Chaque jour : cours de clôture ÷ BPA dilué des 12 derniers mois (PER), capitalisation ÷ chiffre d'affaires des 12 derniers mois (P/S), chiffres retenus 45 jours après la fin de leur trimestre ; jours antérieurs à un fractionnement d'actions pas encore retraité dans les comptes exclus";
+pub const HISTORY_METHOD: &str = "Chaque jour : cours de clôture ÷ BPA dilué des 12 derniers mois (PER), capitalisation ÷ chiffre d'affaires des 12 derniers mois (P/S), chiffres retenus à partir de leur dépôt à la SEC (et au plus tôt 45 jours après la fin de leur trimestre) ; jours antérieurs à un fractionnement d'actions pas encore retraité dans les comptes exclus";
 
 /// P/E of each day of `window` (ms, day number, close): close ÷ diluted twelve-month EPS usable that day (published
 /// 45 days after its period end), its basis checked with the implied share count (net income ÷ EPS); days with a
@@ -786,8 +797,8 @@ pub const HISTORY_METHOD: &str = "Chaque jour : cours de clôture ÷ BPA dilué 
 fn per_series(f: &Facts, window: &[(i64, i64, f64)]) -> Vec<(i64, f64)> {
     let eps = ttm_points(f, EPS);
     let income = ttm_points(f, NET_INCOME);
-    let implied = |end: i64, e: f64| income.iter().find(|(x, _)| near(*x, end, TOL)).map(|(_, n)| n / e).filter(|s| *s > 0.0);
-    let Some(latest) = eps.iter().rev().filter(|(_, e)| *e > 0.0).find_map(|(end, e)| implied(*end, *e)) else { return vec![] };
+    let implied = |end: i64, e: f64| income.iter().find(|(x, _, _)| near(*x, end, TOL)).map(|(_, n, _)| n / e).filter(|s| *s > 0.0);
+    let Some(latest) = eps.iter().rev().filter(|(_, e, _)| *e > 0.0).find_map(|(end, e, _)| implied(*end, *e)) else { return vec![] };
     window
         .iter()
         .filter_map(|(ms, day, c)| {
@@ -955,7 +966,12 @@ pub fn peer_note(s: &StockFundamentals, c: &PeerComparison) -> String {
 
 /// The SEC front end sometimes answers HTTP 403 to a request it accepts a second later: up to three tries, spaced
 /// (far below its limit of 10 requests per second). A 404 is final.
+/// SEC requests in flight across the whole server: the SEC allows 10 per second per address and blocks beyond, which
+/// would cut the fundamentals for everyone (several routes read it concurrently).
+static SEC_SLOTS: std::sync::LazyLock<tokio::sync::Semaphore> = std::sync::LazyLock::new(|| tokio::sync::Semaphore::new(6));
+
 async fn sec_json(url: &str) -> Result<Value> {
+    let _slot = SEC_SLOTS.acquire().await.map_err(|_| Error("SEC EDGAR : file d'attente fermée".into()))?;
     let mut last = Error("SEC EDGAR".into());
     for attempt in 0..3u64 {
         if attempt > 0 {

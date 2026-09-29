@@ -3,10 +3,10 @@ import type { Kind } from "../engine/reliability";
 import { api } from "./api";
 import {
   BIAS_UI, cacheDecision, cachedDecision, count, decisionUrl, EXIT_KIND_LABEL, exitText, familyTone, hashRate, LEVEL_UI, longDate, modeText, nyDate, num,
-  pct, RATING_UI, recentVerdict, REGIME_UI, riskRewardText, SCENARIO_UI, shortDateTime, signedScore, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL,
+  pct, RATING_UI, REGIME_UI, riskRewardText, SCENARIO_UI, shortDateTime, signedScore, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL,
   usd, usdCompact,
   type ActionZones, type Bias, type CheckState, type CompositeScore, type CounterArgument, type CryptoFundamentals, type Decision, type Family,
-  type NoTrade, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals, type Structure,
+  type ModelEvidence, type NoTrade, type Rating, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals, type Structure,
 } from "./decision";
 import { latestChange, transitionTitle, useTransitions, type ConfigTransition } from "./config-changes";
 import { TrackDetails } from "./TrackDetails";
@@ -14,6 +14,7 @@ import { AgendaEvent } from "./Agenda";
 import { dayLabel } from "./calendar";
 import { SimulateBuy } from "./PaperOrder";
 import { useAppState } from "./store";
+import { onLink } from "./router";
 
 // ---------- Small building blocks ----------
 
@@ -464,6 +465,26 @@ const CHECK_UI: Record<CheckState, { icon: string; label: string }> = {
 
 export type DecisionStatus = { kind: "fresh" } | { kind: "refreshing"; at: number } | { kind: "stale"; at: number; offline: boolean; error: string };
 
+const PROOF_TONE: Record<string, string> = { edge: "edge", unproven: "unproven", insufficient: "unproven", negative: "weak" };
+
+/** « Preuve du modèle »: the cross-asset validation of the signal on this asset's class, next to the confidence. */
+export function EvidenceLine({ e }: { e: ModelEvidence }) {
+  const tone = !e.available ? "na" : e.weak ? "weak" : PROOF_TONE[e.classVerdict ?? ""] ?? "unproven";
+  return (
+    <div className={`dec-proof ${tone}`}>
+      <p className="small dec-proof-head">
+        <b>Preuve du modèle</b>
+        {e.available && e.beatHold && <span className="dec-chip">bat la détention : {e.beatHold}</span>}
+      </p>
+      <p className="small">{e.text}</p>
+      <p className="small">
+        <a href={e.link || "/app/validation"} onClick={onLink} className="link">Voir la validation du modèle →</a>
+        {e.asOf != null && <span className="muted"> · calculée le {shortDateTime(e.asOf)}</span>}
+      </p>
+    </div>
+  );
+}
+
 export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate, change }: {
   d: Decision; status?: DecisionStatus; onRetry?: () => void;
   /** Shows "Simuler cet achat" (paper trading) with the live price when known. */
@@ -507,7 +528,9 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate,
         </div>
       </div>
       {rt && <p className="small">Verdict du plan : <b>{d.label}</b> <span className="muted">· la note résume verdict, niveau et confiance</span></p>}
+      {d.ratingReason && <p className="small muted">{d.ratingReason}</p>}
       <p className="muted small">{d.confidenceText}</p>
+      {d.modelEvidence && <EvidenceLine e={d.modelEvidence} />}
       <p className={`dec-mode ${d.mode === "personal" ? "personal" : ""}`}>{modeText(d.mode)}</p>
       {regime && (
         <p className="small">
@@ -877,16 +900,28 @@ export function DecisionCard({ symbol, kind, personal, ready = true, livePrice =
   return <div className="skeleton tall" aria-label="Chargement de la décision" role="status" />;
 }
 
+/** Rank of a rating for sorting (buy side first); unknown last. */
+export const RATING_RANK: Record<Rating, number> = { strongBuy: 0, buy: 1, hold: 2, reduce: 3, sell: 4, strongSell: 5 };
+
+/** Colour class of a rating on the Radar (the badge and the card's border). */
+export function ratingTone(r: Rating | undefined, verdict: string): "buy" | "sell" | "hold" {
+  if (r === "strongBuy" || r === "buy" || (!r && (verdict === "buy" || verdict === "buyZone"))) return "buy";
+  if (r === "sell" || r === "strongSell" || r === "reduce" || (!r && (verdict === "sell" || verdict === "trim"))) return "sell";
+  return "hold";
+}
+
 /**
- * Radar badge: the verdict last seen on the asset page (less than 12 h ago), read from this browser's cache.
- * No request per row: an asset never opened shows nothing.
+ * The Radar's verdict: the full decision (the same as the asset's Décision card), from this browser's cache (less
+ * than 12 h old; the Radar refreshes it every 15 minutes). The 4 h technical signal is only one of its inputs.
  */
-export function VerdictMini({ kind, symbol }: { kind: Kind; symbol: string }) {
-  const v = recentVerdict(kind, symbol);
-  if (!v) return null;
+export function DecisionBadge({ kind, symbol }: { kind: Kind; symbol: string }) {
+  const c = cachedDecision(kind, symbol);
+  if (!c || Date.now() - c.at > 12 * 3_600_000) return <span className="badge hold dec-pending" title="Décision en cours de calcul">Décision…</span>;
+  const d = c.decision;
+  const label = d.rating ? RATING_UI[d.rating].label : d.label;
   return (
-    <span className={`dec-mini lv-${v.level}`} title={`Décision Altim vue le ${shortDateTime(v.at)} : ${LEVEL_UI[v.level].label}`}>
-      Décision : <span aria-hidden>{LEVEL_UI[v.level].icon}</span> {v.label}
+    <span className={`badge ${ratingTone(d.rating, d.verdict)}`} title={`Décision Altim du ${shortDateTime(c.at)} : ${LEVEL_UI[d.level].label} · confiance ${Math.round(d.confidence)}`}>
+      {label}
     </span>
   );
 }

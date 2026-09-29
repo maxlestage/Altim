@@ -27,7 +27,10 @@
 //! - "quand ne pas trader", action zones, watched scenarios, counter-argument and snapshot (`guidance.rs`) are built
 //!   from what is measured here and never change the verdict;
 //! - rating, composite score, "signal dégradé", market regime and horizon (`synthesis.rs`) summarise the decision
-//!   without changing the verdict.
+//!   without changing the verdict;
+//! - « preuve du modèle » (`model_evidence.rs`, from an already-computed cross-asset validation only): weak evidence
+//!   on the asset's class caps the confidence at 60 and adds a con, unproven evidence adds the con, a strong rating
+//!   without an edge becomes a plain buy / sell; never raises anything, never changes the verdict.
 use serde::{Deserialize, Serialize};
 
 use super::Evidence;
@@ -37,10 +40,12 @@ use super::format::format_price;
 use super::guard::{Direction, GuardResult, NewsItem, Regime, ShockLevel, Trend, divergence, news_tone, percentile_rank, regime};
 use super::guidance::{self, Observed};
 use super::macro_ctx::{MACRO, MacroLevel, MacroReport};
+use super::model_evidence::model_evidence;
 use super::reliability::{Reliability, ReliabilityLevel, gate};
 use super::signal::{AnalyzeOptions, Candle, Signal, adx, analyze, atr, is_sell, rsi, sanitize, sma};
 use super::structure::{Benchmark, Bias, BreakoutKind, Structure, structure};
 use super::synthesis::{self, PlanCandles, ScoreWeights};
+use super::validation::ValidationReport;
 use crate::calendar::{CalendarEvent, EventKind, Importance};
 use crate::js::{fr, iso_date, round};
 use crate::types::{DAY_MS, Interval, Kind};
@@ -144,6 +149,8 @@ pub struct DecisionInput<'a> {
     pub score_weights: Option<ScoreWeights>,
     /// Upcoming events of the next days (calendar::upcoming_for); None when the calendar could not be loaded.
     pub events: Option<Vec<CalendarEvent>>,
+    /// Cross-asset validation report already in the cache (never computed for a decision); None = not computed yet.
+    pub validation: Option<&'a ValidationReport>,
 }
 
 // ---------- Formatting ----------
@@ -2058,9 +2065,21 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     };
     let bullish = matches!(verdict, Verdict::Buy | Verdict::BuyZone);
     let expo = inp.exposure.as_ref().map(|e| exposure(inp, e, bullish));
-    let (mut conf, conf_text, _, _) = confidence(inp, &fams, verdict);
+    let (mut conf, mut conf_text, _, _) = confidence(inp, &fams, verdict);
     if bullish && expo.as_ref().is_some_and(|e| e.warning.is_some()) {
         conf = (conf - 10.0).max(0.0);
+    }
+    // Cross-asset validation of the signal: may lower the confidence, never raise it.
+    let regime_candles = if inp.long.len() > inp.daily.len() { inp.long } else { inp.daily };
+    let evidence = model_evidence(inp.validation, inp.symbol, inp.kind, regime_candles, inp.now);
+    let capped = evidence.cap_confidence(conf);
+    if capped < conf {
+        conf_text.push_str(&format!(
+            " Confiance plafonnée à {} (au lieu de {}) : la validation du modèle ne montre pas d'avantage du signal sur cette classe d'actifs.",
+            fr(capped, 0, 0),
+            fr(conf, 0, 0)
+        ));
+        conf = capped;
     }
     let level = match verdict {
         Verdict::Buy
@@ -2100,7 +2119,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         _ => None,
     };
     let degraded = synthesis::degraded(&fams, &score, unreliable, lost);
-    let rating = synthesis::rating(verdict, level, conf, m.regime.trend == Trend::Down, degraded.active);
+    let (rating, rating_reason) = evidence.cap_rating(synthesis::rating(verdict, level, conf, m.regime.trend == Trend::Down, degraded.active));
     let market_regime = match inp.benchmarks.first() {
         Some(b) => {
             let closes: Vec<f64> = sanitize(&b.daily).iter().map(|c| c.close).collect();
@@ -2125,6 +2144,9 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     let (mut pros, mut cons) = texts.pros_cons();
     if let Some(w) = expo.as_ref().and_then(|e| e.warning.clone()) {
         cons.insert(0, w);
+    }
+    if let Some(c) = evidence.con() {
+        cons.push(c);
     }
     if pros.is_empty() {
         pros.push("Aucun argument favorable net parmi les familles mesurées".into());
@@ -2222,6 +2244,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         disclaimer,
         rating,
         rating_label: rating.label().into(),
+        rating_reason,
         score,
         degraded,
         market_regime,
@@ -2233,6 +2256,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         unfolding,
         counter_argument,
         snapshot,
+        model_evidence: evidence,
     }
 }
 

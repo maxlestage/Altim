@@ -76,14 +76,15 @@ class ScreensTest {
         fields[2].performTextInput(System.getenv("ALTIM_PASSWORD") ?: "")
         shot("2-connexion")
         compose.onNode(hasText("SE CONNECTER")).performClick()
-        waitFor("SIGNAL 4 H")
+        waitFor("PRIX MÉDIAN DE 40 SOURCES")
         check(model.phase == AppModel.Phase.READY)
         check(store.get(SecureStore.Key.SESSION) != null) { "session cookie not stored" }
 
-        // 3. Radar with signals and live prices.
-        // Any signal badge (the market decides which one).
+        // 3. Radar with the full decisions, the 4 h technical signal as a small direction, and live prices.
+        waitFor("technique 4 h :", 90_000)
+        // Any decision badge (the market decides which one; "Décision…" while it is computed).
         compose.waitUntil(90_000) {
-            listOf("ACHAT", "ATTENDRE", "VENTE").any { compose.onAllNodes(hasText(it, substring = true)).fetchSemanticsNodes().isNotEmpty() }
+            listOf("Décision…", "ACHAT", "ATTENDRE", "ALLÉGER", "VENDRE", "VENTE", "ZONE D'ACHAT").any { compose.onAllNodes(hasText(it, substring = true)).fetchSemanticsNodes().isNotEmpty() }
         }
         compose.waitUntil(30_000) { model.live.lastTick != null }
         waitFor("Point du jour", 120_000)
@@ -93,6 +94,9 @@ class ScreensTest {
         // 4. Asset page: chart, zones, guard, macro.
         compose.onAllNodes(hasText("Bitcoin")).onFirst().performClick()
         waitFor("Retracement 38,2 %", 90_000)
+        // The technical signal is a direction, not a verdict.
+        waitFor("Signal technique · 4 h", 90_000)
+        waitFor("Tendance technique :")
         // Decision card (/api/decision), first card of the page; informational (nothing held yet).
         waitFor("Confiance du modèle", 90_000)
         waitFor("Mode informationnel")
@@ -167,8 +171,8 @@ class ScreensTest {
         waitFor("Achetables maintenant")
         waitFor("au-dessus de 1", 30_000)
         compose.waitUntil(90_000) {
-            compose.onAllNodes(hasText("ACHAT POSSIBLE", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodes(hasText("ACHAT CONSEILLÉ", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+            compose.onAllNodes(hasText("ZONE D'ACHAT", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodes(hasText("ACHETER", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
                 compose.onAllNodes(hasText("Rien d'achetable", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
         waitFor("Prix actuel", 30_000)
