@@ -2,6 +2,7 @@
   "name": "altim-web",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "bun --hot ./src/index.html",

@@ -1,6 +1,6 @@
-//! `/api/bot`: the « Bot Altim » of `engine::bot` trained and tested walk-forward on the validation's basket (same
-//! long daily histories, a few at a time). Heavy: computed in the background, kept 12 h fresh and served up to 24 h
-//! old while the next one is computed; 202 `{ "pending": true }` until the first one is ready (like
+//! `/api/bot`: the « Bot Altim » of `engine::bot` trained and tested (nested walk-forward) on the validation's basket
+//! plus the extra training universe, with the long daily histories of `bot_history` (a few at a time). Heavy:
+//! computed in the background, kept 12 h fresh and served up to 24 h old while the next one is computed; 202 `{ "pending": true }` until the first one is ready (like
 //! `/api/validation`). `/api/bot/views?symbols=` gives today's view of the user's assets from the cached report only.
 use std::collections::HashMap;
 use std::time::Duration;
@@ -15,58 +15,83 @@ use super::data::long;
 use super::error::ApiResult;
 use super::json_of;
 use super::validation::ready_or_pending;
+use crate::bot_history::long_history;
 use crate::cache::{cached, peek};
-use crate::engine::bot::{BotReport, History, bot_view, run};
-use crate::engine::validation::{BASKET, Failure};
+use crate::engine::bot::{BotGroup, BotReport, EXTRA, History, MAX_THREADS, Timing, bot_view, run};
+use crate::engine::validation::{BASKET, BasketAsset, Failure};
 use crate::http::{Error, Result};
 use crate::js::now_ms;
 use crate::quotes::{ASSETS, make_asset};
+use crate::types::{Candle, Kind};
 
-pub const CACHE_KEY: &str = "bot:v1";
+pub const CACHE_KEY: &str = "bot:v2";
 /// Fresh for 12 h; served while recomputing up to 24 h.
 pub const FRESH_MS: i64 = 12 * 3_600_000;
 pub const KEEP_MS: i64 = 24 * 3_600_000;
-/// Histories fetched at the same time (each one queries several sources; shared with the validation's cache).
+/// Histories fetched at the same time (Yahoo and Bitstamp; a crypto asks both).
 const CONCURRENCY: usize = 4;
 /// Under the Heroku router's 30 s.
 const WAIT: Duration = Duration::from_secs(20);
 
-/// Fetches every history of the basket (bounded concurrency), trains and tests off the async threads. An asset that
-/// fails is listed with its reason; an error only when none could be fetched.
+/// Asset `i` of the training universe: the validation's basket, then the extra list (`true`).
+fn entry(i: usize) -> (&'static BasketAsset, bool) {
+    if i < BASKET.len() { (&BASKET[i], false) } else { (&EXTRA[i - BASKET.len()], true) }
+}
+
+/// One asset's long history: `bot_history` (up to 20 years / since listing); for the basket, Altim's usual long
+/// history when that fails (said in the source). An extra asset that fails is left out with its reason.
+async fn fetch(a: &'static BasketAsset, extra: bool, now: i64) -> std::result::Result<(Vec<Candle>, String), String> {
+    match long_history(a.symbol, a.kind, now).await {
+        Ok(h) => Ok(h),
+        Err(e) if extra => Err(format!("historique long indisponible ({})", e.0)),
+        Err(e) => match long(a.symbol, a.kind).await {
+            Ok(h) => Ok((h.candles.clone(), format!("{} (repli : historique long indisponible, {})", h.source, e.0))),
+            Err(e2) => Err(format!("historique indisponible ({} ; {})", e.0, e2.0)),
+        },
+    }
+}
+
+/// Fetches every history (bounded concurrency), trains and tests off the async threads. An asset that fails is
+/// listed with its reason; an error only when no basket asset could be fetched.
 pub async fn compute() -> Result<BotReport> {
-    let fetched: Vec<_> = futures::stream::iter(0..BASKET.len())
-        .map(|i| async move { (i, long(BASKET[i].symbol, BASKET[i].kind).await) })
+    let started = now_ms();
+    let fetched: Vec<_> = futures::stream::iter(0..BASKET.len() + EXTRA.len())
+        .map(|i| async move {
+            let (a, extra) = entry(i);
+            (i, fetch(a, extra, started).await)
+        })
         .buffer_unordered(CONCURRENCY)
         .collect()
         .await;
     let mut histories = Vec::new();
     let mut failures = Vec::new();
     for (i, h) in fetched {
-        let a = &BASKET[i];
+        let (a, extra) = entry(i);
         match h {
-            Ok(h) => histories.push(History { asset: a, candles: h.candles.clone(), source: h.source.clone() }),
-            Err(e) => failures.push(Failure {
-                symbol: a.symbol.into(),
-                name: a.name.into(),
-                kind: a.kind,
-                class: a.class,
-                error: format!("historique indisponible ({})", e.0),
-            }),
+            Ok((candles, source)) => histories.push(History { asset: a, candles, source, extra }),
+            Err(error) => failures.push(Failure { symbol: a.symbol.into(), name: a.name.into(), kind: a.kind, class: a.class, error }),
         }
     }
-    if histories.is_empty() {
+    if !histories.iter().any(|h| !h.extra) {
         return Err(Error(format!("aucun actif du panier n'a pu être chargé ({} échecs)", failures.len())));
     }
-    tokio::task::spawn_blocking(move || {
+    let fetched_at = now_ms();
+    // `ALTIM_BOT_THREADS` caps the threads (1: one core; same result either way).
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let threads = std::env::var("ALTIM_BOT_THREADS").ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(cores).clamp(1, MAX_THREADS);
+    let mut report = tokio::task::spawn_blocking(move || {
         run(
             histories,
             failures,
-            now_ms(),
-            "Bougies journalières multi-sources (historique long d'Altim, le même que la validation ; source retenue indiquée par actif)",
+            fetched_at,
+            "Bougies journalières longues : Yahoo Finance (actions, jusqu'à 20 ans ; cryptos) et Bitstamp (cryptos, depuis la cotation) ; source retenue indiquée par actif",
+            threads,
         )
     })
     .await
-    .map_err(|e| Error(format!("calcul interrompu : {e}")))
+    .map_err(|e| Error(format!("calcul interrompu : {e}")))?;
+    report.timing = Some(Timing { fetch_ms: fetched_at - started, compute_ms: now_ms() - fetched_at, threads });
+    Ok(report)
 }
 
 /// The cached report, if any (a decision never starts the computation).
@@ -90,11 +115,15 @@ pub async fn views_route(Query(p): Query<HashMap<String, String>>) -> ApiResult<
     let list = super::validate::parse_assets(p.get("symbols").map(String::as_str), &ASSETS, |s, k| make_asset(s, k, None))?;
     let report = cached_report();
     let now = now_ms();
+    let market = |k: Kind| async move { long(BotGroup::of(k).market(), k).await.map(|h| h.candles.clone()).unwrap_or_default() };
+    let (stock_market, crypto_market) = tokio::join!(market(Kind::Stock), market(Kind::Crypto));
+    let (stock_market, crypto_market) = (&stock_market, &crypto_market);
     let views = join_all(list.iter().take(20).map(|a| {
         let report = report.clone();
         async move {
             let candles = long(&a.symbol, a.kind).await.map(|h| h.candles.clone()).unwrap_or_default();
-            let mut v = crate::js::to_value(&bot_view(report.as_deref(), &a.symbol, a.kind, &candles, now));
+            let m = if a.kind == Kind::Crypto { crypto_market } else { stock_market };
+            let mut v = crate::js::to_value(&bot_view(report.as_deref(), &a.symbol, a.kind, &candles, m, now));
             v["symbol"] = json!(a.symbol);
             v["kind"] = json!(a.kind);
             v

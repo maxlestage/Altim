@@ -12,11 +12,6 @@ export const LEGAL_PAGES: Record<string, { title: string; body: ReactNode }> = {
           Le site et l'application Altim sont édités par <b>{AUTHOR}</b>, à titre personnel.
           <br />
           Directeur de la publication : {AUTHOR}.
-          <br />
-          Contact :{" "}
-          <a href="https://github.com/maxlestage" target="_blank" rel="noreferrer">
-            github.com/maxlestage
-          </a>
         </p>
         <h2>Hébergement</h2>
         <p>
