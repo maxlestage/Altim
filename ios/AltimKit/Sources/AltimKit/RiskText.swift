@@ -2,10 +2,11 @@ import Foundation
 
 /// Texts of the risk cards of Mes avoirs, as on the web (web/src/webapp/RiskCards.tsx and MyHoldings.tsx).
 public enum RiskText {
-    public static func usd(_ v: Double) -> String { "\(JSFormat.fr(abs(v), max: 0)) $" }
+    /// A dollar amount in the display currency, without sign: "250 €".
+    public static func usd(_ v: Double) -> String { Money.money(abs(v), min: 0, max: 0, sep: " ") }
     public static func pc(_ v: Double) -> String { "\(JSFormat.fr(abs(v), max: 1)) %" }
 
-    /// "Perte ≈ −250 $, soit 8,3 % du patrimoine." (with what the cash cushions when there is some).
+    /// "Perte ≈ −250 €, soit 8,3 % du patrimoine." (with what the cash cushions when there is some).
     public static func stressLine(_ r: StressResult, cash: Double) -> String {
         var s = "\(r.loss >= 0 ? "Perte" : "Gain") ≈ \(r.loss > 0 ? "−" : "+")\(usd(r.loss)), soit \(pc(r.lossPercent)) du patrimoine"
         if cash > 0 && r.loss > 0 {
@@ -14,7 +15,7 @@ public enum RiskText {
         return s + "."
     }
 
-    /// "Ligne la plus touchée : SOL (−35,8 %, −37 $)".
+    /// "Ligne la plus touchée : SOL (−35,8 %, −37 €)".
     public static func worst(_ w: StressResult.Worst) -> String {
         "Ligne la plus touchée : \(w.symbol) (\(w.movePercent > 0 ? "+" : "−")\(pc(w.movePercent)), −\(usd(w.loss)))"
     }
@@ -39,7 +40,7 @@ public enum RiskText {
         return s + "Une vraie crise peut aller plus loin : les corrélations montent quand tout baisse."
     }
 
-    /// "Votre stop : 95,00 $ (5,9 % sous le cours)."
+    /// "Votre stop : 95,00 € (5,9 % sous le cours)."
     public static func userStop(_ stop: Double, price: Double?) -> String {
         let below = price.flatMap { $0 > 0 ? " (\(JSFormat.fr(($0 - stop) / $0 * 100, max: 1)) % sous le cours)" : nil } ?? ""
         return "Votre stop : \(Format.price(stop))\(below)."

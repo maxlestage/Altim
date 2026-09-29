@@ -39,7 +39,7 @@ struct LimitsCard: View {
     }
 }
 
-/// Market shocks passed through each line's beta: loss in $ and %, worst line.
+/// Market shocks passed through each line's beta: loss in the display currency and %, worst line.
 struct StressCard: View {
     let portfolio: RiskPortfolio
     let results: [StressResult]

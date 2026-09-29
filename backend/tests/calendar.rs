@@ -70,7 +70,7 @@ fn nasdaq_company_calendars() {
     let (mu, cap) = e.iter().find(|(e, _)| e.symbol.as_deref() == Some("MU")).unwrap();
     assert_eq!(mu.title, "Résultats de Micron Technology, Inc.");
     assert_eq!(mu.time.as_deref(), Some("après la clôture"));
-    assert_eq!(mu.consensus.as_deref(), Some("BPA $31.24"));
+    assert_eq!(mu.consensus.as_deref(), Some("BPA 31,24 $"));
     assert_eq!(*cap, Some(1_222_319_670_000.0));
     assert_eq!(mu.url, "https://www.nasdaq.com/market-activity/stocks/mu/earnings");
 
@@ -93,7 +93,7 @@ fn nasdaq_company_calendars() {
     let i = parse::ipos(&json("nasdaq-ipo-2026-09.json")).unwrap();
     let oura = i.iter().find(|e| e.symbol.as_deref() == Some("OURA")).unwrap();
     assert_eq!(oura.day, "2026-09-30");
-    assert!(oura.detail.as_deref().unwrap().starts_with("Fourchette 40.00-44.00 $"));
+    assert!(oura.detail.as_deref().unwrap().starts_with("Fourchette 40,00 – 44,00 $"));
     assert!(i.iter().any(|e| e.title.ends_with("(prix fixé)")));
 }
 

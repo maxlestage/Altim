@@ -16,6 +16,9 @@ struct PriceActivityAttributes: ActivityAttributes {
         /// One line: why (or why not) it can be bought.
         var note: String
         var updated: Date
+        /// The price as written by the app, in the display currency of Réglages ("88 162,40 €"): the widget
+        /// extension does not know the EUR/USD rate. Absent from older states: the dollar price is then shown.
+        var priceText: String? = nil
     }
 
     var symbol: String

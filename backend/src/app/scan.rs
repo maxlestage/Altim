@@ -42,29 +42,33 @@ pub struct AnomalyReport {
 /// Anomalies of one asset (cached 2 minutes).
 pub async fn anomalies_for(symbol: &str, kind: Kind) -> Result<Arc<AnomalyReport>> {
     let s = symbol.to_string();
-    cached(&format!("anomalies:{}:{symbol}", kind.as_str()), 120_000, move || async move {
-        let (d, der) = tokio::join!(snap(&s, kind, Interval::D1), async { if kind == Kind::Crypto { Some(derivatives(&s).await) } else { None } });
-        let mut errors = Vec::new();
-        let (mut all, price, session, source) = match &d {
-            Ok(d) => {
-                let src = format!("Bougies journalières {} (séances closes)", d.source);
-                (candle_anomalies(&d.candles, &src), d.candles.last().map(|c| c.close), d.candles.last().map(|c| c.time), src)
+    let usd = crate::fx::forced_usd();
+    cached(&format!("anomalies:{}:{symbol}:{}", kind.as_str(), crate::fx::cache_tag()), 120_000, move || {
+        crate::fx::scope(usd, async move {
+            let (d, der) =
+                tokio::join!(snap(&s, kind, Interval::D1), async { if kind == Kind::Crypto { Some(derivatives(&s).await) } else { None } });
+            let mut errors = Vec::new();
+            let (mut all, price, session, source) = match &d {
+                Ok(d) => {
+                    let src = format!("Bougies journalières {} (séances closes)", d.source);
+                    (candle_anomalies(&d.candles, &src), d.candles.last().map(|c| c.close), d.candles.last().map(|c| c.time), src)
+                }
+                Err(e) => {
+                    errors.push(format!("Bougies journalières indisponibles : {e}"));
+                    (vec![], None, None, String::new())
+                }
+            };
+            let derivatives = der.map(|(block, found)| {
+                all.extend(found);
+                block
+            });
+            if d.is_err() && derivatives.is_none() {
+                return Err::<AnomalyReport, Error>(Error(errors.join(" ; ")));
             }
-            Err(e) => {
-                errors.push(format!("Bougies journalières indisponibles : {e}"));
-                (vec![], None, None, String::new())
-            }
-        };
-        let derivatives = der.map(|(block, found)| {
-            all.extend(found);
-            block
-        });
-        if d.is_err() && derivatives.is_none() {
-            return Err::<AnomalyReport, Error>(Error(errors.join(" ; ")));
-        }
-        sort(&mut all);
-        let (anomalies, normal): (Vec<Anomaly>, Vec<Anomaly>) = all.into_iter().partition(|a| a.triggered);
-        Ok(AnomalyReport { symbol: s.clone(), kind, as_of: now_ms(), price, session, anomalies, normal, derivatives, errors, source })
+            sort(&mut all);
+            let (anomalies, normal): (Vec<Anomaly>, Vec<Anomaly>) = all.into_iter().partition(|a| a.triggered);
+            Ok(AnomalyReport { symbol: s.clone(), kind, as_of: now_ms(), price, session, anomalies, normal, derivatives, errors, source })
+        })
     })
     .await
 }
@@ -75,7 +79,14 @@ type Q = Query<HashMap<String, String>>;
 pub async fn anomalies_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(p.get("kind").map(String::as_str))?;
     let symbol = parse_symbol(p.get("symbol").map(String::as_str), kind)?;
-    Ok(json_of(&*anomalies_for(&symbol, kind).await?))
+    let usd = super::validate::parse_currency(p.get("cur").map(String::as_str))?;
+    crate::fx::ensure().await;
+    crate::fx::scope(usd, async {
+        let mut v = crate::js::to_value(&*anomalies_for(&symbol, kind).await?);
+        v["fx"] = crate::fx::info();
+        Ok(json_of(&v))
+    })
+    .await
 }
 
 /// `GET /api/opportunities?kind=stock|crypto`. The first scan reads the whole universe (≈ 30 s): after 20 s the

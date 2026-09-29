@@ -2,6 +2,7 @@
  * Analysis of the portfolio the user actually holds.
  * Pure, deterministic functions (same inputs, same results).
  */
+import { money } from "../money";
 import { atr, type Action, type Candle } from "./signal";
 import type { Kind, ReliabilityLevel } from "./reliability";
 
@@ -269,7 +270,7 @@ export function analyzePortfolio(holdings: Holding[], cash: number, market: Reco
 
 // ---------- Plain-language texts (French) ----------
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(v, 0, 0, " ");
 const pc = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 
 export const RECOMMENDATION_LABEL: Record<Recommendation, string> = {

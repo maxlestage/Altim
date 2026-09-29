@@ -38,7 +38,7 @@ struct AlertsView: View {
 
             Section {
                 if model.priceTargets.isEmpty {
-                    Text("Aucune alerte de prix. Sur la fiche d'un actif, bouton cloche : « préviens-moi si BTC passe sous 80 000 $ ».")
+                    Text("Aucune alerte de prix. Sur la fiche d'un actif, bouton cloche : « préviens-moi si BTC passe sous 80 000 \(Money.symbol()) ».")
                         .font(.footnote).foregroundStyle(Theme.textSecondary)
                 }
                 ForEach(model.priceTargets) { t in
@@ -138,16 +138,24 @@ private struct TargetRow: View {
     var target: PriceTarget
     var price: Double?
 
+    /// The current dollar price in the alert's own currency (nil when no rate allows it): compared like the check.
+    private var shown: Double? {
+        guard let price else { return nil }
+        let v = target.inCurrency(price)
+        return v.isFinite ? v : nil
+    }
+
     var body: some View {
+        let cur = Money.stored(target.currency)
         VStack(alignment: .leading, spacing: 3) {
             Text("\(target.asset.symbol) · \(target.label.lowercased())").font(.subheadline.weight(.semibold))
             if let done = target.triggered {
                 Text("Atteinte le \(Format.date(done.timeIntervalSince1970 * 1000, time: true))").font(.caption).foregroundStyle(Theme.buy)
-            } else if let price, let move = target.move {
-                Text("Prix actuel \(Format.price(price)) · variation \(Format.percent((price / target.price - 1) * 100, digits: 1)) sur ±\(Format.plain(move, digits: 1)) %")
+            } else if let shown, let move = target.move {
+                Text("Prix actuel \(Money.threshold(shown, cur)) · variation \(Format.percent((shown / target.price - 1) * 100, digits: 1)) sur ±\(Format.plain(move, digits: 1)) %")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
-            } else if let price {
-                Text("Prix actuel \(Format.price(price)) · encore \(Format.percent((target.price / price - 1) * 100, digits: 1))")
+            } else if let shown {
+                Text("Prix actuel \(Money.threshold(shown, cur)) · encore \(Format.percent((target.price / shown - 1) * 100, digits: 1))")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             } else {
                 Text("En attente").font(.caption).foregroundStyle(Theme.textSecondary)
@@ -188,19 +196,22 @@ struct PriceTargetSheet: View {
 
     private var above: Bool { mode == 1 }
 
-    private static func number(_ s: String) -> Double? {
-        Double(s.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: "."))
-    }
+    private static func number(_ s: String) -> Double? { Money.parse(s) }
 
     private var value: Double? { Self.number(text) }
     private var move: Double? { Self.number(moveText) }
 
+    /// Currency the threshold is typed in (and saved with): the display currency.
+    private var currency: Currency { Money.displayCurrency }
+    /// The current dollar price in that currency.
+    private var shownCurrent: Double? { current.map(Money.toDisplay).flatMap { $0.isFinite ? $0 : nil } }
+
     /// The threshold must be on the right side of the current price, otherwise it would fire at once.
     private var sideOK: Bool {
-        if mode == 2 { return current != nil && (move ?? 0) > 0 && (move ?? 100) < 100 }
+        if mode == 2 { return shownCurrent != nil && (move ?? 0) > 0 && (move ?? 100) < 100 }
         guard let v = value, v > 0 else { return false }
-        guard let current else { return true }
-        return above ? v > current : v < current
+        guard let shownCurrent else { return true }
+        return above ? v > shownCurrent : v < shownCurrent
     }
 
     var body: some View {
@@ -222,7 +233,7 @@ struct PriceTargetSheet: View {
                             Text("%").foregroundStyle(Theme.textSecondary)
                         } else {
                             TextField("Prix", text: $text).keyboardType(.decimalPad).font(Theme.mono(18))
-                            Text("$").foregroundStyle(Theme.textSecondary)
+                            Text(currency.symbol).foregroundStyle(Theme.textSecondary)
                         }
                     }
                     if mode == 2 {
@@ -237,7 +248,7 @@ struct PriceTargetSheet: View {
                             .font(.footnote).foregroundStyle(Theme.warning)
                     }
                 } footer: {
-                    Text("Vérifiée avec les alertes d'achat (en arrière-plan quand iOS le permet, et à chaque ouverture) ; une seule notification, puis vous pouvez la réarmer dans l'onglet Alertes.")
+                    Text("Vérifiée avec les alertes d'achat (en arrière-plan quand iOS le permet, et à chaque ouverture) ; une seule notification, puis vous pouvez la réarmer dans l'onglet Alertes. Un seuil en € est comparé au cours converti au taux du jour.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -250,10 +261,10 @@ struct PriceTargetSheet: View {
                     Button("Créer") {
                         Task {
                             guard await BuyNotifications.authorize() else { return denied = true }
-                            if mode == 2, let current, let move {
-                                model.addTarget(PriceTarget(asset: asset, above: false, price: current, move: move))
+                            if mode == 2, let shownCurrent, let move {
+                                model.addTarget(PriceTarget(asset: asset, above: false, price: shownCurrent, move: move, currency: currency))
                             } else if let v = value {
-                                model.addTarget(PriceTarget(asset: asset, above: above, price: v))
+                                model.addTarget(PriceTarget(asset: asset, above: above, price: v, currency: currency))
                             } else {
                                 return
                             }
@@ -264,7 +275,7 @@ struct PriceTargetSheet: View {
                 }
             }
             .onAppear {
-                if text.isEmpty, let current { text = Format.plain(current, digits: current >= 1 ? 2 : 6) }
+                if text.isEmpty, let shownCurrent { text = Format.plain(shownCurrent, digits: shownCurrent >= 1 ? 2 : 6) }
             }
         }
         .presentationDetents([.medium, .large])

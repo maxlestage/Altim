@@ -20,9 +20,26 @@ final class WatchBridge: NSObject {
         session.activate()
     }
 
+    /// The application context replaces the previous one: the alerts and the display currency always travel together.
+    private var context: [String: Any] = [:]
+
     func send(_ alerts: [BuyAlert], checked: Date?) {
-        guard isPaired, let session, let data = try? JSONEncoder().encode(alerts) else { return }
-        try? session.updateApplicationContext(["alerts": data, "checked": checked ?? Date()])
+        guard let data = try? JSONEncoder().encode(alerts) else { return }
+        context["alerts"] = data
+        context["checked"] = checked ?? Date()
+        push()
+    }
+
+    /// Display currency and EUR/USD rate: the Watch formats the prices like the iPhone.
+    func sendDisplay(currency: Currency, fx: FxRate?) {
+        context["currency"] = currency.rawValue
+        context["fx"] = fx.flatMap { try? JSONEncoder().encode($0) } ?? Data()
+        push()
+    }
+
+    private func push() {
+        guard isPaired, let session, context["alerts"] != nil else { return }
+        try? session.updateApplicationContext(context)
     }
 }
 

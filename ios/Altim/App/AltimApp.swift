@@ -111,6 +111,10 @@ struct MainTabs: View {
             NavigationStack { NewsView() }
                 .tabItem { Label("Actu", systemImage: "newspaper") }.tag(4)
         }
+        // Amounts are formatted when the screens are built: rebuilt when the currency shown changes (euros ⇄ dollars).
+        .id(model.moneyStamp)
+        // EUR/USD rate read now and every 10 minutes.
+        .task { model.startFx() }
         // Tapped news notification: the Actu tab.
         .onChange(of: model.pendingNews, initial: true) { _, open in
             guard open else { return }

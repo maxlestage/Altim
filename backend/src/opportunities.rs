@@ -72,6 +72,8 @@ pub struct OpportunityReport {
     pub items: Vec<Item>,
     pub not_covered: Vec<NotCovered>,
     pub source: String,
+    /// Rate the texts were written with (`crate::fx::info`, read at scan time; the scan is cached 30 minutes).
+    pub fx: serde_json::Value,
 }
 
 fn rule(c: Category, kind: Kind) -> String {
@@ -147,12 +149,13 @@ pub fn tvl_hit(t: &crate::tokenomics::TvlMonth) -> Option<Hit> {
     (d.abs() >= TVL_PCT).then(|| Hit {
         category: Category::Fundamentals,
         reason: format!(
-            "TVL {}{} % sur 30 j ({} M$ → {} M$ ; protocoles DefiLlama portant le jeton : {})",
+            "TVL {}{} % sur 30 j ({} {m} → {} {m} ; protocoles DefiLlama portant le jeton : {})",
             if d >= 0.0 { "+" } else { "−" },
             fr(d.abs(), 0, 0),
-            fr(month_ago / 1e6, 0, 0),
-            fr(tvl / 1e6, 0, 0),
-            t.protocols.join(", ")
+            fr(crate::fx::convert(month_ago).0 / 1e6, 0, 0),
+            fr(crate::fx::convert(tvl).0 / 1e6, 0, 0),
+            t.protocols.join(", "),
+            m = crate::fx::unit("M"),
         ),
         strength: d.abs(),
     })
@@ -312,10 +315,12 @@ async fn scan(kind: Kind) -> Result<OpportunityReport> {
         } else {
             "Bougies journalières Finviz (repli Yahoo) ; SEC EDGAR ; Nasdaq (données Zacks) ; sélection d'Altim".into()
         },
+        fx: crate::fx::info(),
     })
 }
 
 /// Cached 30 minutes (the daily candles change once a day; the selection every 25 minutes).
 pub async fn opportunities(kind: Kind) -> Result<Arc<OpportunityReport>> {
+    crate::fx::ensure().await;
     cached(&format!("opportunities:{}", kind.as_str()), 30 * 60_000, move || scan(kind)).await
 }

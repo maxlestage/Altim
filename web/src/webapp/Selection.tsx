@@ -5,10 +5,10 @@ import { assetKey, setState, useAppState, useHoldings } from "./store";
 import { Segmented } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { HORIZON_LABEL, HORIZON_LIST, type Horizon } from "../engine/screener";
-import { formatPrice } from "../market";
+import { convert, currencySymbol, displayCurrency, moneyFmt, moneyPrice, type Currency } from "../money";
 
 const ORDER = ["momentum", "zone", "trend", "risk", "signal"] as const;
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: v >= 100 ? 0 : 2 })} $`;
+const usd = (v: number) => moneyFmt(v, (x) => x.toLocaleString("fr-FR", { maximumFractionDigits: x >= 100 ? 0 : 2 }));
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const BUDGET_KEY = "altim.selection.budget";
 const MARKET_KEY = "altim.selection.market";
@@ -38,13 +38,36 @@ function readMarket(): Market {
   }
 }
 
-function readBudget(): number | null {
+/** Saved budget and the currency it was typed in: `{ amount, currency }`, or a bare number (older versions: dollars). */
+export function parseBudget(raw: string | null): { amount: number; currency: Currency } | null {
+  if (raw == null) return null;
   try {
-    const v = Number(localStorage.getItem(BUDGET_KEY));
-    return Number.isFinite(v) && v > 0 ? v : null;
+    const v = JSON.parse(raw) as unknown;
+    if (typeof v === "number") return Number.isFinite(v) && v > 0 ? { amount: v, currency: "USD" } : null;
+    const o = v as { amount?: unknown; currency?: unknown } | null;
+    if (o && typeof o.amount === "number" && Number.isFinite(o.amount) && o.amount > 0) return { amount: o.amount, currency: o.currency === "EUR" ? "EUR" : "USD" };
+  } catch {}
+  return null;
+}
+
+function readBudget(): { amount: number; currency: Currency } | null {
+  try {
+    return parseBudget(localStorage.getItem(BUDGET_KEY));
   } catch {
     return null;
   }
+}
+
+/** The budget field: the saved amount converted to the display currency (as typed when no rate allows it). */
+function initialBudget(cashUsd: number): { text: string; currency: Currency } {
+  const cur = displayCurrency();
+  const saved = readBudget();
+  if (saved) {
+    const v = convert(saved.amount, saved.currency, cur);
+    return Number.isFinite(v) ? { text: String(Math.round(v)), currency: cur } : { text: String(saved.amount), currency: saved.currency };
+  }
+  const cash = convert(cashUsd, "USD", cur);
+  return { text: cashUsd > 0 && Number.isFinite(cash) ? String(Math.round(cash)) : "", currency: cur };
 }
 
 /**
@@ -86,7 +109,7 @@ function PickCard({ c, report, live, amount }: { c: SelectionCandidate; report: 
           <small className="muted">{c.symbol} · {c.sector}</small>
         </div>
         <div className="pick-price mono">
-          <b><LivePrice tick={live} fallback={c.price} format={(v) => `${formatPrice(v)} $`} /></b>
+          <b><LivePrice tick={live} fallback={c.price} format={(v) => moneyPrice(v)} /></b>
           <small className="muted">{rankLabel} {Math.round(report.rankRule === "reversal" ? 100 - c.scores.momentum : c.scores[rankBy])}/100</small>
         </div>
       </div>
@@ -151,8 +174,12 @@ export function Selection() {
   const [report, setReport] = useState<SelectionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [budgetText, setBudgetText] = useState(() => String(readBudget() ?? (cash > 0 ? Math.round(cash) : "")));
-  const budget = Number(budgetText.replace(/\s/g, "").replace(",", ".")) || 0;
+  // The typed budget keeps the currency it was typed in (a rate arriving later never re-reads it in another one).
+  const [budgetInput, setBudgetInput] = useState(() => initialBudget(cash));
+  const budgetText = budgetInput.text;
+  const setBudgetText = (text: string) => setBudgetInput({ text, currency: displayCurrency() });
+  const typed = Number(budgetText.replace(/\s/g, "").replace(",", ".")) || 0;
+  const budget = convert(typed, budgetInput.currency, "USD") || 0;
   const wealth = cash + holdings.reduce((a, h) => a + h.quantity * h.averagePrice, 0);
 
   useEffect(() => {
@@ -189,9 +216,9 @@ export function Selection() {
 
   useEffect(() => {
     try {
-      if (budget > 0) localStorage.setItem(BUDGET_KEY, String(budget));
+      if (typed > 0) localStorage.setItem(BUDGET_KEY, JSON.stringify({ amount: typed, currency: budgetInput.currency }));
     } catch {}
-  }, [budget]);
+  }, [typed, budgetInput.currency]);
 
   const live = useLive(useMemo(() => [...(report?.buy ?? []), ...(report?.watch ?? [])].map((c) => ({ symbol: c.symbol, kind: report!.market })), [report]));
   const amounts = useMemo(() => (report && budget > 0 ? allocate(report.buy, budget, risk.maxPositionPercent) : new Map<string, number>()), [report, budget, risk.maxPositionPercent]);
@@ -278,8 +305,8 @@ export function Selection() {
 
       <div className="card budget">
         <label className="field">
-          <span>Budget à investir (USD)</span>
-          <input inputMode="decimal" value={budgetText} placeholder={wealth > 0 ? String(Math.round(cash)) : "10000"} onChange={(e) => setBudgetText(e.target.value)} />
+          <span>Budget à investir ({currencySymbol(budgetInput.currency)})</span>
+          <input inputMode="decimal" value={budgetText} placeholder={wealth > 0 ? String(Math.round(convert(cash, "USD", budgetInput.currency) || 0)) : "10000"} onChange={(e) => setBudgetText(e.target.value)} />
         </label>
         <p className="muted small">
           Réparti pour que chaque ligne risque la même somme si son stop est touché (une action volatile reçoit moins), sans dépasser {risk.maxPositionPercent} % du budget par ligne (Réglages).

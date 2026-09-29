@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import { ACTION_LABEL, ema, type Action, type Candle } from "../engine/signal";
 import { LEVEL_LABEL, type Reliability } from "../engine/reliability";
-import { formatPercent, formatPrice } from "../market";
+import { formatPercent } from "../market";
+import { moneyPrice } from "../money";
 import type { BacktestTrade } from "../engine/backtest";
 
 export const actionKind = (a: Action) => (a === "buy" || a === "strongBuy" ? "buy" : a === "sell" || a === "strongSell" ? "sell" : "hold");
@@ -30,7 +31,7 @@ export function Change({ value }: { value: number | null | undefined }) {
 }
 
 export function Price({ value }: { value: number | null | undefined }) {
-  return <>{value != null && Number.isFinite(value) ? `${formatPrice(value)} $` : "—"}</>;
+  return <>{value != null && Number.isFinite(value) ? moneyPrice(value) : "—"}</>;
 }
 
 export function Gauge({ score, size = 180 }: { score: number; size?: number }) {

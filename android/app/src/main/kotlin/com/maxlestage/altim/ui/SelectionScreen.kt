@@ -1,5 +1,7 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
+import com.maxlestage.altim.kit.Currency
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.border
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -89,7 +91,18 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
     var pending by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableIntStateOf(0) }
-    var budgetText by remember { mutableStateOf(if (model.budget > 0) Format.plain(model.budget, 0) else "") }
+    // The budget field: the saved amount converted to the display currency (as typed when no rate allows it). A typed
+    // budget keeps the currency it was typed in (a rate arriving later never re-reads it in another one).
+    val initialBudget = remember {
+        val cur = Money.displayCurrency()
+        model.budget?.let { s ->
+            val v = Money.convert(s.amount, s.currency, cur)
+            if (v.isFinite()) Money.Typed(Math.round(v).toDouble(), cur) else s
+        }
+    }
+    var budgetText by remember { mutableStateOf(initialBudget?.let { Format.plain(it.amount, 0) } ?: "") }
+    var budgetCurrency by remember { mutableStateOf(initialBudget?.currency ?: Money.displayCurrency()) }
+    val budgetUsd = (Format.parse(budgetText) ?: 0.0).let { Money.convert(it, budgetCurrency, Currency.USD) }.takeIf { it.isFinite() && it > 0 } ?: 0.0
     val market = model.selectionMarket
     val horizon = model.selectionHorizon
 
@@ -176,10 +189,11 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
                         value = budgetText,
                         onValueChange = {
                             budgetText = it
-                            model.updateBudget(Format.parse(it) ?: 0.0)
+                            budgetCurrency = Money.displayCurrency()
+                            model.updateBudget(Format.parse(it)?.let { v -> Money.Typed(v, budgetCurrency) })
                         },
                         placeholder = { Text("10 000", color = AltimColors.textSecondary) },
-                        suffix = { Text("$") },
+                        suffix = { Text(budgetCurrency.symbol) },
                         singleLine = true,
                         textStyle = mono(18.sp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -188,7 +202,7 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
                     )
                     Caption("Réparti pour que chaque ligne risque la même somme si son stop est touché (une valeur volatile reçoit moins), sans dépasser 20 % du budget par ligne.")
                 }
-                val amounts = r.allocate(model.budget)
+                val amounts = r.allocate(budgetUsd)
                 SectionTitle("À acheter · ${r.buy.size}")
                 r.buy.forEach { c -> PickCard(model, c, r, amounts[c.symbol], open) }
                 if (r.watch.isNotEmpty()) {

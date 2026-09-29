@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,9 +95,11 @@ private fun statusColor(s: FamilyStatus): Color = when (s) {
     FamilyStatus.UNAVAILABLE -> AltimColors.textSecondary
 }
 
-/** 421 Md$, 3,2 M$, 950 $ (amounts); without [unit] for counts (supply). */
-internal fun big(v: Double?, unit: String = "$"): String {
-    if (v == null || !v.isFinite()) return NA
+/** 421 Md€, 3,2 M€, 950 € (dollar amounts in the display currency); [unit] "" for counts (supply). */
+internal fun big(usd: Double?, unit: String? = null): String {
+    if (usd == null || !usd.isFinite()) return NA
+    val v = if (unit == null) Money.toDisplay(usd) else usd
+    @Suppress("NAME_SHADOWING") val unit = unit ?: Money.symbol()
     val a = abs(v)
     val sep = if (unit.isEmpty()) "" else " "
     fun f(x: Double) = Format.plain(x, if (abs(x) < 100) 1 else 0)
@@ -120,7 +123,7 @@ private fun pc(v: Double?, digits: Int = 1, sign: Boolean = false): String {
 /** The web card's `num`: "—" when missing. */
 private fun num(v: Double?, digits: Int = 2): String = if (v == null || !v.isFinite()) "—" else "${if (v < 0) "−" else ""}${Format.plain(abs(v), digits)}"
 
-/** "+2,8 Md$" / "−271 M$". */
+/** "+2,8 Md€" / "−271 M€". */
 private fun signedUsd(v: Double?): String = if (v == null) "—" else "${if (v < 0) "−" else if (v > 0) "+" else ""}${Format.compactUsd(abs(v))}"
 
 /** French flat tax (PFU) on the net gain, as in the sale tool: an assumption, not the user's own situation. */
@@ -456,8 +459,8 @@ private fun PlanBlock(p: Decision.Plan, horizon: Decision.HorizonClass?) {
     }
 }
 
-/** 78 400 $ above 1 000 $ (levels of a plan), else the usual price with cents. */
-private fun px(v: Double): String = if (abs(v) >= 1000) "${Format.plain(v, 0)} $" else Format.price(v)
+/** 78 400 € from 1 000 (levels of a plan), else the usual price with cents; dollars converted to the display currency. */
+private fun px(v: Double): String = if (abs(Money.toDisplay(v)) >= 1000) Format.amount(v, 0) else Format.price(v)
 
 /** Label on the left, value and its detail on the right, stacked (no squeezed wrapping at 360 dp). */
 @Composable

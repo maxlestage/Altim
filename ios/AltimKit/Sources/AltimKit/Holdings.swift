@@ -5,24 +5,89 @@ public struct Holding: Codable, Sendable, Identifiable, Hashable {
     public var id: UUID
     public var asset: Asset
     public var quantity: Double
-    /// Average purchase price in dollars (optional: without it, no gain / loss).
+    /// Average purchase price in `costCurrency` (optional: without it, no gain / loss).
     public var averagePrice: Double?
-    /// Stop set by the user (USD), optional: "position devenue dangereuse" alerts. Absent from older saved lines.
+    /// Stop set by the user in `stopCurrency`, optional: "position devenue dangereuse" alerts. Absent from older saved lines.
     public var stop: Double?
+    /// Currency the average price was typed in; absent = dollars (the only currency before the euro display).
+    public var costCurrency: Currency?
+    /// Currency the stop was typed in; absent = dollars.
+    public var stopCurrency: Currency?
 
-    public init(id: UUID = UUID(), asset: Asset, quantity: Double, averagePrice: Double?, stop: Double? = nil) {
+    public init(id: UUID = UUID(), asset: Asset, quantity: Double, averagePrice: Double?, stop: Double? = nil,
+                costCurrency: Currency? = nil, stopCurrency: Currency? = nil) {
         self.id = id
         self.asset = asset
         self.quantity = quantity
         self.averagePrice = averagePrice
         self.stop = stop.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+        self.costCurrency = costCurrency
+        self.stopCurrency = self.stop == nil ? nil : stopCurrency
+    }
+
+    enum CodingKeys: String, CodingKey { case id, asset, quantity, averagePrice, stop, costCurrency, stopCurrency }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        asset = try c.decode(Asset.self, forKey: .asset)
+        quantity = try c.decode(Double.self, forKey: .quantity)
+        averagePrice = try c.decodeIfPresent(Double.self, forKey: .averagePrice)
+        stop = try c.decodeIfPresent(Double.self, forKey: .stop)
+        // An unknown currency tag is dropped (read as dollars), never a failed line.
+        costCurrency = (try? c.decodeIfPresent(Currency.self, forKey: .costCurrency)) ?? nil
+        stopCurrency = (try? c.decodeIfPresent(Currency.self, forKey: .stopCurrency)) ?? nil
     }
 
     /// The optional stop is dropped when it is not a positive number (the line itself stays), like the web.
     public var cleaned: Holding {
         var h = self
-        if let s = stop, !(s.isFinite && s > 0) { h.stop = nil }
+        if let s = stop, !(s.isFinite && s > 0) {
+            h.stop = nil
+            h.stopCurrency = nil
+        }
         return h
+    }
+
+    /// « Prix de revient saisi en $, converti au taux du jour. » when the cost was typed in the other currency than
+    /// the one shown (and a rate allows the conversion).
+    public var costNote: String? {
+        guard let a = averagePrice, Money.stored(costCurrency) != Money.displayCurrency, Money.shown(a, costCurrency).isFinite else { return nil }
+        return "Prix de revient saisi en \(Money.stored(costCurrency).symbol), converti au taux du jour."
+    }
+}
+
+/// Holdings in dollars for the engines and the server, plus what could not be converted.
+public struct UsdHoldings: Sendable, Equatable {
+    public var holdings: [Holding]
+    /// Symbols whose euro cost could not be converted (no rate): their cost is left out and their P&L is not shown.
+    public var unconverted: [String]
+
+    /// Saved amounts in dollars at the current rate: a euro cost basis becomes `cost ÷ rate`, so that the dollar P&L,
+    /// converted back at the same rate, is exactly the euro P&L (price in euros today − cost in euros, currency effect
+    /// included). The returned lines carry no currency tag (all dollars).
+    public init(_ stored: [Holding]) {
+        var unconverted: [String] = []
+        holdings = stored.map { h in
+            var out = h
+            out.costCurrency = nil
+            out.stopCurrency = nil
+            if let a = h.averagePrice {
+                let usd = Money.convert(a, from: Money.stored(h.costCurrency), to: .usd)
+                if usd.isFinite {
+                    out.averagePrice = usd
+                } else {
+                    unconverted.append(h.asset.symbol)
+                    out.averagePrice = nil
+                }
+            }
+            if let s = h.stop {
+                let usd = Money.convert(s, from: Money.stored(h.stopCurrency), to: .usd)
+                out.stop = usd.isFinite && usd > 0 ? usd : nil
+            }
+            return out
+        }
+        self.unconverted = unconverted
     }
 }
 

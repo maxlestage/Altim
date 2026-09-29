@@ -293,3 +293,17 @@ struct WrapLayout: Layout {
         return rows
     }
 }
+
+/// Discreet line under amounts: "1 $ = 0,8819 € · Yahoo Finance, 17:15", or why they are still in dollars (euros
+/// asked but no rate: never a made-up conversion). Nothing when dollars are chosen.
+struct FxNote: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        // Read here so that the line follows the rate and the setting.
+        let _ = (model.fx, model.currency)
+        if let text = Money.note() {
+            Text(text).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}

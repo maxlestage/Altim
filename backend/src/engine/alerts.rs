@@ -10,7 +10,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::fibonacci::{Band, FibZone, Horizon, ZoneStatus};
-use super::format::format_price;
 use super::reliability::ReliabilityLevel;
 use super::signal::Action;
 use crate::js::{number_to_string, round};
@@ -95,7 +94,7 @@ pub struct BuyAlert {
 }
 
 fn usd(v: f64) -> String {
-    format!("{} $", format_price(v))
+    crate::fx::money(v)
 }
 
 fn order(h: Horizon) -> usize {

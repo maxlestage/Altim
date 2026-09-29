@@ -323,7 +323,7 @@ class GuidanceCardsTest {
         val p = RiskPortfolio.of(holdings, 0.0, mapOf("stock:NVDA" to n, "stock:QQQ" to q, "crypto:DOGE" to 0.12), emptyMap())
         screen { WhatIfCard(p, mapOf("stock:NVDA" to nvda, "stock:QQQ" to qqq), null) }
         expect(
-            "Et si… ?", "si le Nasdaq-100 baisse de 10 %", "Nasdaq-100 (QQQ)", "S&P 500 (SPY)", "Bitcoin", "−5 %", "−50 %", "Autre baisse (%)", "Montant simulé (USD, facultatif)",
+            "Et si… ?", "si le Nasdaq-100 baisse de 10 %", "Nasdaq-100 (QQQ)", "S&P 500 (SPY)", "Bitcoin", "−5 %", "−50 %", "Autre baisse (%)", "Montant simulé ($, facultatif)",
             "Perte estimée", "de votre patrimoine", "Ligne la plus touchée : NVDA", "bêta 1.80, corrélation 1.00", "c'est ce marché lui-même (bêta 1)",
             "non couvert", "moins de 30 jours communs avec Nasdaq-100 (QQQ) : bêta non mesurable", "Non couvert : DOGE", "laissé hors du total, jamais estimé.",
             "Bêta estimé sur 250 jours de rendements journaliers communs", "Ce n'est pas une prévision.",

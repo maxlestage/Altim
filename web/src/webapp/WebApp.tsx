@@ -13,6 +13,10 @@ import { Simulation } from "./Simulation";
 import { Journal } from "./Journal";
 import { Validation } from "./Validation";
 import { Bot } from "./Bot";
+import { startFx, useFx } from "./fx";
+import { Alerts } from "./Alerts";
+import { startChecks } from "./notify";
+import { setMoneyDisplay } from "../money";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
@@ -33,9 +37,14 @@ function Icon({ d }: { d: string }) {
 export function WebApp() {
   const path = usePath();
   const state = useAppState();
+  const { fx } = useFx();
+  // Every formatter reads the display currency set here, before the screens render.
+  setMoneyDisplay(state.currency, fx);
 
   useEffect(() => {
     document.title = "Altim — Application web";
+    startFx();
+    startChecks();
   }, []);
 
   if (!state.acceptedDisclaimer) return <Disclaimer />;
@@ -53,11 +62,12 @@ export function WebApp() {
   else if (path === "/app/journal") screen = <Journal />;
   else if (path === "/app/validation") screen = <Validation />;
   else if (path === "/app/bot") screen = <Bot />;
+  else if (path === "/app/alertes") screen = <Alerts />;
   else screen = <Radar />;
 
   // The simulation and the journal sit next to the real holdings (tab "Mes avoirs"), the opportunities next to the
   // selection.
-  const active = asset
+  const active = asset || path === "/app/alertes"
     ? "/app"
     : path === "/app/simulation" || path === "/app/journal"
       ? "/app/avoirs"

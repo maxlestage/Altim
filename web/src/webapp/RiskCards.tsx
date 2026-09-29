@@ -1,8 +1,9 @@
+import { money } from "../money";
 import type { PortfolioAnalysis } from "../engine/holdings";
 import { onLink } from "./router";
 import { BENCHMARK, MIN_BETA_DAYS, type BetaEstimate, type LimitCheck, type StressResult } from "../engine/portfolio-risk";
 
-const usd = (v: number) => `${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(Math.abs(v), 0, 0);
 const pc = (v: number) => `${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const LIMIT_ICON = { danger: "⛔", warning: "⚠", ok: "✔", na: "?" } as const;
 const LIMIT_CLASS = { danger: "danger", warning: "warning", ok: "good", na: "info" } as const;

@@ -8,10 +8,11 @@ private let series: [Color] = [Theme.allocCrypto, Theme.allocStock, Theme.allocC
 private let fr = Locale(identifier: "fr_FR")
 
 private func signed(_ v: Double) -> String { "\(v >= 0 ? "+" : "−")\(abs(v).formatted(.number.precision(.fractionLength(0...1)).locale(fr))) %" }
-private func dollars(_ v: Double) -> String { "\(v.formatted(.number.precision(.fractionLength(0)).locale(fr))) $" }
-private func number(_ s: String) -> Double? {
-    Double(s.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: "."))
-}
+/// A dollar amount in the display currency, whole: "1 250 €".
+private func dollars(_ v: Double) -> String { Money.money(v, min: 0, max: 0, sep: " ") }
+private func number(_ s: String) -> Double? { Money.parse(s) }
+/// A typed amount (display currency) in dollars, nil when not a number.
+private func typedUsd(_ s: String) -> Double? { number(s).map(Money.fromDisplay).flatMap { $0.isFinite ? $0 : nil } }
 
 // MARK: Comparison
 
@@ -155,7 +156,10 @@ struct PositionCard: View {
     let asset: Asset
     let price: Double?
     let zones: [FibZone]
+    /// Capital, stop and target are shown and typed in the display currency, sized in dollars. The saved capital keeps
+    /// the currency it was typed in (older versions: dollars).
     @AppStorage("position.capital") private var capitalText = ""
+    @AppStorage("position.capitalCurrency") private var capitalCurrency = Currency.usd.rawValue
     @AppStorage("position.risk") private var riskText = "1"
     @State private var stopText = ""
     @State private var targetText = ""
@@ -164,15 +168,16 @@ struct PositionCard: View {
     private var zone: FibZone? { zones.first { z in (z.invalidation ?? 0) > 0 && price.map { z.invalidation! < $0 } == true } }
 
     var body: some View {
-        let p = price.flatMap { Tools.positionSize(capital: number(capitalText) ?? 0, riskPct: number(riskText) ?? 0, entry: $0, stop: number(stopText) ?? 0, target: number(targetText)) }
+        let p = price.flatMap { Tools.positionSize(capital: typedUsd(capitalText) ?? 0, riskPct: number(riskText) ?? 0, entry: $0, stop: typedUsd(stopText) ?? 0, target: typedUsd(targetText)) }
+        let sym = Money.symbol()
         Card(title: "Taille de position") {
             HStack {
-                field("Capital", $capitalText, "$")
+                field("Capital", $capitalText, sym)
                 field("Risque accepté", $riskText, "%")
             }
             HStack {
-                field("Stop", $stopText, "$")
-                field("Objectif", $targetText, "$")
+                field("Stop", $stopText, sym)
+                field("Objectif", $targetText, sym)
             }
             Text("Entrée au prix actuel \(price.map { Format.price($0) } ?? "…") ; stop proposé : \(zone != nil ? "plus bas qui invalide la zone d'achat" : "5 % sous le prix (à ajuster)").")
                 .font(.caption).foregroundStyle(Theme.textSecondary)
@@ -193,13 +198,28 @@ struct PositionCard: View {
         }
         .onChange(of: price, initial: true) { _, price in
             guard let price else { return }
-            if stopText.isEmpty { stopText = Format.plain(zone?.invalidation ?? price * 0.95, digits: price >= 1 ? 2 : 6) }
-            if targetText.isEmpty, let t = zone?.targets.first(where: { $0 > price }) { targetText = Format.plain(t, digits: price >= 1 ? 2 : 6) }
+            let shown = Money.toDisplay(price)
+            if stopText.isEmpty { stopText = Format.plain(Money.toDisplay(zone?.invalidation ?? price * 0.95), digits: shown >= 1 ? 2 : 6) }
+            if targetText.isEmpty, let t = zone?.targets.first(where: { $0 > price }) { targetText = Format.plain(Money.toDisplay(t), digits: shown >= 1 ? 2 : 6) }
+            // A capital saved in the other currency is shown converted at today's rate.
+            let saved = Currency(rawValue: capitalCurrency) ?? .usd
+            if saved != Money.displayCurrency, let v = number(capitalText) {
+                let c = Money.convert(v, from: saved, to: Money.displayCurrency)
+                if c.isFinite {
+                    capitalText = String(Int(c.rounded()))
+                    capitalCurrency = Money.displayCurrency.rawValue
+                }
+            }
             if capitalText.isEmpty {
-                let total = Portfolio(holdings: model.holdings, prices: Dictionary(model.holdings.compactMap { h in model.live.price(h.asset).map { (h.asset.id, $0.price) } }, uniquingKeysWith: { a, _ in a })).total
-                if total > 0 { capitalText = String(Int(total.rounded())) }
+                let usd = model.usdHoldings.holdings
+                let total = Portfolio(holdings: usd, prices: Dictionary(usd.compactMap { h in model.live.price(h.asset).map { (h.asset.id, $0.price) } }, uniquingKeysWith: { a, _ in a })).total
+                if total > 0 {
+                    capitalText = String(Int(Money.toDisplay(total).rounded()))
+                    capitalCurrency = Money.displayCurrency.rawValue
+                }
             }
         }
+        .onChange(of: capitalText) { _, _ in capitalCurrency = Money.displayCurrency.rawValue }
     }
 
     private func field(_ label: String, _ text: Binding<String>, _ unit: String) -> some View {
@@ -277,7 +297,8 @@ struct ProjectionCard: View {
     @State private var years = 10
 
     var body: some View {
-        let monthly = number(monthlyText) ?? 0
+        // Typed in the display currency, projected in dollars like the portfolio.
+        let monthly = typedUsd(monthlyText) ?? 0
         let runs = Tools.projectionRates.map { (rate: $0, end: Tools.projection(start: start, monthly: monthly, years: years, ratePct: $0).last!) }
         let paid = runs[0].end.paid
         Card(title: "Projection") {
@@ -285,7 +306,7 @@ struct ProjectionCard: View {
                 Text("Versement chaque mois, facultatif").foregroundStyle(Theme.textSecondary)
                 Spacer()
                 TextField("200", text: $monthlyText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).font(Theme.mono(16)).frame(maxWidth: 120)
-                Text("$").foregroundStyle(Theme.textSecondary)
+                Text(Money.symbol()).foregroundStyle(Theme.textSecondary)
             }
             Picker("Durée", selection: $years) {
                 Text("5 ans").tag(5)

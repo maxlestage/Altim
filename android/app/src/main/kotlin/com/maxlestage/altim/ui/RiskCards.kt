@@ -29,7 +29,7 @@ import kotlin.math.abs
 // Risk cards of Mes avoirs (same texts as web/src/webapp/RiskCards.tsx): the portfolio against the user's limits, and
 // market shocks passed through each line's beta. Stacked rows, no table: nothing wider than a 360 dp phone.
 
-private fun usd(v: Double) = "${Format.plain(abs(v), 0)} $"
+private fun usd(v: Double) = Format.amount(abs(v), 0)
 private fun pc(v: Double) = "${Format.plain(abs(v), 1)} %"
 
 private fun limitIcon(l: LimitLevel) = when (l) {

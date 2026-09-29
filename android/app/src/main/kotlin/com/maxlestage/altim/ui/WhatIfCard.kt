@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -49,7 +50,7 @@ import kotlin.math.abs
 // S&P 500, Bitcoin) fell by a given shock, each line through its beta to that factor (one year of shared sessions).
 // A line without a measurable beta is "non couverte", never guessed. Chips wrap, lines stack.
 
-private fun usd(v: Double) = "${Format.plain(v, 0)} $"
+private fun usd(v: Double) = Format.amount(v, 0)
 private fun signedUsd(loss: Double) = "${if (loss > 0) "−" else if (loss < 0) "+" else ""}${usd(abs(loss))}"
 private fun signedPct(v: Double) = "${if (v > 0) "+" else if (v < 0) "−" else ""}${Format.plain(abs(v), 1)} %"
 private fun fixed2(v: Double) = String.format(Locale.ROOT, "%.2f", v)
@@ -75,7 +76,8 @@ fun WhatIfCard(portfolio: RiskPortfolio, daily: Map<String, List<Candle>>, clien
 
     val customShock = Format.parse(custom.trim().removePrefix("−").removePrefix("-"))
     val effShock = if (custom.isNotBlank() && customShock != null && customShock > 0 && customShock <= 100) -customShock else shock
-    val amount = Format.parse(amountText)
+    // Typed in the display currency; the engine works in dollars.
+    val amount = Format.parse(amountText)?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
     val betas = remember(portfolio.lines.map { it.key }, daily, factorCandles) {
         val b = LinkedHashMap<String, FactorBeta>()
         if (!factorCandles.isNullOrEmpty()) for (l in portfolio.lines) if (l.key !in b) b[l.key] = WhatIf.factorBeta(daily[l.key].orEmpty(), factorCandles, WhatIf.BETA_DAYS)
@@ -104,7 +106,7 @@ fun WhatIfCard(portfolio: RiskPortfolio, daily: Map<String, List<Candle>>, clien
             }
         }
         Field(custom, "Autre baisse (%)", "ex. 15") { custom = it }
-        Field(amountText, "Montant simulé (USD, facultatif)", usd(portfolio.total)) { amountText = it }
+        Field(amountText, "Montant simulé (${Money.symbol()}, facultatif)", usd(portfolio.total)) { amountText = it }
         if (r.scaled) Caption("Simulé sur ${usd(r.base)} répartis selon les poids actuels (liquidités comprises : ${usd(r.cash)}).")
 
         when {
