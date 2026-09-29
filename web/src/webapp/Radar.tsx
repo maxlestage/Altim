@@ -10,6 +10,12 @@ import { DecisionBadge, RATING_RANK, ratingTone } from "./DecisionCard";
 import { formatPrice } from "../market";
 import { cacheDecision, cachedDecision, shortDateTime, type Decision } from "./decision";
 import { clearTransitions, recordConfiguration, transitionTitle, useTransitions } from "./config-changes";
+
+/** The cached full decision when under 12 h old (like the badge): an older one never sorts nor lists an asset. */
+function freshDecision(w: WatchItem): Decision | undefined {
+  const c = cachedDecision(w.kind, w.symbol);
+  return c && Date.now() - c.at <= 12 * 3_600_000 ? c.decision : undefined;
+}
 import { readDangers } from "./danger-store";
 
 /** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
@@ -54,8 +60,8 @@ export function Radar() {
           return Math.abs(cb ?? -1) - Math.abs(ca ?? -1);
         }
         // "Décision": the full decision's rating (buy side first), then its confidence.
-        const da = cachedDecision(a.kind, a.symbol)?.decision;
-        const db = cachedDecision(b.kind, b.symbol)?.decision;
+        const da = freshDecision(a);
+        const db = freshDecision(b);
         const rank = (d: typeof da) => (d?.rating ? RATING_RANK[d.rating] : 9);
         return rank(da) - rank(db) || (db?.confidence ?? 0) - (da?.confidence ?? 0);
       });
@@ -147,13 +153,13 @@ export function Radar() {
   const dangers = readDangers();
 
   const cardTone = (w: WatchItem) => {
-    const d = cachedDecision(w.kind, w.symbol)?.decision;
+    const d = freshDecision(w);
     return d ? ratingTone(d.rating, d.verdict) : "";
   };
 
   // Assets whose full decision is ACHETER or ZONE D'ACHAT (not the 4 h technical signal alone).
   const opportunities = watchlist
-    .map((w) => ({ w, d: cachedDecision(w.kind, w.symbol)?.decision }))
+    .map((w) => ({ w, d: freshDecision(w) }))
     .filter((x): x is { w: WatchItem; d: Decision } => !!x.d && (x.d.verdict === "buy" || x.d.verdict === "buyZone"))
     .sort((a, b) => b.d.confidence - a.d.confidence)
     .slice(0, 3);
