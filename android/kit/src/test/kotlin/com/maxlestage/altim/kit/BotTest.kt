@@ -12,14 +12,153 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// Same cases and expected values as web/test/bot.test.ts, on the real /api/bot sample (backend/tests/samples/bot.json),
-// plus the partial decoding, the `bot` field of a decision, the 202 polling answer, the views route and the offline cache.
+// Same cases and expected values as web/test/bot.test.ts, on the real /api/bot samples: v2 (backend/tests/samples/bot.json)
+// and v1 (bot-v1.json, which must still decode and read as before), plus the partial decoding, the `bot` field of a
+// decision, the 202 polling answer, the views route and the offline cache.
 
 private const val N = "\u202F"
 
 class BotTest {
     private fun raw(name: String) = requireNotNull(javaClass.getResource("/fixtures/$name")).readText()
-    private val report = AltimJson.decodeFromString(BotReport.serializer(), raw("bot.json"))
+    private val report = AltimJson.decodeFromString(BotReport.serializer(), raw("bot-v1.json"))
+    private val v2 = AltimJson.decodeFromString(BotReport.serializer(), raw("bot.json"))
+
+    @Test fun v2GroupsCandidatesAndSelectionAddUp() {
+        assertEquals(2, v2.version)
+        assertNull(report.version)
+        assertEquals(24, v2.features.size)
+        assertEquals(listOf("stock", "crypto"), v2.groups.map { it.id })
+        assertEquals(34, v2.assets.size + v2.failures.size)
+        assertEquals(v2.groups.sumOf { it.buy.signals }, v2.overall.buy.signals)
+        assertEquals(v2.groups.sumOf { it.sell.signals }, v2.overall.sell.signals)
+        for (g in v2.groups) {
+            assertEquals(g.labelled, g.calibrationUp.sumOf { it.rows })
+            val m = g.model!!
+            if (m.candidate == "v1" || m.candidate == "logit") assertEquals(if (m.candidate == "v1") 16 else v2.features.size, m.up.weights.size)
+            assertEquals(listOf("v1", "logit", "trees", "trend"), g.candidates.map { it.id })
+            assertEquals(g.trainedBlocks, g.candidates.sumOf { it.chosenBlocks })
+            assertEquals(g.blocks, g.selection.size)
+            assertEquals(g.buy.clustered!!.byDate, g.buy.tStat)
+            assertTrue(g.universe!!.extra > 0)
+            assertTrue(g.holdout != null && g.extra != null)
+            assertEquals(4, m.scores.size)
+            assertTrue(m.upModel != null && m.downModel != null)
+        }
+        assertEquals(false, Bot.anyEdge(v2))
+        assertTrue(v2.headline.startsWith("Hors échantillon, le bot n'a pas fait mieux"))
+        assertEquals(6, v2.changes.size)
+        assertEquals(emptyList(), v2.extraFailures)
+        assertEquals("2026-09-29", v2.extraFixedOn)
+        assertEquals(4, v2.timing?.threads)
+        assertEquals(252, v2.parameters.innerValidationDays)
+        assertEquals(100, v2.parameters.trees)
+        assertEquals(126990, v2.overall.labelled)
+        assertEquals("2723 / 1326", Bot.signalsTile(v2))
+        val stock = v2.groups[0]
+        assertEquals("logit", stock.model?.candidate)
+        assertEquals("S&P 500 (SPY)", stock.market)
+        assertEquals(20.1, stock.dataYears)
+        assertEquals("Moins bien qu'une entrée au hasard (t ≤ −2 par jour)", stock.buy.verdictLabel)
+        val aapl = v2.assets[0]
+        assertEquals(20.1, aapl.years)
+        assertEquals(14.1, aapl.outShare)
+        assertEquals(-38.42, aapl.botMaxDrawdown)
+        // A trees side keeps its compact nodes raw.
+        val crypto = v2.groups[1]
+        assertEquals(null, crypto.selection[0].chosen)
+        assertEquals(null, crypto.selection[0].scores[0].logLoss)
+    }
+
+    @Test fun v2Texts() {
+        val c = BotClustered(byDate = -2.4, dates = 1067, byAsset = -4.46, assets = 22, perSignal = -2.84)
+        assertEquals("t par jour −2,4 (1067 jours) · par actif −4,5 · par signal −2,8", Bot.clusteredText(c, -2.4))
+        assertEquals("t = 1,3", Bot.clusteredText(null, 1.25))
+        assertEquals("t = —", Bot.clusteredText(null, null))
+        val e = BotExitStats(22, 15.5, -46.13, -47.93, -0.15, 647.46, 289.42, 1)
+        assertEquals(
+            "En sortant 20 jours à chaque VENDRE : hors marché 16$N% du temps ; pire baisse médiane −47,9$N% contre −46,1$N% en gardant ; rendement médian +289$N% contre +647$N% (mieux que garder : 1 actif sur 22).",
+            Bot.exitText(e),
+        )
+        assertTrue(Bot.exitText(e.copy(beatHold = 4))!!.endsWith("(mieux que garder : 4 actifs sur 22)."))
+        assertNull(Bot.exitText(BotExitStats()))
+        assertNull(Bot.exitText(null))
+        val stock = v2.groups[0]
+        assertEquals("22 actifs du panier et 72 de plus à l'entraînement · historique médian 20,1 ans (le plus long 20,1 ans) · marché : S&P 500 (SPY)", Bot.dataText(stock))
+        assertEquals(
+            "12 actifs du panier et 19 de plus à l'entraînement · historique médian 8,9 ans (le plus long 15,1 ans) · marché : bitcoin",
+            Bot.dataText(v2.groups[1]),
+        )
+        assertEquals(
+            "1 actif du panier et 3 de plus à l'entraînement (2 indisponibles) · historique médian — (le plus long —)",
+            Bot.dataText(BotGroupStat(universe = BotUniverse(basket = 1, extra = 3, extraFailed = 2))),
+        )
+        assertEquals("Données : ${Bot.dataText(stock)}.", Bot.dataLine(stock))
+        fun b(start: Double, end: Double?, chosen: String?) = BotBlockOut(start, end, 1, chosen)
+        assertEquals(
+            listOf(Bot.SelectionRun(1.0, 2.0, "trend", 2), Bot.SelectionRun(3.0, 3.0, "v1", 1), Bot.SelectionRun(4.0, 4.0, null, 1)),
+            Bot.selectionRuns(listOf(b(1.0, 2.0, "trend"), b(2.0, 3.0, "trend"), b(3.0, null, "v1"), b(4.0, null, null))),
+        )
+        val runs = Bot.selectionRuns(stock.selection)
+        assertEquals(11, runs.size)
+        assertEquals("nov. 2009 → nov. 2012 (4 fois)", Bot.runPeriod(runs[0]))
+        assertEquals("Tendance", Bot.runChoice(runs[0]))
+        assertEquals("aucun (trop peu de données)", Bot.runChoice(Bot.SelectionRun(1.0, 1.0, null, 1)))
+        assertEquals("Arbres", Bot.CANDIDATE_SHORT["trees"])
+        assertEquals("Aujourd'hui : Logistique 24, choisi de la même façon sur la dernière année connue.", Bot.liveModelText(stock))
+        assertTrue(Bot.buyText(stock.buy).contains("t par jour ="))
+        assertEquals(
+            "1977 achats : +0,98$N% en moyenne sur 20 jours, contre +1,36$N% pour une entrée au hasard sur le même actif et la même période (−0,38 point, t par jour = −2,4).",
+            Bot.buyText(stock.buy),
+        )
+        assertEquals(
+            "714 ventes : le cours a fait +2,61$N% dans les 20 jours suivants, contre +0,76$N% après un jour au hasard (cours ensuite supérieur de 1,85 point, t par jour = −4,5).",
+            Bot.sellText(stock.sell),
+        )
+        assertEquals("22 actifs testés · test du nov. 2009 au sept. 2026 · 17 réentraînements", Bot.groupSubtitle(stock))
+        val cand = stock.candidates[0]
+        assertEquals("retenu 3 fois sur 17", Bot.candidateChosenText(cand))
+        assertEquals("419 achats · écart au hasard" to "+0,81 point (t 2)", Bot.candidateBuyRow(cand))
+        assertEquals("Précision hausse / baisse" to "−0,3 % / −0,2 %", Bot.candidateSkillRow(cand))
+        assertEquals("Achats : avantage non démontré", Bot.prefixedVerdict("Achats", cand.buy.verdictLabel))
+        assertEquals("Actions et ETF américains · 12 derniers mois", Bot.holdoutTitle(stock))
+        assertEquals(
+            "Du 29/09/2025 au 28/09/2026, présentés à part (même modèle choisi ; rien n'est choisi sur cette période).",
+            Bot.holdoutNote(stock.holdout!!),
+        )
+        assertEquals("Actions et ETF américains · actifs d'entraînement hors panier", Bot.extraTitle(stock))
+        assertEquals("72 actifs fixés d'avance, hors du test principal ; eux aussi jugés hors échantillon.", Bot.extraNote(stock))
+        assertEquals("?", Bot.day(null))
+        assertEquals(
+            "Test : 83 achats (−0,09 point vs hasard) · 30 ventes (cours ensuite +1,79 point vs hasard) · attente 56$N% · achats cumulés +359,7$N%, détention +4${N}597,8$N% · " +
+                "hors marché après VENDRE 14$N% du temps, pire baisse −38,4$N% contre −44,8$N% en gardant (Yahoo Finance (20 ans max.), 20,1 ans)",
+            Bot.assetTestText(v2.assets[0]),
+        )
+        assertEquals(
+            "Panier fixé le 29/09/2026, univers élargi le 29/09/2026. Source : ${v2.source}. Calcul : 13 s de téléchargement, 35 s d'entraînement et de test.",
+            Bot.sourceText(v2),
+        )
+        assertNull(Bot.extraFailuresText(v2))
+        assertEquals(
+            "Univers élargi : 2 actifs indisponibles (TRX, XYZ).",
+            Bot.extraFailuresText(v2.copy(extraFailures = listOf(ValFailure("TRX"), ValFailure("XYZ")))),
+        )
+        assertEquals("Univers élargi : 1 actif indisponible (TRX).", Bot.extraFailuresText(v2.copy(extraFailures = listOf(ValFailure("TRX")))))
+    }
+
+    @Test fun v1StillReads() {
+        val g = report.groups[0]
+        assertNull(Bot.dataText(g))
+        assertNull(Bot.dataLine(g))
+        assertNull(Bot.exitText(g.sell.exit))
+        assertNull(Bot.liveModelText(g))
+        assertNull(g.buy.clustered)
+        assertEquals(emptyList(), g.candidates)
+        assertEquals(emptyList(), g.selection)
+        assertNull(g.holdout)
+        assertNull(report.timing)
+        assertEquals(emptyList(), report.changes)
+        assertTrue(Bot.buyText(g.buy).contains("(−0,15 point, t = −0,1)"))
+    }
 
     @Test fun groupsAssetsAndSignalsAddUp() {
         assertEquals("/api/bot", Bot.PATH)
@@ -66,7 +205,7 @@ class BotTest {
             Bot.sellText(stock.sell),
         )
         assertEquals("ATTENDRE 85$N% des jours testés, suivis en moyenne de +0,98$N% (tous les jours : +1,39$N%).", Bot.waitText(stock.wait))
-        assertEquals("22 actifs · test du oct. 2024 au sept. 2026 · 4 réentraînements", Bot.groupSubtitle(stock))
+        assertEquals("22 actifs testés · test du oct. 2024 au sept. 2026 · 4 réentraînements", Bot.groupSubtitle(stock))
         assertEquals(
             "Horizon 20 jours · seuil : fréquence d'entraînement + 5 points · coûts d'un aller-retour 0,31 % (actions), 0,32 % (cryptos). Calculé le 29/09/2026 11:36, réentraîné toutes les 12 h.",
             Bot.parametersText(report, ZoneOffset.UTC),
@@ -128,6 +267,16 @@ class BotTest {
         assertEquals("RSI 14 : 40 (pèse contre la hausse)", Bot.contributionsText(view))
         assertEquals("Hausse 46$N% (seuil 50$N%), baisse 52$N% (seuil 58$N%)", Bot.viewText(view))
         assertTrue(Bot.viewText(view.copy(inBasket = false)).endsWith(" · hors du panier testé"))
+        // v2: the model behind the view.
+        val withModel = view.copy(model = "logit", modelLabel = "Régression logistique 24 mesures")
+        assertEquals("Hausse 46$N% (seuil 50$N%), baisse 52$N% (seuil 58$N%) · Régression logistique 24 mesures · hors du panier testé", Bot.viewText(withModel.copy(inBasket = false)))
+        assertEquals(
+            "Probabilités à 20 jours : hausse 46$N% (seuil 50$N%), baisse 52$N% (seuil 58$N%) · Régression logistique 24 mesures · modèle des cryptos, non testé sur cet actif",
+            Bot.probabilitiesText(withModel.copy(inBasket = false)),
+        )
+        val decoded = AltimJson.decodeFromString(BotView.serializer(), """{"available":true,"action":"wait","model":"trend","modelLabel":"Règle de tendance"}""")
+        assertEquals("trend", decoded.model)
+        assertEquals("Règle de tendance", decoded.modelLabel)
         val na = view.copy(available = false, action = null, contributions = emptyList(), text = "Bot pas encore entraîné")
         assertEquals("Bot pas encore entraîné", Bot.summary(na))
         assertEquals("Bot pas encore entraîné", Bot.viewText(na))
@@ -183,7 +332,7 @@ class BotTest {
             assertEquals(BotViews(), c.botViews(emptyList()))
             // Offline: the last report.
             server.close()
-            assertEquals(207, assertIs<BotResult.Ready>(c.bot()).report.overall.buy.signals)
+            assertEquals(2723, assertIs<BotResult.Ready>(c.bot()).report.overall.buy.signals)
         } finally {
             server.close()
             dir.deleteRecursively()
