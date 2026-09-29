@@ -135,6 +135,8 @@ export const api = {
   strategies: (symbol: string, kind: Kind) => get<StrategiesReport>(strategiesUrl(symbol, kind)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   opportunities: (kind: Kind) => get<import("../engine/opportunities").OpportunityReport | { pending: true }>(`/api/opportunities?kind=${kind}`),
+  /** Sector of each stock (Nasdaq screener, SEC SIC code, ETF flag); 50 at most. */
+  sectors: (symbols: string[]) => get<import("../engine/sectors").SectorsReport>(`/api/sectors?symbols=${encodeURIComponent(symbols.slice(0, 50).join(","))}`),
   anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

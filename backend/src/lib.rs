@@ -18,6 +18,7 @@ pub mod news;
 pub mod opportunities;
 pub mod quotes;
 pub mod screener;
+pub mod sectors;
 pub mod stocks_extra;
 pub mod tokenomics;
 pub mod types;

@@ -823,3 +823,14 @@
 .anom-deriv { margin-top: 12px; display: grid; gap: 4px; }
 .anom-block { display: grid; gap: 0; }
 .anom-nc { padding-left: 18px; margin: 4px 0 0; }
+
+/* Sector exposure (Mes avoirs): one thin bar per block, value in text colour. */
+.sector-bars { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 10px; }
+.sector-row { display: grid; gap: 4px; min-width: 0; }
+.sector-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-size: 14px; }
+.sector-label { min-width: 0; overflow-wrap: anywhere; }
+.sector-head b { color: var(--text); font-weight: 600; flex: none; }
+.sector-track { height: 6px; border-radius: 0 3px 3px 0; background: rgba(255, 255, 255, 0.07); }
+.sector-track i { display: block; height: 100%; min-width: 2px; border-radius: 0 3px 3px 0; background: #3987e5; }
+.sector-row small { font-size: 12px; overflow-wrap: anywhere; }
+.sector-card .insights { margin-bottom: 8px; }

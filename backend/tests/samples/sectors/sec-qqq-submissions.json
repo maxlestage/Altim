@@ -1,0 +1,20 @@
+{
+  "cik": "0001067839",
+  "entityType": "investment",
+  "sic": "",
+  "sicDescription": "",
+  "ownerOrg": "",
+  "insiderTransactionForOwnerExists": 0,
+  "insiderTransactionForIssuerExists": 0,
+  "name": "INVESCO QQQ TRUST, SERIES 1",
+  "tickers": [
+    "QQQ"
+  ],
+  "exchanges": [
+    "Nasdaq"
+  ],
+  "ein": "753098642",
+  "category": "",
+  "fiscalYearEnd": "0930",
+  "stateOfIncorporation": ""
+}
