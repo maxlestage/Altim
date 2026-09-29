@@ -112,7 +112,7 @@ final class ValidationTests: XCTestCase {
         XCTAssertTrue(rows.contains { $0.label == "Pire actif (LINK)" && $0.value == "−83,7\u{202F}%" })
         XCTAssertEqual(rows.last?.label, "Après impôt 30\u{202F}% (signal / détention)")
         let aapl = r.assets[0]
-        XCTAssertEqual(ModelValidation.assetGapText(aapl), "(moins bien, écart −86,5\u{202F}%)")
+        XCTAssertEqual(ModelValidation.assetGapText(aapl), "(moins bien, écart −86,6\u{202F}%)")
         XCTAssertEqual(ModelValidation.assetTag(aapl), "Actions · Technologie")
         XCTAssertTrue(ModelValidation.assetDetails(aapl).hasPrefix("36 trades · réussite 42\u{202F}% · facteur de profit 1,16 · espérance +0,47\u{202F}%"))
         XCTAssertTrue(ModelValidation.assetDetails(aapl).hasSuffix("(StockAnalysis)"))
