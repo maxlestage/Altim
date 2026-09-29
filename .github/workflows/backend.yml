@@ -2,9 +2,9 @@ name: Serveur (Rust)
 
 on:
   push:
-    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -67,3 +67,45 @@ jobs:
           curl -fsS localhost:3001/login | grep -q "Accès privé non configuré"
       - if: failure()
         run: cat "$BUILD"/dev.log "$BUILD"/prod.log || true
+
+  heroku-auto:
+    name: "Build façon Heroku sans buildpack réglé (détection Node.js) et démarrage"
+    # An app connected to GitHub without buildpacks set: Heroku detects Node.js from package.json and runs
+    # "heroku-postbuild" (scripts/heroku-build.sh), which builds the site and compiles the server itself.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Buildpack Node.js officiel seul
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/heroku"; mkdir -p "$W"/{build,cache,env,home}
+          git clone -q --depth 1 https://github.com/heroku/heroku-buildpack-nodejs "$W/bp"
+          git archive HEAD | tar -x -C "$W/build"
+          bash "$W/bp/bin/detect" "$W/build"
+          (cd "$W/build" && env -u CARGO_HOME -u RUSTUP_HOME HOME="$W/home" STACK=heroku-24 bash "$W/bp/bin/compile" "$W/build" "$W/cache" "$W/env")
+          echo "BUILD=$W/build" >> "$GITHUB_ENV"
+      - name: Phase de publication et démarrage
+        run: |
+          cd "$BUILD"
+          bash -c "$(sed -n 's/^release: //p' Procfile)"
+          CMD=$(sed -n 's/^web: //p' Procfile | sed "s#/app/web#$BUILD/web#")
+          PORT=3000 bash -c "$CMD" > run.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS localhost:3000/health && break; sleep 1; done
+          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
+      - if: failure()
+        run: cat "$BUILD"/run.log || true
+
+  docker:
+    name: "Image Docker (app Heroku sur la pile container, heroku.yml) et démarrage"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construction de l'image
+        run: docker build -t altim .
+      - name: Démarrage sur $PORT comme Heroku
+        run: |
+          docker run -d --name altim -e PORT=5000 -p 5000:5000 altim
+          for i in $(seq 1 30); do curl -fsS localhost:5000/health && break; sleep 1; done
+          curl -fsS localhost:5000/ | grep -q "<div id=\"root\">"
+      - if: failure()
+        run: docker logs altim || true
