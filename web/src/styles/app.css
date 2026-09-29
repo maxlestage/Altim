@@ -867,3 +867,9 @@
 .val-asset-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .val-sym { color: var(--text); text-decoration: none; margin-right: auto; }
 .validation .chip { margin: 0; }
+
+/* The 4 h technical signal as a direction (the verdict is the Décision card's). */
+.tech-dir { font-size: 15px; }
+.tech-dir.up { color: var(--buy); }
+.tech-dir.down { color: var(--sell); }
+.badge.dec-pending { opacity: 0.7; }

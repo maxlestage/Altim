@@ -103,7 +103,7 @@ fun AlertsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
             val buyable = alerts?.filter { it.buy }
             when {
                 alerts == null && error == null -> item { Loading("Vérification du radar et des avoirs…") }
-                buyable.isNullOrEmpty() && error == null -> item { Caption("Rien d'achetable pour l'instant selon la règle d'Altim (signal 4 h ou zone d'achat, sans blocage).") }
+                buyable.isNullOrEmpty() && error == null -> item { Caption("Rien d'achetable pour l'instant : aucune décision complète ne dit ACHETER ou ZONE D'ACHAT.") }
                 else -> items(buyable.orEmpty(), key = { "buy:" + it.id }) { a -> BuyRow(a) { open(a.asset) } }
             }
 
@@ -145,7 +145,7 @@ private fun BuyRow(a: BuyAlert, onClick: () -> Unit) {
             Text(a.symbol, style = mono(15.sp, FontWeight.Bold), modifier = Modifier.weight(1f))
             Text(Format.price(a.price), style = mono(14.sp))
             androidx.compose.foundation.layout.Spacer(Modifier.size(8.dp))
-            Badge(if (a.strong) "ACHAT CONSEILLÉ" else "ACHAT POSSIBLE", Tone.GOOD)
+            Badge(if (a.strong) "ACHETER" else "ZONE D'ACHAT", Tone.GOOD)
         }
         (a.reasons + a.cautions).forEach { Text(it, fontSize = 12.sp, color = Color.White.copy(alpha = 0.85f)) }
     }

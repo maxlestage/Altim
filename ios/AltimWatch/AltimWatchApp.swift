@@ -141,7 +141,7 @@ struct AlertDetail: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(alert.name).font(.headline)
                 Text(Format.price(alert.price)).font(.title3.monospaced())
-                Text(alert.buy ? (alert.strong ? "ACHAT CONSEILLÉ" : "ACHAT POSSIBLE") : "ATTENDRE")
+                Text(alert.buy ? (alert.strong ? "ACHETER" : "ZONE D'ACHAT") : "ATTENDRE")
                     .font(.caption.bold())
                     .foregroundStyle(alert.buy ? buyColor : .secondary)
                 ForEach(alert.reasons + alert.blockers + alert.cautions, id: \.self) { line in

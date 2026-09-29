@@ -12,7 +12,9 @@ use serde_json::Value;
 use super::extras::extras;
 use crate::cache::cached;
 use crate::engine::Evidence;
-use crate::engine::alerts::{AlertInput, AlertMacro, AlertShock, AlertSignal, AlertTrend, AlertZone, BuyAlert, buy_alert};
+use crate::engine::alerts::{
+    AlertInput, AlertMacro, AlertShock, AlertSignal, AlertTrend, AlertZone, BuyAlert, DecisionGate, buy_alert, with_decision,
+};
 use crate::engine::decision::{DecisionInput, ExposureInput, HoldingSeries, MarketInputs, decide};
 use crate::engine::decision_types::Decision;
 use crate::engine::fibonacci::{FibZone, fib_zones};
@@ -349,7 +351,11 @@ fn macro_of(l: MacroLevel) -> AlertMacro {
 /// "Can I buy now?" for each asset: the rule of the notifications (iPhone, Apple Watch, Android) and of the brief.
 pub async fn alerts_for(assets: &[Asset]) -> Vec<AlertItem> {
     join_all(assets.iter().map(|a| async move {
-        let (r, z, g) = tokio::join!(radar_item(a, Interval::H4), zones(&a.symbol, a.kind), guard_for(&a.symbol, a.kind));
+        // The full decision (market data only) confirms or cancels the quick rule, so that a notification never
+        // says "achat" while the asset's card says ATTENDRE. Bounded: past 12 s the alert goes without it and says so.
+        let decision =
+            async { tokio::time::timeout(Duration::from_secs(12), decision_for(&a.symbol, a.kind, None, &[], None)).await.ok().and_then(|d| d.ok()) };
+        let (r, z, g, d) = tokio::join!(radar_item(a, Interval::H4), zones(&a.symbol, a.kind), guard_for(&a.symbol, a.kind), decision);
         let (z, g) = (z.ok(), g.ok());
         if let (RadarItem::Err(e), None) = (&r, &z) {
             return AlertItem::Err { symbol: a.symbol.clone(), kind: a.kind, name: a.name.clone(), error: e.error.clone() };
@@ -370,6 +376,12 @@ pub async fn alerts_for(assets: &[Asset]) -> Vec<AlertItem> {
             trend: g.as_ref().map(|g| trend_of(g.result.regime.trend)),
             macro_level: z.as_ref().and_then(|z| z.macro_ctx.as_ref()).map(|m| macro_of(m.report.level)),
         });
+        let gate = d.map(|d| DecisionGate {
+            verdict: d.verdict,
+            label: d.label.clone(),
+            reason: d.why_wait.first().cloned().unwrap_or_else(|| d.headline.clone()),
+        });
+        let alert = with_decision(alert, &a.symbol, gate.as_ref());
         AlertItem::Ok(AlertOk { symbol: a.symbol.clone(), kind: a.kind, name: a.name.clone(), price, as_of: now_ms(), alert })
     }))
     .await

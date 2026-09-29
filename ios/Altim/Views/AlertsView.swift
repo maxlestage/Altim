@@ -24,7 +24,7 @@ struct AlertsView: View {
                 } else if let alerts {
                     let buyable = alerts.filter(\.buy)
                     if buyable.isEmpty {
-                        Text("Rien d'achetable pour l'instant selon la règle d'Altim (signal 4 h ou zone d'achat, sans blocage).")
+                        Text("Rien d'achetable pour l'instant : aucune décision complète ne dit ACHETER ou ZONE D'ACHAT.")
                             .font(.footnote).foregroundStyle(Theme.textSecondary)
                     }
                     ForEach(buyable) { a in
@@ -126,7 +126,7 @@ private struct BuyRow: View {
                 Text(alert.symbol).font(Theme.mono(15, weight: .bold))
                 Spacer()
                 Text(Format.price(alert.price)).font(Theme.mono(14))
-                Badge(text: alert.strong ? "ACHAT CONSEILLÉ" : "ACHAT POSSIBLE", tone: .good)
+                Badge(text: alert.strong ? "ACHETER" : "ZONE D'ACHAT", tone: .good)
             }
             ForEach(alert.reasons + alert.cautions, id: \.self) { Text($0).font(.caption).foregroundStyle(.white.opacity(0.85)) }
         }

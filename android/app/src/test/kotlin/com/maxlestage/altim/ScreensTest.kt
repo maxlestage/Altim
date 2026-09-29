@@ -167,8 +167,8 @@ class ScreensTest {
         waitFor("Achetables maintenant")
         waitFor("au-dessus de 1", 30_000)
         compose.waitUntil(90_000) {
-            compose.onAllNodes(hasText("ACHAT POSSIBLE", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
-                compose.onAllNodes(hasText("ACHAT CONSEILLÉ", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+            compose.onAllNodes(hasText("ZONE D'ACHAT", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
+                compose.onAllNodes(hasText("ACHETER", substring = true)).fetchSemanticsNodes().isNotEmpty() ||
                 compose.onAllNodes(hasText("Rien d'achetable", substring = true)).fetchSemanticsNodes().isNotEmpty()
         }
         waitFor("Prix actuel", 30_000)

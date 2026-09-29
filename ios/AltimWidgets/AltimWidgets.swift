@@ -69,7 +69,7 @@ private struct Verdict: View {
     var signal: String?
 
     var body: some View {
-        Text(buy ? "ACHAT POSSIBLE" : (signal ?? "ATTENDRE"))
+        Text(buy ? "ACHAT POSSIBLE" : (signal ?? "PAS D'ACHAT"))
             .font(.system(size: 10, weight: .bold, design: .rounded))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)

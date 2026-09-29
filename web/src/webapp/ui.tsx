@@ -6,6 +6,11 @@ import type { BacktestTrade } from "../engine/backtest";
 
 export const actionKind = (a: Action) => (a === "buy" || a === "strongBuy" ? "buy" : a === "sell" || a === "strongSell" ? "sell" : "hold");
 
+/** The 4 h technical signal as a direction, not an order: the verdict is the full decision's (Radar, asset page). */
+export function technicalText(action: Action): string {
+  return action === "strongBuy" ? "nettement haussier" : action === "buy" ? "haussier" : action === "sell" ? "baissier" : action === "strongSell" ? "nettement baissier" : "neutre";
+}
+
 export function ActionBadge({ action, big }: { action: Action; big?: boolean }) {
   return <span className={`badge ${actionKind(action)}${big ? " big" : ""}`}>{ACTION_LABEL[action]}</span>;
 }
