@@ -116,6 +116,12 @@ export function Settings() {
       </div>
 
       <div className="card">
+        <h2 className="card-title">Validation du modèle</h2>
+        <p className="muted small">Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.</p>
+        <a href="/app/validation" onClick={onLink} className="btn btn-ghost">Voir la validation</a>
+      </div>
+
+      <div className="card">
         <h2 className="card-title">Comprendre</h2>
         <p className="muted small">Signal, zone d'achat, stop, volatilité, flat tax… les mots d'Altim expliqués simplement.</p>
         <a href="/app/lexique" onClick={onLink} className="btn btn-ghost">Ouvrir le lexique</a>

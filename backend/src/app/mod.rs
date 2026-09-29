@@ -5,6 +5,7 @@ pub mod extras;
 pub mod scan;
 pub mod strategies;
 pub mod validate;
+pub mod validation;
 pub mod web;
 pub mod why;
 
@@ -362,6 +363,13 @@ async fn calendar_route(Query(p): Q) -> ApiResult<Response> {
     Ok(json_of(&crate::calendar::calendar(days, symbols.as_deref()).await))
 }
 
+/// Sector of each stock (`symbols=AAPL,NVDA`, 50 at most, ":crypto" entries ignored): Nasdaq screener, SEC SIC
+/// code, ETF flag of the directory; null with the reason when no source covers it.
+async fn sectors_route(Query(p): Q) -> ApiResult<Response> {
+    let Some(symbols) = parse_symbol_list(q(&p, "symbols"))? else { return bad("symbols requis (ex. AAPL,NVDA)") };
+    Ok(json_of(&crate::sectors::sectors(&symbols).await))
+}
+
 async fn sentiment_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(q(&p, "kind"))?;
     Ok(json_of(&sentiment(&parse_symbol(q(&p, "symbol"), kind)?, kind).await))
@@ -414,12 +422,14 @@ pub fn api(state: AppState) -> Router {
         .route("/sentiment", get(sentiment_route))
         .route("/decision", get(decision_route))
         .route("/calendar", get(calendar_route))
+        .route("/sectors", get(sectors_route))
         .route("/strategies", get(strategies_route))
         .route("/why", get(why::why_route))
         // A few questions per minute and per address: each one costs an Anthropic API call.
         .route("/ask", post(why::ask_route).layer(RateLimit::new(4, 60_000)))
         .route("/opportunities", get(scan::opportunities_route))
         .route("/anomalies", get(scan::anomalies_route))
+        .route("/validation", get(validation::validation_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))

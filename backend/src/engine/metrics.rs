@@ -102,6 +102,22 @@ pub fn track(candles_daily: &[Candle], kind: Kind) -> Option<Track> {
 
 /// Same, with the spread measured at the time of the decision (%, full spread) when there is one.
 pub fn track_with_spread(candles_daily: &[Candle], kind: Kind, measured_spread: Option<f64>) -> Option<Track> {
+    track_run(candles_daily, kind, measured_spread).map(|(t, _)| t)
+}
+
+/// What the track record is computed from, for the cross-asset validation (`validation.rs`): the raw backtest, the
+/// trade returns net of every cost (same order as the trades), their initial risks, and the equity curve with the
+/// costs (one point per tested candle, same times as `result.equity`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrackRun {
+    pub result: BacktestResult,
+    pub net_returns: Vec<f64>,
+    pub risks: Vec<f64>,
+    pub curve: Vec<f64>,
+}
+
+/// `track_with_spread` plus the run behind it (same backtest, same costs: one computation for both).
+pub fn track_run(candles_daily: &[Candle], kind: Kind, measured_spread: Option<f64>) -> Option<(Track, TrackRun)> {
     let (r, risks) = backtest_with_risk(candles_daily, FEE_RATE, LOOKBACK, REWARD_RISK, WARMUP);
     if r.equity.is_empty() {
         return None;
@@ -203,7 +219,7 @@ pub fn track_with_spread(candles_daily: &[Candle], kind: Kind, measured_spread: 
         bias_notes,
     };
 
-    Some(Track {
+    let track = Track {
         period: format!("{} – {} (bougies journalières)", month_year(r.equity[0].time), month_year(r.equity[r.equity.len() - 1].time)),
         trades: n,
         win_rate: if n > 0 { round_to(wins.len() as f64 / n as f64 * 100.0, 1) } else { 0.0 },
@@ -220,7 +236,8 @@ pub fn track_with_spread(candles_daily: &[Candle], kind: Kind, measured_spread: 
         losing_streak,
         note: note.join(" "),
         details,
-    })
+    };
+    Some((track, TrackRun { result: r, net_returns: returns, risks, curve }))
 }
 
 #[cfg(test)]

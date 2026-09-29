@@ -1,0 +1,20 @@
+{
+  "cik": "0000884394",
+  "entityType": "other",
+  "sic": "",
+  "sicDescription": "",
+  "ownerOrg": "",
+  "insiderTransactionForOwnerExists": 0,
+  "insiderTransactionForIssuerExists": 0,
+  "name": "SPDR S&P 500 ETF TRUST",
+  "tickers": [
+    "SPY"
+  ],
+  "exchanges": [
+    "NYSE"
+  ],
+  "ein": "000000000",
+  "category": "",
+  "fiscalYearEnd": "0930",
+  "stateOfIncorporation": "NY"
+}

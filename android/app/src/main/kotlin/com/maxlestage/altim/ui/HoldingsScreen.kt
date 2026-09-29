@@ -217,6 +217,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 risk?.let { r ->
                     item { LimitsCard(r.limits) }
                     item { StressCard(r.portfolio, r.stress, r.betas) }
+                    item { SectorCard(r.portfolio.lines, model.client) }
                     item { WhatIfCard(r.portfolio, candles, model.client) }
                 }
             }

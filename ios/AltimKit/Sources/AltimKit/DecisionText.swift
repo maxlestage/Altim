@@ -1,14 +1,13 @@
 import Foundation
 
 /// Numbers written like `toLocaleString("fr-FR")` in the browser: narrow no-break space between thousands, comma,
-/// rounded on the exact value of the double with halves away from zero (as Intl does), no trailing zeros beyond `min`.
-/// Done by hand on the exact decimal expansion: NumberFormatter rounds differently between Linux and Apple systems.
+/// halves away from zero, no trailing zeros beyond `min`. Intl rounds the shortest decimal writing of the double
+/// (9.01 − 95.56 = −86.55 → "86,6", although the exact binary value is 86.5499…), so the same is done here.
+/// Done by hand: NumberFormatter rounds differently between Linux and Apple systems.
 enum JSFormat {
     static func fr(_ v: Double, min: Int = 0, max: Int) -> String {
         guard v.isFinite else { return String(v) }
-        // Exact decimal expansion of the double (a double has at most 1074 fraction digits; 60 is plenty here).
-        let exact = String(format: "%.60f", abs(v))
-        let parts = exact.split(separator: ".", omittingEmptySubsequences: false)
+        let parts = shortestDecimal(abs(v)).split(separator: ".", omittingEmptySubsequences: false)
         var intDigits = Array(parts[0]).map { Int(String($0))! }
         let frac = parts.count > 1 ? Array(parts[1]).map { Int(String($0))! } : []
         var kept = Array(frac.prefix(max))
@@ -36,6 +35,29 @@ enum JSFormat {
         // A tiny negative number rounded to zero is written without its sign, as the browser does.
         let zero = intDigits.allSatisfy { $0 == 0 } && kept.allSatisfy { $0 == 0 }
         return v < 0 && !zero ? "-\(body)" : body
+    }
+
+    /// Shortest decimal that reads back as the same double ("86.55", "0.00001", "12345678901234567000"), without
+    /// exponent: Swift's `description` is the shortest round-trip writing, expanded here when it uses "e".
+    static func shortestDecimal(_ v: Double) -> String {
+        let s = "\(v)"
+        guard let e = s.firstIndex(where: { $0 == "e" || $0 == "E" }) else { return s }
+        let mantissa = String(s[..<e])
+        let exp = Int(s[s.index(after: e)...]) ?? 0
+        let mParts = mantissa.split(separator: ".", omittingEmptySubsequences: false)
+        let intPart = String(mParts[0])
+        let fracPart = mParts.count > 1 ? String(mParts[1]) : ""
+        var digits = intPart + fracPart
+        var point = intPart.count + exp
+        if point <= 0 {
+            digits = String(repeating: "0", count: 1 - point) + digits
+            point = 1
+        } else if point > digits.count {
+            digits += String(repeating: "0", count: point - digits.count)
+        }
+        let head = String(digits.prefix(point))
+        let tail = String(digits.dropFirst(point))
+        return tail.isEmpty ? head : "\(head).\(tail)"
     }
 }
 

@@ -135,6 +135,10 @@ export const api = {
   strategies: (symbol: string, kind: Kind) => get<StrategiesReport>(strategiesUrl(symbol, kind)),
   sentiment: (symbol: string, kind: Kind) => get<Sentiment>(`/api/sentiment?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
   opportunities: (kind: Kind) => get<import("../engine/opportunities").OpportunityReport | { pending: true }>(`/api/opportunities?kind=${kind}`),
+  /** Sector of each stock (Nasdaq screener, SEC SIC code, ETF flag); 50 at most. */
+  sectors: (symbols: string[]) => get<import("../engine/sectors").SectorsReport>(`/api/sectors?symbols=${encodeURIComponent(symbols.slice(0, 50).join(","))}`),
+  /** Signal validated on a fixed basket (heavy: 202 { pending } until the first computation is ready). */
+  validation: () => get<import("./model-validation").ValidationReport | { pending: true }>("/api/validation"),
   anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 
