@@ -1,0 +1,929 @@
+{
+  "symbol": "AAPL",
+  "kind": "stock",
+  "name": "Apple",
+  "asOf": 1790604000000,
+  "price": 341.0400085449219,
+  "mode": "informational",
+  "verdict": "wait",
+  "label": "ATTENDRE",
+  "level": "waiting",
+  "levelLabel": "Attente",
+  "confidence": 51.0,
+  "confidenceText": "Lecture cohérente : 3 famille(s) favorable(s), 0 défavorable(s) sur 5 mesurées (attendre porte sur le point d'entrée, pas sur l'actif) (5 sans données) ; fiabilité élevée (5 plateforme(s) en accord sur 6) ; historique du signal sur cet actif non disponible (compté neutre).",
+  "headline": "Tendance de fond haussière, mais prix au-dessus de la zone d'achat et rapport gain/risque insuffisant depuis le prix actuel (0,1) : attendre un repli vers 280,57 $ – 307,28 $ (entrée sous 291,97 $ pour un gain/risque de 2).",
+  "families": [
+    {
+      "key": "trend",
+      "label": "Tendance",
+      "score": 77.0,
+      "status": "positive",
+      "summary": "Tendance de fond haussière, ADX 20",
+      "points": [
+        "Au-dessus de la moyenne 200 jours (287,77 $, +18,5 %)",
+        "Moyenne 50 jours au-dessus de la 200 jours (321,83 $)",
+        "Moyenne 50 jours +3,3 % sur un mois",
+        "Tendance de fond haussière (moyennes 50 et 200 jours alignées, ADX 20), confirmée en 4 h.",
+        "Ichimoku et Supertrend haussiers : ils confirment la hausse"
+      ],
+      "source": "Bougies consensus (5 plateforme(s) en accord sur 6)"
+    },
+    {
+      "key": "momentum",
+      "label": "Momentum",
+      "score": 39.0,
+      "status": "positive",
+      "summary": "MACD : histogramme positif, en baisse, RSI 66",
+      "points": [
+        "+8,8 % sur 1 mois",
+        "+20,2 % sur 3 mois"
+      ],
+      "source": "Bougies consensus (5 plateforme(s) en accord sur 6)"
+    },
+    {
+      "key": "volume",
+      "label": "Volume",
+      "score": 11.0,
+      "status": "neutral",
+      "summary": "Accumulation (OBV), volume relatif 0,7",
+      "points": [
+        "Accumulation : OBV en hausse",
+        "Volume des séances en hausse ÷ séances en baisse (20 j) : 0,8"
+      ],
+      "source": "Bougies consensus (5 plateforme(s) en accord sur 6)"
+    },
+    {
+      "key": "volatility",
+      "label": "Volatilité / risque",
+      "score": 10.0,
+      "status": "neutral",
+      "summary": "ATR 2 % par jour, sous 59 % de son histoire",
+      "points": [
+        "Garde-fou : marché calme (score de choc 15/100)",
+        "Volatilité anormalement comprimée (bandes de Bollinger 4 h plus étroites que 97 % du temps) : un mouvement brutal peut suivre, sans direction connue."
+      ],
+      "source": "Bougies consensus (5 plateforme(s) en accord sur 6)"
+    },
+    {
+      "key": "valuation",
+      "label": "Valorisation",
+      "score": null,
+      "status": "unavailable",
+      "summary": "Données indisponibles (comptes de la société non chargés)",
+      "points": [],
+      "source": "—"
+    },
+    {
+      "key": "fundamentals",
+      "label": "Fondamentaux",
+      "score": null,
+      "status": "unavailable",
+      "summary": "Données indisponibles (comptes de la société non chargés)",
+      "points": [],
+      "source": "—"
+    },
+    {
+      "key": "macro",
+      "label": "Macro",
+      "score": null,
+      "status": "unavailable",
+      "summary": "Contexte macro indisponible (sources injoignables)",
+      "points": [],
+      "source": "—"
+    },
+    {
+      "key": "sentiment",
+      "label": "Sentiment",
+      "score": null,
+      "status": "unavailable",
+      "summary": "Aucune mesure de sentiment disponible",
+      "points": [],
+      "source": "—"
+    },
+    {
+      "key": "news",
+      "label": "Actualités",
+      "score": null,
+      "status": "unavailable",
+      "summary": "Actualités indisponibles",
+      "points": [],
+      "source": "—"
+    },
+    {
+      "key": "liquidity",
+      "label": "Liquidité",
+      "score": 40.0,
+      "status": "positive",
+      "summary": "Au moins 14,1 Md$ échangés par jour",
+      "points": [
+        "Borne basse tirée des bougies (volume de la source principale) ; écart achat/vente non mesuré"
+      ],
+      "source": "Bougies consensus (5 plateforme(s) en accord sur 6)"
+    }
+  ],
+  "vetoes": [
+    {
+      "code": "spread",
+      "label": "Écart achat/vente trop grand",
+      "active": false,
+      "verifiable": false,
+      "detail": "Non vérifiable : données indisponibles"
+    },
+    {
+      "code": "liquidity",
+      "label": "Liquidité insuffisante",
+      "active": false,
+      "verifiable": true,
+      "detail": "Au moins 14,1 Md$ par jour d'après les bougies (seuil 1 M$)"
+    },
+    {
+      "code": "volatility",
+      "label": "Volatilité extrême",
+      "active": false,
+      "verifiable": true,
+      "detail": "ATR 2 % par jour (seuil 8 %)"
+    },
+    {
+      "code": "event",
+      "label": "Événement majeur imminent",
+      "active": false,
+      "verifiable": true,
+      "detail": "Aucune secousse ni titre d'escalade (score 15/100)"
+    },
+    {
+      "code": "announcement",
+      "label": "Annonce économique dans les 48 h",
+      "active": false,
+      "verifiable": false,
+      "detail": "Calendrier des annonces indisponible ou incomplet : non vérifié"
+    },
+    {
+      "code": "earnings",
+      "label": "Résultats imminents",
+      "active": false,
+      "verifiable": false,
+      "detail": "Non vérifiable : date des résultats indisponible"
+    },
+    {
+      "code": "crash",
+      "label": "Chute brutale sans stabilisation",
+      "active": false,
+      "verifiable": true,
+      "detail": "+0,4 % en 3 jours (seuil −6,4 %)"
+    },
+    {
+      "code": "pump",
+      "label": "Hausse anormale",
+      "active": false,
+      "verifiable": true,
+      "detail": "+0,4 % sur 3 jours (seuil : 3 écarts-types, soit +10 %)"
+    },
+    {
+      "code": "volumeAnomaly",
+      "label": "Volume artificiel",
+      "active": false,
+      "verifiable": true,
+      "detail": "Volume du jour : 0,8 fois la médiane de 20 séances pour un mouvement de 1,5 % (alerte au-delà de 5 fois sans mouvement)"
+    },
+    {
+      "code": "regulation",
+      "label": "Risque réglementaire",
+      "active": false,
+      "verifiable": false,
+      "detail": "Non vérifiable : aucune source gratuite des procédures ; aucun titre réglementaire en 24 h"
+    },
+    {
+      "code": "unlock",
+      "label": "Déblocage de jetons imminent",
+      "active": false,
+      "verifiable": true,
+      "detail": "Sans objet pour une action"
+    },
+    {
+      "code": "divergence",
+      "label": "Divergence baissière importante",
+      "active": false,
+      "verifiable": true,
+      "detail": "Aucune sur 4 h et 1 j"
+    },
+    {
+      "code": "downtrend",
+      "label": "Tendance principale baissière",
+      "active": false,
+      "verifiable": true,
+      "detail": "Tendance de fond haussière (moyennes 50 et 200 jours alignées, ADX 20), confirmée en 4 h."
+    },
+    {
+      "code": "riskReward",
+      "label": "Rapport gain/risque insuffisant",
+      "active": true,
+      "verifiable": true,
+      "detail": "0,1 depuis le prix actuel (minimum 2) ; 2 atteint en entrant sous 291,97 $"
+    },
+    {
+      "code": "macro",
+      "label": "Choc macro",
+      "active": false,
+      "verifiable": false,
+      "detail": "Non vérifiable : données indisponibles"
+    },
+    {
+      "code": "reliability",
+      "label": "Données peu fiables",
+      "active": false,
+      "verifiable": true,
+      "detail": "Fiabilité élevée (100/100, 5 plateforme(s) en accord sur 6)"
+    }
+  ],
+  "blocked": true,
+  "setup": {
+    "name": "Achat sur repli en tendance haussière",
+    "steps": [
+      {
+        "label": "Tendance de long terme positive",
+        "state": "ok",
+        "detail": "Prix au-dessus de la moyenne 200 jours (287,77 $), tendance de fond haussière"
+      },
+      {
+        "label": "Correction en cours",
+        "state": "no",
+        "detail": "Repli de 3,2 % depuis le plus haut (345,34 $), soit 11,1 % du mouvement (seuil 23,6 %)"
+      },
+      {
+        "label": "Retour sur un support (zone d'achat)",
+        "state": "no",
+        "detail": "Zone 280,57 $ – 307,28 $ à 9,9 % sous le prix"
+      },
+      {
+        "label": "Volume en baisse pendant la correction",
+        "state": "unknown",
+        "detail": "Pas de correction mesurable"
+      },
+      {
+        "label": "Signal de retournement",
+        "state": "no",
+        "detail": "Prix pas encore sur la zone"
+      },
+      {
+        "label": "Retour du volume acheteur",
+        "state": "ok",
+        "detail": "Volume net acheteur sur 5 bougies (OBV en hausse)"
+      },
+      {
+        "label": "Confirmation (clôture au-dessus du plus haut de la veille)",
+        "state": "no",
+        "detail": "Pas de rebond depuis la zone à confirmer"
+      },
+      {
+        "label": "Stop défini",
+        "state": "ok",
+        "detail": "Sous le 78,6 % du mouvement ou le plus bas du repli : 265,28 $"
+      },
+      {
+        "label": "Objectif défini",
+        "state": "ok",
+        "detail": "Ancien plus haut : 345,34 $, puis 372,44 $ (extension 127,2 %)"
+      }
+    ],
+    "met": 4,
+    "total": 9
+  },
+  "plan": {
+    "zoneFrom": 280.57399999999996,
+    "zoneTo": 307.27752,
+    "entry": 291.96606762668324,
+    "stop": 265.2791014400249,
+    "target1": 345.34,
+    "target2": 372.44208,
+    "riskPct": 9.1,
+    "reward1Pct": 18.3,
+    "reward2Pct": 27.6,
+    "riskReward": 2.0,
+    "minRiskReward": 2.0,
+    "acceptable": true,
+    "horizon": "moyen terme · quelques semaines à quelques mois",
+    "target3": 399.54416,
+    "reward3Pct": 36.8,
+    "target3Source": "Projection : objectif 2 + (objectif 2 − objectif 1), aucun niveau touché avant"
+  },
+  "whyWait": [
+    "Prix au-dessus de la zone d'achat (repli de 9,9 % nécessaire)",
+    "Rapport gain/risque insuffisant : 0,1 depuis le prix actuel (minimum 2) ; 2 atteint en entrant sous 291,97 $",
+    "Étape manquante — Signal de retournement : Prix pas encore sur la zone",
+    "Étape manquante — Confirmation (clôture au-dessus du plus haut de la veille) : Pas de rebond depuis la zone à confirmer",
+    "Résistance proche : 344,95 $ (touchée 2 fois), 1,2 % au-dessus du prix, moins d'un ATR journalier"
+  ],
+  "toBuy": [
+    {
+      "text": "Repli dans la zone 280,57 $ – 307,28 $",
+      "level": 307.27752
+    },
+    {
+      "text": "Entrée sous 291,97 $ pour un rapport gain/risque d'au moins 2",
+      "level": 291.96606762668324
+    },
+    {
+      "text": "Puis une clôture journalière au-dessus du plus haut de la veille",
+      "level": null
+    },
+    {
+      "text": "Ou une cassure au-dessus de 345,34 $ avec un volume supérieur à 1,5 fois la moyenne",
+      "level": 345.34
+    }
+  ],
+  "toSell": [
+    {
+      "text": "Clôture sous 265,28 $ (stop / support)",
+      "level": 265.2791014400249
+    },
+    {
+      "text": "Moyenne 50 jours qui passe sous la 200 jours (tendance de fond qui se retourne)",
+      "level": null
+    },
+    {
+      "text": "Prise de profit partielle à l'objectif 1 (345,34 $, ancien plus haut)",
+      "level": 345.34
+    },
+    {
+      "text": "Choc de marché : VIX au-dessus de 30",
+      "level": null
+    }
+  ],
+  "scenarios": [
+    {
+      "kind": "bull",
+      "title": "Scénario haussier",
+      "condition": "Cassure de 345,34 $ avec du volume",
+      "consequence": "Objectifs 345,34 $ puis 372,44 $",
+      "level": 345.34,
+      "conditions": [
+        {
+          "text": "Clôture au-dessus de 345,34 $",
+          "state": "unmet",
+          "detail": "Dernière clôture journalière 341,07 $"
+        },
+        {
+          "text": "Séance en hausse avec un volume au-dessus de la moyenne 20 j",
+          "state": "unmet",
+          "detail": "Volume 0,7 × la moyenne, dernière séance en hausse"
+        },
+        {
+          "text": "RSI au-dessus de 50",
+          "state": "met",
+          "detail": "RSI 14 j : 66"
+        }
+      ],
+      "met": 1,
+      "unfolding": false
+    },
+    {
+      "kind": "neutral",
+      "title": "Scénario neutre",
+      "condition": "Prix entre 265,28 $ et 345,34 $",
+      "consequence": "Attendre le repli dans la zone d'achat",
+      "level": null,
+      "conditions": [
+        {
+          "text": "Prix entre 265,28 $ et 345,34 $",
+          "state": "met",
+          "detail": "Prix 341,04 $"
+        },
+        {
+          "text": "ADX sous 20 (pas de tendance marquée)",
+          "state": "unmet",
+          "detail": "ADX 14 j : 20"
+        }
+      ],
+      "met": 1,
+      "unfolding": true
+    },
+    {
+      "kind": "bear",
+      "title": "Scénario baissier",
+      "condition": "Clôture sous 265,28 $",
+      "consequence": "Scénario invalidé : plus d'achat, attendre un nouveau point bas",
+      "level": 265.2791014400249,
+      "conditions": [
+        {
+          "text": "Clôture sous 265,28 $ (cassure du support)",
+          "state": "unmet",
+          "detail": "Dernière clôture journalière 341,07 $"
+        },
+        {
+          "text": "Séance en baisse avec un volume au-dessus de la moyenne 20 j",
+          "state": "unmet",
+          "detail": "Volume 0,7 × la moyenne, dernière séance en hausse"
+        },
+        {
+          "text": "RSI sous 50",
+          "state": "unmet",
+          "detail": "RSI 14 j : 66"
+        }
+      ],
+      "met": 0,
+      "unfolding": false
+    }
+  ],
+  "pros": [
+    "Tendance : Tendance de fond haussière, ADX 20",
+    "Momentum : MACD : histogramme positif, en baisse, RSI 66",
+    "Liquidité : Au moins 14,1 Md$ échangés par jour",
+    "Fausse cassure baissière : le support 335,61 $ a été enfoncé puis le prix a refermé au-dessus",
+    "Données recoupées (5 plateformes en accord)"
+  ],
+  "cons": [
+    "Veto : rapport gain/risque insuffisant",
+    "Repli de 9,9 % nécessaire pour revenir dans la zone d'achat"
+  ],
+  "whyNot": {
+    "risks": [
+      "Familles favorables à l'actif : tendance, momentum, liquidité",
+      "En tendance haussière, le repli attendu peut ne jamais venir : attendre peut faire manquer la hausse",
+      "Non vérifié faute de source : écart achat/vente trop grand, annonce économique dans les 48 h, résultats imminents, risque réglementaire, choc macro"
+    ],
+    "uncertainty": "medium",
+    "invalidation": [
+      "Cassure au-dessus de 345,34 $ avec du volume : le repli attendu n'aura pas lieu",
+      "Clôture sous 265,28 $ : la zone ne tient pas"
+    ]
+  },
+  "fundamentals": null,
+  "liquidity": null,
+  "track": null,
+  "position": null,
+  "exposure": null,
+  "sources": [
+    {
+      "name": "Bougies (consensus)",
+      "ok": true,
+      "detail": "5 plateforme(s) en accord sur 6 ; fiabilité élevée"
+    },
+    {
+      "name": "Contexte macro",
+      "ok": false,
+      "detail": "indisponible"
+    },
+    {
+      "name": "Garde-fou (chocs, retournements)",
+      "ok": true,
+      "detail": "calculé sur les bougies 1 h, 4 h et 1 j"
+    },
+    {
+      "name": "Sentiment",
+      "ok": false,
+      "detail": "StockTwits"
+    },
+    {
+      "name": "Actualités",
+      "ok": false,
+      "detail": "Google Actualités"
+    },
+    {
+      "name": "Fondamentaux",
+      "ok": false,
+      "detail": "indisponible"
+    },
+    {
+      "name": "Liquidité",
+      "ok": false,
+      "detail": "écart achat/vente indisponible"
+    },
+    {
+      "name": "Historique du signal",
+      "ok": false,
+      "detail": "indisponible"
+    }
+  ],
+  "disclaimer": "Mode informationnel : données et scénarios observés, pas une recommandation personnalisée. Altim ne passe aucun ordre ; rien ne garantit l'avenir.",
+  "rating": "hold",
+  "ratingLabel": "ATTENDRE",
+  "score": {
+    "value": 41.0,
+    "label": "Nettement favorable",
+    "factors": [
+      {
+        "key": "tech",
+        "label": "Technique",
+        "weight": 32.0,
+        "applied": 64.0,
+        "value": 42.0,
+        "contribution": 26.9,
+        "sources": [
+          "trend",
+          "volume",
+          "volatility",
+          "structure"
+        ]
+      },
+      {
+        "key": "mom",
+        "label": "Momentum",
+        "weight": 18.0,
+        "applied": 36.0,
+        "value": 39.0,
+        "contribution": 14.0,
+        "sources": [
+          "momentum"
+        ]
+      },
+      {
+        "key": "fund",
+        "label": "Fondamentaux",
+        "weight": 20.0,
+        "applied": 0.0,
+        "value": null,
+        "contribution": null,
+        "sources": []
+      },
+      {
+        "key": "sent",
+        "label": "Sentiment",
+        "weight": 10.0,
+        "applied": 0.0,
+        "value": null,
+        "contribution": null,
+        "sources": []
+      },
+      {
+        "key": "news",
+        "label": "Actualités",
+        "weight": 10.0,
+        "applied": 0.0,
+        "value": null,
+        "contribution": null,
+        "sources": []
+      },
+      {
+        "key": "macro",
+        "label": "Macro",
+        "weight": 10.0,
+        "applied": 0.0,
+        "value": null,
+        "contribution": null,
+        "sources": []
+      }
+    ],
+    "missing": [
+      "Fondamentaux",
+      "Sentiment",
+      "Actualités",
+      "Macro"
+    ],
+    "custom": false,
+    "text": "Score composite +41 sur 2 facteur(s) mesuré(s), poids par défaut ; non mesuré(s) : Fondamentaux, Sentiment, Actualités, Macro (poids réparti sur les autres)."
+  },
+  "degraded": {
+    "active": false,
+    "headline": "",
+    "reasons": []
+  },
+  "marketRegime": null,
+  "horizon": {
+    "kind": "mediumTerm",
+    "label": "Moyen terme",
+    "atrDistance": 7.7,
+    "detail": "Plan sur bougies journalières, objectif 1 à 7,7 ATR de l'entrée : moyen terme (quelques semaines à quelques mois)"
+  },
+  "structure": {
+    "timeframe": "Bougies journalières clôturées",
+    "score": 70.0,
+    "ichimoku": {
+      "tenkan": 336.845,
+      "kijun": 326.17499999999995,
+      "senkouA": 316.10498734741213,
+      "senkouB": 309.15997500000003,
+      "futureA": 331.51,
+      "futureB": 322.66999999999996,
+      "position": "above",
+      "tkCross": null,
+      "tkCrossBars": null,
+      "bias": "bullish",
+      "reading": "Prix au-dessus du nuage Ichimoku, Tenkan au-dessus de la Kijun"
+    },
+    "supertrend": {
+      "direction": "up",
+      "level": 320.854629809444,
+      "bars": 16,
+      "bias": "bullish",
+      "reading": "Supertrend haussier depuis 16 bougies (niveau 320,85 $)"
+    },
+    "donchian": {
+      "upper": 345.34,
+      "lower": 309.4,
+      "mid": 327.37,
+      "breakout": null,
+      "bias": "neutral",
+      "reading": "Dans le canal de Donchian 20 (309,40 $ – 345,34 $)"
+    },
+    "vwap": {
+      "value": 328.35858304313246,
+      "bars": 20,
+      "deviationPct": 3.86,
+      "bias": "bullish",
+      "reading": "Prix au-dessus du VWAP glissant sur 20 bougies (328,36 $, +3,9 %) ; glissant, pas ancré à une séance"
+    },
+    "volumeProfile": {
+      "poc": 310.05083333333334,
+      "valueAreaHigh": 341.18833333333333,
+      "valueAreaLow": 291.36833333333334,
+      "bars": 120,
+      "bins": 24,
+      "bias": "neutral",
+      "reading": "Prix dans la zone de valeur (291,37 $ – 341,19 $), prix le plus échangé vers 310,05 $",
+      "note": "Approximation à partir des bougies : le volume de chacune des 120 dernières bougies est réparti uniformément entre son plus bas et son plus haut (24 tranches de prix, zone de valeur = 70 % du volume)"
+    },
+    "pivots": {
+      "pivot": 339.09,
+      "r1": 343.65,
+      "r2": 346.23,
+      "s1": 336.50999999999993,
+      "s2": 331.94999999999993,
+      "from": 1790343000000,
+      "reading": "Prix entre le pivot (339,09 $) et R1 (343,65 $)"
+    },
+    "levels": [
+      {
+        "price": 344.954975,
+        "touches": 2,
+        "kind": "resistance",
+        "distancePct": 1.15
+      },
+      {
+        "price": 335.605,
+        "touches": 2,
+        "kind": "support",
+        "distancePct": -1.59
+      },
+      {
+        "price": 318.3298,
+        "touches": 4,
+        "kind": "support",
+        "distancePct": -6.66
+      },
+      {
+        "price": 302.242,
+        "touches": 5,
+        "kind": "support",
+        "distancePct": -11.38
+      },
+      {
+        "price": 288.0,
+        "touches": 2,
+        "kind": "support",
+        "distancePct": -15.55
+      },
+      {
+        "price": 280.5275,
+        "touches": 2,
+        "kind": "support",
+        "distancePct": -17.74
+      },
+      {
+        "price": 276.1312857142857,
+        "touches": 7,
+        "kind": "support",
+        "distancePct": -19.03
+      },
+      {
+        "price": 265.94166666666666,
+        "touches": 6,
+        "kind": "support",
+        "distancePct": -22.02
+      },
+      {
+        "price": 261.53000000000003,
+        "touches": 5,
+        "kind": "support",
+        "distancePct": -23.31
+      },
+      {
+        "price": 254.802,
+        "touches": 5,
+        "kind": "support",
+        "distancePct": -25.29
+      },
+      {
+        "price": 244.926,
+        "touches": 5,
+        "kind": "support",
+        "distancePct": -28.18
+      }
+    ],
+    "nearestSupport": {
+      "price": 335.605,
+      "touches": 2,
+      "kind": "support",
+      "distancePct": -1.59
+    },
+    "nearestResistance": {
+      "price": 344.954975,
+      "touches": 2,
+      "kind": "resistance",
+      "distancePct": 1.15
+    },
+    "levelsReading": "Support le plus proche 335,61 $ (2 contacts, −1,6 %) ; résistance la plus proche 344,95 $ (2 contacts, +1,2 %)",
+    "breakout": {
+      "kind": "fake",
+      "side": "down",
+      "level": 335.605,
+      "volumeRatio": 0.7,
+      "bias": "bullish",
+      "reading": "Fausse cassure baissière : le support 335,61 $ a été enfoncé puis le prix a refermé au-dessus"
+    },
+    "marketStructure": {
+      "trend": "up",
+      "highs": [
+        336.22,
+        345.34
+      ],
+      "lows": [
+        300.57,
+        309.9
+      ],
+      "bias": "bullish",
+      "reading": "Sommets et creux ascendants : structure haussière (sommets 336,22 $ puis 345,34 $, creux 300,57 $ puis 309,90 $)"
+    },
+    "relative": [],
+    "relativeNote": "Indice de référence indisponible (bougies non chargées)"
+  },
+  "events": null,
+  "noTrade": {
+    "active": false,
+    "headline": "",
+    "reasons": [],
+    "unchecked": [
+      "Écart achat/vente trop grand : non vérifiable",
+      "Résultats : date indisponible",
+      "Annonce économique dans les 48 h : non vérifiable"
+    ]
+  },
+  "actionZones": {
+    "price": 341.0400085449219,
+    "zones": [
+      {
+        "kind": "exit",
+        "label": "Zone de sortie",
+        "from": 261.79138432007466,
+        "to": 268.7668185599751,
+        "note": "Autour du stop (± ½ ATR journalier) : sortir à la clôture sous 265,28 $, ne pas renforcer"
+      },
+      {
+        "kind": "invalidation",
+        "label": "Niveau d'invalidation",
+        "from": 265.2791014400249,
+        "to": 265.2791014400249,
+        "note": "Clôture sous 265,28 $ (stop du plan) : scénario invalidé"
+      },
+      {
+        "kind": "buy",
+        "label": "Zone d'achat",
+        "from": 280.57399999999996,
+        "to": 307.27752,
+        "note": "Repli attendu ici : entrer après une confirmation, stop à 265,28 $"
+      },
+      {
+        "kind": "wait",
+        "label": "Zone d'attente",
+        "from": 307.27752,
+        "to": 345.34,
+        "note": "Au-dessus de la zone d'achat : pas d'entrée, attendre un repli ; résistance à 344,95 $ (touchée 2 fois) avant l'objectif 1"
+      },
+      {
+        "kind": "profit",
+        "label": "Zone de prise de bénéfices",
+        "from": 345.34,
+        "to": 399.54416,
+        "note": "Objectif 1 345,34 $, objectif 2 372,44 $, objectif 3 399,54 $ : alléger par étapes"
+      }
+    ],
+    "here": "wait",
+    "hereText": "Vous êtes ici : zone d'attente (341,04 $)"
+  },
+  "unfolding": {
+    "kind": "neutral",
+    "title": "Scénario neutre",
+    "met": 1,
+    "total": 2,
+    "text": "Scénario neutre en cours : 1 condition sur 2 remplie. Lecture des données actuelles, pas une prévision."
+  },
+  "counterArgument": {
+    "favourable": 5,
+    "unfavourable": 2,
+    "text": "🟢 Raisons favorables : 5 / 🔴 Raisons défavorables : 2",
+    "familiesText": "Familles : 3 favorable(s), 0 défavorable(s), 2 neutre(s), 5 non mesurée(s)",
+    "invalidators": [
+      {
+        "kind": "level",
+        "text": "Cassure de la résistance 344,95 $ (touchée 2 fois) : l'attente serait dépassée",
+        "value": 344.954975
+      },
+      {
+        "kind": "condition",
+        "text": "Cassure au-dessus de 345,34 $ avec du volume : le repli attendu n'aura pas lieu",
+        "value": null
+      },
+      {
+        "kind": "condition",
+        "text": "Clôture sous 265,28 $ : la zone ne tient pas",
+        "value": null
+      },
+      {
+        "kind": "volume",
+        "text": "Volume au-dessus de 1,5 × la moyenne 20 j (64,5 M actions par jour ; dernière séance : 0,7 × la moyenne) sur une séance en hausse : les acheteurs pourraient revenir",
+        "value": 64524247.5
+      }
+    ]
+  },
+  "snapshot": {
+    "price": 341.0400085449219,
+    "composite": 41.0,
+    "families": [
+      {
+        "key": "trend",
+        "label": "Tendance",
+        "score": 77.0
+      },
+      {
+        "key": "momentum",
+        "label": "Momentum",
+        "score": 39.0
+      },
+      {
+        "key": "volume",
+        "label": "Volume",
+        "score": 11.0
+      },
+      {
+        "key": "volatility",
+        "label": "Volatilité / risque",
+        "score": 10.0
+      },
+      {
+        "key": "valuation",
+        "label": "Valorisation",
+        "score": null
+      },
+      {
+        "key": "fundamentals",
+        "label": "Fondamentaux",
+        "score": null
+      },
+      {
+        "key": "macro",
+        "label": "Macro",
+        "score": null
+      },
+      {
+        "key": "sentiment",
+        "label": "Sentiment",
+        "score": null
+      },
+      {
+        "key": "news",
+        "label": "Actualités",
+        "score": null
+      },
+      {
+        "key": "liquidity",
+        "label": "Liquidité",
+        "score": 40.0
+      }
+    ],
+    "momentum": 39.0,
+    "relativeVolume": 0.7,
+    "rsi": 65.7,
+    "adx": 20.2,
+    "nearestSupport": {
+      "price": 335.605,
+      "touches": 2
+    },
+    "nearestResistance": {
+      "price": 344.954975,
+      "touches": 2
+    },
+    "newsScore": null,
+    "topNews": null
+  },
+  "ratingReason": null,
+  "modelEvidence": {
+    "available": true,
+    "assetClass": "stock",
+    "classLabel": "Actions et ETF américains",
+    "classVerdict": "edge",
+    "classVerdictLabel": "Gain moyen positif (t ≥ 2), à confirmer",
+    "assets": 22,
+    "beatHoldCount": 2,
+    "beatHold": "2/22",
+    "trades": 650,
+    "tStat": 2.18,
+    "regime": "bull",
+    "regimeLabel": "marché haussier",
+    "regimeVerdict": "unproven",
+    "regimeTrades": 486,
+    "regimeTStat": 1.76,
+    "weak": true,
+    "text": "Sur les actions et ETF testés (22), gain moyen positif par trade (t = 2,2) mais la simple détention a fait mieux dans 20 cas sur 22 ; en marché haussier, régime actuel de l'actif : avantage non démontré (t = 1,8). Résultats passés, sans garantie pour la suite.",
+    "asOf": 1790662942496,
+    "link": "/app/validation"
+  }
+}
