@@ -1,5 +1,7 @@
 # Altim
 
+> **Logiciel propriétaire, tous droits réservés** (voir `LICENSE`). Ce dépôt n'est pas open source : aucune copie, réutilisation ni déploiement n'est autorisé.
+
 Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur **Rust + Axum**, déployés sur Heroku (buildpacks Bun et Rust), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
@@ -557,7 +559,7 @@ Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence profes
 cd web && bun test && bun run typecheck                                  # moteurs et écrans de l'application web
 cd backend && cargo test                                                 # serveur : parité avec les moteurs TS, routes, sources, accès privé
 cd backend && cargo test --test sources_live -- --ignored               # toutes les sources × unités de temps + flux temps réel, en réel
-cd backend && cargo run --release   # puis, dans web : bun scripts/audit.ts   # audit des données contre des références indépendantes
+ALTIM_DEV_OPEN=1 cargo run --release --manifest-path backend/Cargo.toml   # accès sans connexion, limité à 127.0.0.1 ; puis, dans web : bun scripts/audit.ts   # audit des données contre des références indépendantes
 ```
 
 Références vérifiées : RSI de Wilder (exemple StockCharts), parseurs construits à partir de réponses réelles de chaque source.

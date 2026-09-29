@@ -1,8 +1,6 @@
 {
   "name": "Altim",
-  "description": "Altim : site et application web de conseil crypto et actions (React + TypeScript, serveur Rust + Axum).",
-  "repository": "https://github.com/maxlestage/altim",
-  "logo": "https://raw.githubusercontent.com/maxlestage/altim/master/web/public/icon-192.png",
+  "description": "Altim : service privé de conseil crypto et actions. Logiciel propriétaire, tous droits réservés.",
   "keywords": [
     "rust",
     "axum",

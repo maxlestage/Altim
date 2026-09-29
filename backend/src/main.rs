@@ -17,9 +17,17 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    let locked = auth.config().is_none();
     let live = LiveHub::new();
     let app = router(AppState::new(live.clone()), auth);
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port)).await.expect("port occupé");
+    // Without a login (explicit local development mode), only this machine can reach the server.
+    let host = if altim::auth::dev_open() { "127.0.0.1" } else { "0.0.0.0" };
+    if host == "127.0.0.1" {
+        eprintln!("ALTIM_DEV_OPEN=1 : accès sans connexion, limité à cette machine (127.0.0.1).");
+    } else if locked {
+        eprintln!("ALTIM_USER, ALTIM_PASSWORD_HASH et ALTIM_SESSION_SECRET absents : tout accès est refusé.");
+    }
+    let listener = tokio::net::TcpListener::bind((host, port)).await.expect("port occupé");
     println!("Altim web en ligne sur http://localhost:{port}");
     let production = std::env::var("NODE_ENV").is_ok_and(|v| v == "production") || std::env::var("DYNO").is_ok_and(|v| !v.is_empty());
     if production {

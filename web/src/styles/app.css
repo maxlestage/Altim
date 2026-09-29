@@ -879,6 +879,11 @@
 .bot-calib li { display: grid; gap: 3px; }
 .bot-calib p { margin: 0; }
 .bot-views li > p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.bot-runs, .bot-cands { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; min-width: 0; }
+.bot-runs li { overflow-wrap: anywhere; }
+.bot-cands { gap: 12px; }
+.bot-cands li { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
+.bot-cands li > * { margin: 0; overflow-wrap: anywhere; }
 .bot-bars { display: grid; gap: 2px; }
 .bot-bars span, .bot-key { display: block; height: 5px; border-radius: 3px; }
 .bot-bars .pred, .bot-key.pred { background: var(--cyan); }

@@ -1,0 +1,1844 @@
+{
+  "asOf": 1790681774058,
+  "basketFixedOn": "2026-09-29",
+  "headline": "Hors échantillon, le bot n'a pas fait mieux qu'une entrée ou une sortie au hasard de façon démontrée, ni sur les actions ni sur les cryptos : il ne compte pas dans les décisions.",
+  "overall": {
+    "testRows": 13208,
+    "labelled": 12504,
+    "buy": {
+      "signals": 207,
+      "meanNet": 1.64,
+      "baselineNet": 1.47,
+      "allDaysNet": 1.37,
+      "excess": 0.17,
+      "tStat": 0.2,
+      "rawTStat": 1.7,
+      "hitRate": 51.2,
+      "baselineHitRate": 54.3,
+      "medianBotReturn": 5.56,
+      "medianHoldReturn": 30.33,
+      "beatHold": 7,
+      "assets": 33,
+      "verdict": "unproven",
+      "verdictLabel": "Avantage non démontré"
+    },
+    "sell": {
+      "signals": 54,
+      "meanAfter": 1.62,
+      "baselineAfter": 1.07,
+      "allDaysAfter": 1.69,
+      "avoided": -0.55,
+      "tStat": -0.64,
+      "fallRate": 35.2,
+      "baselineFallRate": 42.1,
+      "meanDrawdown": -6.01,
+      "baselineDrawdown": -6.24,
+      "verdict": "unproven",
+      "verdictLabel": "Avantage non démontré"
+    },
+    "wait": {
+      "days": 9061,
+      "share": 72.5,
+      "meanNet": 1.05,
+      "baselineNet": 1.37
+    },
+    "brierSkillUp": -1.8,
+    "brierSkillDown": -1.9,
+    "calibrationUp": [
+      {
+        "from": 0,
+        "to": 30,
+        "label": "moins de 30 %",
+        "rows": 0,
+        "predicted": null,
+        "realised": null
+      },
+      {
+        "from": 30,
+        "to": 40,
+        "label": "30 à 40 %",
+        "rows": 75,
+        "predicted": 36.3,
+        "realised": 40
+      },
+      {
+        "from": 40,
+        "to": 50,
+        "label": "40 à 50 %",
+        "rows": 385,
+        "predicted": 47.1,
+        "realised": 65.5
+      },
+      {
+        "from": 50,
+        "to": 60,
+        "label": "50 à 60 %",
+        "rows": 9240,
+        "predicted": 55.5,
+        "realised": 54.7
+      },
+      {
+        "from": 60,
+        "to": 70,
+        "label": "60 à 70 %",
+        "rows": 2579,
+        "predicted": 63.6,
+        "realised": 52.1
+      },
+      {
+        "from": 70,
+        "to": 100,
+        "label": "70 % et plus",
+        "rows": 225,
+        "predicted": 71.8,
+        "realised": 45.8
+      }
+    ],
+    "calibrationDown": [
+      {
+        "from": 0,
+        "to": 30,
+        "label": "moins de 30 %",
+        "rows": 469,
+        "predicted": 27.9,
+        "realised": 52
+      },
+      {
+        "from": 30,
+        "to": 40,
+        "label": "30 à 40 %",
+        "rows": 5641,
+        "predicted": 36.9,
+        "realised": 45.6
+      },
+      {
+        "from": 40,
+        "to": 50,
+        "label": "40 à 50 %",
+        "rows": 6104,
+        "predicted": 42.6,
+        "realised": 38.1
+      },
+      {
+        "from": 50,
+        "to": 60,
+        "label": "50 à 60 %",
+        "rows": 240,
+        "predicted": 53.7,
+        "realised": 37.5
+      },
+      {
+        "from": 60,
+        "to": 70,
+        "label": "60 à 70 %",
+        "rows": 50,
+        "predicted": 63.5,
+        "realised": 60
+      },
+      {
+        "from": 70,
+        "to": 100,
+        "label": "70 % et plus",
+        "rows": 0,
+        "predicted": null,
+        "realised": null
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "stock",
+      "label": "Actions et ETF américains",
+      "assets": 22,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "blocks": 4,
+      "trainedBlocks": 4,
+      "testRows": 10780,
+      "labelled": 10318,
+      "buy": {
+        "signals": 108,
+        "meanNet": 1.7,
+        "baselineNet": 1.85,
+        "allDaysNet": 1.39,
+        "excess": -0.15,
+        "tStat": -0.12,
+        "rawTStat": 1.21,
+        "hitRate": 46.3,
+        "baselineHitRate": 54.8,
+        "medianBotReturn": 3.97,
+        "medianHoldReturn": 31.44,
+        "beatHold": 6,
+        "assets": 22,
+        "verdict": "unproven",
+        "verdictLabel": "Avantage non démontré"
+      },
+      "sell": {
+        "signals": 47,
+        "meanAfter": 2.01,
+        "baselineAfter": 1.74,
+        "allDaysAfter": 1.71,
+        "avoided": -0.27,
+        "tStat": -0.32,
+        "fallRate": 29.8,
+        "baselineFallRate": 41.3,
+        "meanDrawdown": -5.27,
+        "baselineDrawdown": -5.5,
+        "verdict": "unproven",
+        "verdictLabel": "Avantage non démontré"
+      },
+      "wait": {
+        "days": 8802,
+        "share": 85.3,
+        "meanNet": 0.98,
+        "baselineNet": 1.39
+      },
+      "brierSkillUp": -1.1,
+      "brierSkillDown": -1.3,
+      "calibrationUp": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 100,
+          "predicted": 49,
+          "realised": 59
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 8339,
+          "predicted": 55.6,
+          "realised": 55.1
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 1755,
+          "predicted": 62.9,
+          "realised": 52.9
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 124,
+          "predicted": 71.9,
+          "realised": 59.7
+        }
+      ],
+      "calibrationDown": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 223,
+          "predicted": 27.5,
+          "realised": 33.6
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 4800,
+          "predicted": 37.2,
+          "realised": 46.1
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 5275,
+          "predicted": 42.3,
+          "realised": 37.1
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 20,
+          "predicted": 51.5,
+          "realised": 80
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        }
+      ],
+      "model": {
+        "trainedRows": 22286,
+        "trainedFrom": 1660570200000,
+        "trainedTo": 1787837400000,
+        "up": {
+          "baseRate": 55.99030781656646,
+          "threshold": 60.99030781656646,
+          "intercept": 0.24159978674465848,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": -0.015496176454226532,
+              "mean": 0.3973217027728869,
+              "sd": 4.27916252313856
+            },
+            {
+              "id": "ret20",
+              "coef": 0.05465560980755683,
+              "mean": 1.6678920904870602,
+              "sd": 8.828552421465155
+            },
+            {
+              "id": "ret60",
+              "coef": -0.05020379816201567,
+              "mean": 5.110647169018814,
+              "sd": 16.446919428917568
+            },
+            {
+              "id": "rsi14",
+              "coef": -0.03172871305703264,
+              "mean": 52.94183512428658,
+              "sd": 12.372998947775871
+            },
+            {
+              "id": "ema50",
+              "coef": -0.03124149025272194,
+              "mean": 1.5538023724985948,
+              "sd": 6.575993582806389
+            },
+            {
+              "id": "ema200",
+              "coef": -0.007914757010085323,
+              "mean": 5.033155806704949,
+              "sd": 14.234128677604795
+            },
+            {
+              "id": "macd",
+              "coef": 0.02300266735428323,
+              "mean": -0.004326684294071253,
+              "sd": 0.6503578207676646
+            },
+            {
+              "id": "atr14",
+              "coef": 0.059186249564588775,
+              "mean": 2.350464264996077,
+              "sd": 1.0014675004850286
+            },
+            {
+              "id": "vol20",
+              "coef": 0.030033111052062796,
+              "mean": 1.6818649214924317,
+              "sd": 0.914886534208203
+            },
+            {
+              "id": "volume",
+              "coef": -0.0044305452460227665,
+              "mean": 0.06174386666251115,
+              "sd": 1.2430276538208909
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.005953329920317236,
+              "mean": -11.552736144092224,
+              "sd": 11.236540697810094
+            },
+            {
+              "id": "range20",
+              "coef": 0.06298408508791728,
+              "mean": 0.5595642432997185,
+              "sd": 0.30933122309931416
+            },
+            {
+              "id": "bull",
+              "coef": 0.004812703581020287,
+              "mean": 0.578210535762362,
+              "sd": 0.49384523091323845
+            },
+            {
+              "id": "bear",
+              "coef": 0.006407507445150204,
+              "mean": 0.1680875886206587,
+              "sd": 0.3739440481840986
+            },
+            {
+              "id": "range",
+              "coef": 0.007712764298909791,
+              "mean": 0.16234407251189087,
+              "sd": 0.3687661516899272
+            },
+            {
+              "id": "crisis",
+              "coef": -0.026437105575352417,
+              "mean": 0.0913578031050884,
+              "sd": 0.2881172589709229
+            }
+          ]
+        },
+        "down": {
+          "baseRate": 40.388584761733824,
+          "threshold": 45.388584761733824,
+          "intercept": -0.39018370369008276,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": 0.011086376236286938,
+              "mean": 0.3973217027728869,
+              "sd": 4.27916252313856
+            },
+            {
+              "id": "ret20",
+              "coef": -0.047347414839379855,
+              "mean": 1.6678920904870602,
+              "sd": 8.828552421465155
+            },
+            {
+              "id": "ret60",
+              "coef": 0.053385249625573755,
+              "mean": 5.110647169018814,
+              "sd": 16.446919428917568
+            },
+            {
+              "id": "rsi14",
+              "coef": 0.03823607946631594,
+              "mean": 52.94183512428658,
+              "sd": 12.372998947775871
+            },
+            {
+              "id": "ema50",
+              "coef": 0.03986982881990644,
+              "mean": 1.5538023724985948,
+              "sd": 6.575993582806389
+            },
+            {
+              "id": "ema200",
+              "coef": 0.007808000533788144,
+              "mean": 5.033155806704949,
+              "sd": 14.234128677604795
+            },
+            {
+              "id": "macd",
+              "coef": -0.029001115921887727,
+              "mean": -0.004326684294071253,
+              "sd": 0.6503578207676646
+            },
+            {
+              "id": "atr14",
+              "coef": -0.04170572949027335,
+              "mean": 2.350464264996077,
+              "sd": 1.0014675004850286
+            },
+            {
+              "id": "vol20",
+              "coef": -0.02086122155659079,
+              "mean": 1.6818649214924317,
+              "sd": 0.914886534208203
+            },
+            {
+              "id": "volume",
+              "coef": 0.0029740592662416032,
+              "mean": 0.06174386666251115,
+              "sd": 1.2430276538208909
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.007536240481599674,
+              "mean": -11.552736144092224,
+              "sd": 11.236540697810094
+            },
+            {
+              "id": "range20",
+              "coef": -0.06868104411976494,
+              "mean": 0.5595642432997185,
+              "sd": 0.30933122309931416
+            },
+            {
+              "id": "bull",
+              "coef": -0.009137526495114559,
+              "mean": 0.578210535762362,
+              "sd": 0.49384523091323845
+            },
+            {
+              "id": "bear",
+              "coef": 0.0021728924539013332,
+              "mean": 0.1680875886206587,
+              "sd": 0.3739440481840986
+            },
+            {
+              "id": "range",
+              "coef": -0.009795718029253539,
+              "mean": 0.16234407251189087,
+              "sd": 0.3687661516899272
+            },
+            {
+              "id": "crisis",
+              "coef": 0.025379642123074937,
+              "mean": 0.0913578031050884,
+              "sd": 0.2881172589709229
+            }
+          ]
+        }
+      },
+      "text": "Actions et ETF américains : 108 achats suivis de +1,7 % en moyenne contre +1,85 % pour une entrée au hasard sur le même actif et la même période (−0,15 point, t = −0,1) ; 47 ventes suivies de +2,01 % contre +1,74 % (cours ensuite supérieur de 0,27 point à un jour au hasard, t = −0,3) ; ATTENDRE 85 % des jours."
+    },
+    {
+      "id": "crypto",
+      "label": "Cryptos (bitcoin, ether, altcoins)",
+      "assets": 12,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "blocks": 2,
+      "trainedBlocks": 2,
+      "testRows": 2428,
+      "labelled": 2186,
+      "buy": {
+        "signals": 99,
+        "meanNet": 1.59,
+        "baselineNet": 1.06,
+        "allDaysNet": 1.29,
+        "excess": 0.52,
+        "tStat": 0.46,
+        "rawTStat": 1.19,
+        "hitRate": 56.6,
+        "baselineHitRate": 51.6,
+        "medianBotReturn": 5.69,
+        "medianHoldReturn": 19.72,
+        "beatHold": 1,
+        "assets": 11,
+        "verdict": "unproven",
+        "verdictLabel": "Avantage non démontré"
+      },
+      "sell": {
+        "signals": 7,
+        "meanAfter": -1.01,
+        "baselineAfter": -3.45,
+        "allDaysAfter": 1.61,
+        "avoided": -2.44,
+        "tStat": -0.66,
+        "fallRate": 71.4,
+        "baselineFallRate": 45.7,
+        "meanDrawdown": -10.97,
+        "baselineDrawdown": -11.19,
+        "verdict": "insufficient",
+        "verdictLabel": "Trop peu de ventes pour conclure"
+      },
+      "wait": {
+        "days": 259,
+        "share": 11.8,
+        "meanNet": 3.11,
+        "baselineNet": 1.29
+      },
+      "brierSkillUp": -5.2,
+      "brierSkillDown": -4.8,
+      "calibrationUp": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 75,
+          "predicted": 36.3,
+          "realised": 40
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 285,
+          "predicted": 46.4,
+          "realised": 67.7
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 901,
+          "predicted": 54.9,
+          "realised": 51.2
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 824,
+          "predicted": 65.3,
+          "realised": 50.4
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 101,
+          "predicted": 71.7,
+          "realised": 28.7
+        }
+      ],
+      "calibrationDown": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 246,
+          "predicted": 28.2,
+          "realised": 68.7
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 841,
+          "predicted": 34.7,
+          "realised": 42.3
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 829,
+          "predicted": 44.7,
+          "realised": 44.8
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 220,
+          "predicted": 53.8,
+          "realised": 33.6
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 50,
+          "predicted": 63.5,
+          "realised": 60
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 0,
+          "predicted": null,
+          "realised": null
+        }
+      ],
+      "model": {
+        "trainedRows": 7626,
+        "trainedFrom": 1723334400000,
+        "trainedTo": 1788739200000,
+        "up": {
+          "baseRate": 44.741673223183845,
+          "threshold": 49.74167322318384,
+          "intercept": -0.22186362416918207,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": -0.021643059914384286,
+              "mean": 0.28833414926849804,
+              "sd": 9.508141456835814
+            },
+            {
+              "id": "ret20",
+              "coef": 0.18393454352527927,
+              "mean": 1.023103690616833,
+              "sd": 22.70020218715379
+            },
+            {
+              "id": "ret60",
+              "coef": 0.198372872089366,
+              "mean": 2.464214935133823,
+              "sd": 46.74677229531658
+            },
+            {
+              "id": "rsi14",
+              "coef": 0.0395740660773084,
+              "mean": 48.89653269480294,
+              "sd": 12.22733265560264
+            },
+            {
+              "id": "ema50",
+              "coef": -0.04194084001463831,
+              "mean": -1.5623057278059984,
+              "sd": 15.460845771869495
+            },
+            {
+              "id": "ema200",
+              "coef": -0.15659904336667427,
+              "mean": -6.219543293447693,
+              "sd": 30.33398761135399
+            },
+            {
+              "id": "macd",
+              "coef": 0.023391101847020108,
+              "mean": 0.06104334545934338,
+              "sd": 1.32159282967151
+            },
+            {
+              "id": "atr14",
+              "coef": -0.18287238335746073,
+              "mean": 6.138640208759007,
+              "sd": 2.231908850896836
+            },
+            {
+              "id": "vol20",
+              "coef": -0.07230755490132736,
+              "mean": 3.799237296261385,
+              "sd": 1.6291897865122933
+            },
+            {
+              "id": "volume",
+              "coef": -0.0020789643407507436,
+              "mean": 0.08652537261845275,
+              "sd": 1.2574415661779457
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.03645370786711734,
+              "mean": -40.68418534052571,
+              "sd": 19.180849615526988
+            },
+            {
+              "id": "range20",
+              "coef": -0.09333061775331515,
+              "mean": 0.4751237133658571,
+              "sd": 0.26741069372004017
+            },
+            {
+              "id": "bull",
+              "coef": -0.1434363555617171,
+              "mean": 0.16220823498557566,
+              "sd": 0.36864172781774923
+            },
+            {
+              "id": "bear",
+              "coef": -0.03944738684699889,
+              "mean": 0.010621557828481511,
+              "sd": 0.10251214726936718
+            },
+            {
+              "id": "range",
+              "coef": 0.13911780908241117,
+              "mean": 0.046944662995017046,
+              "sd": 0.21152035743941183
+            },
+            {
+              "id": "crisis",
+              "coef": 0.06639610649374118,
+              "mean": 0.7802255441909258,
+              "sd": 0.41409376279158516
+            }
+          ]
+        },
+        "down": {
+          "baseRate": 53.42250196695515,
+          "threshold": 58.42250196695515,
+          "intercept": 0.14500159065298748,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": 0.02043712593455742,
+              "mean": 0.28833414926849804,
+              "sd": 9.508141456835814
+            },
+            {
+              "id": "ret20",
+              "coef": -0.17686506768265486,
+              "mean": 1.023103690616833,
+              "sd": 22.70020218715379
+            },
+            {
+              "id": "ret60",
+              "coef": -0.19949548504124684,
+              "mean": 2.464214935133823,
+              "sd": 46.74677229531658
+            },
+            {
+              "id": "rsi14",
+              "coef": -0.04203552089270739,
+              "mean": 48.89653269480294,
+              "sd": 12.22733265560264
+            },
+            {
+              "id": "ema50",
+              "coef": 0.04416011213906631,
+              "mean": -1.5623057278059984,
+              "sd": 15.460845771869495
+            },
+            {
+              "id": "ema200",
+              "coef": 0.1656909509622093,
+              "mean": -6.219543293447693,
+              "sd": 30.33398761135399
+            },
+            {
+              "id": "macd",
+              "coef": -0.022788344338091387,
+              "mean": 0.06104334545934338,
+              "sd": 1.32159282967151
+            },
+            {
+              "id": "atr14",
+              "coef": 0.19507550474908325,
+              "mean": 6.138640208759007,
+              "sd": 2.231908850896836
+            },
+            {
+              "id": "vol20",
+              "coef": 0.06270690147492251,
+              "mean": 3.799237296261385,
+              "sd": 1.6291897865122933
+            },
+            {
+              "id": "volume",
+              "coef": 0.006815585384605899,
+              "mean": 0.08652537261845275,
+              "sd": 1.2574415661779457
+            },
+            {
+              "id": "drawdown",
+              "coef": 0.0345368817747006,
+              "mean": -40.68418534052571,
+              "sd": 19.180849615526988
+            },
+            {
+              "id": "range20",
+              "coef": 0.10199571163710625,
+              "mean": 0.4751237133658571,
+              "sd": 0.26741069372004017
+            },
+            {
+              "id": "bull",
+              "coef": 0.13458636734477453,
+              "mean": 0.16220823498557566,
+              "sd": 0.36864172781774923
+            },
+            {
+              "id": "bear",
+              "coef": 0.042558978402481164,
+              "mean": 0.010621557828481511,
+              "sd": 0.10251214726936718
+            },
+            {
+              "id": "range",
+              "coef": -0.13419005461817732,
+              "mean": 0.046944662995017046,
+              "sd": 0.21152035743941183
+            },
+            {
+              "id": "crisis",
+              "coef": -0.061804927391651734,
+              "mean": 0.7802255441909258,
+              "sd": 0.41409376279158516
+            }
+          ]
+        }
+      },
+      "text": "Cryptos (bitcoin, ether, altcoins) : 99 achats suivis de +1,59 % en moyenne contre +1,06 % pour une entrée au hasard sur le même actif et la même période (+0,52 point, t = 0,5) ; 7 ventes suivies de −1,01 % contre −3,45 % (cours ensuite supérieur de 2,44 points à un jour au hasard, t = −0,7) ; ATTENDRE 12 % des jours."
+    }
+  ],
+  "assets": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 3,
+      "buyMean": -6.93,
+      "buyExcess": -7.12,
+      "sells": 3,
+      "sellAvoided": 1.42,
+      "waitShare": 90,
+      "botReturn": -19.58,
+      "holdReturn": 45.7,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56,
+        "down": 40
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 6,
+      "buyMean": 6.49,
+      "buyExcess": 5.63,
+      "sells": 3,
+      "sellAvoided": -0.96,
+      "waitShare": 76.1,
+      "botReturn": 39.27,
+      "holdReturn": 19.73,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 53.1,
+        "down": 43
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 6,
+      "buyMean": 1.5,
+      "buyExcess": -1.67,
+      "sells": 2,
+      "sellAvoided": -2.71,
+      "waitShare": 87.2,
+      "botReturn": 6.23,
+      "holdReturn": 105.51,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 57,
+        "down": 39.3
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 11,
+      "buyMean": 1.52,
+      "buyExcess": 0.86,
+      "sells": 2,
+      "sellAvoided": -0.77,
+      "waitShare": 71.2,
+      "botReturn": 11.73,
+      "holdReturn": 27.09,
+      "now": {
+        "time": 1790602200000,
+        "action": "buy",
+        "up": 61.9,
+        "down": 36.2
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 7,
+      "buyMean": 0.81,
+      "buyExcess": -0.07,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 83.4,
+      "botReturn": 2.39,
+      "holdReturn": 31.44,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.1,
+        "down": 42
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "HD",
+      "name": "Home Depot",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 5,
+      "buyMean": 1.26,
+      "buyExcess": 2.73,
+      "sells": 3,
+      "sellAvoided": -7.27,
+      "waitShare": 89.1,
+      "botReturn": 6.06,
+      "holdReturn": -30.55,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.2,
+        "down": 40.5
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "JPM",
+      "name": "JPMorgan Chase",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 3,
+      "buyMean": 2.29,
+      "buyExcess": 0.24,
+      "sells": 2,
+      "sellAvoided": -1.16,
+      "waitShare": 90.2,
+      "botReturn": 6.67,
+      "holdReturn": 52.83,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 53.4,
+        "down": 42.3
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "BAC",
+      "name": "Bank of America",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 3,
+      "buyMean": 2.51,
+      "buyExcess": 1.7,
+      "sells": 2,
+      "sellAvoided": 5.35,
+      "waitShare": 89.3,
+      "botReturn": 5.56,
+      "holdReturn": 30.51,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.6,
+        "down": 41.3
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "JNJ",
+      "name": "Johnson & Johnson",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 1,
+      "buyMean": -2.33,
+      "buyExcess": -5.39,
+      "sells": 4,
+      "sellAvoided": -0.48,
+      "waitShare": 94.7,
+      "botReturn": -2.33,
+      "holdReturn": 68.86,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.1,
+        "down": 41.5
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "UNH",
+      "name": "UnitedHealth",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 9,
+      "buyMean": -0.98,
+      "buyExcess": 1.86,
+      "sells": 4,
+      "sellAvoided": -2.67,
+      "waitShare": 68,
+      "botReturn": -30.69,
+      "holdReturn": -31.82,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.3,
+        "down": 39.7
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "XOM",
+      "name": "Exxon Mobil",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 1,
+      "buyMean": -4.84,
+      "buyExcess": -5.8,
+      "sells": 1,
+      "sellAvoided": -0.04,
+      "waitShare": 99.6,
+      "botReturn": -4.84,
+      "holdReturn": 34.75,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.4,
+        "down": 41.9
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "CVX",
+      "name": "Chevron",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 2,
+      "buyMean": -2.03,
+      "buyExcess": -2.09,
+      "sells": 1,
+      "sellAvoided": 4.54,
+      "waitShare": 95.9,
+      "botReturn": -4.03,
+      "holdReturn": 39.11,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 52.5,
+        "down": 43.6
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "PG",
+      "name": "Procter & Gamble",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 1,
+      "buyMean": -4.08,
+      "buyExcess": -2.64,
+      "sells": 2,
+      "sellAvoided": 3.71,
+      "waitShare": 99.1,
+      "botReturn": -4.08,
+      "holdReturn": -15.63,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 57.1,
+        "down": 38.6
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "KO",
+      "name": "Coca-Cola",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 0,
+      "buyMean": null,
+      "buyExcess": null,
+      "sells": 3,
+      "sellAvoided": 0.1,
+      "waitShare": 95.7,
+      "botReturn": 0,
+      "holdReturn": 24.33,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 51.6,
+        "down": 43.8
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "CAT",
+      "name": "Caterpillar",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 8,
+      "buyMean": -1.93,
+      "buyExcess": -2.18,
+      "sells": 1,
+      "sellAvoided": 10.13,
+      "waitShare": 85.9,
+      "botReturn": -19.97,
+      "holdReturn": 110.19,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 60.7,
+        "down": 35.8
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "BA",
+      "name": "Boeing",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 6,
+      "buyMean": 6.58,
+      "buyExcess": 4.99,
+      "sells": 2,
+      "sellAvoided": -1.56,
+      "waitShare": 81,
+      "botReturn": 40.02,
+      "holdReturn": 27.98,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 58.8,
+        "down": 37.9
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "NEE",
+      "name": "NextEra Energy",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 3,
+      "buyMean": -4.15,
+      "buyExcess": -3.34,
+      "sells": 1,
+      "sellAvoided": -1.7,
+      "waitShare": 97.2,
+      "botReturn": -12.12,
+      "holdReturn": -8.4,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.8,
+        "down": 40.6
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "DUK",
+      "name": "Duke Energy",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 0,
+      "buyMean": null,
+      "buyExcess": null,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 100,
+      "botReturn": 0,
+      "holdReturn": -2.58,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.9,
+        "down": 41.2
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 12,
+      "buyMean": 1.78,
+      "buyExcess": 1.52,
+      "sells": 1,
+      "sellAvoided": 4.6,
+      "waitShare": 68,
+      "botReturn": 14.96,
+      "holdReturn": 66.64,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.4,
+        "down": 39.8
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "INTC",
+      "name": "Intel",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 18,
+      "buyMean": 4.75,
+      "buyExcess": -4.61,
+      "sells": 2,
+      "sellAvoided": 1.75,
+      "waitShare": 32,
+      "botReturn": 60.4,
+      "holdReturn": 415.48,
+      "now": {
+        "time": 1790602200000,
+        "action": "buy",
+        "up": 68.4,
+        "down": 30.8
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 1,
+      "buyMean": 6.12,
+      "buyExcess": 7.06,
+      "sells": 7,
+      "sellAvoided": -0.9,
+      "waitShare": 91.3,
+      "botReturn": 6.12,
+      "holdReturn": 31.43,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 53.7,
+        "down": 41.2
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ (Nasdaq 100)",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 490,
+      "testFrom": 1728912600000,
+      "testTo": 1790602200000,
+      "buys": 2,
+      "buyMean": 6.31,
+      "buyExcess": 4.7,
+      "sells": 1,
+      "sellAvoided": -0.3,
+      "waitShare": 91.7,
+      "botReturn": 12.99,
+      "holdReturn": 48.74,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.1,
+        "down": 40.2
+      },
+      "source": "Robinhood"
+    },
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "kind": "crypto",
+      "class": "btc",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": 2.42,
+      "buyExcess": 0.75,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 7.9,
+      "botReturn": 19.69,
+      "holdReturn": 19.72,
+      "now": {
+        "time": 1790553600000,
+        "action": "buy",
+        "up": 53.3,
+        "down": 44.9
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "kind": "crypto",
+      "class": "eth",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 9,
+      "buyMean": 3.27,
+      "buyExcess": 1.41,
+      "sells": 1,
+      "sellAvoided": 5.31,
+      "waitShare": 13.6,
+      "botReturn": 22.18,
+      "holdReturn": 30.33,
+      "now": {
+        "time": 1790553600000,
+        "action": "buy",
+        "up": 51.7,
+        "down": 46.6
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 9,
+      "buyMean": 2.43,
+      "buyExcess": -1,
+      "sells": 1,
+      "sellAvoided": 4.56,
+      "waitShare": 15.4,
+      "botReturn": 15.66,
+      "holdReturn": 39.53,
+      "now": {
+        "time": 1790553600000,
+        "action": "buy",
+        "up": 50.1,
+        "down": 48.3
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "BNB",
+      "name": "BNB",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 67,
+      "testFrom": 1784851200000,
+      "testTo": 1790553600000,
+      "buys": 3,
+      "buyMean": 11.37,
+      "buyExcess": 0.3,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 6.5,
+      "botReturn": 37.67,
+      "holdReturn": 37.93,
+      "now": {
+        "time": 1790553600000,
+        "action": "sell",
+        "up": 38.8,
+        "down": 58.5
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "XRP",
+      "name": "XRP",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 9,
+      "buyMean": 1.1,
+      "buyExcess": 1.45,
+      "sells": 1,
+      "sellAvoided": 0.99,
+      "waitShare": 5.1,
+      "botReturn": 2.06,
+      "holdReturn": 3.27,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 46.3,
+        "down": 52
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "ADA",
+      "name": "Cardano",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": -1.49,
+      "buyExcess": -0.16,
+      "sells": 1,
+      "sellAvoided": -9.53,
+      "waitShare": 19.2,
+      "botReturn": -24.42,
+      "holdReturn": -7.63,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 47.8,
+        "down": 50.7
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": 1.09,
+      "buyExcess": 1.62,
+      "sells": 1,
+      "sellAvoided": 2.49,
+      "waitShare": 6.5,
+      "botReturn": 4.31,
+      "holdReturn": -1.6,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 46.8,
+        "down": 51.4
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "AVAX",
+      "name": "Avalanche",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 9,
+      "buyMean": -0.81,
+      "buyExcess": -0.39,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 18.2,
+      "botReturn": -12.21,
+      "holdReturn": 17.59,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 48.1,
+        "down": 50.3
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "DOT",
+      "name": "Polkadot",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": -1.67,
+      "buyExcess": -0.6,
+      "sells": 1,
+      "sellAvoided": -21.66,
+      "waitShare": 13.1,
+      "botReturn": -26.45,
+      "holdReturn": -7.03,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 42.6,
+        "down": 55.7
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": 5.39,
+      "buyExcess": 1.82,
+      "sells": 1,
+      "sellAvoided": 0.74,
+      "waitShare": 12.1,
+      "botReturn": 57.14,
+      "holdReturn": 58.03,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 45.6,
+        "down": 53.6
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 235,
+      "testFrom": 1770336000000,
+      "testTo": 1790553600000,
+      "buys": 10,
+      "buyMean": 1.16,
+      "buyExcess": 0.34,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": 8.4,
+      "botReturn": 5.69,
+      "holdReturn": 29.61,
+      "now": {
+        "time": 1790553600000,
+        "action": "buy",
+        "up": 49.9,
+        "down": 48.7
+      },
+      "source": "Bitstamp"
+    },
+    {
+      "symbol": "TRX",
+      "name": "TRON",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 11,
+      "testFrom": 1789689600000,
+      "testTo": 1790553600000,
+      "buys": 0,
+      "buyMean": null,
+      "buyExcess": null,
+      "sells": 0,
+      "sellAvoided": null,
+      "waitShare": null,
+      "botReturn": null,
+      "holdReturn": null,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 44.7,
+        "down": 52.2
+      },
+      "source": "Bitstamp"
+    }
+  ],
+  "failures": [],
+  "features": [
+    {
+      "id": "ret5",
+      "label": "Variation sur 5 jours",
+      "help": "Variation du cours de clôture sur 5 bougies, en %."
+    },
+    {
+      "id": "ret20",
+      "label": "Variation sur 20 jours",
+      "help": "Variation du cours de clôture sur 20 bougies, en %."
+    },
+    {
+      "id": "ret60",
+      "label": "Variation sur 60 jours",
+      "help": "Variation du cours de clôture sur 60 bougies, en %."
+    },
+    {
+      "id": "rsi14",
+      "label": "RSI 14",
+      "help": "Indice de force relative sur 14 jours (0 à 100)."
+    },
+    {
+      "id": "ema50",
+      "label": "Écart à la moyenne 50 jours",
+      "help": "Écart de la clôture à sa moyenne mobile exponentielle 50 jours, en %."
+    },
+    {
+      "id": "ema200",
+      "label": "Écart à la moyenne 200 jours",
+      "help": "Écart de la clôture à sa moyenne mobile exponentielle 200 jours, en %."
+    },
+    {
+      "id": "macd",
+      "label": "MACD (histogramme)",
+      "help": "Histogramme du MACD 12/26/9 rapporté au cours, en %."
+    },
+    {
+      "id": "atr14",
+      "label": "Amplitude moyenne (ATR 14)",
+      "help": "ATR 14 jours rapporté au cours, en %."
+    },
+    {
+      "id": "vol20",
+      "label": "Volatilité 20 jours",
+      "help": "Écart type des variations journalières sur 20 jours, en %."
+    },
+    {
+      "id": "volume",
+      "label": "Volume inhabituel",
+      "help": "Volume du jour en écarts types par rapport aux 20 jours précédents (0 sans volume)."
+    },
+    {
+      "id": "drawdown",
+      "label": "Recul depuis le plus haut 200 jours",
+      "help": "Écart de la clôture au plus haut des 200 derniers jours, en % (≤ 0)."
+    },
+    {
+      "id": "range20",
+      "label": "Position dans la fourchette 20 jours",
+      "help": "0 au plus bas des 20 derniers jours, 1 au plus haut."
+    },
+    {
+      "id": "bull",
+      "label": "Régime haussier",
+      "help": "1 en marché haussier (règle de la validation), sinon 0."
+    },
+    {
+      "id": "bear",
+      "label": "Régime baissier",
+      "help": "1 en marché baissier, sinon 0."
+    },
+    {
+      "id": "range",
+      "label": "Régime sans tendance",
+      "help": "1 en marché sans tendance, sinon 0."
+    },
+    {
+      "id": "crisis",
+      "label": "Régime de crise",
+      "help": "1 à plus de 30 % sous le plus haut d'un an, sinon 0."
+    }
+  ],
+  "parameters": {
+    "horizonDays": 20,
+    "retrainEvery": 126,
+    "purgeDays": 20,
+    "minTrainDays": 504,
+    "warmup": 220,
+    "l2": 0.05,
+    "thresholdMargin": 5,
+    "costStockPct": 0.31,
+    "costCryptoPct": 0.32,
+    "minSignals": 30,
+    "tEdge": 2,
+    "nudge": 3
+  },
+  "method": [
+    "Même panier fixe que la validation (34 actifs fixés le 29 septembre 2026, jamais choisis sur leurs performances), mêmes bougies journalières.",
+    "À chaque clôture, 16 mesures lues sur les seules bougies connues ce jour-là (variations 5/20/60 jours, RSI, écarts aux moyennes 50 et 200 jours, MACD, ATR, volatilité, volume, recul depuis le plus haut, position dans la fourchette, régime de marché).",
+    "Deux régressions logistiques (pénalité L2 0,05) estiment la probabilité d'une hausse (gain net des coûts d'un aller-retour, 0,31 % actions, 0,32 % cryptos) et d'une baisse (plus que ces coûts) sur les 20 bougies suivantes, achat à l'ouverture du lendemain.",
+    "ACHETER si la probabilité de hausse dépasse de 5 points sa fréquence dans les données d'entraînement ; VENDRE (sortir ou rester dehors, jamais de vente à découvert) si c'est celle de baisse ; ATTENDRE sinon. Seuils fixés sur l'entraînement seul.",
+    "Entraînement « walk-forward » : au moins 504 jours d'apprentissage, nouvel entraînement tous les 126 jours sur tout le passé, et un écart de 20 jours entre la fin des résultats connus à l'entraînement et le début du test (les résultats à 20 jours se chevauchent).",
+    "Les mesures sont standardisées avec les moyennes et écarts types de l'entraînement seulement ; calcul déterministe, sans hasard.",
+    "Test hors échantillon : un signal n'est compté qu'une fois sa période de 20 jours finie (pas de chevauchement), et comparé à un jour pris au hasard sur le même actif et la même période. Avantage dit « observé » seulement avec au moins 30 signaux et t ≥ 2.",
+    "Un modèle pour les actions et ETF, un pour les cryptos (bitcoin, ether et altcoins ensemble : leur historique est trop court pour les séparer).",
+    "Dans une décision, le bot ne compte que du côté (achat ou vente) où il a montré un avantage hors échantillon : une ligne pour ou contre et au plus 3 points de confiance ; jamais contre un veto, jamais seul."
+  ],
+  "limits": [
+    "Historiques courts : environ 5 ans pour les actions, 2,7 ans pour les cryptos ; la période de test couvre peu de cycles de marché (surtout pour les cryptos).",
+    "Biais du survivant : les actifs du panier sont de grands actifs d'aujourd'hui.",
+    "Actifs corrélés (les altcoins suivent le bitcoin, les actions le S&P 500) : les signaux d'un même jour ne sont pas indépendants, le t surestime la solidité d'un résultat.",
+    "Le panier a déjà servi à la validation du signal : ce test est hors échantillon pour le bot (entraîné sur le passé seul), mais le choix de ses mesures n'est pas vérifiable hors de ce panier.",
+    "Coûts supposés (frais, glissement, écart moyen de la classe), sans dividendes ni impôt.",
+    "Pour un actif hors du panier, le modèle de son groupe s'applique sans avoir été testé sur lui.",
+    "Le passé ne garantit pas l'avenir : un avantage mesuré ici peut disparaître."
+  ],
+  "source": "Bougies journalières multi-sources (historique long d'Altim, le même que la validation ; source retenue indiquée par actif)"
+}

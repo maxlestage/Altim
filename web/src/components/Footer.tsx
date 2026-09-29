@@ -1,5 +1,4 @@
 const AUTHOR = "Maxime Nathan Lestage";
-const GITHUB = "https://github.com/maxlestage";
 
 const COLUMNS = [
   {
@@ -20,7 +19,6 @@ const COLUMNS = [
       ["/#faq", "Questions fréquentes"],
       ["/#transparency", "Transparence"],
       ["/#download", "Ouvrir l'app"],
-      [GITHUB, "GitHub"],
     ],
   },
   {
@@ -83,9 +81,7 @@ export function Footer() {
           <div>
             <dt>Conception, design & développement</dt>
             <dd>
-              <a href={GITHUB} target="_blank" rel="noreferrer" className="author">
-                {AUTHOR}
-              </a>
+              <span className="author">{AUTHOR}</span>
             </dd>
           </div>
           <div>

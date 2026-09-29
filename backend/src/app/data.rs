@@ -151,7 +151,7 @@ pub fn warm_selections() {
             // The model's validation (kept 12 h fresh), so every decision can show its evidence from the start.
             use super::validation as v;
             let _ = crate::cache::cached(v::CACHE_KEY, v::FRESH_MS, v::compute).await;
-            // The bot (same histories, now cached), so every decision can show its view.
+            // The bot (its own long histories), so every decision can show its view.
             use super::bot as b;
             let _ = crate::cache::cached(b::CACHE_KEY, b::FRESH_MS, b::compute).await;
         }

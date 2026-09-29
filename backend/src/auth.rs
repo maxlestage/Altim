@@ -257,6 +257,13 @@ pub fn read_session(cfg: &AuthConfig, cookie: Option<&str>, now: i64, revoked: O
 }
 
 /// Cookies of the request (`cookies(req)`): pairs with exactly one `=`, values URI-decoded when possible.
+/// Local development without a login: `ALTIM_DEV_OPEN=1`, refused on a Heroku dyno or with `NODE_ENV=production`.
+pub fn dev_open() -> bool {
+    let heroku = std::env::var("DYNO").is_ok_and(|v| !v.is_empty());
+    let production = std::env::var("NODE_ENV").is_ok_and(|v| v == "production");
+    std::env::var("ALTIM_DEV_OPEN").is_ok_and(|v| v == "1") && !heroku && !production
+}
+
 pub fn cookies(headers: &HeaderMap) -> HashMap<String, String> {
     let raw = node_header(headers, "cookie").unwrap_or_default();
     let mut out = HashMap::new();
@@ -484,10 +491,12 @@ impl Auth {
         Arc::new(Auth { cfg, production, state: Mutex::new(AuthState::default()), login_limit: RateLimit::new(10, 60_000) })
     }
 
-    /// Configuration from the environment, production when `NODE_ENV=production` or on a Heroku dyno (`DYNO`).
+    /// Configuration from the environment. Fails closed everywhere: without `ALTIM_USER`, `ALTIM_PASSWORD_HASH` and
+    /// `ALTIM_SESSION_SECRET` every page and API answers 401/redirects to a login that cannot succeed. The only way
+    /// to run without a login is the explicit local development mode (`dev_open()`), which also restricts the
+    /// server to the loopback interface (see `main.rs`) and never applies on Heroku.
     pub fn from_env() -> Result<Arc<Auth>, ConfigError> {
-        let production = std::env::var("NODE_ENV").is_ok_and(|v| v == "production") || std::env::var("DYNO").is_ok_and(|v| !v.is_empty());
-        Ok(Auth::new(auth_config_from_env()?, production))
+        Ok(Auth::new(auth_config_from_env()?, !dev_open()))
     }
 
     pub fn config(&self) -> Option<&AuthConfig> {

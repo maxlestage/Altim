@@ -1,6 +1,7 @@
 //! Altim server: trading advice (it never places an order), same routes and responses as the former Express server.
 pub mod app;
 pub mod auth;
+pub mod bot_history;
 pub mod cache;
 pub mod calendar;
 pub mod derivatives;
