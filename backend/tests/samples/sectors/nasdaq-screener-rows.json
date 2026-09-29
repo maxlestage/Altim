@@ -1,0 +1,62 @@
+{
+ "data": {
+  "rows": [
+   {
+    "symbol": "AAPL",
+    "name": "Apple Inc. Common Stock",
+    "lastsale": "$341.07",
+    "marketCap": "4977636972600.00",
+    "industry": "Computer Manufacturing",
+    "sector": "Technology"
+   },
+   {
+    "symbol": "BRK/B",
+    "name": "Berkshire Hathaway Inc.",
+    "lastsale": "$505.48",
+    "marketCap": "1115246271813.00",
+    "industry": "",
+    "sector": ""
+   },
+   {
+    "symbol": "JPM",
+    "name": "JP Morgan Chase & Co. Common Stock",
+    "lastsale": "$343.06",
+    "marketCap": "911917356057.00",
+    "industry": "Major Banks",
+    "sector": "Finance"
+   },
+   {
+    "symbol": "MSFT",
+    "name": "Microsoft Corporation Common Stock",
+    "lastsale": "$516.17",
+    "marketCap": "3832843816089.00",
+    "industry": "Computer Software: Prepackaged Software",
+    "sector": "Technology"
+   },
+   {
+    "symbol": "NVDA",
+    "name": "NVIDIA Corporation Common Stock",
+    "lastsale": "$225.07",
+    "marketCap": "5424187000000.00",
+    "industry": "Semiconductors",
+    "sector": "Technology"
+   },
+   {
+    "symbol": "XOM",
+    "name": "ExxonMobil Holdings Corporation Common Stock",
+    "lastsale": "$160.59",
+    "marketCap": "660331941656.00",
+    "industry": "Integrated oil Companies",
+    "sector": "Energy"
+   },
+   {
+    "symbol": "AACO",
+    "name": "Abony Acquisition Corp. I Class A Ordinary Share",
+    "lastsale": "$10.00",
+    "marketCap": "0.00",
+    "industry": "",
+    "sector": ""
+   }
+  ]
+ }
+}

@@ -23,6 +23,12 @@ final class AppModel {
     var alertsStrongOnly: Bool { didSet { defaults.set(alertsStrongOnly, forKey: "alertsStrongOnly") } }
     /// News alerts (Réglages): serious escalation told by 2 sources, or a story about one of my assets told by 3.
     var newsAlertsEnabled: Bool { didSet { defaults.set(newsAlertsEnabled, forKey: "newsAlertsEnabled") } }
+    /// Notifications (Réglages) of the configuration changes of the radar and of the positions that became dangerous,
+    /// found by the background check.
+    var configAlertsEnabled: Bool { didSet { defaults.set(configAlertsEnabled, forKey: "configAlertsEnabled") } }
+    var dangerAlertsEnabled: Bool { didSet { defaults.set(dangerAlertsEnabled, forKey: "dangerAlertsEnabled") } }
+    /// What these notifications already told: no second notification of the same change or danger.
+    var changeNotices: ChangeNoticeState { didSet { LocalStore.save(changeNotices, "changeNotices") } }
     /// A news notification was tapped: the Actu tab opens.
     var pendingNews = false
     /// Live Activity (lock screen + Dynamic Island) offered on the asset pages.
@@ -85,6 +91,12 @@ final class AppModel {
         alertsEnabled = defaults.bool(forKey: "alertsEnabled")
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
         newsAlertsEnabled = defaults.bool(forKey: "newsAlertsEnabled")
+        // On by default only when the buy notifications were already allowed; the first value is kept.
+        let buyAlerts = defaults.bool(forKey: "alertsEnabled")
+        for key in ["configAlertsEnabled", "dangerAlertsEnabled"] where defaults.object(forKey: key) == nil { defaults.set(buyAlerts, forKey: key) }
+        configAlertsEnabled = defaults.bool(forKey: "configAlertsEnabled")
+        dangerAlertsEnabled = defaults.bool(forKey: "dangerAlertsEnabled")
+        changeNotices = LocalStore.load(ChangeNoticeState.self, "changeNotices") ?? ChangeNoticeState()
         liveActivityEnabled = defaults.object(forKey: "liveActivityEnabled") as? Bool ?? true
         lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
         priceTargets = LocalStore.load([PriceTarget].self, "priceTargets") ?? []
@@ -247,7 +259,10 @@ final class AppModel {
     /// One check of the buy alerts (background refresh, app opening): the server's rule applied to the watch list and
     /// the holdings; returns the alerts to notify (new or changed situation only), nil without access.
     /// The background check runs for the buy alerts or for at least one armed price alert.
-    var needsChecks: Bool { alertsEnabled || newsAlertsEnabled || priceTargets.contains { $0.triggered == nil } }
+    var needsChecks: Bool {
+        alertsEnabled || newsAlertsEnabled || priceTargets.contains { $0.triggered == nil }
+            || configAlertsEnabled && !watchlist.isEmpty || dangerAlertsEnabled && !holdings.isEmpty
+    }
 
     func addTarget(_ t: PriceTarget) {
         priceTargets.append(t)
@@ -349,6 +364,87 @@ final class AppModel {
     /// When the informational decision of this asset was last compared (nil: never).
     func lastDecisionCheck(_ a: Asset) -> Date? {
         configChanges.last[ConfigChanges.key(kind: a.kind, symbol: a.symbol, personal: false)].map { Date(timeIntervalSince1970: $0.at / 1000) }
+    }
+
+    // MARK: Background notifications of the configuration changes and dangerous positions
+
+    /// Background re-reading of the radar decisions, with the Radar's rule: the first 20 watched assets, 2 at a time,
+    /// those not compared in the last 15 minutes (here, on the Radar or on their page), the oldest first, until
+    /// `deadline`. Each one goes through the same configuration diff; returns the changes found. Stops at an expired
+    /// session; a failed asset is compared next time.
+    func checkConfigChanges(until deadline: Date) async -> [ConfigTransition] {
+        guard let client else { return [] }
+        let now = Date()
+        let due = watchlist.prefix(20)
+            .map { (asset: $0, last: lastDecisionCheck($0)) }
+            .filter { x in x.last.map { now.timeIntervalSince($0) >= RadarView.decisionEvery } ?? true }
+            .sorted { ($0.last ?? .distantPast) < ($1.last ?? .distantPast) }
+            .map { $0.asset }
+        var found: [ConfigTransition] = []
+        var i = 0
+        while i < due.count && !Task.isCancelled && Date() < deadline {
+            let pair = Array(due[i..<min(i + 2, due.count)])
+            let got = await withTaskGroup(of: (decision: Decision?, unauthorized: Bool).self) { group in
+                for a in pair {
+                    group.addTask {
+                        do {
+                            return (try await client.decision(asset: a), false)
+                        } catch AltimError.unauthorized {
+                            return (nil, true)
+                        } catch {
+                            return (nil, false)
+                        }
+                    }
+                }
+                var out: [(decision: Decision?, unauthorized: Bool)] = []
+                for await r in group { out.append(r) }
+                return out
+            }
+            guard !Task.isCancelled else { break }
+            for r in got {
+                if let d = r.decision, let t = recordDecision(d, personal: false) { found.append(t) }
+            }
+            if got.contains(where: { $0.unauthorized }) { break }
+            i += 2
+        }
+        persistSession()
+        return found
+    }
+
+    /// Dangerous positions measured in the background like on Mes avoirs: quotes of the held assets and daily candles
+    /// of the lines that have a stop (the ATR of "near the stop"), 2 at a time, 20 assets at most. nil when the quotes
+    /// cannot be read or are the saved answers of the offline mode (an old price would tell a false danger).
+    /// `nearStopUnknown`: ids of the lines with a stop whose candles could not be read.
+    func measureDangers() async -> (dangers: [Danger], nearStopUnknown: Set<String>)? {
+        guard let client, !holdings.isEmpty else { return nil }
+        let assets = Array(Dictionary(holdings.map { ($0.asset.id, $0.asset) }, uniquingKeysWith: { a, _ in a }).values)
+        guard let q = try? await client.quotes(assets), !q.isEmpty else { return nil }
+        // The offline status is told through the main actor just before: let it land first.
+        await Task.yield()
+        guard offlineSince == nil else { return nil }
+        let prices = Dictionary(q.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
+        var seen = Set<String>()
+        let withStop = Array(holdings.filter { $0.stop != nil }.map(\.asset).filter { seen.insert($0.id).inserted }.prefix(20))
+        var daily: [String: [Candle]] = [:]
+        var i = 0
+        while i < withStop.count && !Task.isCancelled {
+            let pair = Array(withStop[i..<min(i + 2, withStop.count)])
+            let got = await withTaskGroup(of: (String, [Candle]?).self) { group in
+                for a in pair { group.addTask { (a.id, try? await client.candles(a, interval: "1d").candles) } }
+                var out: [(String, [Candle]?)] = []
+                for await r in group { out.append(r) }
+                return out
+            }
+            for (id, c) in got { if let c, !c.isEmpty { daily[id] = c } }
+            i += 2
+        }
+        await Task.yield()
+        // Candles served from the offline cache are old: the near-stop state is then unknown rather than wrong.
+        if offlineSince != nil { daily = [:] }
+        persistSession()
+        let p = RiskPortfolio(holdings: holdings, prices: prices, daily: daily)
+        let unknown = Set(holdings.filter { $0.stop != nil && daily[$0.asset.id] == nil }.map(\.id.uuidString))
+        return (RiskEngine.dangerousPositions(p, risk, daily: daily), unknown)
     }
 
     // MARK: Trading journal

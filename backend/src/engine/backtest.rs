@@ -279,17 +279,24 @@ pub fn regime_label(r: Regime) -> &'static str {
     }
 }
 
+/// Regime of the market on the signal candle of each trade (the closed candle before its entry), same order.
+pub fn trade_regimes(raw: &[Candle], trades: &[BacktestTrade]) -> Vec<Regime> {
+    let candles = sanitize(raw);
+    trades
+        .iter()
+        .map(|t| match candles.iter().position(|c| c.time == t.entry_time) {
+            Some(e) if e > 0 => regime_at(&candles, e - 1),
+            _ => Regime::Unknown,
+        })
+        .collect()
+}
+
 /// Results by regime of the market on the signal candle (the closed candle before each entry). `returns` has one
 /// value per trade (e.g. net of costs). Bull, bear, range and crisis always listed; unknown only when it has trades.
 pub fn regime_split(raw: &[Candle], trades: &[BacktestTrade], returns: &[f64]) -> Vec<RegimeStat> {
-    let candles = sanitize(raw);
     let order = [Regime::Bull, Regime::Bear, Regime::Range, Regime::Crisis, Regime::Unknown];
     let mut by: Vec<Vec<f64>> = vec![Vec::new(); order.len()];
-    for (t, x) in trades.iter().zip(returns) {
-        let regime = match candles.iter().position(|c| c.time == t.entry_time) {
-            Some(e) if e > 0 => regime_at(&candles, e - 1),
-            _ => Regime::Unknown,
-        };
+    for (regime, x) in trade_regimes(raw, trades).into_iter().zip(returns) {
         by[order.iter().position(|r| *r == regime).unwrap_or(4)].push(*x);
     }
     order

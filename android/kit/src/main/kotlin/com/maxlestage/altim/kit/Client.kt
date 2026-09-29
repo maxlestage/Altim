@@ -80,7 +80,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -277,9 +277,20 @@ class AltimClient(
         return OpportunitiesResult.Ready(decode(OpportunityReport.serializer(), body, status))
     }
 
+    /** « Validation du modèle »: 202 while the first computation runs (come back in 5 s), then the report (cached 12 h by the server). */
+    suspend fun validation(): ValidationResult {
+        val (status, body) = authorized(request(ModelValidation.PATH))
+        if (status == 202 || (status == 200 && ModelValidation.isPending(body))) return ValidationResult.Pending
+        return ValidationResult.Ready(decode(ValidationReport.serializer(), body, status))
+    }
+
     /** Unusual readings on one asset (volume, price/volume, z-score; OKX derivatives for a crypto). */
     suspend fun anomalies(a: Asset): AnomalyReport =
         get("/api/anomalies", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), AnomalyReport.serializer())
+
+    /** Sector of each stock (Nasdaq screener, SEC SIC code, ETF flag), 50 at most; plain stock symbols (AAPL,NVDA). */
+    suspend fun sectors(symbols: List<String>): SectorsReport =
+        get("/api/sectors", mapOf("symbols" to symbols.distinct().take(Sectors.MAX_SYMBOLS).joinToString(",")), SectorsReport.serializer())
 
     /**
      * Live prices of these assets: last known price right away, then every change (several per second for cryptos,

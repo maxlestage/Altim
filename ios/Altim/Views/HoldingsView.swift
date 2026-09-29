@@ -108,6 +108,8 @@ struct HoldingsView: View {
                     Section { LimitsCard(checks: risk.limits) }.listRowBackground(Color.clear)
                     Section { StressCard(portfolio: risk.portfolio, results: risk.stress, betas: risk.betas) }.listRowBackground(Color.clear)
                     Section { WhatIfCard(portfolio: risk.portfolio, daily: daily) }.listRowBackground(Color.clear)
+                    Section { SectorCard(lines: risk.portfolio.lines.map { Sectors.Line(symbol: $0.symbol, kind: $0.kind, value: $0.value) }) }
+                        .listRowBackground(Color.clear)
                 }
             }
         }

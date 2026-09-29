@@ -22,6 +22,7 @@ pub mod signal;
 pub mod strategies;
 pub mod structure;
 pub mod synthesis;
+pub mod validation;
 pub mod why;
 
 use serde::{Deserialize, Serialize};

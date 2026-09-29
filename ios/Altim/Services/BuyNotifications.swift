@@ -5,7 +5,8 @@ import AltimKit
 
 /// Notifications "you can buy" on the iPhone (and on the Apple Watch, which shows the iPhone's notifications when
 /// the iPhone is locked). The check runs when iOS grants a background refresh (at best every 15 minutes, iOS decides
-/// according to usage and battery) and each time the app comes to the foreground.
+/// according to usage and battery) and each time the app comes to the foreground. The same check also tells the
+/// configuration changes of the radar and the positions that became dangerous (Réglages → Radar et avoirs).
 @MainActor
 enum BuyNotifications {
     static let taskID = "com.maxlestage.altim.alerts"
@@ -73,10 +74,47 @@ enum BuyNotifications {
                 await add(id: "altim.target.\(t.id)", title: title,
                           body: "Prix actuel \(Format.price(price)) : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.", asset: t.asset.id)
             }
-            return true
         } catch {
             return false
         }
+        await runChanges(model)
+        return true
+    }
+
+    /// After a check that reached the server: the positions that newly became dangerous, then the configuration
+    /// changes of the radar (decisions re-read within about 20 seconds, the rest at the next check). One grouped
+    /// notification each at most; never the same change or danger twice (ChangeNotices).
+    private static func runChanges(_ model: AppModel) async {
+        let wantsDangers = model.dangerAlertsEnabled && !model.holdings.isEmpty
+        let wantsConfig = model.configAlertsEnabled && !model.watchlist.isEmpty
+        guard wantsDangers || wantsConfig, model.offlineSince == nil,
+              await UNUserNotificationCenter.current().notificationSettings().authorizationStatus == .authorized else { return }
+        let deadline = Date(timeIntervalSinceNow: 20)
+        if wantsDangers, let m = await model.measureDangers() {
+            let r = ChangeNotices.dangerNotice(m.dangers, state: model.changeNotices, now: Date().timeIntervalSince1970 * 1000,
+                                               baseline: model.dangers.map { ChangeNotices.dangerKeys($0.items) } ?? [],
+                                               nearStopUnknown: m.nearStopUnknown)
+            model.changeNotices = r.state
+            if let n = r.notice { await post(n, thread: "dangers", urgent: true) }
+        }
+        if wantsConfig, !Task.isCancelled {
+            let found = await model.checkConfigChanges(until: deadline)
+            let r = ChangeNotices.configNotice(found, state: model.changeNotices)
+            model.changeNotices = r.state
+            if let n = r.notice { await post(n, thread: "configurations", urgent: false) }
+        }
+    }
+
+    /// A notification whose texts (disclaimer included) come from AltimKit; a tap opens its asset when it has one.
+    private static func post(_ n: LocalNotice, thread: String, urgent: Bool) async {
+        let content = UNMutableNotificationContent()
+        content.title = n.title
+        content.body = n.body
+        content.sound = .default
+        content.threadIdentifier = thread
+        content.interruptionLevel = urgent ? .timeSensitive : .active
+        if let asset = n.asset { content.userInfo = ["asset": asset] }
+        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: n.id, content: content, trigger: nil))
     }
 
     /// Up to 3 alerts: one notification each; beyond, a single summary (the first check can find many at once).

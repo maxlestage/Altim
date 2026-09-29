@@ -4,6 +4,7 @@
  * Isolated so the card itself only renders it.
  */
 import { num, pct, type Track } from "./decision";
+import { onLink } from "./router";
 
 /** French flat tax (PFU) on the net gain, as in the sale tool: an assumption, not the user's own situation. */
 const FLAT_TAX = 30;
@@ -55,6 +56,9 @@ export function TrackDetails({ track: t }: { track: Track }) {
       <p className="muted small">
         Impôt (hypothèse : flat tax de {FLAT_TAX} % sur le gain net, payée à la fin, pertes compensées) : rendement du signal après impôt ≈ {pct(afterTax, 1, true)}. Votre situation
         fiscale peut différer.
+      </p>
+      <p className="small">
+        <a href="/app/validation" onClick={onLink} className="link">Validation du modèle : le même test sur 34 actifs →</a>
       </p>
     </div>
   );

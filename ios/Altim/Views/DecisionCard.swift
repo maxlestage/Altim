@@ -549,6 +549,7 @@ struct DecisionCard: View {
         DecisionRow(key: "Pire série de pertes", value: "\(t.losingStreak) trade\(t.losingStreak > 1 ? "s" : "")")
         Text(t.note).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         if t.hasDetails { TrackDetails(track: t) }
+        ValidationLink().padding(.top, 2)
     }
 
     // MARK: Helpers

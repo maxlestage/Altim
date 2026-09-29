@@ -120,7 +120,7 @@ struct ConfigChangesCard: View {
             }
             .font(.footnote)
             .buttonStyle(.borderless)
-            Text("Comparaison avec la dernière décision vue sur cet iPhone. Nouvelle analyse toutes les 15 minutes tant que le radar est ouvert, et à chaque ouverture d'une fiche. 50 derniers changements conservés ici uniquement.")
+            Text("Comparaison avec la dernière décision vue sur cet iPhone. Nouvelle analyse toutes les 15 minutes tant que le radar est ouvert, à chaque ouverture d'une fiche\(model.configAlertsEnabled ? ", et en arrière-plan quand iOS le permet (notification « Changements de configuration »)" : ""). 50 derniers changements conservés ici uniquement.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
         .confirmationDialog("Effacer l'historique des changements ?", isPresented: $confirmClear, titleVisibility: .visible) {

@@ -865,6 +865,7 @@ private fun TrackDetails(t: Decision.Track) {
         "Impôt (hypothèse : flat tax de ${Format.plain(FLAT_TAX, 0)} % sur le gain net, payée à la fin, pertes compensées) : rendement du signal après impôt ≈ ${pc(afterTax, 1, true)}. " +
             "Votre situation fiscale peut différer.",
     )
+    LocalOpenValidation.current?.let { ValidationLink(it) }
 }
 
 @Composable

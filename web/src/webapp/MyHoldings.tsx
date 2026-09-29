@@ -12,6 +12,7 @@ import {
 import type { Candle } from "../engine/signal";
 import { LimitsCard, StressCard } from "./RiskCards";
 import { WhatIfCard } from "./WhatIfCard";
+import { SectorCard } from "./SectorCard";
 import { recordRealTrade } from "./journal-store";
 import { JournalToggle } from "./Journal";
 import { holdingChange } from "../engine/journal";
@@ -336,6 +337,8 @@ export function MyHoldings() {
               <p className="muted small">Calculé sur les 90 derniers jours de cours journaliers, recoupés entre plusieurs sources. Les performances passées ne préjugent pas des performances futures.</p>
             </div>
           )}
+
+          {ready && <SectorCard analysis={analysis} />}
 
           {riskView && <LimitsCard checks={riskView.limits} />}
 
