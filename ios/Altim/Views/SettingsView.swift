@@ -148,6 +148,13 @@ struct SettingsView: View {
             } footer: {
                 Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés dans le trousseau de cet iPhone, jamais sauvegardés dans iCloud.")
             }
+            Section {
+                NavigationLink("Voir la validation") { ValidationView() }
+            } header: {
+                Text("Validation du modèle")
+            } footer: {
+                Text("Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.")
+            }
             Section("Comprendre") {
                 NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
             }
