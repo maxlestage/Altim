@@ -139,6 +139,12 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             }
             Caption("Demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés par une clé du Keystore Android propre à ce téléphone, et exclus des sauvegardes.")
         }
+        LocalOpenValidation.current?.let { openValidation ->
+            Card(title = "Validation du modèle") {
+                Caption("Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.")
+                TextButton(onClick = openValidation) { Text("Voir la validation", color = AltimColors.cyan) }
+            }
+        }
         GlossaryCard()
         Card(title = "Données") {
             KeyValue("Sources de prix", "40 (23 crypto, 17 actions)")

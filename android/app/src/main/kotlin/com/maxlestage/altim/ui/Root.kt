@@ -44,6 +44,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -107,16 +109,26 @@ fun MainTabs(model: AppModel) {
     val stacks = remember { Tab.entries.associateWith { mutableStateListOf<Asset>() } }
     val stack: SnapshotStateList<Asset> = stacks.getValue(tab)
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    // « Validation du modèle », opened from Réglages or from the signal's track record of an asset: the size of the
+    // tab's asset stack when it was opened (-1: closed). Assets opened from it go above it, back returns to it.
+    var validationAt by rememberSaveable { mutableIntStateOf(-1) }
+    val validationOpen = validationAt >= 0
     val open: (Asset) -> Unit = {
-        settingsOpen = false
+        if (!validationOpen) settingsOpen = false
         stack.add(it)
     }
-    BackHandler(enabled = settingsOpen) { settingsOpen = false }
-    BackHandler(enabled = stack.isNotEmpty() && !settingsOpen) { stack.removeAt(stack.lastIndex) }
+    BackHandler(enabled = settingsOpen && !validationOpen) { settingsOpen = false }
+    BackHandler(enabled = stack.isNotEmpty() && !settingsOpen && !validationOpen) { stack.removeAt(stack.lastIndex) }
+    BackHandler(enabled = validationOpen) {
+        if (stack.size > validationAt) stack.removeAt(stack.lastIndex) else validationAt = -1
+    }
+    // The stack shrank under the screen (tab re-tapped): the screen closes with it.
+    LaunchedEffect(stack.size) { if (validationAt > stack.size) validationAt = -1 }
     LaunchedEffect(stack.lastOrNull()) { model.focus = stack.lastOrNull() }
     // Tapped notification: open the asset on top of the Radar.
     LaunchedEffect(model.pendingOpen) {
         val a = model.pendingOpen ?: return@LaunchedEffect
+        validationAt = -1
         tab = Tab.RADAR
         stacks.getValue(Tab.RADAR).add(a)
         model.pendingOpen = null
@@ -125,6 +137,7 @@ fun MainTabs(model: AppModel) {
     LaunchedEffect(model.pendingNews) {
         if (!model.pendingNews) return@LaunchedEffect
         settingsOpen = false
+        validationAt = -1
         tab = Tab.NEWS
         model.pendingNews = false
     }
@@ -140,6 +153,7 @@ fun MainTabs(model: AppModel) {
                         selected = t == tab,
                         onClick = {
                             settingsOpen = false
+                            validationAt = -1
                             if (t == tab) stack.clear() else tab = t
                         },
                         icon = { Icon(t.icon, contentDescription = null) },
@@ -159,9 +173,11 @@ fun MainTabs(model: AppModel) {
     ) { padding ->
         val m = Modifier.padding(padding).fillMaxSize()
         val covered = stack.isNotEmpty()
+        val blockTouches = m.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() } } }
+        CompositionLocalProvider(LocalOpenValidation provides { if (!validationOpen) validationAt = stack.size }) {
         // The tab stays composed under the open asset: coming back keeps its list, scroll and loaded data.
         // While covered, it is hidden from TalkBack and receives no touch.
-        Box(if (covered || settingsOpen) Modifier.clearAndSetSemantics { } else Modifier) {
+        Box(if (covered || settingsOpen || validationOpen) Modifier.clearAndSetSemantics { } else Modifier) {
             when (tab) {
             Tab.RADAR -> RadarScreen(model, m, open, onSettings = { settingsOpen = true })
             Tab.SELECTION -> SelectionScreen(model, m, open)
@@ -170,16 +186,36 @@ fun MainTabs(model: AppModel) {
             Tab.NEWS -> NewsScreen(model, m, open)
             }
         }
-        stack.lastOrNull()?.let { top ->
-            AppBackground(m.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() } } }) {
-                key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+        // The asset below the validation screen (or the only one when it is closed).
+        stack.lastOrNull()?.takeIf { !validationOpen || stack.size <= validationAt }?.let { top ->
+            Box(if (validationOpen || settingsOpen) Modifier.clearAndSetSemantics { } else Modifier) {
+                AppBackground(blockTouches) {
+                    key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+                }
             }
         }
-        // Réglages, opened from the gear of the Radar, above everything.
+        // Réglages, opened from the gear of the Radar, above the tab and its assets.
         if (settingsOpen) {
-            AppBackground(m.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent(PointerEventPass.Final).changes.forEach { it.consume() } } }) {
-                SettingsScreen(model, Modifier.fillMaxSize(), onBack = { settingsOpen = false })
+            Box(if (validationOpen) Modifier.clearAndSetSemantics { } else Modifier) {
+                AppBackground(blockTouches) {
+                    SettingsScreen(model, Modifier.fillMaxSize(), onBack = { settingsOpen = false })
+                }
             }
+        }
+        // « Validation du modèle », kept composed (data and scroll) under the assets opened from it.
+        if (validationOpen) {
+            val coveredByAsset = stack.size > validationAt
+            Box(if (coveredByAsset) Modifier.clearAndSetSemantics { } else Modifier) {
+                AppBackground(blockTouches) {
+                    ValidationScreen(model, Modifier.fillMaxSize(), open, onBack = { validationAt = -1 })
+                }
+            }
+            stack.lastOrNull()?.takeIf { coveredByAsset }?.let { top ->
+                AppBackground(blockTouches) {
+                    key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+                }
+            }
+        }
         }
     }
 }
