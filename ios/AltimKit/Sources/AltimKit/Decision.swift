@@ -555,6 +555,9 @@ public struct Decision: Codable, Sendable {
     public var ratingReason: String?
     /// What the cross-asset validation says about the asset's class and current regime.
     public var modelEvidence: ModelEvidence?
+    /// « Bot Altim » (added later, absent from older answers): the learned model's ACHETER / ATTENDRE / VENDRE and whether
+    /// it counts (only on a side with an out-of-sample edge).
+    public var bot: BotView?
 
     /// A server that knows the rating also sends `events` (null when the calendar could not be verified): an answer
     /// without a rating comes from an older server, whose missing events mean nothing.
