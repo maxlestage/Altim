@@ -7,7 +7,7 @@ name: Déploiement Heroku
 on:
   push:
     branches: [master]
-    paths: ["web/**", "backend/**", "package.json", "bun.lock", ".bun-version", "Procfile", "RustConfig", "app.json", ".github/workflows/deploy-heroku.yml"]
+    paths: ["web/**", "backend/**", "package.json", "bun.lock", ".bun-version", "Procfile", "RustConfig", "app.json", "scripts/**", ".github/workflows/deploy-heroku.yml"]
   workflow_dispatch:
 
 concurrency: heroku-deploy
