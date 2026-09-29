@@ -1,10 +1,12 @@
 import SwiftUI
 import AltimKit
 
-/// « Bot Altim »: two logistic regressions trained on the validation's basket (GET /api/bot), tested walk-forward on
-/// periods they had not seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets
-/// (GET /api/bot/views). Same content and texts as the web (Bot.tsx). Stacked cards, chips that wrap, rows stacked:
-/// nothing scrolls sideways. The per-asset list keeps the basket's order, never ranked by performance.
+/// « Bot Altim » v2: candidate models trained on long histories of the validation's basket and an extra universe
+/// (GET /api/bot), chosen at each retraining on an inner validation and tested walk-forward on periods they had not
+/// seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (GET /api/bot/views). Same content and
+/// texts as the web (Bot.tsx); a v1 answer shows without the v2 parts. Stacked cards, chips that wrap, rows stacked:
+/// nothing scrolls sideways. The per-asset list keeps the basket's order, never ranked by performance; each candidate
+/// is shown alone for information only.
 struct BotScreen: View {
     @Environment(AppModel.self) private var model
     @State private var report: BotReport?
@@ -35,7 +37,7 @@ struct BotScreen: View {
         .refreshable { await load() }
     }
 
-    /// The first training takes about a minute: the server answers "pending" meanwhile, asked again every 5 seconds.
+    /// The first training takes one to two minutes: the server answers "pending" meanwhile, asked again every 5 seconds.
     private func load() async {
         guard let client = model.client else { return }
         error = nil
@@ -62,7 +64,8 @@ struct BotScreen: View {
     }
 }
 
-/// The report: headline, today's view of the watched assets, method, results by group, calibration, assets, limits.
+/// The report: headline, changes, today's view of the watched assets, method, results by group, each candidate alone,
+/// last year and extra universe, calibration, assets, limits.
 private struct BotReportContent: View {
     let report: BotReport
 
@@ -70,6 +73,10 @@ private struct BotReportContent: View {
         let r = report
         VStack(alignment: .leading, spacing: 16) {
             headline(r)
+
+            if !r.changes.isEmpty {
+                Card(title: ModelBot.changesTitle) { bullets(r.changes) }
+            }
 
             BotWatchedViews()
 
@@ -91,7 +98,27 @@ private struct BotReportContent: View {
             }
 
             BotSectionLabel(text: "Résultats hors échantillon")
+            caption(ModelBot.resultsIntro)
             ForEach(r.groups) { g in BotGroupCard(group: g) }
+
+            let withCandidates = ModelBot.withCandidates(r)
+            if !withCandidates.isEmpty {
+                BotSectionLabel(text: ModelBot.candidatesTitle)
+                caption(ModelBot.candidatesIntro)
+                ForEach(withCandidates) { g in BotCandidatesCard(group: g) }
+            }
+
+            if ModelBot.hasSubResults(r) {
+                BotSectionLabel(text: ModelBot.subResultsTitle)
+                ForEach(r.groups) { g in
+                    if let h = g.holdout {
+                        BotSubResultCard(title: ModelBot.holdoutTitle(g), note: ModelBot.holdoutNote(h), stats: h.stats)
+                    }
+                    if let x = g.extra {
+                        BotSubResultCard(title: ModelBot.extraTitle(g), note: ModelBot.extraNote(g), stats: x)
+                    }
+                }
+            }
 
             BotSectionLabel(text: "Calibration")
             caption(ModelBot.calibrationIntro)
@@ -129,7 +156,7 @@ private struct BotReportContent: View {
         Card {
             Text(r.headline).font(.subheadline.weight(.semibold)).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
             WrapLayout(spacing: 8) {
-                tile("Actifs", ModelBot.assetsTile(r))
+                tile("Actifs testés", ModelBot.assetsTile(r))
                 tile("Jours testés", ModelBot.count(r.overall.labelled))
                 tile("Achats / ventes", ModelBot.signalsTile(r))
             }
@@ -146,6 +173,7 @@ private struct BotReportContent: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.warning.opacity(0.1)))
             }
+            if let x = ModelBot.extraFailuresText(r) { caption(x) }
         }
     }
 
@@ -230,7 +258,8 @@ private struct BotVerdictChip: View {
     }
 }
 
-/// Stocks or cryptos: ACHETER, VENDRE and ATTENDRE, each against a random day.
+/// Stocks or cryptos: ACHETER, VENDRE and ATTENDRE, each against a random day; v2: data span, t by day, sell exits and
+/// the model chosen at each retraining.
 private struct BotGroupCard: View {
     let group: BotGroupStat
 
@@ -238,13 +267,21 @@ private struct BotGroupCard: View {
         let g = group
         Card(title: g.label) {
             Text(ModelBot.groupSubtitle(g)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
-            side(.buy, verdict: g.buy.verdict, label: g.buy.verdictLabel, text: ModelBot.buyText(g.buy), rows: ModelBot.buyRows(g.buy))
-            side(.sell, verdict: g.sell.verdict, label: g.sell.verdictLabel, text: ModelBot.sellText(g.sell), rows: ModelBot.sellRows(g.sell))
-            side(.wait, verdict: nil, label: nil, text: ModelBot.waitText(g.wait), rows: [])
+            if let data = ModelBot.dataText(g) {
+                Text("Données : \(data).").font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            side(.buy, verdict: g.buy.verdict, label: g.buy.verdictLabel, text: ModelBot.buyText(g.buy),
+                 clustered: g.buy.clustered.map { ModelBot.clusteredText($0, g.buy.tStat) }, rows: ModelBot.buyRows(g.buy), after: nil)
+            side(.sell, verdict: g.sell.verdict, label: g.sell.verdictLabel, text: ModelBot.sellText(g.sell),
+                 clustered: g.sell.clustered.map { ModelBot.clusteredText($0, g.sell.tStat) }, rows: ModelBot.sellRows(g.sell),
+                 after: ModelBot.exitText(g.sell.exit))
+            side(.wait, verdict: nil, label: nil, text: ModelBot.waitText(g.wait), clustered: nil, rows: [], after: nil)
+            if !g.selection.isEmpty { selection(g) }
         }
     }
 
-    private func side(_ action: BotAction, verdict: ValidationVerdict?, label: String?, text: String, rows: [(label: String, value: String)]) -> some View {
+    private func side(_ action: BotAction, verdict: ValidationVerdict?, label: String?, text: String, clustered: String?,
+                      rows: [(label: String, value: String)], after: String?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Divider().overlay(Color.white.opacity(0.08))
             WrapLayout(spacing: 6) {
@@ -252,8 +289,92 @@ private struct BotGroupCard: View {
                 if let label { BotVerdictChip(verdict: verdict, label: label) }
             }
             Text(text).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            if let clustered {
+                Text(clustered).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
             ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                 DecisionRow(key: row.label, value: row.value)
+            }
+            if let after {
+                Text(after).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// « Modèle retenu à chaque réentraînement »: consecutive identical choices grouped, one stacked line per run.
+    private func selection(_ g: BotGroupStat) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Divider().overlay(Color.white.opacity(0.08))
+            Text(ModelBot.selectionTitle).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach(Array(ModelBot.selectionRuns(g.selection).enumerated()), id: \.offset) { _, x in
+                (Text(ModelBot.runPeriod(x)).foregroundStyle(Theme.textSecondary) + Text(" ") + Text(ModelBot.runChoice(x)).bold().foregroundStyle(.white))
+                    .font(.footnote).fixedSize(horizontal: false, vertical: true)
+            }
+            if let live = ModelBot.liveModelText(g) {
+                Text(live).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// Each candidate's own out-of-sample result (for information, never used to choose): stacked rows, no table.
+private struct BotCandidatesCard: View {
+    let group: BotGroupStat
+
+    var body: some View {
+        Card(title: group.label) {
+            ForEach(Array(group.candidates.enumerated()), id: \.offset) { i, c in
+                if i > 0 { Divider().overlay(Color.white.opacity(0.08)) }
+                row(c)
+            }
+        }
+    }
+
+    private func row(_ c: BotCandidateStat) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            WrapLayout(spacing: 6) {
+                Text(c.label).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                    .multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
+                TagChip(text: ModelBot.chosenText(c), color: Theme.textSecondary)
+            }
+            if !c.description.isEmpty {
+                Text(c.description).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            ForEach(Array(ModelBot.candidateRows(c).enumerated()), id: \.offset) { _, row in
+                DecisionRow(key: row.label, value: row.value)
+            }
+            WrapLayout(spacing: 6) {
+                BotVerdictChip(verdict: c.buy.verdict, label: ModelBot.sideVerdictLabel("Achats", c.buy.verdictLabel))
+                BotVerdictChip(verdict: c.sell.verdict, label: ModelBot.sideVerdictLabel("Ventes", c.sell.verdictLabel))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The last 12 months, or the extra training assets: the same figures, shorter.
+private struct BotSubResultCard: View {
+    let title: String
+    let note: String
+    let stats: BotStats
+
+    var body: some View {
+        let s = stats
+        Card(title: title) {
+            Text(note).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            WrapLayout(spacing: 6) {
+                BotActionChip(action: .buy)
+                BotVerdictChip(verdict: s.buy.verdict, label: s.buy.verdictLabel)
+            }
+            Text(ModelBot.buyText(s.buy)).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            WrapLayout(spacing: 6) {
+                BotActionChip(action: .sell)
+                BotVerdictChip(verdict: s.sell.verdict, label: s.sell.verdictLabel)
+            }
+            Text(ModelBot.sellText(s.sell)).font(.footnote).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            if let exit = ModelBot.exitText(s.sell.exit) {
+                Text(exit).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -417,6 +538,7 @@ struct BotBlockView: View {
             }
             if b.hasAction {
                 (Text(ModelBot.probabilitiesText(b)).foregroundStyle(.white.opacity(0.9))
+                    + Text(ModelBot.modelSuffix(b) ?? "").foregroundStyle(Theme.textSecondary)
                     + Text(ModelBot.outOfBasketText(b) ?? "").foregroundStyle(Theme.textSecondary))
                     .font(.caption).fixedSize(horizontal: false, vertical: true)
             } else {

@@ -2,7 +2,9 @@ import Foundation
 
 // « Bot Altim » (GET /api/bot, 202 {pending:true} while the first training runs; GET /api/bot/views?symbols=; `bot` of
 // /api/decision): two logistic regressions trained on the validation's basket and judged walk-forward on periods they
-// had not seen, saying ACHETER / ATTENDRE / VENDRE at 20 days. JSON contract (every field optional-safe: a missing or
+// had not seen, saying ACHETER / ATTENDRE / VENDRE at 20 days. v2 fields are additive and optional (a v1 answer still
+// reads): `version`, `changes`, per group `universe`, `dataYears`, `selection`, `candidates`, `holdout`, `extra`,
+// `market`, `clustered` t in each side, `exit` of the sell side, the live model's `candidate`. JSON contract (every field optional-safe: a missing or
 // odd value never breaks the screen nor the decision) and the pure helpers of the screen and of the decision line,
 // exact port of web/src/webapp/model-bot.ts. Returns and probabilities are in %, "points" are differences of %
 // (signal − random day), times in ms. The server computes everything; nothing here recomputes a statistic.
@@ -25,6 +27,21 @@ public enum BotAction: String, Codable, Sendable, Hashable, CaseIterable {
     }
 }
 
+/// The fixed candidate models of v2: v1's logistic regression (16 features), the same on 24, boosted trees, the trend rule.
+public enum BotCandidate: String, Codable, Sendable, Hashable, CaseIterable {
+    case v1, logit, trees, trend
+
+    /// CANDIDATE_SHORT: "Logistique v1", "Logistique 24", "Arbres", "Tendance".
+    public var short: String {
+        switch self {
+        case .v1: return "Logistique v1"
+        case .logit: return "Logistique 24"
+        case .trees: return "Arbres"
+        case .trend: return "Tendance"
+        }
+    }
+}
+
 // MARK: - Lenient decoding
 
 private extension KeyedDecodingContainer {
@@ -37,6 +54,7 @@ private extension KeyedDecodingContainer {
     func list<T: Decodable>(_ t: T.Type, _ k: Key) -> [T] { opt([Lenient<T>].self, k)?.compactMap(\.value) ?? [] }
     func action(_ k: Key) -> BotAction? { opt(String.self, k).flatMap(BotAction.init(rawValue:)) }
     func verdict(_ k: Key) -> ValidationVerdict? { opt(String.self, k).flatMap(ValidationVerdict.init(rawValue:)) }
+    func candidate(_ k: Key) -> BotCandidate? { opt(String.self, k).flatMap(BotCandidate.init(rawValue:)) }
 }
 
 private struct BotKey: CodingKey {
@@ -83,6 +101,60 @@ public struct BotBucket: Decodable, Sendable, Equatable {
     }
 }
 
+/// t of a side's excesses: by date (the verdict's since v2), by asset, per signal (v1's).
+public struct BotClustered: Decodable, Sendable, Equatable {
+    public var byDate: Double?
+    public var dates: Int
+    public var byAsset: Double?
+    public var assets: Int
+    public var perSignal: Double?
+
+    public init(byDate: Double?, dates: Int, byAsset: Double?, assets: Int, perSignal: Double?) {
+        self.byDate = byDate
+        self.dates = dates
+        self.byAsset = byAsset
+        self.assets = assets
+        self.perSignal = perSignal
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        self.init(byDate: c.num(k("byDate")), dates: c.int(k("dates")), byAsset: c.num(k("byAsset")), assets: c.int(k("assets")),
+                  perSignal: c.num(k("perSignal")))
+    }
+}
+
+/// Holding vs leaving for 20 days at each VENDRE signal (medians over the assets; drawdowns ≤ 0 in %).
+public struct BotExitStats: Decodable, Sendable, Equatable {
+    public var assets: Int
+    public var outShare: Double?
+    public var medianHoldMaxDrawdown: Double?
+    public var medianBotMaxDrawdown: Double?
+    public var medianDrawdownAvoided: Double?
+    public var medianHoldReturn: Double?
+    public var medianBotReturn: Double?
+    public var beatHold: Int
+
+    public init(assets: Int, outShare: Double?, medianHoldMaxDrawdown: Double?, medianBotMaxDrawdown: Double?, medianDrawdownAvoided: Double?,
+                medianHoldReturn: Double?, medianBotReturn: Double?, beatHold: Int) {
+        self.assets = assets
+        self.outShare = outShare
+        self.medianHoldMaxDrawdown = medianHoldMaxDrawdown
+        self.medianBotMaxDrawdown = medianBotMaxDrawdown
+        self.medianDrawdownAvoided = medianDrawdownAvoided
+        self.medianHoldReturn = medianHoldReturn
+        self.medianBotReturn = medianBotReturn
+        self.beatHold = beatHold
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        self.init(assets: c.int(k("assets")), outShare: c.num(k("outShare")), medianHoldMaxDrawdown: c.num(k("medianHoldMaxDrawdown")),
+                  medianBotMaxDrawdown: c.num(k("medianBotMaxDrawdown")), medianDrawdownAvoided: c.num(k("medianDrawdownAvoided")),
+                  medianHoldReturn: c.num(k("medianHoldReturn")), medianBotReturn: c.num(k("medianBotReturn")), beatHold: c.int(k("beatHold")))
+    }
+}
+
 /// ACHETER signals out of sample (non-overlapping per asset). excess = meanNet − baselineNet (same asset and period).
 public struct BotBuyStats: Decodable, Sendable, Equatable {
     public var signals: Int
@@ -92,6 +164,8 @@ public struct BotBuyStats: Decodable, Sendable, Equatable {
     public var excess: Double?
     public var tStat: Double?
     public var rawTStat: Double?
+    /// v2: the t by date / by asset / per signal (`tStat` is then the by-date t); nil in a v1 answer.
+    public var clustered: BotClustered?
     public var hitRate: Double?
     public var baselineHitRate: Double?
     public var medianBotReturn: Double?
@@ -110,6 +184,7 @@ public struct BotBuyStats: Decodable, Sendable, Equatable {
         excess = c.num(k("excess"))
         tStat = c.num(k("tStat"))
         rawTStat = c.num(k("rawTStat"))
+        clustered = c.opt(BotClustered.self, k("clustered"))
         hitRate = c.num(k("hitRate"))
         baselineHitRate = c.num(k("baselineHitRate"))
         medianBotReturn = c.num(k("medianBotReturn"))
@@ -129,16 +204,20 @@ public struct BotSellStats: Decodable, Sendable, Equatable {
     public var allDaysAfter: Double?
     public var avoided: Double?
     public var tStat: Double?
+    /// v2 only (see BotBuyStats.clustered).
+    public var clustered: BotClustered?
     public var fallRate: Double?
     public var baselineFallRate: Double?
     public var meanDrawdown: Double?
     public var baselineDrawdown: Double?
+    /// v2 only: what leaving 20 days at each VENDRE did to the holding.
+    public var exit: BotExitStats?
     public var verdict: ValidationVerdict?
     public var verdictLabel: String
 
     public init(signals: Int, meanAfter: Double?, baselineAfter: Double?, allDaysAfter: Double?, avoided: Double?, tStat: Double?,
                 fallRate: Double?, baselineFallRate: Double?, meanDrawdown: Double?, baselineDrawdown: Double?,
-                verdict: ValidationVerdict?, verdictLabel: String) {
+                verdict: ValidationVerdict?, verdictLabel: String, clustered: BotClustered? = nil, exit: BotExitStats? = nil) {
         self.signals = signals
         self.meanAfter = meanAfter
         self.baselineAfter = baselineAfter
@@ -151,6 +230,8 @@ public struct BotSellStats: Decodable, Sendable, Equatable {
         self.baselineDrawdown = baselineDrawdown
         self.verdict = verdict
         self.verdictLabel = verdictLabel
+        self.clustered = clustered
+        self.exit = exit
     }
 
     public init(from decoder: Decoder) throws {
@@ -158,7 +239,8 @@ public struct BotSellStats: Decodable, Sendable, Equatable {
         self.init(signals: c.int(k("signals")), meanAfter: c.num(k("meanAfter")), baselineAfter: c.num(k("baselineAfter")),
                   allDaysAfter: c.num(k("allDaysAfter")), avoided: c.num(k("avoided")), tStat: c.num(k("tStat")), fallRate: c.num(k("fallRate")),
                   baselineFallRate: c.num(k("baselineFallRate")), meanDrawdown: c.num(k("meanDrawdown")),
-                  baselineDrawdown: c.num(k("baselineDrawdown")), verdict: c.verdict(k("verdict")), verdictLabel: c.str(k("verdictLabel")))
+                  baselineDrawdown: c.num(k("baselineDrawdown")), verdict: c.verdict(k("verdict")), verdictLabel: c.str(k("verdictLabel")),
+                  clustered: c.opt(BotClustered.self, k("clustered")), exit: c.opt(BotExitStats.self, k("exit")))
     }
 }
 
@@ -236,6 +318,48 @@ public struct BotModelOut: Decodable, Sendable {
     }
 }
 
+/// Inner-validation log-loss of one candidate (lower is better).
+public struct BotCandidateScore: Decodable, Sendable, Equatable {
+    public var id: BotCandidate?
+    public var logLoss: Double?
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        id = c.candidate(k("id"))
+        logLoss = c.num(k("logLoss"))
+    }
+}
+
+/// Probabilities of the trend rule (v2 candidate without learning).
+public struct BotTrendModel: Decodable, Sendable {
+    public var probs: [Double]
+    public var baseRate: Double
+    public var rows: Int
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        probs = c.list(Double.self, k("probs"))
+        baseRate = c.num(k("baseRate")) ?? 0
+        rows = c.int(k("rows"))
+    }
+}
+
+/// A live side model of v2: `logit` weights, `trees` (compact nodes, only flagged here) or `trend` probabilities.
+public struct BotLiveSide: Decodable, Sendable {
+    public var baseRate: Double
+    public var threshold: Double
+    public var logit: BotModelOut?
+    /// Whether the side is boosted trees (their nodes are not read by the app).
+    public var hasTrees: Bool
+    public var trend: BotTrendModel?
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        baseRate = c.num(k("baseRate")) ?? 0
+        threshold = c.num(k("threshold")) ?? 0
+        logit = c.opt(BotModelOut.self, k("logit"))
+        hasTrees = c.contains(k("trees")) && ((try? c.decodeNil(forKey: k("trees"))) ?? true) == false
+        trend = c.opt(BotTrendModel.self, k("trend"))
+    }
+}
+
 /// The model trained on the whole known history (today's view).
 public struct BotLiveModel: Decodable, Sendable {
     public var trainedRows: Int
@@ -243,6 +367,11 @@ public struct BotLiveModel: Decodable, Sendable {
     public var trainedTo: Double?
     public var up: BotModelOut
     public var down: BotModelOut
+    /// v2: the candidate chosen on the last known year, the inner-validation scores and both side models.
+    public var candidate: BotCandidate?
+    public var scores: [BotCandidateScore]
+    public var upModel: BotLiveSide?
+    public var downModel: BotLiveSide?
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
         trainedRows = c.int(k("trainedRows"))
@@ -250,6 +379,94 @@ public struct BotLiveModel: Decodable, Sendable {
         trainedTo = c.num(k("trainedTo"))
         up = c.opt(BotModelOut.self, k("up")) ?? emptyObject(BotModelOut.self)
         down = c.opt(BotModelOut.self, k("down")) ?? emptyObject(BotModelOut.self)
+        candidate = c.candidate(k("candidate"))
+        scores = c.list(BotCandidateScore.self, k("scores"))
+        upModel = c.opt(BotLiveSide.self, k("upModel"))
+        downModel = c.opt(BotLiveSide.self, k("downModel"))
+    }
+}
+
+/// One candidate's own walk-forward result: for information only, never used to choose.
+public struct BotCandidateStat: Decodable, Sendable, Identifiable {
+    public var id: BotCandidate
+    public var label: String
+    public var description: String
+    public var trainedBlocks: Int
+    public var chosenBlocks: Int
+    public var stats: BotStats
+    public var buy: BotBuyStats { stats.buy }
+    public var sell: BotSellStats { stats.sell }
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        id = c.candidate(k("id")) ?? .v1
+        label = c.str(k("label"))
+        description = c.str(k("description"))
+        trainedBlocks = c.int(k("trainedBlocks"))
+        chosenBlocks = c.int(k("chosenBlocks"))
+        stats = try BotStats(from: decoder)
+    }
+}
+
+/// One retraining: test period [start, end), training rows, inner-validation log-loss of each candidate, choice.
+public struct BotBlockOut: Decodable, Sendable, Equatable {
+    public var start: Double
+    public var end: Double?
+    public var trainRows: Int
+    public var chosen: BotCandidate?
+    public var scores: [BotCandidateScore]
+
+    public init(start: Double, end: Double?, trainRows: Int, chosen: BotCandidate?, scores: [BotCandidateScore] = []) {
+        self.start = start
+        self.end = end
+        self.trainRows = trainRows
+        self.chosen = chosen
+        self.scores = scores
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        self.init(start: c.num(k("start")) ?? 0, end: c.num(k("end")), trainRows: c.int(k("trainRows")), chosen: c.candidate(k("chosen")),
+                  scores: c.list(BotCandidateScore.self, k("scores")))
+    }
+}
+
+/// Training universe of a group: basket assets, extra assets (and how many failed), rows, history span.
+public struct BotUniverse: Decodable, Sendable, Equatable {
+    public var basket: Int
+    public var extra: Int
+    public var extraFailed: Int
+    public var rows: Int
+    public var dataFrom: Double?
+    public var medianYears: Double?
+    public var maxYears: Double?
+
+    public init(basket: Int, extra: Int, extraFailed: Int, rows: Int, dataFrom: Double?, medianYears: Double?, maxYears: Double?) {
+        self.basket = basket
+        self.extra = extra
+        self.extraFailed = extraFailed
+        self.rows = rows
+        self.dataFrom = dataFrom
+        self.medianYears = medianYears
+        self.maxYears = maxYears
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        self.init(basket: c.int(k("basket")), extra: c.int(k("extra")), extraFailed: c.int(k("extraFailed")), rows: c.int(k("rows")),
+                  dataFrom: c.num(k("dataFrom")), medianYears: c.num(k("medianYears")), maxYears: c.num(k("maxYears")))
+    }
+}
+
+/// The last 12 months, shown apart (nothing is chosen on them).
+public struct BotHoldout: Decodable, Sendable {
+    public var from: Double?
+    public var to: Double?
+    public var stats: BotStats
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        from = c.num(k("from"))
+        to = c.num(k("to"))
+        stats = try BotStats(from: decoder)
     }
 }
 
@@ -265,6 +482,18 @@ public struct BotGroupStat: Decodable, Sendable, Identifiable {
     public var stats: BotStats
     public var model: BotLiveModel?
     public var text: String
+    /// v2 (nil / empty in a v1 answer).
+    public var universe: BotUniverse?
+    public var dataYears: Double?
+    /// One per retraining block, in time order.
+    public var selection: [BotBlockOut]
+    /// Each candidate alone, for information only (fixed order v1, logit, trees, trend).
+    public var candidates: [BotCandidateStat]
+    public var holdout: BotHoldout?
+    /// The nested result on the extra training assets (out of sample too, not the headline).
+    public var extra: BotStats?
+    /// "S&P 500 (SPY)".
+    public var market: String?
 
     public var buy: BotBuyStats { stats.buy }
     public var sell: BotSellStats { stats.sell }
@@ -282,6 +511,13 @@ public struct BotGroupStat: Decodable, Sendable, Identifiable {
         stats = try BotStats(from: decoder)
         model = c.opt(BotLiveModel.self, k("model"))
         text = c.str(k("text"))
+        universe = c.opt(BotUniverse.self, k("universe"))
+        dataYears = c.num(k("dataYears"))
+        selection = c.list(BotBlockOut.self, k("selection"))
+        candidates = c.list(BotCandidateStat.self, k("candidates"))
+        holdout = c.opt(BotHoldout.self, k("holdout"))
+        extra = c.opt(BotStats.self, k("extra"))
+        market = c.opt(String.self, k("market"))
     }
 }
 
@@ -319,6 +555,12 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
     public var holdReturn: Double?
     public var now: BotNowView
     public var source: String
+    /// v2: history span (years, first day), time out of the market after VENDRE (%), worst falls holding / with the bot (%).
+    public var years: Double?
+    public var dataFrom: Double?
+    public var outShare: Double?
+    public var holdMaxDrawdown: Double?
+    public var botMaxDrawdown: Double?
     public var id: String { "\(kind.rawValue):\(symbol)" }
     public var asset: Asset { Asset(symbol: symbol, kind: kind, name: name.isEmpty ? symbol : name) }
 
@@ -342,6 +584,11 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
         holdReturn = c.num(k("holdReturn"))
         now = c.opt(BotNowView.self, k("now")) ?? emptyObject(BotNowView.self)
         source = c.str(k("source"))
+        years = c.num(k("years"))
+        dataFrom = c.num(k("dataFrom"))
+        outShare = c.num(k("outShare"))
+        holdMaxDrawdown = c.num(k("holdMaxDrawdown"))
+        botMaxDrawdown = c.num(k("botMaxDrawdown"))
     }
 }
 
@@ -372,6 +619,17 @@ public struct BotParameters: Decodable, Sendable {
     public var minSignals: Int
     public var tEdge: Double?
     public var nudge: Double?
+    /// v2 (nil in a v1 answer).
+    public var innerValidationDays: Int?
+    public var trainStride: Int?
+    public var holdoutDays: Int?
+    public var stockYears: Int?
+    public var trees: Int?
+    public var treeDepth: Int?
+    public var shrinkage: Double?
+    public var minLeaf: Int?
+    /// How the candidate is chosen at each retraining.
+    public var selection: String?
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
         horizonDays = c.opt(Int.self, k("horizonDays")) ?? 20
@@ -386,6 +644,16 @@ public struct BotParameters: Decodable, Sendable {
         minSignals = c.int(k("minSignals"))
         tEdge = c.num(k("tEdge"))
         nudge = c.num(k("nudge"))
+        func optInt(_ s: String) -> Int? { c.num(k(s)).map { Int($0) } }
+        innerValidationDays = optInt("innerValidationDays")
+        trainStride = optInt("trainStride")
+        holdoutDays = optInt("holdoutDays")
+        stockYears = optInt("stockYears")
+        trees = optInt("trees")
+        treeDepth = optInt("treeDepth")
+        shrinkage = c.num(k("shrinkage"))
+        minLeaf = optInt("minLeaf")
+        selection = c.opt(String.self, k("selection"))
     }
 }
 
@@ -406,6 +674,13 @@ public struct BotReport: Decodable, Sendable {
     public var method: [String]
     public var limits: [String]
     public var source: String
+    /// v2: 2 (nil in a v1 answer), what changed since v1, extra assets that could not be read, when the extra universe
+    /// was fixed, how long the download and the computation took.
+    public var version: Int?
+    public var changes: [String]
+    public var extraFailures: [ValidationFailure]
+    public var extraFixedOn: String?
+    public var timing: BotTiming?
 
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
@@ -421,6 +696,23 @@ public struct BotReport: Decodable, Sendable {
         method = c.list(String.self, k("method"))
         limits = c.list(String.self, k("limits"))
         source = c.str(k("source"))
+        version = c.num(k("version")).map { Int($0) }
+        changes = c.list(String.self, k("changes"))
+        extraFailures = c.list(ValidationFailure.self, k("extraFailures"))
+        extraFixedOn = c.opt(String.self, k("extraFixedOn"))
+        timing = c.opt(BotTiming.self, k("timing"))
+    }
+}
+
+public struct BotTiming: Decodable, Sendable {
+    public var fetchMs: Double
+    public var computeMs: Double
+    public var threads: Int
+    public init(from decoder: Decoder) throws {
+        let c = try box(decoder)
+        fetchMs = c.num(k("fetchMs")) ?? 0
+        computeMs = c.num(k("computeMs")) ?? 0
+        threads = c.int(k("threads"))
     }
 }
 
@@ -491,10 +783,13 @@ public struct BotView: Codable, Sendable, Equatable {
     /// Items of /api/bot/views only.
     public var symbol: String?
     public var kind: Kind?
+    /// v2: the candidate model behind today's view and its label ("Régression logistique 24 mesures").
+    public var model: BotCandidate?
+    public var modelLabel: String?
 
     enum CodingKeys: String, CodingKey {
         case available, group, groupLabel, inBasket, action, actionLabel, up, down, thresholdUp, thresholdDown, baseUp, baseDown
-        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind
+        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind, model, modelLabel
     }
 
     public init(from decoder: Decoder) throws {
@@ -522,6 +817,8 @@ public struct BotView: Codable, Sendable, Equatable {
         link = c.str(.link)
         symbol = c.opt(String.self, .symbol)
         kind = c.opt(String.self, .kind).flatMap(Kind.init(rawValue:))
+        model = c.opt(String.self, .model).flatMap(BotCandidate.init(rawValue:))
+        modelLabel = c.opt(String.self, .modelLabel)
     }
 
     /// With an action: shown with its probabilities; without: only the text.
@@ -597,10 +894,130 @@ public enum ModelBot {
 
     static func tText(_ t: Double?) -> String { t.map { "t = \(ModelValidation.plain($0, digits: 1))" } ?? "t non calculable" }
 
+    /// v2 (clustered present): the t is by date.
+    static func sideT(_ t: Double?, _ c: BotClustered?) -> String {
+        if c != nil, let t { return "t par jour = \(ModelValidation.plain(t, digits: 1))" }
+        return tText(t)
+    }
+
+    /// "t par jour −2,4 (1067 jours) · par actif −4,5 · par signal −2,8" (the verdict reads the first).
+    public static func clusteredText(_ c: BotClustered?, _ t: Double?) -> String {
+        guard let c else { return "t = \(t == nil ? "—" : ModelValidation.plain(t, digits: 1))" }
+        func f(_ v: Double?) -> String { v == nil ? "—" : ModelValidation.plain(v, digits: 1) }
+        return "t par jour \(f(c.byDate)) (\(c.dates) jours) · par actif \(f(c.byAsset)) · par signal \(f(c.perSignal))"
+    }
+
+    /// What leaving at each VENDRE did to the holding: time out, worst fall, return (medians over the assets).
+    public static func exitText(_ e: BotExitStats?) -> String? {
+        guard let e, e.assets != 0 else { return nil }
+        return "En sortant 20 jours à chaque VENDRE : hors marché \(pct0(e.outShare)) du temps ; pire baisse médiane \(ModelValidation.signedPct(e.medianBotMaxDrawdown)) contre \(ModelValidation.signedPct(e.medianHoldMaxDrawdown)) en gardant ; rendement médian \(ModelValidation.signedPct(e.medianBotReturn, digits: 0)) contre \(ModelValidation.signedPct(e.medianHoldReturn, digits: 0)) (mieux que garder : \(e.beatHold) actif\(e.beatHold > 1 ? "s" : "") sur \(e.assets))."
+    }
+
+    /// "22 actifs du panier et 72 de plus à l'entraînement · historique médian 20,1 ans (le plus long 20,1 ans) · marché : S&P 500 (SPY)".
+    public static func dataText(_ g: BotGroupStat) -> String? {
+        guard let u = g.universe else { return nil }
+        func y(_ v: Double?) -> String { v == nil ? "—" : "\(ModelValidation.plain(v, digits: 1)) ans" }
+        let failed = u.extraFailed > 0 ? " (\(u.extraFailed) indisponible\(u.extraFailed > 1 ? "s" : ""))" : ""
+        let market = (g.market ?? "").isEmpty ? "" : " · marché : \(g.market ?? "")"
+        return "\(u.basket) actif\(u.basket > 1 ? "s" : "") du panier et \(u.extra) de plus à l'entraînement\(failed) · historique médian \(y(u.medianYears)) (le plus long \(y(u.maxYears)))\(market)"
+    }
+
+    /// Consecutive retrainings with the same choice: `from` / `to` = start of the first / last retraining of the run.
+    public struct SelectionRun: Equatable, Sendable {
+        public var from: Double
+        public var to: Double
+        public var chosen: BotCandidate?
+        public var count: Int
+        public init(from: Double, to: Double, chosen: BotCandidate?, count: Int) {
+            self.from = from
+            self.to = to
+            self.chosen = chosen
+            self.count = count
+        }
+    }
+
+    /// Retrainings grouped by consecutive identical choices.
+    public static func selectionRuns(_ blocks: [BotBlockOut]) -> [SelectionRun] {
+        var out: [SelectionRun] = []
+        for b in blocks {
+            if let last = out.last, last.chosen == b.chosen {
+                out[out.count - 1].to = b.start
+                out[out.count - 1].count += 1
+            } else {
+                out.append(SelectionRun(from: b.start, to: b.start, chosen: b.chosen, count: 1))
+            }
+        }
+        return out
+    }
+
+    /// "oct. 2009 → oct. 2016 (8 fois)" or "oct. 2009".
+    public static func runPeriod(_ x: SelectionRun) -> String {
+        "\(ModelValidation.monthYear(x.from))\(x.count > 1 ? " → \(ModelValidation.monthYear(x.to)) (\(x.count) fois)" : "")"
+    }
+
+    /// "Tendance", or "aucun (trop peu de données)".
+    public static func runChoice(_ x: SelectionRun) -> String { x.chosen?.short ?? "aucun (trop peu de données)" }
+
+    /// "Aujourd'hui : Logistique 24, choisi de la même façon sur la dernière année connue." (nil without a live candidate).
+    public static func liveModelText(_ g: BotGroupStat) -> String? {
+        g.model?.candidate.map { "Aujourd'hui : \($0.short), choisi de la même façon sur la dernière année connue." }
+    }
+
+    /// "retenu 4 fois sur 17".
+    public static func chosenText(_ c: BotCandidateStat) -> String { "retenu \(c.chosenBlocks) fois sur \(c.trainedBlocks)" }
+
+    /// Key / value lines of a candidate alone.
+    public static func candidateRows(_ c: BotCandidateStat) -> [(label: String, value: String)] {
+        [("\(c.buy.signals) achats · écart au hasard", "\(points(c.buy.excess)) (t \(ModelValidation.plain(c.buy.tStat, digits: 1)))"),
+         ("\(c.sell.signals) ventes · baisse évitée", "\(points(c.sell.avoided)) (t \(ModelValidation.plain(c.sell.tStat, digits: 1)))"),
+         ("Précision hausse / baisse", "\(ModelValidation.plain(c.stats.brierSkillUp, digits: 1)) % / \(ModelValidation.plain(c.stats.brierSkillDown, digits: 1)) %")]
+    }
+
+    /// "Achats : avantage non démontré" (the verdict's label, first letter lowered).
+    public static func sideVerdictLabel(_ side: String, _ label: String) -> String {
+        "\(side) : \(label.prefix(1).lowercased())\(label.dropFirst())"
+    }
+
+    /// "29/09/2025" (UTC day, like the web's toLocaleDateString fr-FR in UTC), "?" without a time.
+    public static func day(_ ms: Double?) -> String {
+        guard let ms, ms.isFinite else { return "?" }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "UTC")!
+        let d = cal.dateComponents([.year, .month, .day], from: Date(timeIntervalSince1970: ms / 1000))
+        return String(format: "%02d/%02d/%d", d.day ?? 0, d.month ?? 0, d.year ?? 0)
+    }
+
+    /// "Actions et ETF américains · 12 derniers mois".
+    public static func holdoutTitle(_ g: BotGroupStat) -> String { "\(g.label) · 12 derniers mois" }
+
+    public static func holdoutNote(_ h: BotHoldout) -> String {
+        "Du \(day(h.from)) au \(day(h.to)), présentés à part (même modèle choisi ; rien n'est choisi sur cette période)."
+    }
+
+    /// "Actions et ETF américains · actifs d'entraînement hors panier".
+    public static func extraTitle(_ g: BotGroupStat) -> String { "\(g.label) · actifs d'entraînement hors panier" }
+
+    public static func extraNote(_ g: BotGroupStat) -> String {
+        "\(g.universe?.extra ?? 0) actifs fixés d'avance, hors du test principal ; eux aussi jugés hors échantillon."
+    }
+
+    /// "Univers élargi : 2 actifs indisponibles (X, Y)." (nil when none).
+    public static func extraFailuresText(_ r: BotReport) -> String? {
+        let f = r.extraFailures
+        guard !f.isEmpty else { return nil }
+        return "Univers élargi : \(f.count) actif\(f.count > 1 ? "s" : "") indisponible\(f.count > 1 ? "s" : "") (\(f.map(\.symbol).joined(separator: ", ")))."
+    }
+
+    /// Groups that carry each candidate alone (v2).
+    public static func withCandidates(_ r: BotReport) -> [BotGroupStat] { r.groups.filter { !$0.candidates.isEmpty } }
+
+    /// Whether the « Dernière année et univers élargi » section has something to show.
+    public static func hasSubResults(_ r: BotReport) -> Bool { r.groups.contains { $0.holdout != nil || $0.extra != nil } }
+
     /// "108 achats : +1,7 % en moyenne sur 20 jours, contre +1,85 % pour une entrée au hasard … (−0,15 point, t = −0,1)."
     public static func buyText(_ b: BotBuyStats) -> String {
         if b.signals == 0 { return "Aucun achat pendant les périodes de test." }
-        return "\(b.signals) achat\(b.signals > 1 ? "s" : "") : \(ModelValidation.signedPct(b.meanNet, digits: 2)) en moyenne sur 20 jours, contre \(ModelValidation.signedPct(b.baselineNet, digits: 2)) pour une entrée au hasard sur le même actif et la même période (\(points(b.excess)), \(tText(b.tStat)))."
+        return "\(b.signals) achat\(b.signals > 1 ? "s" : "") : \(ModelValidation.signedPct(b.meanNet, digits: 2)) en moyenne sur 20 jours, contre \(ModelValidation.signedPct(b.baselineNet, digits: 2)) pour une entrée au hasard sur le même actif et la même période (\(points(b.excess)), \(sideT(b.tStat, b.clustered)))."
     }
 
     /// What followed the VENDRE signals, said without a sign to decode.
@@ -614,7 +1031,7 @@ public enum ModelBot {
         } else {
             diff = ""
         }
-        return "\(s.signals) vente\(s.signals > 1 ? "s" : "") : le cours a fait \(ModelValidation.signedPct(s.meanAfter, digits: 2)) dans les 20 jours suivants, contre \(ModelValidation.signedPct(s.baselineAfter, digits: 2)) après un jour au hasard (\(diff), \(tText(s.tStat)))."
+        return "\(s.signals) vente\(s.signals > 1 ? "s" : "") : le cours a fait \(ModelValidation.signedPct(s.meanAfter, digits: 2)) dans les 20 jours suivants, contre \(ModelValidation.signedPct(s.baselineAfter, digits: 2)) après un jour au hasard (\(diff), \(sideT(s.tStat, s.clustered)))."
     }
 
     public static func waitText(_ w: BotWaitStats) -> String {
@@ -647,11 +1064,17 @@ public enum ModelBot {
 
     // Texts of the screen (same wording as Bot.tsx).
 
-    public static let intro = "Un modèle appris sur l'historique de 34 actifs fixés d'avance, qui dit ACHETER, ATTENDRE ou VENDRE à 20 jours. Il n'est jugé que sur des périodes qu'il n'avait pas vues. Altim ne passe aucun ordre."
-    public static let pendingText = "Entraînement et test sur tout le panier en cours (environ une minute la première fois)…"
+    public static let intro = "Des modèles appris sur de longs historiques (jusqu'à 20 ans), qui disent ACHETER, ATTENDRE ou VENDRE à 20 jours. Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre."
+    public static let pendingText = "Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…"
+    public static let changesTitle = "Ce qui change avec la v2"
+    public static let resultsIntro = "Modèle choisi à chaque réentraînement sur une validation interne (jamais sur le test), testé sur les actifs du panier."
+    public static let candidatesTitle = "Chaque modèle seul"
+    public static let candidatesIntro = "À titre d'information, non utilisé pour choisir : ce qu'aurait donné chaque candidat retenu partout, sur les mêmes jours."
+    public static let subResultsTitle = "Dernière année et univers élargi"
+    public static let selectionTitle = "Modèle retenu à chaque réentraînement"
     public static let settingsText = "Un modèle appris qui dit ACHETER, ATTENDRE ou VENDRE, jugé seulement sur des périodes qu'il n'avait pas vues, avec ses résultats réels et ses limites."
     public static let calibrationIntro = "Quand le bot annonce une probabilité, la fréquence observée ensuite devrait être proche. Chaque ligne : jours de test dont la probabilité tombait dans la tranche."
-    public static let assetsIntro = "Dans l'ordre du panier, jamais classés par performance. « Aujourd'hui » : avis du modèle entraîné sur tout l'historique connu."
+    public static let assetsIntro = "Dans l'ordre du panier, jamais classés par performance. « Aujourd'hui » : avis du modèle retenu, entraîné sur tout l'historique connu."
     public static let linkText = "Voir le bot et ses résultats →"
 
     /// "Actifs": "33 / 34".
@@ -669,9 +1092,9 @@ public enum ModelBot {
     /// "1 actif non utilisé :".
     public static func failuresTitle(_ n: Int) -> String { "\(n) actif\(n > 1 ? "s" : "") non utilisé\(n > 1 ? "s" : "") :" }
 
-    /// "22 actifs · test du oct. 2024 au sept. 2026 · 4 réentraînements".
+    /// "22 actifs testés · test du oct. 2024 au sept. 2026 · 4 réentraînements".
     public static func groupSubtitle(_ g: BotGroupStat) -> String {
-        "\(g.assets) actif\(g.assets > 1 ? "s" : "") · test du \(ModelValidation.monthYear(g.testFrom)) au \(ModelValidation.monthYear(g.testTo)) · \(g.trainedBlocks) réentraînement\(g.trainedBlocks > 1 ? "s" : "")"
+        "\(g.assets) actif\(g.assets > 1 ? "s" : "") testé\(g.assets > 1 ? "s" : "") · test du \(ModelValidation.monthYear(g.testFrom)) au \(ModelValidation.monthYear(g.testTo)) · \(g.trainedBlocks) réentraînement\(g.trainedBlocks > 1 ? "s" : "")"
     }
 
     /// Key / value lines under each side of a group card.
@@ -706,19 +1129,29 @@ public enum ModelBot {
         if let e = a.buyExcess { s += " (\(points(e)) vs hasard)" }
         s += " · \(a.sells) vente\(a.sells > 1 ? "s" : "")"
         if let v = a.sellAvoided { s += " (cours ensuite \(points(-v)) vs hasard)" }
-        s += " · attente \(pct0(a.waitShare)) · achats cumulés \(ModelValidation.signedPct(a.botReturn)), détention \(ModelValidation.signedPct(a.holdReturn)) (\(a.source))"
+        s += " · attente \(pct0(a.waitShare)) · achats cumulés \(ModelValidation.signedPct(a.botReturn)), détention \(ModelValidation.signedPct(a.holdReturn))"
+        if a.outShare != nil {
+            s += " · hors marché après VENDRE \(pct0(a.outShare)) du temps, pire baisse \(ModelValidation.signedPct(a.botMaxDrawdown)) contre \(ModelValidation.signedPct(a.holdMaxDrawdown)) en gardant"
+        }
+        s += " (\(a.source)\(a.years.map { ", \(ModelValidation.plain($0, digits: 1)) ans" } ?? ""))"
         return s
     }
 
     /// Row of "Vos actifs aujourd'hui": probabilities and thresholds, or the reason there is none.
     public static func viewText(_ v: BotView) -> String {
         guard v.hasAction else { return v.text }
-        return "Hausse \(pct0(v.up)) (seuil \(pct0(v.thresholdUp))), baisse \(pct0(v.down)) (seuil \(pct0(v.thresholdDown)))\(v.inBasket ? "" : " · hors du panier testé")"
+        return "Hausse \(pct0(v.up)) (seuil \(pct0(v.thresholdUp))), baisse \(pct0(v.down)) (seuil \(pct0(v.thresholdDown)))\(modelSuffix(v) ?? "")\(v.inBasket ? "" : " · hors du panier testé")"
     }
 
     /// Decision line: "Probabilités à 20 jours : hausse 46 % (seuil 50 %), baisse 52 % (seuil 58 %)".
     public static func probabilitiesText(_ v: BotView) -> String {
         "Probabilités à 20 jours : hausse \(pct0(v.up)) (seuil \(pct0(v.thresholdUp))), baisse \(pct0(v.down)) (seuil \(pct0(v.thresholdDown)))"
+    }
+
+    /// " · Régression logistique 24 mesures": the v2 model behind the view (nil in a v1 answer).
+    public static func modelSuffix(_ v: BotView) -> String? {
+        guard let l = v.modelLabel, !l.isEmpty else { return nil }
+        return " · \(l)"
     }
 
     /// " · modèle des cryptos, non testé sur cet actif" when the asset is outside the basket.
@@ -734,6 +1167,12 @@ public enum ModelBot {
     /// " · entraîné le 29/09 à 13:36" after the link; nil without a report.
     public static func trainedText(_ v: BotView) -> String? { v.asOf.map { " · entraîné le \(DecisionGuidance.shortDateTime($0))" } }
 
-    /// "Panier fixé le 29/09/2026. Source : ….".
-    public static func footer(_ r: BotReport) -> String { "Panier fixé le \(ModelValidation.basketDate(r.basketFixedOn)). Source : \(r.source)." }
+    /// "Panier fixé le 29/09/2026, univers élargi le 29/09/2026. Source : …. Calcul : 13 s de téléchargement, 35 s d'entraînement et de test.".
+    public static func footer(_ r: BotReport) -> String {
+        let extra = (r.extraFixedOn ?? "").isEmpty ? "" : ", univers élargi le \(ModelValidation.basketDate(r.extraFixedOn ?? ""))"
+        let timing = r.timing.map {
+            " Calcul : \(Int(($0.fetchMs / 1000).rounded())) s de téléchargement, \(Int(($0.computeMs / 1000).rounded())) s d'entraînement et de test."
+        } ?? ""
+        return "Panier fixé le \(ModelValidation.basketDate(r.basketFixedOn))\(extra). Source : \(r.source).\(timing)"
+    }
 }

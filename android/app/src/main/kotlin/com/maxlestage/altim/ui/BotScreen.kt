@@ -55,9 +55,11 @@ import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Bot
 import com.maxlestage.altim.kit.BotAssetRow
 import com.maxlestage.altim.kit.BotBucket
+import com.maxlestage.altim.kit.BotCandidateStat
 import com.maxlestage.altim.kit.BotGroupStat
 import com.maxlestage.altim.kit.BotReport
 import com.maxlestage.altim.kit.BotResult
+import com.maxlestage.altim.kit.BotStatsLike
 import com.maxlestage.altim.kit.BotView
 import com.maxlestage.altim.kit.BotViews
 import com.maxlestage.altim.kit.Format
@@ -65,10 +67,11 @@ import com.maxlestage.altim.kit.ModelValidation
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.delay
 
-// « Bot Altim » (web Bot.tsx): two logistic regressions trained on the validation's basket (/api/bot), tested
-// walk-forward on periods they had not seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets
-// (/api/bot/views). Stacked cards, wrapping chips, nothing wider than a 360 dp phone; the per-asset list keeps the
-// basket's order.
+// « Bot Altim » v2 (web Bot.tsx): candidate models trained on long histories of the validation's basket and an extra
+// universe (/api/bot), chosen at each retraining on an inner validation and tested walk-forward on periods they had not
+// seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (/api/bot/views). Stacked cards, wrapping
+// chips, nothing wider than a 360 dp phone; the per-asset list keeps the basket's order; each candidate is shown alone
+// for information only. A v1 answer still renders (its v2 parts left out).
 
 /** Opens « Bot Altim » above the current screen (null where it cannot be opened, e.g. in the tests). */
 val LocalOpenBot = staticCompositionLocalOf<(() -> Unit)?> { null }
@@ -154,17 +157,18 @@ fun BotAltimView(
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
             item {
                 Caption(
-                    "Un modèle appris sur l'historique de 34 actifs fixés d'avance, qui dit ACHETER, ATTENDRE ou VENDRE à 20 jours. Il n'est jugé que sur des périodes qu'il n'avait " +
-                        "pas vues. Altim ne passe aucun ordre.",
+                    "Des modèles appris sur de longs historiques (jusqu'à 20 ans), qui disent ACHETER, ATTENDRE ou VENDRE à 20 jours. Jugés seulement sur des périodes qu'ils " +
+                        "n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre.",
                 )
             }
             error?.let { item { Notice("⚠ $it", Tone.WARN) } }
             if (report == null && error == null) {
-                item { Card { Caption(if (pending) "Entraînement et test sur tout le panier en cours (environ une minute la première fois)…" else "Chargement…"); Loading() } }
+                item { Card { Caption(if (pending) "Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…" else "Chargement…"); Loading() } }
             }
             if (report != null) {
                 val r = report
                 item { BotHeadCard(r) }
+                if (r.changes.isNotEmpty()) item { Card(title = "Ce qui change avec la v2") { Bulleted(r.changes) } }
                 if (watched) item { WatchedViewsCard(views, viewsError, open) }
                 item {
                     Card(title = "Comment il apprend et comment il est jugé") {
@@ -178,7 +182,21 @@ fun BotAltimView(
                     }
                 }
                 item { Label("Résultats hors échantillon") }
+                item { Caption("Modèle choisi à chaque réentraînement sur une validation interne (jamais sur le test), testé sur les actifs du panier.") }
                 items(r.groups, key = { "group-${it.id}" }) { BotGroupCard(it) }
+                val withCandidates = r.groups.filter { it.candidates.isNotEmpty() }
+                if (withCandidates.isNotEmpty()) {
+                    item { Label("Chaque modèle seul") }
+                    item { Caption("À titre d'information, non utilisé pour choisir : ce qu'aurait donné chaque candidat retenu partout, sur les mêmes jours.") }
+                    items(withCandidates, key = { "cands-${it.id}" }) { BotCandidatesCard(it) }
+                }
+                if (r.groups.any { it.holdout != null || it.extra != null }) {
+                    item { Label("Dernière année et univers élargi") }
+                    r.groups.forEach { g ->
+                        g.holdout?.let { h -> item(key = "holdout-${g.id}") { BotSubResult(Bot.holdoutTitle(g), Bot.holdoutNote(h), h) } }
+                        g.extra?.let { x -> item(key = "extra-${g.id}") { BotSubResult(Bot.extraTitle(g), Bot.extraNote(g), x) } }
+                    }
+                }
                 item { Label("Calibration") }
                 item { Caption("Quand le bot annonce une probabilité, la fréquence observée ensuite devrait être proche. Chaque ligne : jours de test dont la probabilité tombait dans la tranche.") }
                 r.groups.forEach { g ->
@@ -186,7 +204,7 @@ fun BotAltimView(
                     item(key = "cal-${g.id}-down") { CalibrationCard("${g.label} · baisse", g.calibrationDown, g.brierSkillDown) }
                 }
                 item { Label("Actif par actif") }
-                item { Caption("Dans l'ordre du panier, jamais classés par performance. « Aujourd'hui » : avis du modèle entraîné sur tout l'historique connu.") }
+                item { Caption("Dans l'ordre du panier, jamais classés par performance. « Aujourd'hui » : avis du modèle retenu, entraîné sur tout l'historique connu.") }
                 items(r.assets, key = { "asset-${it.symbol}" }) { BotAssetRowView(it, open) }
                 item {
                     Card(title = "Limites") {
@@ -219,7 +237,7 @@ private fun BotHeadCard(r: BotReport) {
     Card {
         Text(r.headline, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Tile("Actifs", Bot.assetsTile(r))
+            Tile("Actifs testés", Bot.assetsTile(r))
             Tile("Jours testés", ModelValidation.fr(r.overall.labelled.toDouble(), 0))
             Tile("Achats / ventes", Bot.signalsTile(r))
         }
@@ -227,6 +245,7 @@ private fun BotHeadCard(r: BotReport) {
         if (r.failures.isNotEmpty()) {
             Notice(Bot.failuresTitle(r.failures.size) + r.failures.joinToString("") { "\n• ${it.symbol} — ${it.error}" }, Tone.WARN)
         }
+        Bot.extraFailuresText(r)?.let { Caption(it) }
     }
 }
 
@@ -257,22 +276,78 @@ fun BotGroupCard(g: BotGroupStat) {
     val s = { v: Double? -> ModelValidation.signedPct(v) }
     Card(title = g.label) {
         Caption(Bot.groupSubtitle(g))
+        Bot.dataLine(g)?.let { Caption(it) }
         Side {
             SideHead("buy", g.buy.verdict, g.buy.verdictLabel)
             Body(Bot.buyText(g.buy))
+            g.buy.clustered?.let { Caption(Bot.clusteredText(it, g.buy.tStat)) }
             KeyValue("Achats gagnants / jours gagnants", "${p(g.buy.hitRate)} / ${p(g.buy.baselineHitRate)}")
             KeyValue("Achats cumulés / détention (médianes)", "${s(g.buy.medianBotReturn)} / ${s(g.buy.medianHoldReturn)}")
         }
         Side {
             SideHead("sell", g.sell.verdict, g.sell.verdictLabel)
             Body(Bot.sellText(g.sell))
+            g.sell.clustered?.let { Caption(Bot.clusteredText(it, g.sell.tStat)) }
             KeyValue("Suivies d'une baisse / tous les jours", "${p(g.sell.fallRate)} / ${p(g.sell.baselineFallRate)}")
             KeyValue("Pire recul moyen ensuite / au hasard", "${s(g.sell.meanDrawdown)} / ${s(g.sell.baselineDrawdown)}")
+            Bot.exitText(g.sell.exit)?.let { Body(it) }
         }
         Side {
             SideHead("wait", null, null)
             Body(Bot.waitText(g.wait))
         }
+        if (g.selection.isNotEmpty()) {
+            Side {
+                Text("Modèle retenu à chaque réentraînement", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Bot.selectionRuns(g.selection).forEach { x ->
+                    Text(
+                        buildAnnotatedString {
+                            withStyle(SpanStyle(color = AltimColors.textSecondary)) { append(Bot.runPeriod(x)) }
+                            append(" ")
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(Bot.runChoice(x)) }
+                        },
+                        fontSize = 13.sp,
+                    )
+                }
+                Bot.liveModelText(g)?.let { Caption(it) }
+            }
+        }
+    }
+}
+
+/** Each candidate's own out-of-sample result (for information, never used to choose): stacked rows, no table. */
+@Composable
+fun BotCandidatesCard(g: BotGroupStat) {
+    Card(title = g.label) {
+        g.candidates.forEach { c -> Side { CandidateRow(c) } }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CandidateRow(c: BotCandidateStat) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+        Text(c.label, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+        Badge(Bot.candidateChosenText(c), Tone.NEUTRAL)
+    }
+    if (c.description.isNotBlank()) Caption(c.description)
+    listOf(Bot.candidateBuyRow(c), Bot.candidateSellRow(c), Bot.candidateSkillRow(c)).forEach { (k, v) -> KeyValue(k, v) }
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        VerdictChip(c.buy.verdict ?: "unproven", Bot.prefixedVerdict("Achats", c.buy.verdictLabel))
+        VerdictChip(c.sell.verdict ?: "unproven", Bot.prefixedVerdict("Ventes", c.sell.verdictLabel))
+    }
+}
+
+/** The last 12 months, or the extra training assets: the same figures, shorter. */
+@Composable
+fun BotSubResult(title: String, note: String, st: BotStatsLike) {
+    Card(title = title) {
+        Caption(note)
+        SideHead("buy", st.buy.verdict, st.buy.verdictLabel)
+        Body(Bot.buyText(st.buy))
+        SideHead("sell", st.sell.verdict, st.sell.verdictLabel)
+        Body(Bot.sellText(st.sell))
+        Bot.exitText(st.sell.exit)?.let { Caption(it) }
     }
 }
 

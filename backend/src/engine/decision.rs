@@ -2078,7 +2078,9 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     let regime_candles = if inp.long.len() > inp.daily.len() { inp.long } else { inp.daily };
     // « Bot Altim »: only the side (buy or sell) with an out-of-sample edge moves the confidence of a buy-side verdict,
     // by a few points; the validation's cap below still applies. Never changes the verdict or a veto.
-    let bot = bot_view(inp.bot, inp.symbol, inp.kind, regime_candles, inp.now);
+    let bot_market =
+        inp.benchmarks.iter().find(|b| b.symbol == super::bot::BotGroup::of(inp.kind).market()).map(|b| b.daily.as_slice()).unwrap_or(&[]);
+    let bot = bot_view(inp.bot, inp.symbol, inp.kind, regime_candles, bot_market, inp.now);
     if bullish && bot.nudge() != 0.0 {
         conf = (conf + bot.nudge()).clamp(0.0, 100.0);
         conf_text.push_str(&format!(
