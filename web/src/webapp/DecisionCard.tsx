@@ -6,7 +6,7 @@ import {
   pct, RATING_UI, recentVerdict, REGIME_UI, riskRewardText, SCENARIO_UI, shortDateTime, signedScore, sortVetoes, STEP_UI, summaryFamilies, UNCERTAINTY_LABEL,
   usd, usdCompact,
   type ActionZones, type Bias, type CheckState, type CompositeScore, type CounterArgument, type CryptoFundamentals, type Decision, type Family,
-  type NoTrade, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals, type Structure,
+  type ModelEvidence, type NoTrade, type PersonalInput, type RatioHistory, type StablecoinFlows, type StockFundamentals, type Structure,
 } from "./decision";
 import { latestChange, transitionTitle, useTransitions, type ConfigTransition } from "./config-changes";
 import { TrackDetails } from "./TrackDetails";
@@ -14,6 +14,7 @@ import { AgendaEvent } from "./Agenda";
 import { dayLabel } from "./calendar";
 import { SimulateBuy } from "./PaperOrder";
 import { useAppState } from "./store";
+import { onLink } from "./router";
 
 // ---------- Small building blocks ----------
 
@@ -464,6 +465,26 @@ const CHECK_UI: Record<CheckState, { icon: string; label: string }> = {
 
 export type DecisionStatus = { kind: "fresh" } | { kind: "refreshing"; at: number } | { kind: "stale"; at: number; offline: boolean; error: string };
 
+const PROOF_TONE: Record<string, string> = { edge: "edge", unproven: "unproven", insufficient: "unproven", negative: "weak" };
+
+/** « Preuve du modèle »: the cross-asset validation of the signal on this asset's class, next to the confidence. */
+export function EvidenceLine({ e }: { e: ModelEvidence }) {
+  const tone = !e.available ? "na" : e.weak ? "weak" : PROOF_TONE[e.classVerdict ?? ""] ?? "unproven";
+  return (
+    <div className={`dec-proof ${tone}`}>
+      <p className="small dec-proof-head">
+        <b>Preuve du modèle</b>
+        {e.available && e.beatHold && <span className="dec-chip">bat la détention : {e.beatHold}</span>}
+      </p>
+      <p className="small">{e.text}</p>
+      <p className="small">
+        <a href={e.link || "/app/validation"} onClick={onLink} className="link">Voir la validation du modèle →</a>
+        {e.asOf != null && <span className="muted"> · calculée le {shortDateTime(e.asOf)}</span>}
+      </p>
+    </div>
+  );
+}
+
 export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate, change }: {
   d: Decision; status?: DecisionStatus; onRetry?: () => void;
   /** Shows "Simuler cet achat" (paper trading) with the live price when known. */
@@ -507,7 +528,9 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate,
         </div>
       </div>
       {rt && <p className="small">Verdict du plan : <b>{d.label}</b> <span className="muted">· la note résume verdict, niveau et confiance</span></p>}
+      {d.ratingReason && <p className="small muted">{d.ratingReason}</p>}
       <p className="muted small">{d.confidenceText}</p>
+      {d.modelEvidence && <EvidenceLine e={d.modelEvidence} />}
       <p className={`dec-mode ${d.mode === "personal" ? "personal" : ""}`}>{modeText(d.mode)}</p>
       {regime && (
         <p className="small">

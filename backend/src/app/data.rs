@@ -644,6 +644,8 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
     issues.extend(h4.quality.issues.iter().filter(|i| !d.quality.issues.contains(i)).cloned());
     let macro_ctx = z.as_ref().and_then(|z| z.macro_ctx.as_ref());
     let inputs = g.as_ref().map(|g| &g.inputs);
+    // Only a report some visit of /api/validation already computed: the decision never starts that heavy run.
+    let validation = crate::cache::peek::<crate::engine::validation::ValidationReport>(super::validation::CACHE_KEY, super::validation::KEEP_MS);
     let input = DecisionInput {
         symbol,
         kind,
@@ -677,6 +679,7 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         benchmarks: bench,
         score_weights,
         events,
+        validation: validation.as_deref(),
     };
     Ok(decide(&input))
 }
