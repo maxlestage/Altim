@@ -1,0 +1,421 @@
+package com.maxlestage.altim.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.maxlestage.altim.data.AppModel
+import com.maxlestage.altim.kit.AltimException
+import com.maxlestage.altim.kit.Asset
+import com.maxlestage.altim.kit.Bot
+import com.maxlestage.altim.kit.BotAssetRow
+import com.maxlestage.altim.kit.BotBucket
+import com.maxlestage.altim.kit.BotGroupStat
+import com.maxlestage.altim.kit.BotReport
+import com.maxlestage.altim.kit.BotResult
+import com.maxlestage.altim.kit.BotView
+import com.maxlestage.altim.kit.BotViews
+import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.ModelValidation
+import com.maxlestage.altim.kit.Tone
+import kotlinx.coroutines.delay
+
+// « Bot Altim » (web Bot.tsx): two logistic regressions trained on the validation's basket (/api/bot), tested
+// walk-forward on periods they had not seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets
+// (/api/bot/views). Stacked cards, wrapping chips, nothing wider than a 360 dp phone; the per-asset list keeps the
+// basket's order.
+
+/** Opens « Bot Altim » above the current screen (null where it cannot be opened, e.g. in the tests). */
+val LocalOpenBot = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/** Colours of the calibration bars: predicted, observed. */
+private val PredictedBar = AltimColors.cyan
+private val ObservedBar = AltimColors.warning
+
+/** Loads /api/bot (202 while the first training runs: asked again every 5 s), then the view of the watched assets. */
+@Composable
+fun BotScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onBack: () -> Unit) {
+    var report by remember { mutableStateOf<BotReport?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var pending by remember { mutableStateOf(false) }
+    var views by remember { mutableStateOf<BotViews?>(null) }
+    var viewsError by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        val client = model.client ?: return@LaunchedEffect
+        repeat(36) {
+            try {
+                when (val r = client.bot()) {
+                    is BotResult.Ready -> {
+                        report = r.report
+                        pending = false
+                        model.persistSession()
+                        return@LaunchedEffect
+                    }
+                    BotResult.Pending -> {
+                        pending = true
+                        delay(5_000)
+                    }
+                }
+            } catch (e: AltimException.Unauthorized) {
+                model.sessionLost()
+                return@LaunchedEffect
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                error = e.message ?: "Bot indisponible"
+                return@LaunchedEffect
+            }
+        }
+        error = "L'entraînement prend plus de temps que prévu. Revenez dans un instant."
+    }
+    val watchlist = model.watchlist
+    val ready = report != null
+    LaunchedEffect(ready, watchlist.joinToString(",") { it.id }) {
+        if (!ready || watchlist.isEmpty()) return@LaunchedEffect
+        val client = model.client ?: return@LaunchedEffect
+        try {
+            views = client.botViews(watchlist)
+            viewsError = null
+        } catch (e: AltimException.Unauthorized) {
+            model.sessionLost()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            viewsError = e.message ?: "indisponible"
+        }
+    }
+    BotAltimView(report, error, pending, modifier, watched = watchlist.isNotEmpty(), views = views, viewsError = viewsError, open = open, onBack = onBack)
+}
+
+/** The whole screen from its state (no server: also rendered by the tests). */
+@Composable
+fun BotAltimView(
+    report: BotReport?,
+    error: String?,
+    pending: Boolean,
+    modifier: Modifier = Modifier,
+    watched: Boolean = false,
+    views: BotViews? = null,
+    viewsError: String? = null,
+    open: (Asset) -> Unit = {},
+    onBack: () -> Unit = {},
+) {
+    var featuresOpen by rememberSaveable { mutableStateOf(false) }
+    Column(modifier.statusBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
+            Text("Bot Altim", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f).semantics { heading() })
+        }
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
+            item {
+                Caption(
+                    "Un modèle appris sur l'historique de 34 actifs fixés d'avance, qui dit ACHETER, ATTENDRE ou VENDRE à 20 jours. Il n'est jugé que sur des périodes qu'il n'avait " +
+                        "pas vues. Altim ne passe aucun ordre.",
+                )
+            }
+            error?.let { item { Notice("⚠ $it", Tone.WARN) } }
+            if (report == null && error == null) {
+                item { Card { Caption(if (pending) "Entraînement et test sur tout le panier en cours (environ une minute la première fois)…" else "Chargement…"); Loading() } }
+            }
+            if (report != null) {
+                val r = report
+                item { BotHeadCard(r) }
+                if (watched) item { WatchedViewsCard(views, viewsError, open) }
+                item {
+                    Card(title = "Comment il apprend et comment il est jugé") {
+                        Bulleted(r.method)
+                        Text(
+                            "${if (featuresOpen) "▾" else "▸"} Les ${r.features.size} mesures lues à chaque clôture",
+                            fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AltimColors.cyan,
+                            modifier = Modifier.fillMaxWidth().clickable(role = Role.Button) { featuresOpen = !featuresOpen }.padding(vertical = 6.dp),
+                        )
+                        if (featuresOpen) Bulleted(r.features.map { "${it.label} — ${it.help}" })
+                    }
+                }
+                item { Label("Résultats hors échantillon") }
+                items(r.groups, key = { "group-${it.id}" }) { BotGroupCard(it) }
+                item { Label("Calibration") }
+                item { Caption("Quand le bot annonce une probabilité, la fréquence observée ensuite devrait être proche. Chaque ligne : jours de test dont la probabilité tombait dans la tranche.") }
+                r.groups.forEach { g ->
+                    item(key = "cal-${g.id}-up") { CalibrationCard("${g.label} · hausse", g.calibrationUp, g.brierSkillUp) }
+                    item(key = "cal-${g.id}-down") { CalibrationCard("${g.label} · baisse", g.calibrationDown, g.brierSkillDown) }
+                }
+                item { Label("Actif par actif") }
+                item { Caption("Dans l'ordre du panier, jamais classés par performance. « Aujourd'hui » : avis du modèle entraîné sur tout l'historique connu.") }
+                items(r.assets, key = { "asset-${it.symbol}" }) { BotAssetRowView(it, open) }
+                item {
+                    Card(title = "Limites") {
+                        Bulleted(r.limits)
+                        Caption(Bot.sourceText(r))
+                        LocalOpenValidation.current?.let { openValidation ->
+                            Text(
+                                "Voir la validation du signal →",
+                                color = AltimColors.cyan, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = openValidation).padding(vertical = 6.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** ACHETER / ATTENDRE / VENDRE in its colour, "pas d'avis" without an action. */
+@Composable
+fun ActionChip(action: String?) {
+    val ui = Bot.actionUi(action)
+    if (ui == null) Badge("pas d'avis", Tone.NEUTRAL) else Badge(ui.label, ui.tone)
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BotHeadCard(r: BotReport) {
+    Card {
+        Text(r.headline, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Tile("Actifs", Bot.assetsTile(r))
+            Tile("Jours testés", ModelValidation.fr(r.overall.labelled.toDouble(), 0))
+            Tile("Achats / ventes", Bot.signalsTile(r))
+        }
+        Caption(Bot.parametersText(r))
+        if (r.failures.isNotEmpty()) {
+            Notice(Bot.failuresTitle(r.failures.size) + r.failures.joinToString("") { "\n• ${it.symbol} — ${it.error}" }, Tone.WARN)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SideHead(action: String, verdict: String?, label: String?) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+        ActionChip(action)
+        if (label != null) VerdictChip(verdict ?: "unproven", label)
+    }
+}
+
+@Composable
+private fun Body(text: String) = Text(text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+
+@Composable
+private fun Side(content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Color.White.copy(alpha = 0.08f)))
+        content()
+    }
+}
+
+/** One group: its ACHETER, VENDRE and ATTENDRE results out of sample, each against a random day. */
+@Composable
+fun BotGroupCard(g: BotGroupStat) {
+    val p = Bot::pct0
+    val s = { v: Double? -> ModelValidation.signedPct(v) }
+    Card(title = g.label) {
+        Caption(Bot.groupSubtitle(g))
+        Side {
+            SideHead("buy", g.buy.verdict, g.buy.verdictLabel)
+            Body(Bot.buyText(g.buy))
+            KeyValue("Achats gagnants / jours gagnants", "${p(g.buy.hitRate)} / ${p(g.buy.baselineHitRate)}")
+            KeyValue("Achats cumulés / détention (médianes)", "${s(g.buy.medianBotReturn)} / ${s(g.buy.medianHoldReturn)}")
+        }
+        Side {
+            SideHead("sell", g.sell.verdict, g.sell.verdictLabel)
+            Body(Bot.sellText(g.sell))
+            KeyValue("Suivies d'une baisse / tous les jours", "${p(g.sell.fallRate)} / ${p(g.sell.baselineFallRate)}")
+            KeyValue("Pire recul moyen ensuite / au hasard", "${s(g.sell.meanDrawdown)} / ${s(g.sell.baselineDrawdown)}")
+        }
+        Side {
+            SideHead("wait", null, null)
+            Body(Bot.waitText(g.wait))
+        }
+    }
+}
+
+/** Predicted vs realised per probability bucket: two thin bars per row, the numbers written next to them. */
+@Composable
+fun CalibrationCard(title: String, buckets: List<BotBucket>, skill: Double?) {
+    Card(title = title) {
+        Caption("Précision : ${Bot.skillText(skill)}.")
+        Bot.calibrationRows(buckets).forEach { b ->
+            Column(
+                Modifier.fillMaxWidth().semantics(mergeDescendants = true) { contentDescription = "Prévu ${Bot.pct0(b.predicted)}, observé ${Bot.pct0(b.realised)}" },
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+            ) {
+                Text(
+                    buildAnnotatedString {
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(b.label) }
+                        withStyle(SpanStyle(color = AltimColors.textSecondary)) { append(" · ${ModelValidation.fr(b.rows.toDouble(), 0)} jours") }
+                    },
+                    fontSize = 13.sp,
+                )
+                Text(Bot.bucketText(b), fontSize = 13.sp, color = Color.White.copy(alpha = 0.9f))
+                ThinBar(b.predicted, PredictedBar)
+                ThinBar(b.realised, ObservedBar)
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Key(PredictedBar)
+            Caption("prévu ·")
+            Key(ObservedBar)
+            Caption("observé")
+        }
+    }
+}
+
+@Composable
+private fun ThinBar(pct: Double?, color: Color) {
+    val shape = RoundedCornerShape(3.dp)
+    Box(Modifier.fillMaxWidth().height(5.dp).clip(shape).background(Color.White.copy(alpha = 0.05f))) {
+        val f = ((pct ?: 0.0) / 100).coerceIn(0.0, 1.0).toFloat()
+        if (f > 0f) Box(Modifier.fillMaxWidth(f).widthIn(min = 2.dp).fillMaxHeight().clip(shape).background(color))
+    }
+}
+
+@Composable
+private fun Key(color: Color) = Box(Modifier.width(14.dp).height(5.dp).clip(RoundedCornerShape(3.dp)).background(color))
+
+/** One asset of the basket: symbol and name (opens the asset), class, today's action, then its test results. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun BotAssetRowView(a: BotAssetRow, open: (Asset) -> Unit) {
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(AltimColors.surface.copy(alpha = 0.85f)).border(1.dp, Color.White.copy(alpha = 0.08f), shape)
+            .clickable(role = Role.Button, onClickLabel = "Ouvrir ${a.symbol}") { open(a.asset) }.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = AltimColors.cyan)) { append(a.symbol) }
+                    if (a.name.isNotBlank()) withStyle(SpanStyle(color = AltimColors.textSecondary, fontSize = 12.sp)) { append(" ${a.name}") }
+                },
+                fontSize = 15.sp,
+            )
+            Badge(ModelValidation.classShort(a.`class`), Tone.NEUTRAL)
+            ActionChip(a.now.action)
+        }
+        Text(Bot.todayText(a), fontSize = 13.sp, color = Color.White)
+        Caption(Bot.assetTestText(a))
+    }
+}
+
+/** Today's view of the watched assets (cached report only; nothing is trained here). */
+@Composable
+private fun WatchedViewsCard(views: BotViews?, error: String?, open: (Asset) -> Unit) {
+    Card(title = "Vos actifs aujourd'hui") {
+        if (error != null) Caption("Avis indisponibles ($error).")
+        if (views == null && error == null) Caption("Chargement…")
+        views?.views?.forEach { v -> ViewRow(v, open) }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ViewRow(v: BotView, open: (Asset) -> Unit) {
+    val kind = v.kind
+    Column(
+        Modifier.fillMaxWidth()
+            .then(if (kind != null) Modifier.clickable(role = Role.Button, onClickLabel = "Ouvrir ${v.symbol}") { open(Asset(v.symbol, kind, v.symbol)) } else Modifier)
+            .padding(vertical = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            Text(v.symbol, fontWeight = FontWeight.Bold, color = AltimColors.cyan, fontSize = 15.sp)
+            ActionChip(v.action)
+            Badge(if (v.counts) "compte" else "ne compte pas", if (v.counts) Tone.GOOD else Tone.NEUTRAL)
+        }
+        Caption(Bot.viewText(v))
+    }
+}
+
+/**
+ * « Bot Altim » in the decision (web DecisionCard.tsx `BotLine`): the learned model's action, its probabilities and
+ * whether it counts in this decision, with the link to the « Bot Altim » screen and the report's date.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun BotLine(b: BotView) {
+    val accent = when (b.tone) {
+        "edge" -> AltimColors.buy
+        "unproven" -> AltimColors.warning
+        else -> AltimColors.textSecondary
+    }
+    val shape = RoundedCornerShape(12.dp)
+    val openBot = LocalOpenBot.current
+    val shown = b.available && Bot.actionUi(b.action) != null
+    Row(
+        Modifier.fillMaxWidth().height(IntrinsicSize.Min).clip(shape)
+            .background(Color.White.copy(alpha = 0.03f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+    ) {
+        Box(Modifier.width(3.dp).fillMaxHeight().background(accent))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+                Text("Bot Altim", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.semantics { heading() })
+                if (shown) {
+                    ActionChip(b.action)
+                    Badge(if (b.counts) "compte" else "ne compte pas", Tone.NEUTRAL)
+                }
+            }
+            Text(if (shown) Bot.probabilitiesText(b) else b.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            if (b.contributions.isNotEmpty()) Caption(Bot.contributionsText(b))
+            if (b.note.isNotBlank()) Text(b.note, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = AltimColors.cyan, fontWeight = FontWeight.SemiBold)) { append("Voir le bot et ses résultats →") }
+                    b.asOf?.let { withStyle(SpanStyle(color = AltimColors.textSecondary)) { append(" · entraîné le ${Format.shortDateTime(it)}") } }
+                },
+                fontSize = 13.sp,
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (openBot != null) Modifier.clickable(role = Role.Button, onClick = openBot) else Modifier)
+                    .padding(vertical = 4.dp),
+            )
+        }
+    }
+}

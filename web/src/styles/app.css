@@ -866,6 +866,24 @@
 .val-asset p { margin: 4px 0 0; overflow-wrap: anywhere; }
 .val-asset-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .val-sym { color: var(--text); text-decoration: none; margin-right: auto; }
+/* « Bot Altim » */
+.chip.bot-action { font-weight: 700; letter-spacing: 0.04em; }
+.chip.bot-action.buy { border-color: rgba(57, 255, 136, 0.55); color: var(--buy); }
+.chip.bot-action.sell { border-color: rgba(255, 59, 92, 0.55); color: var(--sell); }
+.chip.bot-action.wait { border-color: rgba(255, 199, 51, 0.55); color: var(--warn); }
+.bot-side { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
+.bot-side > * { margin: 0; overflow-wrap: anywhere; }
+.bot-side-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bot-calib, .bot-views { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.bot-calib { gap: 14px; }
+.bot-calib li { display: grid; gap: 3px; }
+.bot-calib p { margin: 0; }
+.bot-views li > p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.bot-bars { display: grid; gap: 2px; }
+.bot-bars span, .bot-key { display: block; height: 5px; border-radius: 3px; }
+.bot-bars .pred, .bot-key.pred { background: var(--cyan); }
+.bot-bars .real, .bot-key.real { background: var(--warn); }
+.bot-key { display: inline-block; width: 14px; vertical-align: middle; }
 .validation .chip { margin: 0; }
 
 /* The 4 h technical signal as a direction (the verdict is the Décision card's). */

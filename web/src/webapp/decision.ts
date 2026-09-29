@@ -6,6 +6,7 @@
 import type { Kind } from "../engine/reliability";
 import type { CalendarEvent } from "./calendar";
 import { recordConfiguration } from "./config-changes";
+import { isBotView, type BotView } from "./model-bot";
 
 export type Verdict = "buy" | "buyZone" | "wait" | "noPosition" | "trim" | "sell";
 export type Level = "strong" | "moderate" | "waiting" | "highRisk" | "exit";
@@ -186,6 +187,8 @@ export interface Decision {
   /** Why the model's evidence lowered a strong rating (ACHAT FORT → ACHAT, VENTE FORTE → VENDRE); null otherwise. */
   ratingReason?: string | null;
   modelEvidence?: ModelEvidence;
+  /** « Bot Altim »: the learned model's ACHETER / ATTENDRE / VENDRE and whether it counts (only with an out-of-sample edge). */
+  bot?: BotView;
 }
 
 // ---------- Runtime check (a wrong answer shows an error instead of a broken card) ----------
@@ -236,6 +239,7 @@ export function parseDecision(raw: unknown): Decision {
   if (sn != null && !Array.isArray(sn.families)) throw bad("snapshot");
   const me = d.modelEvidence as ModelEvidence | null | undefined;
   if (me != null && (typeof me.available !== "boolean" || typeof me.text !== "string")) throw bad("modelEvidence");
+  if (d.bot != null && !isBotView(d.bot)) throw bad("bot");
   return d as unknown as Decision;
 }
 

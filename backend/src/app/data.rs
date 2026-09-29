@@ -130,7 +130,7 @@ pub async fn selection(h: Horizon, market: Kind) -> Result<Arc<ScreenResult>> {
     .await
 }
 
-/// Production: the daily selections, the coming days of the calendar and the model's validation are computed at
+/// Production: the daily selections, the coming days of the calendar, the model's validation and the bot are computed at
 /// start-up and every 25 minutes, so nobody waits.
 pub fn warm_selections() {
     tokio::spawn(async {
@@ -151,6 +151,9 @@ pub fn warm_selections() {
             // The model's validation (kept 12 h fresh), so every decision can show its evidence from the start.
             use super::validation as v;
             let _ = crate::cache::cached(v::CACHE_KEY, v::FRESH_MS, v::compute).await;
+            // The bot (same histories, now cached), so every decision can show its view.
+            use super::bot as b;
+            let _ = crate::cache::cached(b::CACHE_KEY, b::FRESH_MS, b::compute).await;
         }
     });
 }
@@ -661,6 +664,8 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
     let inputs = g.as_ref().map(|g| &g.inputs);
     // Only a report some visit of /api/validation already computed: the decision never starts that heavy run.
     let validation = crate::cache::peek::<crate::engine::validation::ValidationReport>(super::validation::CACHE_KEY, super::validation::KEEP_MS);
+    // Same for the bot: read from the cache only.
+    let bot = super::bot::cached_report();
     let input = DecisionInput {
         symbol,
         kind,
@@ -695,6 +700,7 @@ pub async fn decision_for(symbol: &str, kind: Kind, cost: Option<f64>, weights: 
         score_weights,
         events,
         validation: validation.as_deref(),
+        bot: bot.as_deref(),
     };
     Ok(decide(&input))
 }

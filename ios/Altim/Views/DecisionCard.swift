@@ -19,6 +19,7 @@ struct DecisionCard: View {
             Meter(label: "Confiance", value: decision.confidence, tone: decision.confidence >= 65 ? .good : decision.confidence >= 40 ? .warn : .bad)
             Text(decision.confidenceText).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             if let e = decision.modelEvidence { EvidenceBlockView(evidence: e) }
+            if let b = decision.bot { BotBlockView(bot: b) }
             lights
             modeLine
             if let r = decision.marketRegime { RegimeLine(regime: r) }

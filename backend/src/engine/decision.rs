@@ -31,9 +31,13 @@
 //! - « preuve du modèle » (`model_evidence.rs`, from an already-computed cross-asset validation only): weak evidence
 //!   on the asset's class caps the confidence at 60 and adds a con, unproven evidence adds the con, a strong rating
 //!   without an edge becomes a plain buy / sell; never raises anything, never changes the verdict.
+//! - « Bot Altim » (`bot.rs`, from an already-trained report only): when today's action (ACHETER / VENDRE) is on a
+//!   side with an out-of-sample edge, a pro or con and ± 3 confidence points on a buy-side verdict; otherwise shown
+//!   only. Never changes the verdict or a veto.
 use serde::{Deserialize, Serialize};
 
 use super::Evidence;
+use super::bot::{BotReport, bot_view};
 use super::decision_types::*;
 use super::fibonacci::{FibZone, Horizon, Swing, Trend as SwingTrend, ZoneStatus, fib_zones, level, weekly};
 use super::format::format_price;
@@ -151,6 +155,8 @@ pub struct DecisionInput<'a> {
     pub events: Option<Vec<CalendarEvent>>,
     /// Cross-asset validation report already in the cache (never computed for a decision); None = not computed yet.
     pub validation: Option<&'a ValidationReport>,
+    /// « Bot Altim » report already in the cache (never computed for a decision); None = not computed yet.
+    pub bot: Option<&'a BotReport>,
 }
 
 // ---------- Formatting ----------
@@ -2069,8 +2075,20 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     if bullish && expo.as_ref().is_some_and(|e| e.warning.is_some()) {
         conf = (conf - 10.0).max(0.0);
     }
-    // Cross-asset validation of the signal: may lower the confidence, never raise it.
     let regime_candles = if inp.long.len() > inp.daily.len() { inp.long } else { inp.daily };
+    // « Bot Altim »: only the side (buy or sell) with an out-of-sample edge moves the confidence of a buy-side verdict,
+    // by a few points; the validation's cap below still applies. Never changes the verdict or a veto.
+    let bot = bot_view(inp.bot, inp.symbol, inp.kind, regime_candles, inp.now);
+    if bullish && bot.nudge() != 0.0 {
+        conf = (conf + bot.nudge()).clamp(0.0, 100.0);
+        conf_text.push_str(&format!(
+            " Bot Altim : {} point{} ({}, avantage hors échantillon sur ce côté).",
+            if bot.nudge() > 0.0 { format!("+{}", fr(bot.nudge(), 0, 0)) } else { format!("−{}", fr(-bot.nudge(), 0, 0)) },
+            if bot.nudge().abs() >= 2.0 { "s" } else { "" },
+            bot.action_label.as_deref().unwrap_or("")
+        ));
+    }
+    // Cross-asset validation of the signal: may lower the confidence, never raise it.
     let evidence = model_evidence(inp.validation, inp.symbol, inp.kind, regime_candles, inp.now);
     let capped = evidence.cap_confidence(conf);
     if capped < conf {
@@ -2147,6 +2165,9 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     }
     if let Some(c) = evidence.con() {
         cons.push(c);
+    }
+    if let Some((pro, line)) = bot.line(inp.cost.is_some()) {
+        if pro { pros.push(line) } else { cons.push(line) }
     }
     if pros.is_empty() {
         pros.push("Aucun argument favorable net parmi les familles mesurées".into());
@@ -2257,6 +2278,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         counter_argument,
         snapshot,
         model_evidence: evidence,
+        bot,
     }
 }
 

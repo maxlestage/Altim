@@ -80,7 +80,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation", "/api/bot", "/api/bot/views")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -283,6 +283,17 @@ class AltimClient(
         if (status == 202 || (status == 200 && ModelValidation.isPending(body))) return ValidationResult.Pending
         return ValidationResult.Ready(decode(ValidationReport.serializer(), body, status))
     }
+
+    /** « Bot Altim »: 202 while the first training runs (come back in 5 s), then the report (cached 12 h by the server). */
+    suspend fun bot(): BotResult {
+        val (status, body) = authorized(request(Bot.PATH))
+        if (status == 202 || (status == 200 && Bot.isPending(body))) return BotResult.Pending
+        return BotResult.Ready(decode(BotReport.serializer(), body, status))
+    }
+
+    /** Today's view of the bot for these assets (20 at most), from the server's cached report only. */
+    suspend fun botViews(assets: List<Asset>): BotViews =
+        if (assets.isEmpty()) BotViews() else get(Bot.VIEWS_PATH, Bot.viewsQuery(assets), BotViews.serializer())
 
     /** Unusual readings on one asset (volume, price/volume, z-score; OKX derivatives for a crypto). */
     suspend fun anomalies(a: Asset): AnomalyReport =

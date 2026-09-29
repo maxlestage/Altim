@@ -187,6 +187,7 @@ fun DecisionView(d: Decision, expanded: Boolean = false, onSimulate: (() -> Unit
         Meter("Confiance du modèle", d.confidence, if (d.confidence >= 65) Tone.GOOD else if (d.confidence >= 40) Tone.WARN else Tone.BAD)
         if (d.confidenceText.isNotBlank()) Caption(d.confidenceText)
         d.modelEvidence?.let { EvidenceLine(it) }
+        d.bot?.let { BotLine(it) }
 
         if (d.families.isNotEmpty()) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

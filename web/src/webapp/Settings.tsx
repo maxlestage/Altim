@@ -122,6 +122,12 @@ export function Settings() {
       </div>
 
       <div className="card">
+        <h2 className="card-title">Bot Altim</h2>
+        <p className="muted small">Un modèle appris qui dit ACHETER, ATTENDRE ou VENDRE, jugé seulement sur des périodes qu'il n'avait pas vues, avec ses résultats réels et ses limites.</p>
+        <a href="/app/bot" onClick={onLink} className="btn btn-ghost">Voir le bot</a>
+      </div>
+
+      <div className="card">
         <h2 className="card-title">Comprendre</h2>
         <p className="muted small">Signal, zone d'achat, stop, volatilité, flat tax… les mots d'Altim expliqués simplement.</p>
         <a href="/app/lexique" onClick={onLink} className="btn btn-ghost">Ouvrir le lexique</a>
