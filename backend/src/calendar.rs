@@ -374,10 +374,16 @@ pub mod parse {
     /// releases of the followed countries only, same-name rows merged.
     pub fn economic(d: &Value, day: NaiveDate) -> Result<Vec<CalendarEvent>> {
         let rows = nasdaq_rows(d, &[])?;
-        // Weekly jobless claims come out on Thursdays (Wednesday in a holiday week): anywhere else, the day offset
-        // of the source has changed and every date would be wrong, so the day fails instead of being shown.
+        // Weekly jobless claims come out on Thursdays, on the Wednesday only when that Thursday is a federal holiday
+        // (Thanksgiving, Christmas, New Year…): anywhere else, the day offset of the source has changed and every
+        // date would be wrong, so the day fails instead of being shown.
         let claims = rows.iter().any(|r| get(r, "eventName").as_str().is_some_and(|n| n.trim() == "Initial Jobless Claims"));
-        if claims && !matches!(day.weekday(), chrono::Weekday::Wed | chrono::Weekday::Thu) {
+        let claims_day = match day.weekday() {
+            chrono::Weekday::Thu => true,
+            chrono::Weekday::Wed => day.succ_opt().is_some_and(us_federal_holiday),
+            _ => false,
+        };
+        if claims && !claims_day {
             return err(format!("calendrier économique Nasdaq : dates décalées pour le {}", ymd(day)));
         }
         let mut groups: indexmap::IndexMap<(String, String, String), Vec<&Value>> = indexmap::IndexMap::new();
@@ -408,6 +414,16 @@ pub mod parse {
             out.push(e);
         }
         Ok(out)
+    }
+
+    /// US federal holidays that can fall on a Thursday and move the jobless claims to the Wednesday: New Year's Day,
+    /// Juneteenth, Independence Day, Veterans Day, Christmas (fixed dates, not moved when on a Thursday) and
+    /// Thanksgiving (fourth Thursday of November).
+    pub fn us_federal_holiday(d: NaiveDate) -> bool {
+        let (m, day) = (d.month(), d.day());
+        let fixed = matches!((m, day), (1, 1) | (6, 19) | (7, 4) | (11, 11) | (12, 25));
+        let thanksgiving = m == 11 && d.weekday() == chrono::Weekday::Thu && (22..=28).contains(&day);
+        fixed || thanksgiving
     }
 
     /// Nasdaq's economic calendar answers `?date=D` with the releases of the day before D (checked on 28/09/2026:

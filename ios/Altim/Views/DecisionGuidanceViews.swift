@@ -199,3 +199,47 @@ struct ScenarioChecksView: View {
         }
     }
 }
+
+/// « Preuve du modèle »: the cross-asset validation of the signal on this asset's class, under the confidence, with the
+/// link to « Validation du modèle » (same texts as the web's `EvidenceLine`). The chip and the texts wrap: nothing
+/// scrolls sideways. The edge's colour repeats what the text says, never carries the meaning alone.
+struct EvidenceBlockView: View {
+    let evidence: ModelEvidence
+
+    private var edgeColor: Color {
+        switch evidence.tone {
+        case .na: return Theme.textSecondary
+        case .weak: return Color(red: 1.0, green: 0x9F / 255, blue: 0x43 / 255)
+        case .unproven: return Theme.warning
+        case .edge: return Theme.buy
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            WrapLayout(spacing: 8) {
+                Text(ModelEvidence.title).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                if let chip = evidence.beatHoldChip { TagChip(text: chip, color: .white.opacity(0.9)) }
+            }
+            Text(evidence.text).font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            NavigationLink {
+                ValidationView()
+            } label: {
+                (Text(ModelEvidence.linkText).foregroundStyle(Theme.cyan)
+                    + Text(evidence.asOfText ?? "").foregroundStyle(Theme.textSecondary))
+                    .font(.caption)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+        .padding(.leading, 13)
+        .padding(.trailing, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.03))
+        .overlay(alignment: .leading) { Rectangle().fill(edgeColor).frame(width: 3) }
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Color.white.opacity(0.12), lineWidth: 1))
+    }
+}

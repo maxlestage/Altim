@@ -80,7 +80,7 @@ import com.maxlestage.altim.kit.HoldingChange
 import com.maxlestage.altim.kit.TradeJournal
 import com.maxlestage.altim.kit.Portfolio
 import com.maxlestage.altim.kit.PortfolioLine
-import com.maxlestage.altim.kit.RadarRow
+import com.maxlestage.altim.kit.ConfigSnapshot
 import com.maxlestage.altim.kit.SearchItem
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.async
@@ -89,14 +89,13 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 
 /**
- * Portfolio: value at live prices, gain / loss, concentration, and the daily signal of each line.
- * The lines stay on this phone; only the symbols are sent to the server to get prices and signals.
+ * Portfolio: value at live prices, gain / loss, concentration, and the full decision last seen for each line (never the
+ * technical signal alone). The lines stay on this phone; only the symbols are sent to the server to get prices.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     val quotes = remember { mutableStateMapOf<String, Double>() }
-    val signals = remember { mutableStateMapOf<String, RadarRow>() }
     var error by remember { mutableStateOf<String?>(null) }
     var form by remember { mutableStateOf<Holding?>(null) }
     var adding by remember { mutableStateOf(false) }
@@ -121,7 +120,6 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
         } catch (e: Exception) {
             error = e.message
         }
-        runCatching { client.radar(assets, "1d") }.getOrNull()?.forEach { signals[it.id] = it }
         val benchmarks = assets.map { it.kind }.distinct().map { PortfolioRisk.benchmark(it) }.filter { b -> assets.none { it.id == b.id } }
         coroutineScope {
             (assets + benchmarks).map { a -> async { a.id to runCatching { client.candles(a, "1d").candles }.getOrNull() } }.awaitAll()
@@ -209,7 +207,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                     }
                 }
                 items(portfolio.lines, key = { it.holding.id }) { line ->
-                    LineRow(line, signals[line.holding.asset.id], dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = line.holding }) {
+                    LineRow(line, model.radarDecision(line.holding.asset), dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = line.holding }) {
                         model.updateHoldings(model.holdings.filterNot { it.id == line.holding.id })
                     }
                 }
@@ -280,7 +278,7 @@ private class RiskView(
 )
 
 @Composable
-private fun LineRow(line: PortfolioLine, signal: RadarRow?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun LineRow(line: PortfolioLine, decision: ConfigSnapshot?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val h = line.holding
     val shape = RoundedCornerShape(14.dp)
     Column(
@@ -299,7 +297,8 @@ private fun LineRow(line: PortfolioLine, signal: RadarRow?, danger: Danger?, onO
                 val gp = line.gainPercent
                 if (gp != null) ChangeText(gp) else line.weight?.let { Text("${Math.round(it)} %", fontSize = 12.sp, color = AltimColors.textSecondary) }
             }
-            signal?.signal?.let { ActionBadge(it.action) }
+            // The asset's full decision when seen less than 12 h ago (Radar or asset page); nothing otherwise.
+            decision?.let { DecisionBadge(it) }
             Column {
                 IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Edit, contentDescription = "Modifier ${h.asset.symbol}", tint = AltimColors.violet, modifier = Modifier.size(18.dp)) }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Delete, contentDescription = "Supprimer ${h.asset.symbol}", tint = AltimColors.sell, modifier = Modifier.size(18.dp)) }

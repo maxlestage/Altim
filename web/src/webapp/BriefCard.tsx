@@ -54,7 +54,7 @@ export function BriefCard() {
           ))}
         </ul>
       )}
-      <p className="muted small">Achetable = signal 4 h à l'achat ou prix dans une zone d'achat Fibonacci, sans blocage (la règle des notifications). Variations depuis la dernière clôture journalière. Conseil indicatif : Altim ne passe aucun ordre.</p>
+      <p className="muted small">Achetable = la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (la règle des notifications) ; tant qu'elle n'est pas calculée, rien n'est annoncé. Variations depuis la dernière clôture journalière. Conseil indicatif : Altim ne passe aucun ordre.</p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ACTION_LABEL, analyze, ema, type Candle, type Signal } from "../engine/signal";
+import { analyze, ema, type Candle, type Signal } from "../engine/signal";
+import { technicalText } from "../webapp/ui";
 import { COINS, fetchCandles, formatPrice, type Interval, type SourceStatus } from "../market";
 import { useReveal } from "../hooks";
 
@@ -42,12 +43,14 @@ export function LiveSignal() {
   return (
     <section className="section live reveal" id="live" ref={ref}>
       <div className="section-head">
-        <p className="eyebrow">Signal en direct</p>
+        <p className="eyebrow">Signal technique en direct</p>
         <h2>
           Le moteur Altim tourne <span className="gradient">dans votre navigateur</span>
         </h2>
         <p className="muted">
-          Même algorithme que l'application (vérifié par des tests automatiques), appliqué aux dernières bougies clôturées.
+          Le signal technique de l'application (vérifié par des tests automatiques), appliqué aux dernières bougies
+          clôturées. Dans l'application, ce n'est qu'un indice parmi d'autres : la décision y ajoute les interdictions
+          d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.
         </p>
       </div>
 
@@ -95,7 +98,7 @@ export function LiveSignal() {
               <div className="signal-top">
                 <Gauge score={signal.score} />
                 <div className="signal-meta">
-                  <span className={`badge big ${kind(signal)}`}>{ACTION_LABEL[signal.action]}</span>
+                  <span className={`badge big ${kind(signal)}`}>Technique : {technicalText(signal.action)}</span>
                   <span className="mono">{formatPrice(signal.price)} $</span>
                   <small className="muted">confiance {Math.round(signal.confidence)} %</small>
                 </div>

@@ -56,6 +56,8 @@ data class ConfigSnapshot(
     val rating: Rating? = null,
     val ratingLabel: String? = null,
     val metrics: SignalMetrics? = null,
+    /** The decision's confidence (0–100), for the Radar's order and its opportunities; absent from older entries. */
+    val confidence: Double? = null,
 )
 
 @Serializable
@@ -229,6 +231,7 @@ object ConfigChanges {
         rating = d.rating,
         ratingLabel = d.rating?.let { r -> d.ratingLabel.ifBlank { r.label } },
         metrics = metricsOf(d),
+        confidence = fin(d.confidence),
     )
 
     fun snapshotKey(kind: Kind, symbol: String, personal: Boolean) = "${kind.raw}:$symbol:${if (personal) "p" else "i"}"

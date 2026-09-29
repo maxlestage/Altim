@@ -18,6 +18,8 @@ import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.ConfigChanges
 import com.maxlestage.altim.kit.ConfigNotices
+import com.maxlestage.altim.kit.ConfigSnapshot
+import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.DangerNotices
 import com.maxlestage.altim.kit.RiskPortfolio
 import com.maxlestage.altim.kit.ConfigTransition
@@ -228,6 +230,10 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         prefs.edit().putString(ConfigChanges.KEY, ConfigChanges.encode(u.state)).apply()
         return u.transition
     }
+
+    /** The full decision last seen for this asset (Radar badge, less than 12 h old), from the stored configurations. */
+    fun radarDecision(asset: Asset, now: Double = System.currentTimeMillis().toDouble()): ConfigSnapshot? =
+        RadarDecisions.cached(configChanges, asset, now)
 
     fun clearTransitions() {
         configChanges = configChanges.copy(transitions = emptyList())

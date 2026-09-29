@@ -32,6 +32,14 @@ static STORE: LazyLock<Mutex<Store>> = LazyLock::new(|| Mutex::new(Store { map: 
 const STALE_MAX: i64 = 10 * 60_000;
 /// Bound on the number of keys (every symbol asked creates some): the oldest ones are dropped beyond it.
 const MAX_KEYS: usize = 5_000;
+/// Keys holding years of candles or a full per-asset report weigh far more than the others: a tighter bound for
+/// them, so walking many symbols cannot fill the dyno's memory before `MAX_KEYS` is reached.
+const HEAVY_PREFIXES: [&str; 6] = ["long:", "strategies:", "anomalies:", "why:", "okx:", "extras:"];
+const MAX_HEAVY_KEYS: usize = 400;
+
+fn heavy(key: &str) -> bool {
+    HEAVY_PREFIXES.iter().any(|p| key.starts_with(p))
+}
 
 /// Value of `key`, loaded with `load` when older than `ttl_ms`. The load runs on its own task: a visitor who
 /// leaves does not cancel it for the others.
@@ -81,6 +89,16 @@ where
                     old.sort();
                     for (_, k) in old.into_iter().take(MAX_KEYS / 10) {
                         store.map.remove(&k);
+                    }
+                }
+                if heavy(key) && !store.map.contains_key(key) {
+                    let mut old: Vec<(u64, String)> =
+                        store.map.iter().filter(|(k, e)| heavy(k) && e.pending.is_none()).map(|(k, e)| (e.seq, k.clone())).collect();
+                    if old.len() >= MAX_HEAVY_KEYS {
+                        old.sort();
+                        for (_, k) in old.into_iter().take(MAX_HEAVY_KEYS / 10) {
+                            store.map.remove(&k);
+                        }
                     }
                 }
                 store.seq += 1;

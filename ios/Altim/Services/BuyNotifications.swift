@@ -105,14 +105,39 @@ enum BuyNotifications {
         }
     }
 
+    private static let privateCategory = "altim.private"
+    private static var categoryRegistered = false
+
+    /// The category of the portfolio notices: when previews are hidden, "Altim : ouvrez l'app pour le détail".
+    private static func registerPrivateCategory() {
+        guard !categoryRegistered else { return }
+        categoryRegistered = true
+        let center = UNUserNotificationCenter.current()
+        let id = privateCategory
+        let category = UNNotificationCategory(
+            identifier: id,
+            actions: [],
+            intentIdentifiers: [],
+            hiddenPreviewsBodyPlaceholder: "Ouvrez Altim pour le détail",
+            options: []
+        )
+        center.getNotificationCategories { existing in
+            center.setNotificationCategories(existing.filter { $0.identifier != id }.union([category]))
+        }
+    }
+
     /// A notification whose texts (disclaimer included) come from AltimKit; a tap opens its asset when it has one.
     private static func post(_ n: LocalNotice, thread: String, urgent: Bool) async {
+        registerPrivateCategory()
         let content = UNMutableNotificationContent()
         content.title = n.title
         content.body = n.body
         content.sound = .default
         content.threadIdentifier = thread
-        content.interruptionLevel = urgent ? .timeSensitive : .active
+        // Previews hidden (lock screen, watch): a neutral line instead of the body.
+        content.categoryIdentifier = privateCategory
+        // No time-sensitive entitlement in the project: iOS would downgrade it anyway.
+        content.interruptionLevel = .active
         if let asset = n.asset { content.userInfo = ["asset": asset] }
         try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: n.id, content: content, trigger: nil))
     }

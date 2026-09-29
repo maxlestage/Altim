@@ -88,7 +88,7 @@ final class ChangeNoticesTests: XCTestCase {
         let r = ChangeNotices.dangerNotice([d], state: ChangeNoticeState(), now: 1000)
         let n = try XCTUnwrap(r.notice)
         XCTAssertEqual(n.title, "⚠ Position devenue dangereuse : BTC")
-        XCTAssertEqual(n.body, "BTC : Raison stop_broken.\n\(ChangeNotices.dangerAdvice)")
+        XCTAssertEqual(n.body, "BTC : stop cassé.\n\(ChangeNotices.dangerDetail)\n\(ChangeNotices.dangerAdvice)")
         XCTAssertEqual(n.asset, "crypto:BTC")
         XCTAssertEqual(r.state.dangerActive, ["L1:stop_broken"])
         // Still dangerous at the next checks: nothing more.
@@ -108,7 +108,8 @@ final class ChangeNoticesTests: XCTestCase {
         let r = ChangeNotices.dangerNotice([danger("L1", "BTC", [.stopBroken, .lossOverRisk]), danger("L2", "ETH", [.lossOverRisk])], state: first, now: 10)
         let n = try XCTUnwrap(r.notice)
         XCTAssertEqual(n.title, "⚠ Positions devenues dangereuses : BTC, ETH")
-        XCTAssertEqual(n.body, "BTC : Raison stop_broken. Raison loss_over_risk.\nETH : Raison loss_over_risk.\n\(ChangeNotices.dangerAdvice)")
+        XCTAssertEqual(n.body, "BTC : stop cassé ; perte au-delà de votre risque par idée.\nETH : perte au-delà de votre risque par idée.\n\(ChangeNotices.dangerDetail)\n\(ChangeNotices.dangerAdvice)")
+        XCTAssertFalse(n.body.contains("$"), "no amount in a notification")
         XCTAssertNil(n.asset)
         // A line still dangerous for an old reason only is not listed.
         let s = ChangeNotices.dangerNotice([danger("L1", "BTC", [.stopBroken]), danger("L2", "ETH", [.lossOverRisk]), danger("L3", "SOL", [.nearStop])],

@@ -219,3 +219,33 @@ describe("rating, score, degraded signal and structure", () => {
     expect(h.indexOf("ACHAT FORT")).toBeLessThan(h.indexOf("Verdict du plan"));
   });
 });
+
+describe("« Preuve du modèle »", () => {
+  const evidence = {
+    available: true, assetClass: "stock", classLabel: "Actions et ETF américains", classVerdict: "edge",
+    classVerdictLabel: "Gain moyen positif (t ≥ 2), à confirmer", assets: 22, beatHoldCount: 2, beatHold: "2/22", trades: 650, tStat: 2.18,
+    regime: "range", regimeLabel: "marché sans tendance", regimeVerdict: "edge", regimeTrades: 88, regimeTStat: 2.69, weak: true,
+    text: "Sur les actions et ETF testés (22), gain moyen positif par trade (t = 2,2) mais la simple détention a fait mieux dans 20 cas sur 22.",
+    asOf: Date.UTC(2026, 8, 29, 8), link: "/app/validation",
+  } as const;
+  test("shown next to the confidence, with the link to the validation screen", () => {
+    const d = { ...btc(), modelEvidence: { ...evidence }, ratingReason: "ACHAT plutôt que ACHAT FORT : la validation du modèle…" };
+    const h = renderToStaticMarkup(createElement(DecisionView, { d: parseDecision(clone(d)) }));
+    expect(h).toContain("Preuve du modèle");
+    expect(h).toContain("dec-proof weak");
+    expect(h).toContain("bat la détention : 2/22");
+    expect(h).toContain("la simple détention a fait mieux dans 20 cas sur 22");
+    expect(h).toContain('href="/app/validation"');
+    expect(h).toContain("ACHAT plutôt que ACHAT FORT");
+    expect(h.indexOf("Preuve du modèle")).toBeGreaterThan(h.indexOf("Confiance du modèle"));
+  });
+  test("not computed yet: said plainly; older answers: nothing", () => {
+    const na = { ...evidence, available: false, classVerdict: null, classVerdictLabel: null, beatHold: null, weak: false, asOf: null, text: "Validation pas encore calculée : …" };
+    const h = renderToStaticMarkup(createElement(DecisionView, { d: parseDecision(clone({ ...btc(), modelEvidence: na })) }));
+    expect(h).toContain("dec-proof na");
+    expect(h).toContain("Validation pas encore calculée");
+    expect(h).not.toContain("bat la détention");
+    expect(renderToStaticMarkup(createElement(DecisionView, { d: btc() }))).not.toContain("Preuve du modèle");
+    expect(() => parseDecision({ ...clone(btcRaw), modelEvidence: { available: "yes" } })).toThrow("modelEvidence");
+  });
+});

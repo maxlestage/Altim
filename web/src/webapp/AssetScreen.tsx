@@ -15,7 +15,7 @@ import { NoteCard } from "./NoteCard";
 import { zoneState } from "../engine/fibonacci";
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, useHoldings, type Interval } from "./store";
-import { ActionBadge, Change, Gauge, PriceChart, ReliabilityBadge, Segmented } from "./ui";
+import { Change, Gauge, PriceChart, ReliabilityBadge, Segmented, technicalText } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { adviseAsset } from "../engine/advice";
 import { analyzePortfolio, type MarketInput } from "../engine/holdings";
@@ -239,7 +239,8 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
       {data && (
         <div className="asset-grid">
           <div className="card chart-box">
-            <PriceChart candles={chartCandles} stop={signal && signal.action !== "hold" && signal.hasPlan ? signal.stopLoss : undefined} target={signal && signal.action !== "hold" && signal.hasPlan ? signal.takeProfit : undefined} trades={bt?.trades} />
+            {/* No stop/target drawn from the technical signal: the only plan is the Décision card's. */}
+            <PriceChart candles={chartCandles} trades={bt?.trades} />
             <div className="legend">
               <span><i className="l-price" /> Prix</span>
               <span><i className="l-e20" /> EMA 20</span>
@@ -249,12 +250,13 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
           </div>
 
           {signal ? (
-            <div className={`card signal-card ${signal.action.includes("uy") ? "buy" : signal.action.includes("ell") ? "sell" : ""}`}>
-              <h2 className="card-title">Signal Altim · {INTERVAL_LABEL[interval]}</h2>
+            <div className="card signal-card">
+              <h2 className="card-title">Signal technique · {INTERVAL_LABEL[interval]}</h2>
+              <p className="muted small">Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.</p>
               <div className="signal-top">
                 <Gauge score={signal.score} size={150} />
                 <div className="signal-meta">
-                  <ActionBadge action={signal.action} big />
+                  <b className={`tech-dir ${signal.action.includes("uy") ? "up" : signal.action.includes("ell") ? "down" : ""}`}>Tendance technique : {technicalText(signal.action)}</b>
                   <small className="muted">confiance {Math.round(signal.confidence)} %</small>
                   <small className="muted">bougie du {new Date(signal.time).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</small>
                 </div>
@@ -272,13 +274,6 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
                   </li>
                 ))}
               </ul>
-              {signal.action !== "hold" && signal.hasPlan && (
-                <div className="plan">
-                  <div><small>STOP</small><b className="sell">{formatPrice(signal.stopLoss)}</b></div>
-                  <div><small>ENTRÉE</small><b>{formatPrice(signal.price)}</b></div>
-                  <div><small>OBJECTIF</small><b className="buy">{formatPrice(signal.takeProfit)}</b></div>
-                </div>
-              )}
               {signal.warnings.map((w) => <p key={w} className="warn small">⚠ {w}</p>)}
             </div>
           ) : (

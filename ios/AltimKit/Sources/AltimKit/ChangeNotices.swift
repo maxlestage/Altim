@@ -126,13 +126,28 @@ public enum ChangeNotices {
         return (dangerText(lines, now: now), s)
     }
 
+    /// Label of a danger without any figure.
+    static func reasonLabel(_ code: DangerCode) -> String {
+        switch code {
+        case .stopBroken: return "stop cassé"
+        case .nearStop: return "prix à moins d'un ATR du stop"
+        case .lossOverRisk: return "perte au-delà de votre risque par idée"
+        }
+    }
+
+    static let dangerDetail = "Montants et niveaux dans Mes avoirs."
+
     /// "⚠ Position devenue dangereuse : BTC" (the Mes avoirs and Radar notices' wording), each line's reasons.
     static func dangerText(_ lines: [Danger], now: Double) -> LocalNotice {
         var seen = Set<String>()
         let symbols = lines.map(\.symbol).filter { seen.insert($0).inserted }
         let assets = Set(lines.map { "\($0.kind.rawValue):\($0.symbol)" })
         let title = "⚠ \(lines.count > 1 ? "Positions devenues dangereuses" : "Position devenue dangereuse") : \(symbols.joined(separator: ", "))"
-        let body = lines.map { "\($0.symbol) : \($0.reasons.map(\.text).joined(separator: " "))" } + [dangerAdvice]
+        // Reasons as fixed labels, never the amounts (loss in $, share of the wealth, stop level): a notification
+        // can show on the lock screen or a watch; the figures stay in Mes avoirs.
+        let body = lines.map { line in
+            "\(line.symbol) : \(line.reasons.map { reasonLabel($0.code) }.joined(separator: " ; "))."
+        } + [dangerDetail, dangerAdvice]
         return LocalNotice(id: "altim.danger.\(Int(now))", title: title, body: body.joined(separator: "\n"), asset: assets.count == 1 ? assets.first : nil)
     }
 }

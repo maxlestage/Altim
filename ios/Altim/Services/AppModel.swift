@@ -64,6 +64,8 @@ final class AppModel {
     var scoreWeights: ScoreWeights { didSet { defaults.set(try? JSONEncoder().encode(scoreWeights), forKey: "scoreWeights") } }
     /// Last decision seen per asset and the configuration changes (Radar), stored on the iPhone only.
     var configChanges: ConfigState { didSet { LocalStore.save(configChanges, "configChanges") } }
+    /// The last decision seen for each asset (its page or the Radar's re-reading): the Radar's verdict.
+    var decisionDigests: [String: DecisionDigest] { didSet { LocalStore.save(decisionDigests, "decisionDigests") } }
     /// Positions that became dangerous, last measured on Mes avoirs (shown again on the Radar with their time).
     var dangers: DangerState? { didSet { LocalStore.save(dangers, "dangers") } }
 
@@ -116,6 +118,7 @@ final class AppModel {
         scoreWeights = defaults.data(forKey: "scoreWeights").flatMap { try? JSONDecoder().decode(ScoreWeights.self, from: $0) } ?? .defaults
         // Damaged or older entries are dropped on reading (ConfigState validates each one).
         configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
+        decisionDigests = LocalStore.load([String: DecisionDigest].self, "decisionDigests") ?? [:]
         dangers = LocalStore.load(DangerState.self, "dangers")
         restore()
     }
@@ -184,6 +187,8 @@ final class AppModel {
         LocalStore.remove("lastAlerts")
         LocalStore.remove("newsTracker")
         lastAlerts = []
+        // Decisions of this server: another server would show them as its own.
+        decisionDigests = [:]
         await client?.logout()
         KeychainStore.clear()
         responseCache.clear()
@@ -353,6 +358,8 @@ final class AppModel {
     func recordDecision(_ d: Decision, personal: Bool, now: Date = Date()) -> ConfigTransition? {
         let ms = now.timeIntervalSince1970 * 1000
         recentDecisions["\(d.kind.rawValue):\(d.symbol)"] = (d, now)
+        let digests = DecisionDigests.record(decisionDigests, d, personal: personal, now: ms)
+        if digests != decisionDigests { decisionDigests = digests }
         guard ms - d.asOf < 3_600_000 else { return nil }
         let r = ConfigChanges.apply(configChanges, d, personal: personal, now: ms)
         configChanges = r.state
