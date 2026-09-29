@@ -306,8 +306,7 @@ pub fn zone_evidence(c: &[Candle], h: Horizon) -> Option<Evidence> {
 }
 
 fn px(v: f64) -> String {
-    let s = if v >= 1.0 { fr(v, 2, 2) } else { fr_sig(v, 4) };
-    format!("{s} $")
+    crate::fx::money_with(v, |v| if v >= 1.0 { fr(v, 2, 2) } else { fr_sig(v, 4) })
 }
 
 fn pct(v: f64) -> String {

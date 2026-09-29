@@ -80,7 +80,7 @@ class AltimClient(
         const val COOKIE_NAME = "altim_session"
 
         /** Paths whose last answer is kept for the offline mode (not the search nor the login). */
-        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation", "/api/bot", "/api/bot/views")
+        val CACHEABLE = setOf("/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation", "/api/bot", "/api/bot/views", "/api/fx")
 
         /** Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error. */
         @Volatile var retryDelaysMs = listOf(500L, 1_500L)
@@ -187,6 +187,12 @@ class AltimClient(
 
     // ---------- API ----------
 
+    /** The server writes its texts in euros when it has a rate; a client showing dollars asks for dollars (`cur=USD`). */
+    private fun cur(): Map<String, String> = if (Money.displayCurrency() == Currency.USD) mapOf("cur" to "USD") else emptyMap()
+
+    /** EUR/USD rate of the display (`GET /api/fx`: rate null with `error` when no source answered; never a default). */
+    suspend fun fx(): FxResponse = get("/api/fx", emptyMap(), FxResponse.serializer())
+
     suspend fun radar(assets: List<Asset>, interval: String = "4h"): List<RadarRow> =
         batched(assets) { get("/api/radar", mapOf("symbols" to list(it), "interval" to interval), ListSerializer(RadarRow.serializer())) }
 
@@ -203,7 +209,7 @@ class AltimClient(
         get("/api/guard", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), GuardReport.serializer())
 
     suspend fun zones(a: Asset): ZonesReport =
-        get("/api/zones", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), ZonesReport.serializer())
+        get("/api/zones", mapOf("symbol" to a.symbol, "kind" to a.kind.raw) + cur(), ZonesReport.serializer())
 
     suspend fun macro(): MacroInfo = get("/api/macro", emptyMap(), MacroInfo.serializer())
 
@@ -213,7 +219,7 @@ class AltimClient(
 
     /** "Point du jour" of these assets (the watch list and the holdings). */
     suspend fun brief(assets: List<Asset>): Brief =
-        get("/api/brief", mapOf("symbols" to list(assets.distinctBy { it.id }.take(20))), Brief.serializer())
+        get("/api/brief", mapOf("symbols" to list(assets.distinctBy { it.id }.take(20))) + cur(), Brief.serializer())
 
     /** Daily closes of these assets over 30, 90, 365 or 730 days, plus Bitcoin and SPY (the quantities stay on the phone). */
     suspend fun history(assets: List<Asset>, days: Int): HistoryResponse =
@@ -230,7 +236,7 @@ class AltimClient(
         weights?.takeIf { it.isNotBlank() }?.let { q["weights"] = it }
         // Composite score weights (Réglages), only when not the defaults: the request stays the same otherwise.
         scoreWeights?.param()?.let { q["w"] = it }
-        return get("/api/decision", q, Decision.serializer())
+        return get("/api/decision", q + cur(), Decision.serializer())
     }
 
     /**
@@ -262,7 +268,7 @@ class AltimClient(
 
     suspend fun alerts(assets: List<Asset>): List<BuyAlert> =
         if (assets.isEmpty()) emptyList()
-        else batched(assets) { get("/api/alerts", mapOf("symbols" to list(it)), ListSerializer(BuyAlert.serializer())) }
+        else batched(assets) { get("/api/alerts", mapOf("symbols" to list(it)) + cur(), ListSerializer(BuyAlert.serializer())) }
 
     suspend fun selection(h: Horizon, kind: Kind): SelectionResult {
         val (status, body) = authorized(request("/api/selection", mapOf("horizon" to h.raw, "kind" to kind.raw)))
@@ -297,7 +303,7 @@ class AltimClient(
 
     /** Unusual readings on one asset (volume, price/volume, z-score; OKX derivatives for a crypto). */
     suspend fun anomalies(a: Asset): AnomalyReport =
-        get("/api/anomalies", mapOf("symbol" to a.symbol, "kind" to a.kind.raw), AnomalyReport.serializer())
+        get("/api/anomalies", mapOf("symbol" to a.symbol, "kind" to a.kind.raw) + cur(), AnomalyReport.serializer())
 
     /** Sector of each stock (Nasdaq screener, SEC SIC code, ETF flag), 50 at most; plain stock symbols (AAPL,NVDA). */
     suspend fun sectors(symbols: List<String>): SectorsReport =

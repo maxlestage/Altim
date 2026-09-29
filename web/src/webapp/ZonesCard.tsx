@@ -3,7 +3,7 @@ import { weigh } from "../engine/guard";
 import { zoneState, type FibZone, type ZoneStatus } from "../engine/fibonacci";
 import type { MacroInfo, ZonesReport } from "./api";
 import type { HorizonPref } from "./store";
-import { formatPrice } from "../market";
+import { moneyPrice } from "../money";
 
 const STATUS: Record<ZoneStatus, { label: string; tone: "buy" | "hold" | "sell" | "unknown" }> = {
   above: { label: "Attendre le repli", tone: "hold" },
@@ -15,7 +15,7 @@ const STATUS: Record<ZoneStatus, { label: string; tone: "buy" | "hold" | "sell" 
   none: { label: "Pas de niveau net", tone: "unknown" },
 };
 const MACRO_LABEL = { calm: "Calme", tense: "Tendu", high: "Très tendu" } as const;
-const usd = (v: number) => `${formatPrice(v)} $`;
+const usd = (v: number) => moneyPrice(v);
 const pct = (v: number) => `${Math.round(v)} %`;
 
 function Evidence({ z }: { z: FibZone }) {

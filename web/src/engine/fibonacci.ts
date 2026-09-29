@@ -11,6 +11,7 @@
  * into the zone went back to the high before breaking the low, compared with random entries with the same
  * distances). No look-ahead: at each past candle, the move is recomputed with the data known at that time.
  */
+import { moneyFmt } from "../money";
 import { atr, sanitize, type Candle } from "./signal";
 import type { Evidence } from "./guard";
 
@@ -145,7 +146,7 @@ export function zoneEvidence(c: Candle[], h: Horizon): Evidence | null {
 }
 
 const px = (v: number) =>
-  `${v.toLocaleString("fr-FR", v >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 })} $`;
+  moneyFmt(v, (x) => x.toLocaleString("fr-FR", x >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 }), " ");
 const pct = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 
 /** Position of a price against the zones of an up move: status, distance to the zone, explanation. */

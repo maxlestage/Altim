@@ -325,7 +325,7 @@ public enum Paper {
     public static func open(_ s: PaperState, _ o: PaperOrder, now: Double) -> (state: PaperState, error: String?) {
         if !(o.price > 0) || !o.price.isFinite { return (s, "Prix indisponible.") }
         if !(o.amount > 0) || !o.amount.isFinite { return (s, "Montant invalide.") }
-        if o.amount > s.cash + 1e-9 { return (s, "Liquidités simulées insuffisantes (\(jsString(round(s.cash, 2))) $ disponibles).") }
+        if o.amount > s.cash + 1e-9 { return (s, "Liquidités simulées insuffisantes (\(Money.moneyFmt(s.cash, sep: " ") { jsString(round($0, 2)) }) disponibles).") }
         let entry = o.price * (1 + slippage)
         let stop = o.stop.flatMap { $0 > 0 && $0 < entry ? $0 : nil }
         let target = o.target.flatMap { $0 > entry ? $0 : nil }

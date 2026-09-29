@@ -30,7 +30,8 @@ struct WhatIfCard: View {
         return -v
     }
 
-    private var amount: Double? { PaperFormat.number(amountText).flatMap { $0.isFinite ? $0 : nil } }
+    /// Typed in the display currency; the engine works in dollars.
+    private var amount: Double? { PaperFormat.number(amountText).map(Money.fromDisplay).flatMap { $0.isFinite ? $0 : nil } }
 
     private func betas(_ factorCandles: [Candle]) -> [String: FactorBeta] {
         var b: [String: FactorBeta] = [:]
@@ -66,7 +67,7 @@ struct WhatIfCard: View {
                 }
             }
             field("Autre baisse (%)", text: $custom, placeholder: "ex. 15")
-            field("Montant simulé (USD, facultatif)", text: $amountText, placeholder: WhatIf.usd(portfolio.total))
+            field("Montant simulé (\(Money.symbol()), facultatif)", text: $amountText, placeholder: WhatIf.usd(portfolio.total))
             if let candles = factorCandles {
                 result(WhatIf.run(portfolio, factor: f, shock: eff, betas: betas(candles), amount: amount))
             } else if failed.contains(f.asset.id) {

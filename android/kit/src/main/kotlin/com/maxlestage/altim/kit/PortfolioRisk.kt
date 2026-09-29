@@ -365,7 +365,9 @@ object PortfolioRisk {
     // ---------- Limits of the user's settings ----------
 
     private fun fr(v: Double, d: Int = 1) = Format.plain(v, d)
-    private fun usd0(v: Double) = "${fr(abs(v), 0)} $"
+    private fun usd0(v: Double) = Format.amount(abs(v))
+    /** A dollar price in the display currency with up to 4 decimals ("140 €", "0,1234 €"). */
+    private fun px4(v: Double) = "${fr(Money.toDisplay(v), 4)} ${Money.symbol()}"
 
     /** Loss (USD) if the stop of the line is hit: the user's stop when set, else the protective stop of the analysis. */
     private fun lossAtStop(l: RiskLine, userStop: Double?): Double? {
@@ -458,9 +460,9 @@ object PortfolioRisk {
             val candles = daily[l.key].orEmpty()
             val range = if (candles.isNotEmpty()) atr(candles)[candles.size - 1] else null
             if (l.price != null && stop != null && stop > 0) {
-                if (l.price <= stop) reasons += DangerReason("stop_broken", "Stop cassé : cours ${fr(l.price, 4)} $ sous votre stop ${fr(stop, 4)} $.")
+                if (l.price <= stop) reasons += DangerReason("stop_broken", "Stop cassé : cours ${px4(l.price)} sous votre stop ${px4(stop)}.")
                 else if (range != null && range != 0.0 && l.price - stop <= range) {
-                    reasons += DangerReason("near_stop", "À moins d'une volatilité journalière (ATR ${fr(range, 4)} $) de votre stop ${fr(stop, 4)} $.")
+                    reasons += DangerReason("near_stop", "À moins d'une volatilité journalière (ATR ${px4(range)}) de votre stop ${px4(stop)}.")
                 }
             }
             val loss = l.invested?.let { it - l.value }

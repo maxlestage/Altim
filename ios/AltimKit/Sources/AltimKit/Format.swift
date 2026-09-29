@@ -1,6 +1,7 @@
 import Foundation
 
-/// French formatting, identical to the web app (web/src/market.ts): prices in dollars, signed percentages.
+/// French formatting, identical to the web app (web/src/market.ts): prices in the display currency (Money: the dollar
+/// amounts of the sources converted to euros at the current rate, "$" without a rate), signed percentages.
 public enum Format {
     private static func number(_ v: Double, min: Int, max: Int) -> String {
         let f = NumberFormatter()
@@ -14,16 +15,18 @@ public enum Format {
         return f.string(from: NSNumber(value: v)) ?? String(v)
     }
 
-    /// 2 decimals from 1 $, 4 from 0.01 $, 8 below (small cryptos).
+    /// A dollar price in the display currency: 2 decimals from 1, 4 from 0.01, 8 below (small cryptos).
     public static func price(_ v: Double?) -> String {
-        guard let v, v.isFinite else { return "—" }
+        guard let usd = v, usd.isFinite else { return "—" }
+        let v = Money.toDisplay(usd)
         let digits = abs(v) >= 1 ? 2 : abs(v) >= 0.01 ? 4 : 8
-        return "\(number(v, min: digits, max: digits)) $"
+        return "\(number(v, min: digits, max: digits)) \(Money.symbol())"
     }
 
-    /// Whole dollars from 100 $ (amounts, budgets).
-    public static func money(_ v: Double) -> String {
-        "\(number(v, min: 0, max: abs(v) >= 100 ? 0 : 2)) $"
+    /// A dollar amount in the display currency, whole from 100 (amounts, budgets).
+    public static func money(_ usd: Double) -> String {
+        let v = Money.toDisplay(usd)
+        return "\(number(v, min: 0, max: abs(v) >= 100 ? 0 : 2)) \(Money.symbol())"
     }
 
     /// +1,25 % / −0,40 % (true minus sign).
@@ -32,9 +35,13 @@ public enum Format {
         return "\(v >= 0 ? "+" : "−")\(number(abs(v), min: digits, max: digits)) %"
     }
 
-    /// Large amounts and counts: "421 Md$", "3,2 Md$", "38 M$", "19,9 M" (unit ""); below a million, whole numbers.
-    public static func large(_ v: Double?, unit: String = "$") -> String {
-        guard let v, v.isFinite else { return "—" }
+    /// Large amounts and counts: "421 Md€", "3,2 Md€", "38 M€", "19,9 M" (unit ""); below a million, whole numbers.
+    /// With the default unit "$" the dollar amount is shown in the display currency.
+    public static func large(_ value: Double?, unit: String = "$") -> String {
+        guard let value, value.isFinite else { return "—" }
+        let money = unit == "$"
+        let v = money ? Money.toDisplay(value) : value
+        let unit = money ? Money.symbol() : unit
         let a = abs(v)
         let n: String
         if a >= 1e9 {

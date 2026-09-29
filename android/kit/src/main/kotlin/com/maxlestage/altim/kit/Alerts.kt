@@ -21,6 +21,8 @@ data class BuyAlert(
     val title: String = symbol,
     val body: String = "Données indisponibles.",
     val error: String? = null,
+    /** Rate the server wrote [title] and [body] with (additive). */
+    val fx: FxInfo? = null,
 ) {
     val id: String get() = "${kind.raw}:$symbol"
     val asset: Asset get() = Asset(symbol, kind, name)

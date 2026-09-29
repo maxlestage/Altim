@@ -303,6 +303,8 @@ data class ZonesReport(
     val asOf: Double,
     val zones: List<FibZone> = emptyList(),
     val macro: MacroInfo? = null,
+    /** Rate the server wrote its texts with (additive). */
+    val fx: FxInfo? = null,
 )
 
 // ---------- Selection (which stocks / cryptos to buy) ----------

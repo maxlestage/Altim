@@ -1,3 +1,4 @@
+import { displayCurrency, money } from "../money";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { Segmented } from "./ui";
@@ -8,7 +9,7 @@ type Days = 30 | 90 | 365;
 const PERIODS: [string, string][] = [["30", "30 j"], ["90", "90 j"], ["365", "1 an"]];
 // Categorical palette validated for the allocation (dark surface, colour-blind readers): same entity, same colour.
 const COLORS = { portfolio: "#3987e5", "crypto:BTC": "#d95926", "stock:SPY": "#199e70" } as Record<string, string>;
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(v, 0, 0);
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const date = (t: number, year = false) => new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: year ? "numeric" : undefined, timeZone: "UTC" });
 
@@ -64,6 +65,7 @@ export function HistoryCard({ holdings }: { holdings: Holding[] }) {
             Valeur chaque jour des quantités que vous détenez aujourd'hui (cours de clôture, liquidités non comprises) : vos achats et ventes passés ne sont pas connus, ce n'est donc pas la
             performance de votre compte.{h.shortened ? " La courbe commence plus tard : une de vos lignes a un historique plus court." : ""}
             {h.missing.length ? ` Sans historique : ${h.missing.map((m) => m.split(":")[1]).join(", ")}.` : ""}
+            {displayCurrency() === "EUR" ? " Cours en dollars convertis au taux du jour, pas au taux de chaque date : l'effet de change passé n'est pas compté (les % restent exacts en dollars)." : ""}
           </p>
         </>
       )}

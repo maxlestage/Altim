@@ -9,7 +9,11 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 
-/** French formatting, identical to the web app (web/src/market.ts) and the iPhone app: prices in dollars, signed percentages. */
+/**
+ * French formatting, identical to the web app (web/src/market.ts, web/src/money.ts) and the iPhone app: amounts come
+ * in dollars (the sources' currency) and are shown in the display currency of [Money] (euros when chosen and a rate is
+ * known, "$" otherwise); signed percentages.
+ */
 object Format {
     private val FR = Locale.FRANCE
     private val PARIS = ZoneId.of("Europe/Paris")
@@ -28,15 +32,22 @@ object Format {
         return f.format(v)
     }
 
-    /** 2 decimals from 1 $, 4 from 0.01 $, 8 below (small cryptos). */
+    /** A dollar price in the display currency ([Money]): 2 decimals from 1, 4 from 0.01, 8 below (small cryptos). */
     fun price(v: Double?): String {
         if (v == null || !v.isFinite()) return "—"
-        val digits = if (abs(v) >= 1) 2 else if (abs(v) >= 0.01) 4 else 8
-        return "${number(v, digits, digits)} $"
+        val x = Money.toDisplay(v)
+        val digits = if (abs(x) >= 1) 2 else if (abs(x) >= 0.01) 4 else 8
+        return "${number(x, digits, digits)} ${Money.symbol()}"
     }
 
-    /** Whole dollars from 100 $ (amounts, budgets). */
-    fun money(v: Double): String = "${number(v, 0, if (abs(v) >= 100) 0 else 2)} $"
+    /** A dollar amount in the display currency, whole from 100 (amounts, budgets). */
+    fun money(v: Double): String {
+        val x = Money.toDisplay(v)
+        return "${number(x, 0, if (abs(x) >= 100) 0 else 2)} ${Money.symbol()}"
+    }
+
+    /** A dollar amount in the display currency with [min]–[max] decimals ("1 234 €", "1 234,56 €"). */
+    fun amount(v: Double, min: Int = 0, max: Int = min): String = "${number(Money.toDisplay(v), min, max)} ${Money.symbol()}"
 
     /** +1,25 % / −0,40 % (true minus sign). */
     fun percent(v: Double?, digits: Int = 2): String {
@@ -66,17 +77,19 @@ object Format {
         return DateTimeFormatter.ofPattern("d MMMM yyyy", FR).withZone(zone).format(Instant.ofEpochMilli(ms.toLong()))
     }
 
-    /** Large amounts: 421 Md$, 3,16 Md$, 850 M$, 12,5 k$ (same as the web card). */
+    /** Large dollar amounts in the display currency: 421 Md€, 3,16 Md€, 850 M€, 12,5 k€ (same as the web card). */
     fun compactUsd(v: Double?): String {
         if (v == null || !v.isFinite()) return "—"
-        val a = abs(v)
+        val y = Money.toDisplay(v)
+        val a = abs(y)
+        val s = Money.symbol()
         val (div, unit) = when {
-            a >= 1e9 -> 1e9 to "Md$"
-            a >= 1e6 -> 1e6 to "M$"
-            a >= 1e4 -> 1e3 to "k$"
-            else -> 1.0 to "$"
+            a >= 1e9 -> 1e9 to "Md$s"
+            a >= 1e6 -> 1e6 to "M$s"
+            a >= 1e4 -> 1e3 to "k$s"
+            else -> 1.0 to s
         }
-        val x = v / div
+        val x = y / div
         return "${number(x, 0, if (abs(x) >= 100) 0 else if (abs(x) >= 10) 1 else 2)} $unit"
     }
 

@@ -15,6 +15,21 @@ struct SettingsView: View {
                 Button("Se déconnecter", role: .destructive) { confirmLogout = true }
             }
             Section {
+                Picker("Devise d'affichage", selection: $model.currency) {
+                    Text("Euro (€)").tag(Currency.eur)
+                    Text("Dollar ($)").tag(Currency.usd)
+                }
+                .pickerStyle(.segmented)
+                FxNote()
+                if model.currency == .eur, model.fx == nil, let e = model.fxError {
+                    Text(e).font(.caption).foregroundStyle(Theme.warning)
+                }
+            } header: {
+                Text("Devise d'affichage")
+            } footer: {
+                Text("Les cours viennent en dollars des sources (bourses américaines, plateformes crypto en USD ou USDT) ; Altim les convertit au taux EUR/USD du moment (Yahoo Finance, sinon taux de référence de la BCE). Les montants que vous saisissez (prix de revient, budget, liquidités) le sont dans cette devise.")
+            }
+            Section {
                 Toggle("Me prévenir quand je peux acheter", isOn: Binding(
                     get: { model.alertsEnabled },
                     set: { on in

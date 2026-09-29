@@ -9,7 +9,7 @@
  */
 import type { Action } from "./signal";
 import type { FibZone } from "./fibonacci";
-import { formatPrice } from "../market";
+import { moneyPrice } from "../money";
 
 export interface AlertInput {
   symbol: string;
@@ -36,7 +36,7 @@ export interface BuyAlert {
   body: string;
 }
 
-const usd = (v: number) => `${formatPrice(v)} $`;
+const usd = (v: number) => moneyPrice(v, " ");
 const IN_ZONE = new Set(["inZone", "golden"]);
 
 export function buyAlert(a: AlertInput): BuyAlert {

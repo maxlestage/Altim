@@ -3,6 +3,7 @@
  * - Asset already held → recommendation from the holdings analysis (holdings.ts).
  * - Asset not held → consider buying / wait / avoid, with plan and prudent amount.
  */
+import { moneyFmt } from "../money";
 import type { Signal } from "./signal";
 import type { ReliabilityLevel } from "./reliability";
 import { positionSize, riskReward, type RiskSettings } from "./risk";
@@ -27,10 +28,10 @@ export const MIN_TRACK_TRADES = 5;
 export const REVERSAL_HIGH = 50;
 export const MIN_WIN_RATE = 40;
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: v >= 100 ? 0 : 2 })} $`;
+const usd = (v: number) => moneyFmt(v, (x) => x.toLocaleString("fr-FR", { maximumFractionDigits: x >= 100 ? 0 : 2 }), " ");
 /** Price to the cent above 1 $, 4 significant digits below (0,000009312 $ for PEPE, not 0,00001 $). */
 export const px = (v: number) =>
-  `${v.toLocaleString("fr-FR", v >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 })} $`;
+  moneyFmt(v, (x) => x.toLocaleString("fr-FR", x >= 1 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumSignificantDigits: 4 }), " ");
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 
 /** Quantity to buy or sell: whole shares for a stock, 6 significant digits (rounded down) for a crypto. */

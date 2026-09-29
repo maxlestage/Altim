@@ -896,3 +896,13 @@
 .tech-dir.up { color: var(--buy); }
 .tech-dir.down { color: var(--sell); }
 .badge.dec-pending { opacity: 0.7; }
+
+/* Alertes (price alerts, buyable now, alerts journal) and the EUR/USD rate line. */
+.alerts-link { justify-self: start; white-space: normal; text-align: left; height: auto; min-height: 44px; }
+.alert-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.alert-list > li { display: grid; gap: 4px; min-width: 0; border-top: 1px solid rgba(255, 255, 255, 0.06); padding-top: 8px; }
+.alert-list > li:first-child { border-top: 0; padding-top: 0; }
+.alert-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 44px; color: inherit; min-width: 0; }
+.alert-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.alert-list .row-actions { display: flex; flex-wrap: wrap; gap: 16px; }
+.fx-note { margin: 4px 0 0; overflow-wrap: anywhere; }

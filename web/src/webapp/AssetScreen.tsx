@@ -1,8 +1,9 @@
+import { PriceAlertButton } from "./Alerts";
 import { useEffect, useState } from "react";
 import { analyze, type Signal } from "../engine/signal";
 import { gate } from "../engine/reliability";
 import { backtest, trackRecord, type BacktestResult } from "../engine/backtest";
-import { formatPrice } from "../market";
+import { moneyPrice } from "../money";
 import { api, HIGHER, INTERVAL_LABEL, STEP_MS, type GuardReport, type Quote, type Sentiment, type Snapshot, type ZonesReport } from "./api";
 import { GuardCard } from "./GuardCard";
 import { WhyCard } from "./WhyCard";
@@ -174,7 +175,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
           <small className="muted mono">{symbol} · {kind === "crypto" ? "Crypto" : "Action"}</small>
         </div>
         <div className="asset-head-price">
-          <b className="mono"><LivePrice tick={tick} fallback={price} format={(v) => `${formatPrice(v)} $`} /></b>
+          <b className="mono"><LivePrice tick={tick} fallback={price} format={(v) => moneyPrice(v)} /></b>
           <Change value={tick?.change ?? data?.quote?.change} />
           <LiveBadge status={live.status} last={live.last} />
           {tick?.market === "closed" && <small className="market-closed">Bourse fermée · dernier cours</small>}
@@ -182,6 +183,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
             : data?.quote && <small className="muted">prix : {data.quote.agreeing}/{data.quote.total} sources</small>}
         </div>
       </div>
+      <PriceAlertButton symbol={symbol} kind={kind} name={name} price={tick?.price ?? price ?? null} />
 
       <DecisionCard symbol={symbol} kind={kind} personal={personal} ready={!held || pricesReady} livePrice={tick?.price ?? null} />
 
@@ -304,7 +306,7 @@ export function AssetScreen({ kind, symbol }: { kind: "crypto" | "stock"; symbol
                   ))}
                   {data.quote?.sources.map((s) => (
                     <li key={`q-${s.name}`}>
-                      <span className={s.ok ? "up" : "down"}>{s.ok ? "●" : "○"}</span> {s.name} <small className="muted">(cours) {s.price ? formatPrice(s.price) : s.error}</small>
+                      <span className={s.ok ? "up" : "down"}>{s.ok ? "●" : "○"}</span> {s.name} <small className="muted">(cours) {s.price ? moneyPrice(s.price) : s.error}</small>
                     </li>
                   ))}
                   {data.snap.quality.issues.map((i) => <li key={i} className="warn small">⚠ {i}</li>)}

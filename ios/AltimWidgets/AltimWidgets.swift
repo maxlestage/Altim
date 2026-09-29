@@ -37,7 +37,7 @@ struct PriceLiveActivity: Widget {
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text(Format.price(s.price)).font(.headline.monospaced()).foregroundStyle(.white).minimumScaleFactor(0.6)
+                        Text(s.priceText ?? Format.price(s.price)).font(.headline.monospaced()).foregroundStyle(.white).minimumScaleFactor(0.6)
                         Text(Format.percent(s.change)).font(.caption.monospaced()).foregroundStyle(Palette.change(s.change))
                     }
                 }
@@ -54,7 +54,7 @@ struct PriceLiveActivity: Widget {
                     Text(context.attributes.symbol).font(.caption2.monospaced().bold()).foregroundStyle(.white)
                 }
             } compactTrailing: {
-                Text(Format.price(s.price)).font(.caption2.monospaced()).foregroundStyle(Palette.change(s.change)).minimumScaleFactor(0.5)
+                Text(s.priceText ?? Format.price(s.price)).font(.caption2.monospaced()).foregroundStyle(Palette.change(s.change)).minimumScaleFactor(0.5)
             } minimal: {
                 Image(systemName: s.buy ? "arrow.up.circle.fill" : "chart.line.uptrend.xyaxis")
                     .foregroundStyle(s.buy ? Palette.buy : Palette.cyan)
@@ -91,7 +91,7 @@ private struct LockScreenView: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(Format.price(state.price)).font(.title3.monospaced().bold()).foregroundStyle(.white)
+                    Text(state.priceText ?? Format.price(state.price)).font(.title3.monospaced().bold()).foregroundStyle(.white)
                     Text(Format.percent(state.change)).font(.caption.monospaced()).foregroundStyle(Palette.change(state.change))
                 }
             }

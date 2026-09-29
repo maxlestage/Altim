@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -114,7 +115,7 @@ fun AlertsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 }
             }
             if (model.priceTargets.isEmpty()) {
-                item { Caption("Aucune alerte de prix. Sur la fiche d'un actif, bouton « Alerte de prix » : « préviens-moi si BTC passe sous 80 000 $ ».") }
+                item { Caption("Aucune alerte de prix. Sur la fiche d'un actif, bouton « Alerte de prix » : « préviens-moi si BTC passe sous 80 000 ${Money.symbol()} ».") }
             }
             items(model.priceTargets, key = { "t:" + it.id }) { t -> TargetRow(t, price(t.asset), onOpen = { open(t.asset) }, onRearm = { model.rearmTarget(context, t.id, price(t.asset)) }) { model.removeTarget(context, t.id) } }
 
@@ -159,10 +160,11 @@ private fun TargetRow(t: PriceTarget, price: Double?, onOpen: () -> Unit, onRear
     ) {
         Column(Modifier.weight(1f)) {
             Text("${t.asset.symbol} · ${t.label.lowercase()}", fontWeight = FontWeight.SemiBold, fontSize = 14.sp)
+            // Compared in the alert's own currency (the dollar price converted at the current rate).
             val status = t.triggered?.let { "Atteinte le ${Format.date(it.toDouble(), time = true)}" }
-                ?: price?.let { p ->
-                    t.move?.let { m -> "Prix actuel ${Format.price(p)} · variation ${Format.percent((p / t.price - 1) * 100, 1)} sur ±${Format.plain(m, 1)} %" }
-                        ?: "Prix actuel ${Format.price(p)} · encore ${Format.percent((t.price / p - 1) * 100, 1)}"
+                ?: price?.let { t.inCurrency(it) }?.takeIf { it.isFinite() }?.let { p ->
+                    t.move?.let { m -> "Prix actuel ${Money.threshold(p, t.cur)} · variation ${Format.percent((p / t.price - 1) * 100, 1)} sur ±${Format.plain(m, 1)} %" }
+                        ?: "Prix actuel ${Money.threshold(p, t.cur)} · encore ${Format.percent((t.price / p - 1) * 100, 1)}"
                 }
                 ?: "En attente"
             Text(status, fontSize = 12.sp, color = if (t.triggered != null) AltimColors.buy else AltimColors.textSecondary)
@@ -196,16 +198,23 @@ fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: ()
     // 0: falls below, 1: rises above, 2: moves by ±X % from the current price.
     var mode by remember { mutableIntStateOf(0) }
     val above = mode == 1
-    var text by remember { mutableStateOf(current?.let { Format.plain(it, if (it >= 1) 2 else 6) } ?: "") }
+    // Typed in the display currency and saved with it; the current dollar price shown in that currency.
+    val cur = Money.displayCurrency()
+    val shown = current?.let { Money.toDisplay(it) }?.takeIf { it.isFinite() }
+    var text by remember { mutableStateOf(shown?.let { Format.plain(it, if (it >= 1) 2 else 6) } ?: "") }
     var moveText by remember { mutableStateOf("5") }
     var denied by remember { mutableStateOf(false) }
     val value = Format.parse(text)
     val move = Format.parse(moveText)
     // The threshold must be on the right side of the current price, otherwise it would fire at once.
-    val sideOk = if (mode == 2) current != null && move != null && move > 0 && move < 100
-    else value != null && value > 0 && (current == null || (if (above) value > current else value < current))
+    val sideOk = if (mode == 2) shown != null && move != null && move > 0 && move < 100
+    else value != null && value > 0 && (shown == null || (if (above) value > shown else value < shown))
     fun save() {
-        model.addTarget(context, if (mode == 2) PriceTarget(asset = asset, above = false, price = current!!, move = move) else PriceTarget(asset = asset, above = above, price = value!!))
+        model.addTarget(
+            context,
+            if (mode == 2) PriceTarget(asset = asset, above = false, price = shown!!, move = move, currency = cur)
+            else PriceTarget(asset = asset, above = above, price = value!!, currency = cur),
+        )
         onClose()
     }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -226,7 +235,7 @@ fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: ()
         OutlinedTextField(
             value = if (mode == 2) moveText else text,
             onValueChange = { if (mode == 2) moveText = it else text = it },
-            suffix = { Text(if (mode == 2) "%" else "$") },
+            suffix = { Text(if (mode == 2) "%" else cur.symbol) },
             singleLine = true,
             textStyle = mono(18.sp),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

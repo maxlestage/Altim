@@ -152,6 +152,8 @@ async fn decision_parameter_validation() {
         ("/api/decision?symbol=BTC&weights=BTC:forex:10", "kind invalide"),
         ("/api/decision?symbol=BTC&weights=..%2Fx:crypto:10", "symbole invalide"),
         ("/api/decision?symbol=BTC&w=tech", "w invalide"),
+        ("/api/decision?symbol=BTC&cur=GBP", "cur invalide"),
+        ("/api/decision?symbol=BTC&cur=eur", "cur invalide"),
         ("/api/decision?symbol=BTC&w=risk:10", "w invalide"),
         ("/api/decision?symbol=BTC&w=tech:101", "w invalide"),
         ("/api/decision?symbol=BTC&w=tech:2.5", "w invalide"),

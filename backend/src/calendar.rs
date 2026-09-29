@@ -156,6 +156,31 @@ pub fn today_paris(now: i64) -> NaiveDate {
 }
 
 /// "9/30/2026" (Nasdaq) → date.
+/// A Nasdaq dollar amount ("$31.24", "($0.05)" for a negative one) converted like every server amount; kept as
+/// written when it is not a plain amount.
+fn dollars(s: &str) -> String {
+    let t = s.trim();
+    let neg = t.starts_with('(') && t.ends_with(')') || t.starts_with('-');
+    let n = t.trim_matches(|c| c == '(' || c == ')' || c == '-').replace(['$', ','], "").parse::<f64>().ok().filter(|v| v.is_finite());
+    match n {
+        Some(v) => format!("{}{}", if neg { "−" } else { "" }, crate::fx::money_with(v, |v| crate::js::fr(v, 2, 2))),
+        None => t.to_string(),
+    }
+}
+
+/// IPO price or range as Nasdaq writes it ("18.00" or "18.00-20.00", dollars), converted like every server amount;
+/// kept as written, in dollars, when it is not plain numbers.
+fn ipo_price(p: &str) -> String {
+    let parts: Vec<Option<f64>> = p.split('-').map(|x| x.trim().replace(['$', ','], "").parse::<f64>().ok().filter(|v| v.is_finite())).collect();
+    if parts.iter().all(Option::is_some) {
+        let fmt = |v: f64| crate::js::fr(v, 2, 2);
+        let (_, sym) = crate::fx::convert(0.0);
+        let vals: Vec<String> = parts.iter().map(|v| fmt(crate::fx::convert(v.unwrap()).0)).collect();
+        return format!("{} {sym}", vals.join(" – "));
+    }
+    format!("{p} $")
+}
+
 fn us_date(s: &str) -> Option<NaiveDate> {
     NaiveDate::parse_from_str(s.trim(), "%m/%d/%Y").ok()
 }
@@ -456,8 +481,8 @@ pub mod parse {
                     Some("time-after-hours") => Some("après la clôture".into()),
                     _ => None,
                 };
-                e.consensus = cell(get(r, "epsForecast")).map(|v| format!("BPA {v}"));
-                e.previous = cell(get(r, "lastYearEPS")).map(|v| format!("BPA {v} il y a un an"));
+                e.consensus = cell(get(r, "epsForecast")).map(|v| format!("BPA {}", dollars(&v)));
+                e.previous = cell(get(r, "lastYearEPS")).map(|v| format!("BPA {} il y a un an", dollars(&v)));
                 let mut detail = vec![];
                 if let Some(q) = cell(get(r, "fiscalQuarterEnding")) {
                     detail.push(format!("trimestre clos {q}"));
@@ -517,7 +542,7 @@ pub mod parse {
                 );
                 let mut detail = vec![];
                 if let Some(rate) = get(r, "dividend_Rate").as_f64().or_else(|| cell(get(r, "dividend_Rate")).and_then(|s| s.parse().ok())) {
-                    detail.push(format!("{} $ par action", crate::js::fr(rate, 2, 4)));
+                    detail.push(format!("{} par action", crate::fx::money_with(rate, |v| crate::js::fr(v, 2, 4))));
                 }
                 if let Some(p) = get(r, "payment_Date").as_str().and_then(us_date) {
                     detail.push(format!("versé le {}", fr_date(p)));
@@ -578,7 +603,7 @@ pub mod parse {
                 let mut e = event(at_day(date), EventKind::Ipo, Category::Ipo, Importance::Medium, title, IPO_SOURCE, NASDAQ_IPO_PAGE);
                 let mut detail = vec![];
                 if let Some(p) = cell(get(r, "proposedSharePrice")) {
-                    detail.push(if priced { format!("prix {p} $") } else { format!("fourchette {p} $") });
+                    detail.push(format!("{} {}", if priced { "prix" } else { "fourchette" }, ipo_price(&p)));
                 }
                 if let Some(v) = cell(get(r, "dollarValueOfSharesOffered")) {
                     detail.push(format!("montant {v}"));
@@ -1008,10 +1033,10 @@ async fn calendar_inner(days: u32, symbols: Option<&[String]>, wants: Wants, top
         .collect();
     let mut not_covered = not_covered((symbols.is_some() && !top_too) || !wants.companies);
     if wants.companies && (symbols.is_none() || top_too) && top.is_none() {
-        not_covered.push(
-            "Classement des capitalisations indisponible : résultats des sociétés de plus de 10 Md$, dividendes et splits sans filtre de taille."
-                .into(),
-        );
+        not_covered.push(format!(
+            "Classement des capitalisations indisponible : résultats des sociétés de plus de {}, dividendes et splits sans filtre de taille.",
+            crate::fx::money_with(10e9, |v| format!("{} Md", crate::js::fr(v / 1e9, 0, 1))).replace("Md ", "Md")
+        ));
     }
     Calendar { as_of: now, days, from: ymd(from), to: ymd(to), events, sources, not_covered }
 }

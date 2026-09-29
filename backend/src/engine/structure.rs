@@ -10,7 +10,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::decision::{aligned_returns, correlation};
-use super::format::format_price;
 use super::guard::pivots;
 use super::signal::{Candle, atr, clamp};
 use crate::js::{fr, round};
@@ -282,7 +281,7 @@ pub struct Benchmark {
 // ---------- Helpers ----------
 
 fn usd(v: f64) -> String {
-    format!("{} $", format_price(v))
+    crate::fx::money(v)
 }
 fn signed(v: f64) -> String {
     format!("{}{} %", if v >= 0.0 { "+" } else { "−" }, fr(v.abs(), 0, 1))

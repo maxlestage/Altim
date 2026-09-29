@@ -92,7 +92,7 @@ public final class AltimClient: Sendable {
     }
 
     /// Paths whose last answer is kept for the offline mode (not the search nor the login).
-    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation", "/api/bot", "/api/bot/views"]
+    static let cacheable: Set<String> = ["/api/radar", "/api/tickers", "/api/candles", "/api/guard", "/api/zones", "/api/macro", "/api/alerts", "/api/news", "/api/selection", "/api/history", "/api/brief", "/api/decision", "/api/calendar", "/api/strategies", "/api/why", "/api/opportunities", "/api/anomalies", "/api/sectors", "/api/validation", "/api/bot", "/api/bot/views", "/api/fx"]
     /// Pauses before the 2nd and 3rd attempt of a read that failed on the network or a temporary server error.
     nonisolated(unsafe) static var retryDelays: [Double] = [0.5, 1.5]
 
@@ -211,7 +211,7 @@ public final class AltimClient: Sendable {
     }
 
     public func zones(_ a: Asset) async throws -> ZonesReport {
-        try await get("/api/zones", ["symbol": a.symbol, "kind": a.kind.rawValue])
+        try await get("/api/zones", ["symbol": a.symbol, "kind": a.kind.rawValue].merging(Self.currencyQuery()) { a, _ in a })
     }
 
     public func macro() async throws -> MacroInfo { try await get("/api/macro", [:]) }
@@ -221,7 +221,7 @@ public final class AltimClient: Sendable {
     }
 
     func getBrief(_ assets: [Asset]) async throws -> Brief {
-        try await get("/api/brief", ["symbols": Self.list(assets)])
+        try await get("/api/brief", ["symbols": Self.list(assets)].merging(Self.currencyQuery()) { a, _ in a })
     }
 
     func getHistory(_ assets: [Asset], days: Int) async throws -> HistoryResponse {
@@ -229,11 +229,11 @@ public final class AltimClient: Sendable {
     }
 
     func getAlerts(_ assets: [Asset]) async throws -> [BuyAlert] {
-        try await get("/api/alerts", ["symbols": Self.list(assets)])
+        try await get("/api/alerts", ["symbols": Self.list(assets)].merging(Self.currencyQuery()) { a, _ in a })
     }
 
     func getDecision(_ query: [String: String]) async throws -> Decision {
-        try await get("/api/decision", query)
+        try await get("/api/decision", query.merging(Self.currencyQuery()) { a, _ in a })
     }
 
     func getCalendar(_ query: [String: String]) async throws -> CalendarReport {
@@ -249,7 +249,7 @@ public final class AltimClient: Sendable {
     }
 
     func getAnomalies(_ query: [String: String]) async throws -> AnomalyReport {
-        try await get("/api/anomalies", query)
+        try await get("/api/anomalies", query.merging(Self.currencyQuery()) { a, _ in a })
     }
 
     func getSectors(_ query: [String: String]) async throws -> SectorsReport {

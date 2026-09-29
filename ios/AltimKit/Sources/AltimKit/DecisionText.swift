@@ -87,17 +87,13 @@ public enum DecisionText {
         return JSFormat.fr(v, max: 0)
     }
 
-    /// "421 Md$", "3,2 Md$", "38,5 M$", "12,4 k$".
+    /// Large dollar amounts in the display currency: "421 Md€", "3,2 Md€", "38,5 M€", "12,4 k€".
     public static func usdCompact(_ v: Double?) -> String {
         guard let v, v.isFinite else { return "—" }
-        let a = abs(v)
-        let (div, unit): (Double, String) = a >= 1e9 ? (1e9, "Md$") : a >= 1e6 ? (1e6, "M$") : a >= 1e4 ? (1e3, "k$") : (1, "$")
-        let x = v / div
-        let digits = abs(x) >= 100 ? 0 : abs(x) >= 10 ? 1 : 2
-        return "\(JSFormat.fr(x, max: digits))\(nnbsp)\(unit)"
+        return Money.compact(v, sep: nnbsp)
     }
 
-    /// "+2,8 Md$" / "−271 M$".
+    /// "+2,8 Md€" / "−271 M€".
     public static func signedUsd(_ v: Double?) -> String {
         guard let v else { return "—" }
         return "\(v < 0 ? "−" : v > 0 ? "+" : "")\(usdCompact(abs(v)))"

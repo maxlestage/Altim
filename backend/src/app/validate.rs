@@ -54,6 +54,15 @@ pub fn parse_cost(v: Option<&str>) -> ApiResult<Option<f64>> {
     if n.is_finite() && n > 0.0 { Ok(Some(n)) } else { bad("cost invalide (prix d'achat moyen : nombre positif)") }
 }
 
+/// Currency of the texts (`cur=EUR` by default, `cur=USD` for a client showing dollars): true for dollars.
+pub fn parse_currency(v: Option<&str>) -> ApiResult<bool> {
+    match v {
+        None | Some("") | Some("EUR") => Ok(false),
+        Some("USD") => Ok(true),
+        _ => bad("cur invalide (EUR | USD)"),
+    }
+}
+
 /// Weights of the composite score (`w=tech:32,mom:18,…`): integers 0 – 100, total above 0 (see `synthesis`).
 pub fn parse_score_weights(v: Option<&str>) -> ApiResult<Option<crate::engine::synthesis::ScoreWeights>> {
     crate::engine::synthesis::parse_weights(v).or_else(bad)

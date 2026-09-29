@@ -1,3 +1,4 @@
+import { currencySymbol, fromDisplay, money } from "../money";
 import { useEffect, useMemo, useState } from "react";
 import type { PortfolioAnalysis } from "../engine/holdings";
 import { FACTOR_SHOCKS, FACTORS, factorBeta, MIN_BETA_DAYS, WEAK_CORRELATION, WHATIF_BETA_DAYS, whatIf, type FactorBeta, type FactorKey } from "../engine/portfolio-risk";
@@ -6,7 +7,7 @@ import { api } from "./api";
 import { parseAmount } from "./paper-ui";
 
 const fr = (v: number, d = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: d });
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(v, 0, 0);
 const signedUsd = (loss: number) => `${loss > 0 ? "−" : loss < 0 ? "+" : ""}${usd(Math.abs(loss))}`;
 const signedPct = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fr(Math.abs(v))} %`;
 
@@ -38,7 +39,9 @@ export function WhatIfCard({ analysis, daily }: { analysis: PortfolioAnalysis; d
 
   const customShock = parseAmount(custom.replace(/^[−-]/, ""));
   const effShock = custom.trim() && customShock != null && Number.isFinite(customShock) && customShock > 0 && customShock <= 100 ? -customShock : shock;
-  const amount = parseAmount(amountText);
+  // Typed in the display currency; the engine works in dollars.
+  const typedAmount = parseAmount(amountText);
+  const amount = typedAmount == null ? null : fromDisplay(typedAmount);
   const betas = useMemo(() => {
     const b: Record<string, FactorBeta> = {};
     if (!factorCandles?.length) return b;
@@ -81,7 +84,7 @@ export function WhatIfCard({ analysis, daily }: { analysis: PortfolioAnalysis; d
           <input inputMode="decimal" value={custom} placeholder="ex. 15" onChange={(e) => setCustom(e.target.value)} />
         </label>
         <label className="field">
-          <span>Montant simulé (USD, facultatif)</span>
+          <span>Montant simulé ({currencySymbol()}, facultatif)</span>
           <input inputMode="decimal" value={amountText} placeholder={usd(analysis.total)} onChange={(e) => setAmountText(e.target.value)} />
         </label>
       </div>

@@ -445,7 +445,7 @@ public enum RiskEngine {
     // MARK: Limits of the user's settings
 
     static func fr(_ v: Double, _ d: Int = 1) -> String { JSFormat.fr(v, max: d) }
-    static func usd0(_ v: Double) -> String { "\(fr(abs(v), 0)) $" }
+    static func usd0(_ v: Double) -> String { Money.money(abs(v), min: 0, max: 0, sep: " ") }
 
     /// Loss (USD) if the stop of the line is hit: the user's stop when set, else the protective stop of the analysis.
     private static func lossAtStop(_ l: RiskLine, userStop: Double?) -> Double? {
@@ -532,9 +532,9 @@ public enum RiskEngine {
             let range = candles.isEmpty ? nil : atr(candles).last ?? nil
             if let price = l.price, let stop, stop > 0 {
                 if price <= stop {
-                    reasons.append(.init(code: .stopBroken, text: "Stop cassé : cours \(fr(price, 4)) $ sous votre stop \(fr(stop, 4)) $."))
+                    reasons.append(.init(code: .stopBroken, text: "Stop cassé : cours \(Money.moneyFmt(price, sep: " ") { fr($0, 4) }) sous votre stop \(Money.moneyFmt(stop, sep: " ") { fr($0, 4) })."))
                 } else if let range, range > 0, price - stop <= range {
-                    reasons.append(.init(code: .nearStop, text: "À moins d'une volatilité journalière (ATR \(fr(range, 4)) $) de votre stop \(fr(stop, 4)) $."))
+                    reasons.append(.init(code: .nearStop, text: "À moins d'une volatilité journalière (ATR \(Money.moneyFmt(range, sep: " ") { fr($0, 4) })) de votre stop \(Money.moneyFmt(stop, sep: " ") { fr($0, 4) })."))
                 }
             }
             if l.price != nil, let invested = l.invested {

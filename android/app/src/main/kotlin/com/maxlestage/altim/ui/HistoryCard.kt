@@ -1,5 +1,8 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.Money
+import com.maxlestage.altim.kit.Currency
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -61,7 +64,7 @@ private fun day(t: Long) = DAY_FMT.format(Instant.ofEpochMilli(t))
 /** Axis dates: with the year when the period spans more than one (1 year: "27 sept. 2025" → "27 sept. 2026"). */
 private fun axisDay(t: Long, long: Boolean) = (if (long) YEAR_FMT else DAY_FMT).format(Instant.ofEpochMilli(t))
 private fun pct(v: Double) = (if (v >= 0) "+" else "−") + String.format(Locale.FRANCE, "%.1f", abs(v)).removeSuffix(",0") + " %"
-private fun usd(v: Double) = String.format(Locale.FRANCE, "%,.0f", v).replace(' ', ' ').replace(' ', ' ') + " $"
+private fun usd(v: Double) = Format.amount(v, 0)
 
 /** "How did what I own now behave": value of today's lines over the period, against Bitcoin and the S&P 500. */
 @Composable
@@ -171,7 +174,8 @@ private fun HistoryBody(h: PortfolioHistory) {
         "Valeur chaque jour des quantités que vous détenez aujourd'hui (cours de clôture) : vos achats et ventes passés ne sont pas connus, " +
             "ce n'est donc pas la performance de votre compte." +
             (if (h.shortened) " La courbe commence plus tard : une de vos lignes a un historique plus court." else "") +
-            (if (h.missing.isNotEmpty()) " Sans historique : ${h.missing.joinToString { it.substringAfter(":") }}." else ""),
+            (if (h.missing.isNotEmpty()) " Sans historique : ${h.missing.joinToString { it.substringAfter(":") }}." else "") +
+            (if (Money.displayCurrency() == Currency.EUR) " Cours en dollars convertis au taux du jour, pas au taux de chaque date : l'effet de change passé n'est pas compté (les % restent exacts en dollars)." else ""),
     )
 }
 

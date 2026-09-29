@@ -5,7 +5,7 @@ import AltimKit
 /// One purchase repeats nothing: its "next purchase" is far beyond any period.
 private let once = 100_000
 
-/// "If I had invested 1 000 $": one purchase by default (not everybody wants to spend every month), regular purchases
+/// "If I had invested 1 000 €": one purchase by default (not everybody wants to spend every month), regular purchases
 /// as an option, replayed on the real daily closes of the asset. New storage keys: the former default was monthly.
 struct DcaCard: View {
     @Environment(AppModel.self) private var model
@@ -16,8 +16,10 @@ struct DcaCard: View {
     @State private var closes: [(Double, Double)]?
     @State private var error: String?
 
+    /// Typed in the display currency, replayed in dollars on the dollar closes.
     private var amount: Double {
-        Double(amountText.replacingOccurrences(of: " ", with: "").replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: ",", with: ".")) ?? 0
+        let v = Money.fromDisplay(Money.parse(amountText) ?? 0)
+        return v.isFinite ? v : 0
     }
 
     var body: some View {
@@ -26,7 +28,7 @@ struct DcaCard: View {
                 Text(every == once ? "Montant investi" : "Montant par achat").foregroundStyle(Theme.textSecondary)
                 Spacer()
                 TextField("100", text: $amountText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).font(Theme.mono(16)).frame(maxWidth: 120)
-                Text("$").foregroundStyle(Theme.textSecondary)
+                Text(Money.symbol()).foregroundStyle(Theme.textSecondary)
             }
             Picker("Achat", selection: $every) {
                 Text("Une fois").tag(once)
@@ -73,7 +75,8 @@ private func signed(_ v: Double) -> String {
     "\(v >= 0 ? "+" : "−")\(abs(v).formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "fr_FR")))) %"
 }
 
-private func dollars(_ v: Double) -> String { "\(v.formatted(.number.precision(.fractionLength(0)).locale(Locale(identifier: "fr_FR")))) $" }
+/// A dollar amount in the display currency, whole: "1 000 €".
+private func dollars(_ v: Double) -> String { Money.money(v, min: 0, max: 0, sep: " ") }
 
 private struct DcaBody: View {
     let r: DcaResult
@@ -102,6 +105,10 @@ private struct DcaBody: View {
             }
             KeyValue(key: single ? "Prix d'achat" : "Prix moyen payé", value: Format.price(r.averagePrice))
             KeyValue(key: "Prix à la dernière clôture", value: Format.price(r.lastPrice))
+            if Money.displayCurrency == .eur {
+                Text("Rejoué en $ sur les cours en dollars, puis converti au taux du jour : l'effet de change passé (EUR/USD) n'est pas compté.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary)
+            }
             Text(verdict + " Rejoué sur les vraies clôtures journalières, sans frais ni impôts ; le passé ne dit pas ce qui arrivera.")
                 .font(.caption).foregroundStyle(Theme.textSecondary)
         }

@@ -63,7 +63,7 @@ struct AnomaliesCard: View {
                 DecisionRow(key: "Vendeurs liquidés (\(l.shortCount))", value: Opportunities.compactUsd(l.shortUsd), tone: .good)
                 if let big = l.largest {
                     DecisionRow(key: "Plus grosse",
-                                value: "\(Opportunities.compactUsd(big.usd)) · \(big.long ? "acheteur" : "vendeur") à \(Self.fr(big.price, 2)) $ · \(Self.time(big.time))")
+                                value: "\(Opportunities.compactUsd(big.usd)) · \(big.long ? "acheteur" : "vendeur") à \(Money.moneyFmt(big.price, sep: " ") { Self.fr($0, 2) }) · \(Self.time(big.time))")
                 }
                 Text(l.scope).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }

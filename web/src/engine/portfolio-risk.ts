@@ -4,6 +4,7 @@
  * positions that became dangerous (stop broken or close, loss beyond the risk accepted per idea).
  * Pure, deterministic functions (same inputs, same results).
  */
+import { money, moneyFmt } from "../money";
 import { alignedReturns, correlation, type PortfolioAnalysis } from "./holdings";
 import type { Kind } from "./reliability";
 import type { RiskSettings } from "./risk";
@@ -204,7 +205,7 @@ export interface LimitCheck { code: string; level: LimitLevel; label: string; de
 export const DAILY_LOSS_REACHED = "Limite de perte du jour atteinte : n'ouvrez plus de position aujourd'hui.";
 
 const fr = (v: number, d = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: d });
-const usd0 = (v: number) => `${fr(Math.abs(v), 0)} $`;
+const usd0 = (v: number) => money(Math.abs(v), 0, 0, " ");
 
 /** Loss (USD) if the stop of the line is hit: the user's stop when set, else the protective stop of the analysis. */
 function lossAtStop(l: PortfolioAnalysis["lines"][number], userStop: number | undefined): number | null {
@@ -291,9 +292,9 @@ export function dangerousPositions(a: PortfolioAnalysis, s: RiskSettings, daily:
     const candles = daily[`${l.kind}:${l.symbol}`] ?? [];
     const range = candles.length ? atr(candles)[candles.length - 1] ?? null : null;
     if (l.price != null && stop && stop > 0) {
-      if (l.price <= stop) reasons.push({ code: "stop_broken", text: `Stop cassé : cours ${fr(l.price, 4)} $ sous votre stop ${fr(stop, 4)} $.` });
+      if (l.price <= stop) reasons.push({ code: "stop_broken", text: `Stop cassé : cours ${moneyFmt(l.price, (v) => fr(v, 4), " ")} sous votre stop ${moneyFmt(stop, (v) => fr(v, 4), " ")}.` });
       else if (range && l.price - stop <= range)
-        reasons.push({ code: "near_stop", text: `À moins d'une volatilité journalière (ATR ${fr(range, 4)} $) de votre stop ${fr(stop, 4)} $.` });
+        reasons.push({ code: "near_stop", text: `À moins d'une volatilité journalière (ATR ${moneyFmt(range, (v) => fr(v, 4), " ")}) de votre stop ${moneyFmt(stop, (v) => fr(v, 4), " ")}.` });
     }
     const loss = l.invested - l.value;
     if (l.price != null && loss > budget && budget > 0)

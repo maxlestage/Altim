@@ -36,7 +36,8 @@ struct HoldingsView: View {
             }
         }
         .sheet(isPresented: $adding) { HoldingForm(holding: nil) }
-        .sheet(item: $editing) { HoldingForm(holding: $0) }
+        // The line as saved (amounts in the currency they were typed in), not its dollar view.
+        .sheet(item: $editing) { h in HoldingForm(holding: model.holdings.first(where: { $0.id == h.id }) ?? h) }
     }
 
     /// Risk beyond the summary: stress scenarios through the betas, limits of the settings, dangerous positions.
@@ -51,7 +52,7 @@ struct HoldingsView: View {
 
     private func riskView(_ prices: [String: Double]) -> RiskView? {
         guard marketLoaded, !model.holdings.isEmpty else { return nil }
-        let p = RiskPortfolio(holdings: model.holdings, prices: prices, daily: daily)
+        let p = RiskPortfolio(holdings: model.usdHoldings.holdings, prices: prices, daily: daily)
         let betas = RiskEngine.betas(p, daily: daily)
         let today = RiskEngine.dailyChange(p, daily: daily, now: Date().timeIntervalSince1970 * 1000)
         return RiskView(portfolio: p, betas: betas, stress: RiskEngine.stressTest(p, betas: betas),
@@ -61,7 +62,9 @@ struct HoldingsView: View {
 
     private var realList: some View {
         let prices = self.prices
-        let portfolio = Portfolio(holdings: model.holdings, prices: prices)
+        // Engines in dollars (euro costs converted at the current rate); shown in the display currency.
+        let usd = model.usdHoldings
+        let portfolio = Portfolio(holdings: usd.holdings, prices: prices)
         let risk = riskView(prices)
         let dangerById = Dictionary((risk?.dangers ?? []).map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         return List {
@@ -80,6 +83,12 @@ struct HoldingsView: View {
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
                 if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
+                if !usd.unconverted.isEmpty {
+                    Section {
+                        Notice(text: "Taux EUR/USD indisponible : \(usd.unconverted.joined(separator: ", ")) saisi(es) en € ne peuvent pas être converti(es) ; plus-values de ces lignes non calculées jusqu'au retour du taux.", tone: .warn)
+                    }
+                    .listRowBackground(Color.clear)
+                }
                 if let risk, risk.dailyLossReached {
                     Section { Notice(text: RiskEngine.dailyLossReached, tone: .bad) }.listRowBackground(Color.clear)
                 }
@@ -157,6 +166,7 @@ struct HoldingsView: View {
                 .labelStyle(DotLabel())
             }
             ForEach(p.warnings, id: \.self) { Notice(text: $0, tone: .warn) }
+            FxNote()
         }
         .glassCard()
     }
@@ -190,6 +200,9 @@ struct HoldingsView: View {
             if let stop = line.holding.stop {
                 Text(RiskText.userStop(stop, price: line.price)).font(.caption).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            if let note = model.holdings.first(where: { $0.id == line.id })?.costNote {
+                Text(note).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
         }
         .accessibilityElement(children: .combine)
@@ -271,6 +284,10 @@ struct HoldingForm: View {
     @State private var quantity = ""
     @State private var average = ""
     @State private var stopText = ""
+    /// The saved amounts as first shown (display currency): a field left untouched keeps its saved value and currency
+    /// (a dollar cost basis is not silently re-based in euros).
+    @State private var averageInitial = ""
+    @State private var stopInitial = ""
     @State private var current: Double?
     /// Inscribe the purchase or sale in the trading journal (a first entry of holdings is usually past purchases:
     /// not journaled unless asked; later additions and edits are).
@@ -311,13 +328,16 @@ struct HoldingForm: View {
                 }
                 Section {
                     TextField("Quantité (ex. 0,25)", text: $quantity).keyboardType(.decimalPad)
-                    TextField(current.map { "Prix moyen d'achat (actuel \(Format.price($0)))" } ?? "Prix moyen d'achat en $ (facultatif)", text: $average)
+                    TextField(current.map { "Prix moyen d'achat en \(Money.symbol()) (actuel \(Format.price($0)))" } ?? "Prix moyen d'achat en \(Money.symbol()) (facultatif)", text: $average)
                         .keyboardType(.decimalPad)
+                    if keepCost, let note = holding?.costNote {
+                        Text("\(note) Le modifier l'enregistre en \(Money.symbol()).").font(.footnote).foregroundStyle(Theme.textSecondary)
+                    }
                 } footer: {
                     Text("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
                 }
                 Section {
-                    TextField("Mon stop en $ (facultatif)", text: $stopText).keyboardType(.decimalPad)
+                    TextField("Mon stop en \(Money.symbol()) (facultatif)", text: $stopText).keyboardType(.decimalPad)
                 } footer: {
                     Text("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
                 }
@@ -343,32 +363,50 @@ struct HoldingForm: View {
                 guard let holding, asset == nil else { return }
                 asset = holding.asset
                 quantity = Format.quantity(holding.quantity)
-                average = holding.averagePrice.map { Format.quantity($0) } ?? ""
-                stopText = holding.stop.map { Format.quantity($0) } ?? ""
+                // In the display currency ("" when no rate allows the conversion).
+                average = holding.averagePrice.map { Money.inputText(Money.shown($0, holding.costCurrency)) } ?? ""
+                stopText = holding.stop.map { Money.inputText(Money.shown($0, holding.stopCurrency)) } ?? ""
+                averageInitial = average
+                stopInitial = stopText
             }
         }
         .presentationDetents([.large])
     }
 
-    private static func number(_ s: String) -> Double? {
-        let t = s.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: ".")
-        guard let v = Double(t), v.isFinite else { return nil }
-        return v
+    private static func number(_ s: String) -> Double? { Money.parse(s) }
+
+    private var keepCost: Bool { holding != nil && average == averageInitial }
+    private var keepStop: Bool { holding != nil && stopText == stopInitial }
+
+    /// What is saved: the typed amount in the display currency, or the untouched saved one with its own currency.
+    private var savedCost: (value: Double?, currency: Currency?) {
+        if keepCost, let holding { return (holding.averagePrice, holding.costCurrency) }
+        return (average.isEmpty ? nil : Self.number(average), Money.displayCurrency)
+    }
+
+    private var savedStop: (value: Double?, currency: Currency?) {
+        if keepStop, let holding { return (holding.stop, holding.stopCurrency) }
+        return (stopText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Self.number(stopText), Money.displayCurrency)
+    }
+
+    /// The same in dollars, for the journal and the engines.
+    private func usd(_ v: (value: Double?, currency: Currency?)) -> Double? {
+        v.value.map { Money.convert($0, from: Money.stored(v.currency), to: .usd) }.flatMap { $0.isFinite ? $0 : nil }
     }
 
     private var valid: Bool {
         guard asset != nil, let q = Self.number(quantity), q > 0 else { return false }
         guard stopText.trimmingCharacters(in: .whitespaces).isEmpty || (Self.number(stopText) ?? -1) > 0 else { return false }
-        return average.isEmpty || (Self.number(average) ?? -1) > 0
+        return keepCost || average.isEmpty || (Self.number(average) ?? -1) > 0
     }
 
     /// Purchase or sale this edit records (nil: nothing to write in the journal).
     private var change: TradeJournal.HoldingChange? {
         guard valid, let asset, let q = Self.number(quantity) else { return nil }
-        let avg = average.isEmpty ? nil : Self.number(average)
+        let avg = usd(savedCost)
         let live = current ?? model.live.price(asset)?.price
         guard let holding else { return (avg ?? live).map { TradeJournal.HoldingChange(side: .buy, quantity: q, price: $0, implied: false) } }
-        return TradeJournal.holdingChange(before: (holding.quantity, holding.averagePrice), after: (q, avg), livePrice: live)
+        return TradeJournal.holdingChange(before: (holding.quantity, usd((holding.averagePrice, holding.costCurrency))), after: (q, avg), livePrice: live)
     }
 
     private var journalText: String? {
@@ -379,20 +417,23 @@ struct HoldingForm: View {
 
     private func save() {
         guard let asset, let q = Self.number(quantity) else { return }
-        let avg = average.isEmpty ? nil : Self.number(average)
-        let stop = stopText.trimmingCharacters(in: .whitespaces).isEmpty ? nil : Self.number(stopText)
+        let cost = savedCost
+        let stop = savedStop
+        let stopUsd = usd(stop)
         let change = self.change
         if let holding, let i = model.holdings.firstIndex(where: { $0.id == holding.id }) {
-            model.holdings[i] = Holding(id: holding.id, asset: asset, quantity: q, averagePrice: avg, stop: stop)
+            model.holdings[i] = Holding(id: holding.id, asset: asset, quantity: q, averagePrice: cost.value, stop: stop.value,
+                                        costCurrency: cost.value == nil ? nil : cost.currency, stopCurrency: stop.currency)
             if journal, let c = change {
-                model.recordTrade(source: .real, side: c.side, asset: asset, price: c.price, quantity: c.quantity, stop: c.side == .buy ? stop : nil,
+                model.recordTrade(source: .real, side: c.side, asset: asset, price: c.price, quantity: c.quantity, stop: c.side == .buy ? stopUsd : nil,
                                   note: note, refId: holding.id.uuidString)
             }
         } else {
-            let line = Holding(asset: asset, quantity: q, averagePrice: avg, stop: stop)
+            let line = Holding(asset: asset, quantity: q, averagePrice: cost.value, stop: stop.value,
+                               costCurrency: cost.value == nil ? nil : cost.currency, stopCurrency: stop.currency)
             model.holdings.append(line)
             if journal, let c = change {
-                model.recordTrade(source: .real, side: .buy, asset: asset, price: c.price, quantity: c.quantity, stop: stop, note: note, refId: line.id.uuidString)
+                model.recordTrade(source: .real, side: .buy, asset: asset, price: c.price, quantity: c.quantity, stop: stopUsd, note: note, refId: line.id.uuidString)
             }
         }
         dismiss()

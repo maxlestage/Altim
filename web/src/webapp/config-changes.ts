@@ -8,6 +8,7 @@
  * Pure functions + a small localStorage store (versioned, validated on read; version 1 entries are migrated),
  * tested with `bun test`.
  */
+import { moneyFmt } from "../money";
 import { useSyncExternalStore } from "react";
 import type { Kind } from "../engine/reliability";
 import { num, signedScore, usd as usdFr, type Decision, type Level, type Rating, type Verdict } from "./decision";
@@ -66,7 +67,7 @@ export interface ConfigState { version: typeof STATE_VERSION; last: Record<strin
 
 const empty = (): ConfigState => ({ version: STATE_VERSION, last: {}, transitions: [] });
 const stepState: Record<string, string> = { no: "pas encore", unknown: "non vérifiable" };
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: v >= 1 ? 2 : 6 })} $`;
+const usd = (v: number) => moneyFmt(v, (x) => x.toLocaleString("fr-FR", { maximumFractionDigits: x >= 1 ? 2 : 6 }));
 
 const fin = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
@@ -151,7 +152,7 @@ export function snapshotOf(d: Decision, at: number): ConfigSnapshot {
     ...(d.rating ? { rating: d.rating, ratingLabel: d.ratingLabel || d.rating } : {}),
     metrics: metricsOf(d),
     missing: d.setup.steps.filter((s) => s.state !== "ok").map((s) => `${s.label} : ${stepState[s.state] ?? s.state}${s.detail ? ` (${s.detail})` : ""}`),
-    triggers: d.toBuy.map((c) => (c.level != null && !c.text.includes("$") ? `${c.text} (${usd(c.level)})` : c.text)),
+    triggers: d.toBuy.map((c) => (c.level != null && !/[$€]/.test(c.text) ? `${c.text} (${usd(c.level)})` : c.text)),
   };
 }
 

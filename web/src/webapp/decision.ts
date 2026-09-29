@@ -3,6 +3,7 @@
  * a light runtime check of the answer, French formatting and the portfolio weights sent in personal mode.
  * Pure functions (no React, no fetch) so they are tested with `bun test`.
  */
+import { currencySymbol, moneyCompact, toDisplay } from "../money";
 import type { Kind } from "../engine/reliability";
 import type { CalendarEvent } from "./calendar";
 import { recordConfiguration } from "./config-changes";
@@ -334,22 +335,19 @@ export function decisionUrl(symbol: string, kind: Kind, personal?: PersonalInput
 export const NNBSP = " ";
 const fr = (v: number, min: number, max: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: min, maximumFractionDigits: max });
 
-/** Price in dollars: no decimals when whole, else 2 (4 or 8 below 1 $). */
+/** A dollar price in the display currency (money.ts): no decimals when whole, else 2 (4 or 8 below 1). */
 export function usd(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  const a = Math.abs(v);
-  const digits = a >= 1 ? (Number.isInteger(v) ? 0 : 2) : a >= 0.01 ? 4 : 8;
-  return `${fr(v, digits, digits)}${NNBSP}$`;
+  const x = toDisplay(v);
+  const a = Math.abs(x);
+  const digits = a >= 1 ? (Number.isInteger(x) ? 0 : 2) : a >= 0.01 ? 4 : 8;
+  return `${fr(x, digits, digits)}${NNBSP}${currencySymbol()}`;
 }
 
-/** Large amounts: 421 Md$, 3,16 Md$, 850 M$. */
+/** Large dollar amounts in the display currency: 421 Md€, 3,16 Md€, 850 M€. */
 export function usdCompact(v: number | null | undefined): string {
   if (v == null || !Number.isFinite(v)) return "—";
-  const a = Math.abs(v);
-  const [div, unit] = a >= 1e9 ? [1e9, "Md$"] : a >= 1e6 ? [1e6, "M$"] : a >= 1e4 ? [1e3, "k$"] : [1, "$"];
-  const x = v / div;
-  const digits = Math.abs(x) >= 100 ? 0 : Math.abs(x) >= 10 ? 1 : 2;
-  return `${fr(x, 0, digits)}${NNBSP}${unit}`;
+  return moneyCompact(v, NNBSP);
 }
 
 /** Percentage; `sign` adds + for positive values (− is the typographic minus). */

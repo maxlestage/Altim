@@ -179,7 +179,8 @@ final class DecisionTests: XCTestCase {
         XCTAssertEqual(d.verdict, .trim)
         let url = try XCTUnwrap(StubProtocol.urls.last)
         XCTAssertEqual(url.path, "/api/decision")
-        XCTAssertEqual(url.query, "cost=275&kind=stock&symbol=AAPL&weights=AAPL:stock:62")
+        // Dollars shown (the default of the kit, no rate): the server is asked for dollar texts.
+        XCTAssertEqual(url.query, "cost=275&cur=USD&kind=stock&symbol=AAPL&weights=AAPL:stock:62")
         // Offline: the last answer for the same request comes back.
         StubProtocol.script = [.offline, .offline, .offline]
         let cached = try await c.decision(asset: aapl, cost: 275, weights: [DecisionWeight(asset: aapl, weight: 62)])

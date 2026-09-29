@@ -41,6 +41,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.data.BuyAlerts
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import com.maxlestage.altim.kit.Currency
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.RiskSettings
 import com.maxlestage.altim.kit.ScoreWeights
@@ -92,6 +95,7 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             KeyValue("Identifiant", model.user ?: "accès ouvert")
             TextButton(onClick = { confirmLogout = true }) { Text("Se déconnecter", color = AltimColors.sell, fontWeight = FontWeight.Bold) }
         }
+        CurrencyCard(model)
         Card(title = "Notifications d'achat") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Me prévenir quand je peux acheter", modifier = Modifier.weight(1f), fontSize = 15.sp)
@@ -176,6 +180,30 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             },
             dismissButton = { TextButton(onClick = { confirmLogout = false }) { Text("Annuler") } },
             containerColor = AltimColors.surface,
+        )
+    }
+}
+
+/** Réglages → Devise d'affichage (euros by default), the rate used and its source, as on the web app. */
+@Composable
+private fun CurrencyCard(model: AppModel) {
+    Card(title = "Devise d'affichage") {
+        val colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AltimColors.cyan.copy(alpha = 0.2f), selectedLabelColor = AltimColors.cyan, labelColor = AltimColors.textSecondary)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(Currency.EUR to "Euro (€)", Currency.USD to "Dollar ($)").forEach { (c, label) ->
+                FilterChip(
+                    selected = model.currency == c,
+                    onClick = { model.updateCurrency(c) },
+                    label = { Text(label) },
+                    colors = colors,
+                    modifier = Modifier.semantics { contentDescription = "Devise d'affichage : $label" },
+                )
+            }
+        }
+        FxNote(model)
+        Caption(
+            "Les cours viennent en dollars des sources (bourses américaines, plateformes crypto en USD ou USDT) ; Altim les convertit au taux EUR/USD du moment " +
+                "(Yahoo Finance, sinon taux de référence de la BCE). Les montants que vous saisissez (prix de revient, budget, liquidités) le sont dans cette devise.",
         )
     }
 }

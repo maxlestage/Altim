@@ -63,7 +63,8 @@ private func pct(_ v: Double) -> String {
     return "\(v >= 0 ? "+" : "−")\(s) %"
 }
 
-private func usd(_ v: Double) -> String { "\(v.formatted(.number.precision(.fractionLength(0)).locale(Locale(identifier: "fr_FR")))) $" }
+/// A dollar value in the display currency, whole: "12 480 €".
+private func usd(_ v: Double) -> String { Money.money(v, min: 0, max: 0, sep: " ") }
 
 private func day(_ t: Double, year: Bool = false) -> String {
     let f = DateFormatter()
@@ -133,6 +134,7 @@ private struct HistoryBody: View {
             Text("Valeur chaque jour des quantités que vous détenez aujourd'hui (cours de clôture) : vos achats et ventes passés ne sont pas connus, ce n'est donc pas la performance de votre compte."
                  + (h.shortened ? " La courbe commence plus tard : une de vos lignes a un historique plus court." : "")
                  + (h.missing.isEmpty ? "" : " Sans historique : \(h.missing.map { $0.components(separatedBy: ":").last ?? $0 }.joined(separator: ", ")).")
+                 + (Money.displayCurrency == .eur ? " Cours en dollars convertis au taux du jour, pas au taux de chaque date : l'effet de change passé n'est pas compté (les % restent exacts en dollars)." : "")
             )
             .font(.caption).foregroundStyle(Theme.textSecondary)
         }
