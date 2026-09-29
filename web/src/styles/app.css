@@ -834,3 +834,30 @@
 .sector-track i { display: block; height: 100%; min-width: 2px; border-radius: 0 3px 3px 0; background: #3987e5; }
 .sector-row small { font-size: 12px; overflow-wrap: anywhere; }
 .sector-card .insights { margin-bottom: 8px; }
+/* Validation du modèle */
+.val-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; }
+.val-head > * { margin: 0; }
+.val-headline { font-size: 16px; line-height: 1.45; }
+.val-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; }
+.val-tile { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); min-width: 0; }
+.val-tile b { font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; }
+.val-meter .kv { margin: 0 0 6px; }
+.val-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.val-bar span { display: block; height: 100%; border-radius: 3px; background: var(--cyan); }
+.val-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 12px; min-width: 0; }
+.val-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; align-content: start; min-width: 0; }
+.val-card > * { margin: 0; }
+.val-card .kv { margin: 0; }
+.val-title { font-size: 16px; margin: 0; }
+.val-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.val-chips .chip.pick { min-height: 36px; white-space: normal; }
+.val-chips .chip.pick.on { border-color: var(--cyan); color: var(--cyan); }
+.val-verdict { display: inline-block; white-space: normal; }
+.val-verdict.good { border-color: rgba(57, 255, 136, 0.5); color: var(--buy); }
+.val-verdict.warning { border-color: rgba(255, 199, 51, 0.6); color: var(--warn); }
+.val-assets { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; min-width: 0; }
+.val-asset { padding: 10px 12px; border-radius: 14px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); min-width: 0; }
+.val-asset p { margin: 4px 0 0; overflow-wrap: anywhere; }
+.val-asset-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.val-sym { color: var(--text); text-decoration: none; margin-right: auto; }
+.validation .chip { margin: 0; }
