@@ -299,12 +299,13 @@ public struct ScoreWeights: Codable, Sendable, Equatable {
 // MARK: - Texts (web DecisionCard.tsx)
 
 extension DecisionText {
-    /// Price in dollars like the web's `usd`: no decimals when whole, else 2 (4 or 8 below 1 $).
+    /// A dollar price in the display currency like the web's `usd`: no decimals when whole, else 2 (4 or 8 below 1).
     public static func usd(_ v: Double?) -> String {
-        guard let v, v.isFinite else { return "—" }
-        let a = abs(v)
-        let digits = a >= 1 ? (v.rounded() == v ? 0 : 2) : a >= 0.01 ? 4 : 8
-        return "\(JSFormat.fr(v, min: digits, max: digits))\(nnbsp)$"
+        guard let usd = v, usd.isFinite else { return "—" }
+        let x = Money.toDisplay(usd)
+        let a = abs(x)
+        let digits = a >= 1 ? (x.rounded() == x ? 0 : 2) : a >= 0.01 ? 4 : 8
+        return "\(JSFormat.fr(x, min: digits, max: digits))\(nnbsp)\(Money.symbol())"
     }
 
     /// "+34", "−12", "0" (scores −100 … +100).

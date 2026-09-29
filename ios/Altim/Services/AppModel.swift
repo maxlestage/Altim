@@ -17,7 +17,24 @@ final class AppModel {
     var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
     var faceIDLock: Bool { didSet { defaults.set(faceIDLock, forKey: "faceIDLock") } }
     var watchlist: [Asset] { didSet { LocalStore.save(watchlist, "watchlist") } }
+    /// Lines as saved: average price and stop in the currency they were typed in (`costCurrency`, `stopCurrency`;
+    /// absent = dollars). The engines and the server get dollars: `usdHoldings`.
     var holdings: [Holding] { didSet { LocalStore.save(holdings, "holdings") } }
+    /// Display currency of every amount (Réglages): euros by default, dollars on request.
+    var currency: Currency {
+        didSet {
+            defaults.set(currency.rawValue, forKey: "displayCurrency")
+            applyMoney()
+            if currency == .eur && fx == nil { Task { await refreshFx() } }
+        }
+    }
+    /// Last valid EUR/USD rate (/api/fx, kept 7 days on the iPhone), nil when unknown: amounts then stay in dollars.
+    private(set) var fx: FxRate?
+    /// Why the last read of the rate failed (shown in Réglages), nil when it worked.
+    private(set) var fxError: String?
+    /// Currency actually shown when the screens were last built: they are rebuilt when it changes (MainTabs).
+    private(set) var moneyStamp: Currency = .usd
+    @ObservationIgnored private var fxTask: Task<Void, Never>?
     /// Buy notifications (Réglages) and "strong only" (signal and zone together).
     var alertsEnabled: Bool { didSet { defaults.set(alertsEnabled, forKey: "alertsEnabled") } }
     var alertsStrongOnly: Bool { didSet { defaults.set(alertsStrongOnly, forKey: "alertsStrongOnly") } }
@@ -36,7 +53,8 @@ final class AppModel {
     /// Last alerts computed (Watch, Réglages) and when.
     var lastAlerts: [BuyAlert] = []
     var lastAlertCheck: Date? = nil
-    /// Price alerts chosen by the user ("sous 80 000 $") and the journal of the notifications received.
+    /// Price alerts chosen by the user ("sous 80 000 €", in the currency they were typed in) and the journal of the
+    /// notifications received (prices in dollars).
     var priceTargets: [PriceTarget] { didSet { LocalStore.save(priceTargets, "priceTargets") } }
     var journal: [JournalEntry] { didSet { LocalStore.save(journal, "journal") } }
     /// Simulation (paper trading): a virtual portfolio stored on the iPhone only. No real money, no order ever placed.
@@ -54,8 +72,10 @@ final class AppModel {
     var pendingOpen: Asset? = nil
     /// Asset of the running Live Activity (its live price is followed to update it).
     var activityAsset: Asset? = nil
-    /// Budget in dollars for the Sélection tab (0 = not set).
+    /// Budget for the Sélection tab (0 = not set), in `budgetCurrency` (the currency it was typed in; older versions:
+    /// dollars).
     var budget: Double { didSet { defaults.set(budget, forKey: "budget") } }
+    var budgetCurrency: Currency { didSet { defaults.set(budgetCurrency.rawValue, forKey: "budgetCurrency") } }
     var selectionMarket: Kind { didSet { defaults.set(selectionMarket.rawValue, forKey: "selectionMarket") } }
     var selectionHorizon: Horizon { didSet { defaults.set(selectionHorizon.rawValue, forKey: "selectionHorizon") } }
     /// Risk limits (Réglages → Prudence des conseils), checked on Mes avoirs.
@@ -103,15 +123,23 @@ final class AppModel {
         lastAlerts = LocalStore.load([BuyAlert].self, "lastAlerts") ?? []
         priceTargets = LocalStore.load([PriceTarget].self, "priceTargets") ?? []
         journal = LocalStore.load([JournalEntry].self, "journal") ?? []
-        // A saved simulation is used only when well-formed (the file can be edited by hand), like on the web.
+        let savedCurrency = Currency(rawValue: defaults.string(forKey: "displayCurrency") ?? "") ?? .eur
+        let savedFx = Fx.saved(LocalStore.data("fx"))
+        // A saved simulation is used only when well-formed (the file can be edited by hand), like on the web. A new
+        // one starts with 10 000 in the display currency, kept in dollars like the prices.
+        let startCapital = savedCurrency == .eur ? savedFx.map { Paper.defaultCapital / $0.rate } ?? Paper.defaultCapital : Paper.defaultCapital
         paper = LocalStore.load(PaperState.self, "paper").flatMap { Paper.isValid($0) ? $0 : nil }
-            ?? Paper.new(capital: Paper.defaultCapital, now: Date().timeIntervalSince1970 * 1000)
+            ?? Paper.new(capital: startCapital, now: Date().timeIntervalSince1970 * 1000)
         // An unreadable journal is ignored with a message, never a crash (kept aside at the next write).
         let savedJournal = TradeJournal.parseSaved(LocalStore.data("tradeJournal"))
         tradeJournal = savedJournal.state
         tradeJournalError = savedJournal.error
         lastAlertCheck = defaults.object(forKey: "lastAlertCheck") as? Date
-        budget = defaults.double(forKey: "budget")
+        let savedBudget = StoredAmount.read(amount: defaults.double(forKey: "budget"), currency: defaults.string(forKey: "budgetCurrency"))
+        budget = savedBudget?.amount ?? 0
+        budgetCurrency = savedBudget?.currency ?? .usd
+        currency = savedCurrency
+        fx = savedFx
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
         selectionHorizon = Horizon(rawValue: defaults.string(forKey: "selectionHorizon") ?? "") ?? .mo1
         risk = defaults.data(forKey: "riskSettings").flatMap { try? JSONDecoder().decode(RiskSettings.self, from: $0) } ?? .defaults
@@ -120,7 +148,76 @@ final class AppModel {
         configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
         decisionDigests = LocalStore.load([String: DecisionDigest].self, "decisionDigests") ?? [:]
         dangers = LocalStore.load(DangerState.self, "dangers")
+        applyMoney()
+        moneyStamp = Money.displayCurrency
         restore()
+    }
+
+    // MARK: Display currency
+
+    /// Every formatter (AltimKit's Money) reads the currency and the rate set here.
+    private func applyMoney() {
+        Money.setDisplay(currency, fx)
+        WatchBridge.shared.sendDisplay(currency: currency, fx: fx)
+    }
+
+    /// Rebuilds the screens when the currency actually shown changed (called when the rate arrives or is lost, and
+    /// when the Radar comes back from Réglages, so that changing the setting does not close Réglages).
+    func syncMoneyStamp() {
+        if moneyStamp != Money.displayCurrency { moneyStamp = Money.displayCurrency }
+    }
+
+    /// Holdings in dollars (engines, server, decision), at the current rate; `unconverted`: euro costs without a rate.
+    var usdHoldings: UsdHoldings {
+        _ = fx
+        _ = currency
+        return UsdHoldings(holdings)
+    }
+
+    /// Budget of the Sélection tab in dollars (0 when not set or not convertible).
+    var budgetUsd: Double {
+        _ = fx
+        let v = StoredAmount.read(amount: budget, currency: budgetCurrency.rawValue)?.usd ?? 0
+        return v.isFinite ? v : 0
+    }
+
+    /// Reads the EUR/USD rate now, then every 10 minutes while the app runs (a failed read keeps the last rate).
+    func startFx() {
+        guard fxTask == nil else { return }
+        fxTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refreshFx()
+                try? await Task.sleep(nanoseconds: UInt64(Fx.refreshInterval * 1e9))
+            }
+        }
+    }
+
+    /// Background checks: the rate read again when older than 10 minutes.
+    func refreshFxIfOld() async {
+        if let f = fx, !f.stale, Date().timeIntervalSince1970 * 1000 - f.fetchedAt < Fx.refreshInterval * 1000 { return }
+        await refreshFx()
+    }
+
+    func refreshFx() async {
+        guard let client else { return }
+        do {
+            let r = try await client.fx()
+            if let rate = r.rate {
+                fx = rate
+                fxError = nil
+                LocalStore.write(r.data, "fx")
+            } else {
+                // No source answered: the last rate stays while younger than 7 days.
+                fxError = r.response.error ?? "taux indisponible"
+                if let f = fx, Date().timeIntervalSince1970 * 1000 - f.fetchedAt >= 7 * 86_400_000 { fx = nil }
+            }
+        } catch AltimError.unauthorized {
+            fxError = "taux indisponible (session expirée)"
+        } catch {
+            fxError = "taux indisponible (\(error.localizedDescription))"
+        }
+        applyMoney()
+        syncMoneyStamp()
     }
 
     // MARK: Access
@@ -424,6 +521,7 @@ final class AppModel {
     /// `nearStopUnknown`: ids of the lines with a stop whose candles could not be read.
     func measureDangers() async -> (dangers: [Danger], nearStopUnknown: Set<String>)? {
         guard let client, !holdings.isEmpty else { return nil }
+        let holdings = usdHoldings.holdings
         let assets = Array(Dictionary(holdings.map { ($0.asset.id, $0.asset) }, uniquingKeysWith: { a, _ in a }).values)
         guard let q = try? await client.quotes(assets), !q.isEmpty else { return nil }
         // The offline status is told through the main actor just before: let it land first.
@@ -531,7 +629,8 @@ final class AppModel {
         return r.error
     }
 
-    /// Starts again from `capital` dollars: positions and journal erased.
+    /// Starts again from `capital` dollars (the simulation is kept in dollars like the prices): positions and journal
+    /// erased.
     func paperReset(capital: Double) {
         paper = Paper.new(capital: capital, now: nowMs)
         paperJustClosed = []

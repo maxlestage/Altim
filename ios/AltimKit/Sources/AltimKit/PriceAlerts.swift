@@ -1,7 +1,9 @@
 import Foundation
 
-/// "Préviens-moi si BTC passe sous 80 000 $": a price threshold chosen by the user, checked with the buy alerts.
-/// One shot: once reached it is marked triggered (the user can re-arm it).
+/// "Préviens-moi si BTC passe sous 80 000 €": a price threshold chosen by the user, checked with the buy alerts.
+/// One shot: once reached it is marked triggered (the user can re-arm it). `price` is in `currency` (the display
+/// currency when it was created; absent = dollars): the current dollar price is converted at the current rate before
+/// comparing, so a threshold in euros is reached by the price in euros.
 public struct PriceTarget: Codable, Sendable, Identifiable, Hashable {
     public var id: UUID
     public var asset: Asset
@@ -12,8 +14,11 @@ public struct PriceTarget: Codable, Sendable, Identifiable, Hashable {
     public var triggered: Date?
     /// Move alert: notify when the price moves by at least this many % (up or down) from `price`, the reference.
     public var move: Double?
+    /// Currency of `price`; absent = dollars (alerts created before the euro display).
+    public var currency: Currency?
 
-    public init(id: UUID = UUID(), asset: Asset, above: Bool, price: Double, created: Date = Date(), triggered: Date? = nil, move: Double? = nil) {
+    public init(id: UUID = UUID(), asset: Asset, above: Bool, price: Double, created: Date = Date(), triggered: Date? = nil, move: Double? = nil,
+                currency: Currency? = nil) {
         self.id = id
         self.asset = asset
         self.above = above
@@ -21,24 +26,32 @@ public struct PriceTarget: Codable, Sendable, Identifiable, Hashable {
         self.created = created
         self.triggered = triggered
         self.move = move
+        self.currency = currency
     }
 
+    /// "Au-dessus de 80 000,00 €" / "Variation de ±5 % (depuis 212,40 €)": the threshold in its own currency.
     public var label: String {
-        if let move { return "Variation de ±\(Format.plain(move, digits: 1)) % (depuis \(Format.price(price)))" }
-        return "\(above ? "Au-dessus de" : "En dessous de") \(Format.price(price))"
+        let p = Money.threshold(price, Money.stored(currency))
+        if let move { return "Variation de ±\(Format.plain(move, digits: 1)) % (depuis \(p))" }
+        return "\(above ? "Au-dessus de" : "En dessous de") \(p)"
     }
 
-    /// Reached at this price?
-    public func isReached(by current: Double) -> Bool {
+    /// The dollar price in the alert's currency (NaN when no rate allows it: the alert then waits).
+    public func inCurrency(_ usd: Double) -> Double { Money.convert(usd, from: .usd, to: Money.stored(currency)) }
+
+    /// Reached at this dollar price?
+    public func isReached(by currentUsd: Double) -> Bool {
+        let current = inCurrency(currentUsd)
+        guard current.isFinite else { return false }
         if let move { return price > 0 && abs(current / price - 1) * 100 >= move }
         return above ? current >= price : current <= price
     }
 
-    /// Re-armed: a move alert starts again from the current price.
-    public func rearmed(at current: Double?) -> PriceTarget {
+    /// Re-armed: a move alert starts again from the current (dollar) price, in its own currency.
+    public func rearmed(at currentUsd: Double?) -> PriceTarget {
         var t = self
         t.triggered = nil
-        if move != nil, let current, current > 0 { t.price = current }
+        if move != nil, let c = currentUsd.map(inCurrency), c.isFinite, c > 0 { t.price = c }
         return t
     }
 
@@ -63,7 +76,7 @@ public struct JournalEntry: Codable, Sendable, Identifiable, Hashable {
     public var asset: Asset
     public var source: Source
     public var title: String
-    /// Price when the alert was sent.
+    /// Price when the alert was sent (dollars, the sources' currency).
     public var price: Double
     public var date: Date
 

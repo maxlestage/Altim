@@ -250,8 +250,10 @@ struct AssetDetailView: View {
         var cost: Double?
         var weights: [DecisionWeight] = []
         if model.holdings.contains(where: { $0.asset.id == asset.id }) {
-            cost = DecisionInputs.cost(of: asset, in: model.holdings)
-            weights = DecisionInputs.weights(model.holdings, prices: await holdingPrices(client))
+            // In dollars (a euro cost basis converted at the current rate), as the server expects.
+            let usd = model.usdHoldings.holdings
+            cost = DecisionInputs.cost(of: asset, in: usd)
+            weights = DecisionInputs.weights(usd, prices: await holdingPrices(client))
         }
         do {
             let d = try await client.decision(asset: asset, cost: cost, weights: weights, scoreWeights: model.scoreWeights)
@@ -300,8 +302,10 @@ struct PriceChart: View {
     var zone: FibZone?
 
     var body: some View {
-        let lows = candles.map(\.low) + (zone?.zone.map { [$0.from] } ?? [])
-        let highs = candles.map(\.high) + (zone?.zone.map { [$0.to] } ?? [])
+        // Dollar prices drawn in the display currency (the axis has no symbol: it must match the price above).
+        let k = Money.toDisplay(1)
+        let lows = candles.map { $0.low * k } + (zone?.zone.map { [$0.from * k] } ?? [])
+        let highs = candles.map { $0.high * k } + (zone?.zone.map { [$0.to * k] } ?? [])
         let lo = lows.min() ?? 0
         let hi = highs.max() ?? 1
         let pad = (hi - lo) * 0.05
@@ -309,15 +313,15 @@ struct PriceChart: View {
         let last = candles.last?.date ?? .now
         Chart {
             if let band = zone?.zone {
-                RectangleMark(xStart: .value("début", first), xEnd: .value("fin", last), yStart: .value("bas", band.from), yEnd: .value("haut", band.to))
+                RectangleMark(xStart: .value("début", first), xEnd: .value("fin", last), yStart: .value("bas", band.from * k), yEnd: .value("haut", band.to * k))
                     .foregroundStyle(Theme.violet.opacity(0.18))
             }
             if let g = zone?.golden {
-                RectangleMark(xStart: .value("début", first), xEnd: .value("fin", last), yStart: .value("bas", g.from), yEnd: .value("haut", g.to))
+                RectangleMark(xStart: .value("début", first), xEnd: .value("fin", last), yStart: .value("bas", g.from * k), yEnd: .value("haut", g.to * k))
                     .foregroundStyle(Theme.warning.opacity(0.22))
             }
             ForEach(candles) { c in
-                LineMark(x: .value("date", c.date), y: .value("prix", c.close))
+                LineMark(x: .value("date", c.date), y: .value("prix", c.close * k))
                     .interpolationMethod(.monotone)
                     .lineStyle(StrokeStyle(lineWidth: 2))
                     .foregroundStyle(Theme.cyan)

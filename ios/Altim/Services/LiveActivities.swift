@@ -63,6 +63,8 @@ final class LiveActivities {
     }
 
     private func push(_ activity: Activity<PriceActivityAttributes>, _ state: PriceActivityAttributes.ContentState) {
+        var state = state
+        state.priceText = Format.price(state.price)
         lastState = state
         lastPush = Date()
         Task { await activity.update(.init(state: state, staleDate: Date(timeIntervalSinceNow: 30 * 60))) }
@@ -75,6 +77,6 @@ final class LiveActivities {
         } else {
             note = "Verdict d'achat à la prochaine vérification."
         }
-        return .init(price: price, change: change, signal: signal, buy: alert?.buy ?? false, note: note, updated: Date())
+        return .init(price: price, change: change, signal: signal, buy: alert?.buy ?? false, note: note, updated: Date(), priceText: Format.price(price))
     }
 }
