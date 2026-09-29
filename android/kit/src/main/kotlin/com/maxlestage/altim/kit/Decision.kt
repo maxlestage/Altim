@@ -105,6 +105,48 @@ data class MarketRegime(val kind: RegimeKind = RegimeKind.NEUTRAL, val label: St
 /** "+34", "−12", "0" (scores −100 … +100). */
 fun signedScore(v: Double): String = "${if (v > 0) "+" else if (v < 0) "−" else ""}${Math.round(Math.abs(v))}"
 
+/**
+ * « Preuve du modèle » (`modelEvidence` of /api/decision): what the cross-asset validation (/api/validation) says about
+ * the asset's class and the market regime it is in now (validation's rule on the last closed daily candle). Every
+ * figure comes from the server's cached report. [available] false: no report computed yet ([text] says so). [weak]
+ * (class verdict "negative", or buy-and-hold better on more than two thirds of the class): confidence capped at 60.
+ * Codes stay strings so an unknown value never breaks decoding.
+ */
+@Serializable
+data class ModelEvidence(
+    val available: Boolean = false,
+    /** "stock" | "btc" | "eth" | "altcoin". */
+    val assetClass: String = "stock",
+    val classLabel: String = "",
+    /** "insufficient" | "edge" | "negative" | "unproven"; null when unavailable. */
+    val classVerdict: String? = null,
+    val classVerdictLabel: String? = null,
+    /** Assets of the class tested; those where the signal beat buy-and-hold ("n/m" in [beatHold]). */
+    val assets: Int = 0,
+    val beatHoldCount: Int = 0,
+    val beatHold: String? = null,
+    val trades: Int = 0,
+    val tStat: Double? = null,
+    /** "bull" | "bear" | "range" | "crisis" | "unknown". */
+    val regime: String = "unknown",
+    val regimeLabel: String = "",
+    val regimeVerdict: String? = null,
+    val regimeTrades: Int = 0,
+    val regimeTStat: Double? = null,
+    val weak: Boolean = false,
+    val text: String = "",
+    /** Time of the validation report (ms); null when unavailable. */
+    val asOf: Double? = null,
+    val link: String = "/app/validation",
+) {
+    /** Tone of the block (web `dec-proof` classes): "na", "weak", "edge" or "unproven". */
+    val tone: String get() = when {
+        !available -> "na"
+        weak -> "weak"
+        else -> when (classVerdict) { "edge" -> "edge"; "negative" -> "weak"; else -> "unproven" }
+    }
+}
+
 @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable(with = DecisionSerializer::class)
 @kotlinx.serialization.KeepGeneratedSerializer
@@ -146,6 +188,8 @@ data class Decision(
     // Added later (absent from older answers): summaries and technical structure.
     val rating: Rating? = null,
     val ratingLabel: String = "",
+    /** Why the model's evidence lowered a strong rating (ACHAT FORT → ACHAT, VENTE FORTE → VENDRE); null otherwise. */
+    val ratingReason: String? = null,
     val score: CompositeScore? = null,
     val degraded: Degraded? = null,
     val marketRegime: MarketRegime? = null,
@@ -166,6 +210,8 @@ data class Decision(
     val counterArgument: CounterArgument? = null,
     /** Compact numbers kept on the phone to explain a later change of the signal. */
     val snapshot: DecisionSnapshot? = null,
+    /** « Preuve du modèle » (added later, absent from older answers): the cross-asset validation of the asset's class. */
+    val modelEvidence: ModelEvidence? = null,
 ) {
     /** The rating's words when the server gives it, else the verdict's. */
     val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel

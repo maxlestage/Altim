@@ -343,4 +343,68 @@ class DecisionTest {
             dir.deleteRecursively()
         }
     }
+
+    /**
+     * « Preuve du modèle ». decision-evidence.json is the real Apple answer of decision-guidance.json (28/09/2026) with
+     * the evidence block ADDED as the server writes it: `modelEvidence` is the exact output of the backend engine for
+     * AAPL with the saved real validation (backend/tests/samples/validation.json, test
+     * `model_evidence_from_the_saved_validation`), plus the con it appends, the counter-argument's count and
+     * `ratingReason: null` (the rating is ATTENDRE, never lowered).
+     */
+    @Test fun modelEvidence() {
+        val d = AltimJson.decodeFromString(Decision.serializer(), sample("decision-evidence.json"))
+        assertNull(d.ratingReason)
+        val e = assertNotNull(d.modelEvidence)
+        assertTrue(e.available)
+        assertEquals("stock", e.assetClass)
+        assertEquals("Actions et ETF américains", e.classLabel)
+        assertEquals("edge", e.classVerdict)
+        assertEquals("Gain moyen positif (t ≥ 2), à confirmer", e.classVerdictLabel)
+        assertEquals(22, e.assets)
+        assertEquals(2, e.beatHoldCount)
+        assertEquals("2/22", e.beatHold)
+        assertEquals(650, e.trades)
+        assertEquals(2.18, e.tStat)
+        assertEquals("bull", e.regime)
+        assertEquals("marché haussier", e.regimeLabel)
+        assertEquals("unproven", e.regimeVerdict)
+        assertEquals(486, e.regimeTrades)
+        assertEquals(1.76, e.regimeTStat)
+        assertTrue(e.weak)
+        assertEquals("weak", e.tone)
+        assertTrue(
+            e.text.startsWith("Sur les actions et ETF testés (22), gain moyen positif par trade (t = 2,2) mais la simple détention a fait mieux dans 20 cas sur 22 ; en marché haussier"),
+            e.text,
+        )
+        assertEquals(1790662942496.0, e.asOf)
+        assertEquals("/app/validation", e.link)
+        assertEquals(
+            "Le signal n'a pas démontré d'avantage sur cette classe d'actifs (validation sur 22 actifs : la simple détention a fait mieux dans 20 cas)",
+            d.cons.last(),
+        )
+        // Older answers: no evidence, no reason.
+        val old = AltimJson.decodeFromString(Decision.serializer(), sample("decision-guidance.json"))
+        assertNull(old.modelEvidence)
+        assertNull(old.ratingReason)
+        // Not computed yet (the server's default block), a lowered rating, unknown codes, a nearly empty block.
+        val na = AltimJson.decodeFromString(
+            Decision.serializer(),
+            """{"symbol":"BTC","rating":"buy","ratingReason":"ACHAT plutôt que ACHAT FORT : la validation du modèle sur le Bitcoin (1 actif) ne montre pas d'avantage du signal (trop peu de trades pour conclure).",
+               "modelEvidence":{"available":false,"assetClass":"btc","classLabel":"Bitcoin","classVerdict":null,"classVerdictLabel":null,"assets":0,"beatHoldCount":0,"beatHold":null,"trades":0,"tStat":null,
+               "regime":"unknown","regimeLabel":"régime inconnu (historique trop court)","regimeVerdict":null,"regimeTrades":0,"regimeTStat":null,"weak":false,
+               "text":"Validation pas encore calculée : ouvrez l'écran « Validation du modèle » pour la lancer (quelques minutes).","asOf":null,"link":"/app/validation"}}""",
+        )
+        assertTrue(na.ratingReason!!.startsWith("ACHAT plutôt que ACHAT FORT"))
+        val ne = assertNotNull(na.modelEvidence)
+        assertFalse(ne.available)
+        assertEquals("na", ne.tone)
+        assertNull(ne.asOf)
+        assertNull(ne.beatHold)
+        val odd = AltimJson.decodeFromString(Decision.serializer(), """{"symbol":"X","modelEvidence":{"available":true,"classVerdict":"superb","regime":"mania","extra":1}}""")
+        val oe = assertNotNull(odd.modelEvidence)
+        assertEquals("unproven", oe.tone)
+        assertEquals("mania", oe.regime)
+        assertEquals("/app/validation", oe.link)
+        assertEquals("", oe.text)
+    }
 }
