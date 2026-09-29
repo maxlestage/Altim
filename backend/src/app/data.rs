@@ -128,8 +128,8 @@ pub async fn selection(h: Horizon, market: Kind) -> Result<Arc<ScreenResult>> {
     .await
 }
 
-/// Production: the daily selections and the coming days of the calendar are computed at start-up and every 25 minutes,
-/// so nobody waits.
+/// Production: the daily selections, the coming days of the calendar and the model's validation are computed at
+/// start-up and every 25 minutes, so nobody waits.
 pub fn warm_selections() {
     tokio::spawn(async {
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -146,6 +146,9 @@ pub fn warm_selections() {
                 // The opportunities scan reads the same (now cached) daily candles.
                 let _ = crate::opportunities::opportunities(m).await;
             }
+            // The model's validation (kept 12 h fresh), so every decision can show its evidence from the start.
+            use super::validation as v;
+            let _ = crate::cache::cached(v::CACHE_KEY, v::FRESH_MS, v::compute).await;
         }
     });
 }
