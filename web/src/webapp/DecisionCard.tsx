@@ -15,6 +15,7 @@ import { dayLabel } from "./calendar";
 import { SimulateBuy } from "./PaperOrder";
 import { useAppState } from "./store";
 import { onLink } from "./router";
+import { ACTION_UI, pct0, type BotView } from "./model-bot";
 
 // ---------- Small building blocks ----------
 
@@ -485,6 +486,34 @@ export function EvidenceLine({ e }: { e: ModelEvidence }) {
   );
 }
 
+/** « Bot Altim »: the learned model's action, its probabilities and whether it counts in this decision. */
+export function BotLine({ b }: { b: BotView }) {
+  const tone = !b.available || !b.action ? "na" : b.counts ? "edge" : "unproven";
+  return (
+    <div className={`dec-proof ${tone}`}>
+      <p className="small dec-proof-head">
+        <b>Bot Altim</b>
+        {b.available && b.action && <span className={`chip bot-action ${ACTION_UI[b.action].tone}`}>{ACTION_UI[b.action].label}</span>}
+        {b.available && b.action && <span className="dec-chip">{b.counts ? "compte" : "ne compte pas"}</span>}
+      </p>
+      {b.available && b.action ? (
+        <p className="small">
+          Probabilités à 20 jours : hausse <b>{pct0(b.up)}</b> (seuil {pct0(b.thresholdUp)}), baisse <b>{pct0(b.down)}</b> (seuil {pct0(b.thresholdDown)})
+          {!b.inBasket && <span className="muted"> · modèle des {b.group === "crypto" ? "cryptos" : "actions"}, non testé sur cet actif</span>}
+        </p>
+      ) : (
+        <p className="small">{b.text}</p>
+      )}
+      {b.contributions.length > 0 && <p className="small muted">{b.contributions.map((c) => c.text).join(" · ")}</p>}
+      <p className="small">{b.note}</p>
+      <p className="small">
+        <a href={b.link || "/app/bot"} onClick={onLink} className="link">Voir le bot et ses résultats →</a>
+        {b.asOf != null && <span className="muted"> · entraîné le {shortDateTime(b.asOf)}</span>}
+      </p>
+    </div>
+  );
+}
+
 export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate, change }: {
   d: Decision; status?: DecisionStatus; onRetry?: () => void;
   /** Shows "Simuler cet achat" (paper trading) with the live price when known. */
@@ -531,6 +560,7 @@ export function DecisionView({ d, status = { kind: "fresh" }, onRetry, simulate,
       {d.ratingReason && <p className="small muted">{d.ratingReason}</p>}
       <p className="muted small">{d.confidenceText}</p>
       {d.modelEvidence && <EvidenceLine e={d.modelEvidence} />}
+      {d.bot && <BotLine b={d.bot} />}
       <p className={`dec-mode ${d.mode === "personal" ? "personal" : ""}`}>{modeText(d.mode)}</p>
       {regime && (
         <p className="small">

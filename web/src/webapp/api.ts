@@ -5,6 +5,7 @@ import type { Interval, WatchItem } from "./store";
 import { decisionUrl, parseDecision, type MarketRegime, type PersonalInput, type ScoreWeights } from "./decision";
 import { calendarUrl, type CalendarReport } from "./calendar";
 import { strategiesUrl, type StrategiesReport } from "./strategies";
+import { botViewsUrl, type BotViews } from "./model-bot";
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -139,6 +140,10 @@ export const api = {
   sectors: (symbols: string[]) => get<import("../engine/sectors").SectorsReport>(`/api/sectors?symbols=${encodeURIComponent(symbols.slice(0, 50).join(","))}`),
   /** Signal validated on a fixed basket (heavy: 202 { pending } until the first computation is ready). */
   validation: () => get<import("./model-validation").ValidationReport | { pending: true }>("/api/validation"),
+  /** « Bot Altim » trained and tested walk-forward on the same basket (heavy: 202 { pending } until ready). */
+  bot: () => get<import("./model-bot").BotReport | { pending: true }>("/api/bot"),
+  /** Today's view of the bot for these assets (cached report only). */
+  botViews: (items: { symbol: string; kind: Kind }[]) => get<BotViews>(botViewsUrl(items)),
   anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
 };
 

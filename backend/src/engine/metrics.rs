@@ -62,7 +62,7 @@ fn pct_fr(x: f64) -> String {
 }
 
 /// Trade return (%) once a cost `side` (fraction) is paid on the buy and on the sell.
-fn with_costs(return_percent: f64, side: f64) -> f64 {
+pub fn with_costs(return_percent: f64, side: f64) -> f64 {
     ((1.0 + return_percent / 100.0) * (1.0 - side) / (1.0 + side) - 1.0) * 100.0
 }
 

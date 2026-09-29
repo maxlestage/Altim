@@ -155,6 +155,13 @@ struct SettingsView: View {
             } footer: {
                 Text("Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.")
             }
+            Section {
+                NavigationLink("Voir le bot") { BotScreen() }
+            } header: {
+                Text("Bot Altim")
+            } footer: {
+                Text(ModelBot.settingsText)
+            }
             Section("Comprendre") {
                 NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
             }
