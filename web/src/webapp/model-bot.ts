@@ -4,7 +4,9 @@
  * Returns and probabilities are in %, "points" are differences of % (signal − random day), times in ms. The server
  * computes everything; nothing here recomputes a statistic. v2 fields are additive and optional (a v1 answer still
  * reads): `version`, `changes`, per group `universe`, `dataYears`, `selection`, `candidates`, `holdout`, `extra`,
- * `market`, `clustered` t in each side, `exit` of the sell side, the live model's `candidate`.
+ * `market`, `clustered` t in each side, `exit` of the sell side, the live model's `candidate`. v3 (additive, optional):
+ * `v3` of the report (horizons 20 / 60, peers ranking, corrected threshold, forward test), `v3` of an asset row (today's
+ * actions of the 4 headline configurations) and of a view.
  */
 import type { Kind } from "../engine/reliability";
 import type { AssetClass, Verdict } from "./model-validation";
@@ -79,6 +81,7 @@ export type BotAssetRow = {
   buys: number; buyMean: number | null; buyExcess: number | null; sells: number; sellAvoided: number | null; waitShare: number | null;
   botReturn: number | null; holdReturn: number | null; now: NowView; source: string;
   years?: number | null; dataFrom?: number | null; outShare?: number | null; holdMaxDrawdown?: number | null; botMaxDrawdown?: number | null;
+  v3?: V3AssetNow;
 };
 
 type Failure = { symbol: string; name: string; kind: Kind; class: AssetClass; error: string };
@@ -97,7 +100,9 @@ export type BotReport = {
   };
   method: string[]; limits: string[]; source: string;
   version?: number; changes?: string[]; extraFailures?: Failure[]; extraFixedOn?: string;
-  timing?: { fetchMs: number; computeMs: number; threads: number } | null;
+  timing?: { fetchMs: number; computeMs: number; threads: number; rssBeforeMb?: number | null; peakRssMb?: number | null } | null;
+  /** Since v3: the pre-registered v3; the v2-shaped fields then hold v2's selection at 20 days, at the corrected threshold. */
+  v3?: V3Report;
 };
 
 export type Contribution = { id: string; label: string; value: number; valueText: string; weight: number; effect: "up" | "down"; text: string };
@@ -111,6 +116,8 @@ export type BotView = {
   /** Today's action is on a side with an out-of-sample edge: it counts (a little) in the decision. */
   counts: boolean; time: number | null; contributions: Contribution[]; text: string; note: string; asOf: number | null; link: string;
   model?: Candidate | null; modelLabel?: string | null;
+  /** Since v3: the 4 headline configurations today; `counts` is then theirs. */
+  v3?: V3View;
 };
 export type BotViews = { asOf: number | null; views: (BotView & { symbol: string; kind: Kind })[] };
 
@@ -222,4 +229,162 @@ export function anyEdge(r: BotReport): boolean {
 export function isBotView(v: unknown): v is BotView {
   const b = v as Partial<BotView> | null;
   return !!b && typeof b.available === "boolean" && typeof b.text === "string" && typeof b.counts === "boolean";
+}
+
+// ---------- v3 (additive: `v3` of the report, of an asset row and of a view) ----------
+
+/** v3's candidates: family « absolute » (rise / fall of the asset) then « peers » (vs the group's median). */
+export type V3Candidate = "trend" | "v1" | "logit" | "trees" | "treesLong" | "xsMomentum" | "xsLogit" | "xsTrees";
+export type Family = "absolute" | "peers" | "v2";
+/**
+ * One side of a configuration: excess in points of % (buy: mean − baseline; sell: baseline − mean), `t` by date (the
+ * verdict's), verdict at the corrected threshold and at the raw t ≥ 2 (for comparison only).
+ */
+export type SideStats = {
+  signals: number; mean: number | null; baseline: number | null; excess: number | null; t: number | null; dates: number;
+  tByAsset: number | null; assets: number; tPerSignal: number | null; beatShare: number | null; verdict: Verdict | null; rawVerdict: Verdict | null;
+};
+export type ConfigStats = {
+  testRows: number; labelled: number; from: number | null; to: number | null; buy: SideStats; sell: SideStats; waitShare: number | null;
+  medianBotReturn: number | null; medianHoldReturn: number | null; beatHold: number; holdAssets: number; exit: ExitStats | null;
+  brierSkillUp: number | null; brierSkillDown: number | null;
+  /** Family B: the same sides against the group's equal-weight mean (control added after the first real run). */
+  buyVsMean?: SideStats | null; sellVsMean?: SideStats | null;
+};
+/** `main`: basket, signals dated up to the pre-registration; `extra`: training assets (nested only); `forward`: after it. */
+export type V3Config = {
+  id: string; family: Family; candidate: V3Candidate | null; nested: boolean; headline: boolean; label: string;
+  trainedBlocks: number; chosenBlocks: number; main: ConfigStats; extra: ConfigStats | null; forward: ConfigStats;
+};
+export type EconScore = { id: V3Candidate; score: number | null; signals: number };
+export type V3BlockOut = {
+  start: number; end: number | null; trainRows: number; v2: Candidate | null; absolute: V3Candidate | null; peers: V3Candidate | null;
+  absoluteScores: EconScore[]; peersScores: EconScore[]; roundsUp: number | null; roundsDown: number | null; roundsPeers: number | null;
+};
+export type Rounds = { fits: number; min: number | null; median: number | null; max: number | null };
+export type V3Horizon = {
+  horizon: number; blocks: number; testFrom: number | null; testTo: number | null; configs: V3Config[]; selection: V3BlockOut[];
+  roundsUp: Rounds; roundsDown: Rounds; roundsPeers: Rounds;
+};
+/** Annualised (%, Sharpe without risk-free rate), max drawdown ≤ 0 (%), mean exposure 0-1. */
+export type SeriesStats = {
+  days: number; annualReturn: number | null; annualVol: number | null; sharpe: number | null; maxDrawdown: number | null; totalReturn: number | null; meanExposure: number | null;
+};
+export type VolManaged = {
+  assets: number; from: number | null; to: number | null; periods: number; hold: SeriesStats; managed: SeriesStats;
+  medianSharpeHold: number | null; medianSharpeManaged: number | null; medianDrawdownHold: number | null; medianDrawdownManaged: number | null;
+  betterSharpe: number; shallowerDrawdown: number; forwardHold: SeriesStats; forwardManaged: SeriesStats; text: string;
+};
+export type V3Group = {
+  id: BotGroup; label: string; market: string; universe: Universe; peersFrom: number | null; horizons: V3Horizon[]; volManaged: VolManaged | null; text: string;
+};
+export type V3Report = {
+  version: number; preregDate: string; forwardFrom: number; afterPrereg: string[]; k: { v1: number; v2: number; v3: number; total: number };
+  alpha: number; tRequired: number; headline: string; forwardHeadline: string; groups: V3Group[];
+  candidates: { id: V3Candidate; family: Family; label: string; description: string }[];
+  changes: string[]; method: string[]; limits: string[];
+  parameters: {
+    horizons: number[]; stockFrom: string; maxTreeRows: number; longMaxRounds: number; longDepth: number; longShrinkage: number; longMinLeaf: number;
+    patience: number; minPeers: number; minValSignals: number; minSignals: number; nudge: number;
+  };
+  compute: { maxRows: number; blocks: number; rowBytes: number };
+};
+export type V3AssetNow = { time: number | null; absolute20: BotAction | null; absolute60: BotAction | null; peers20: BotAction | null; peers60: BotAction | null };
+export type V3Signal = {
+  family: Family; horizon: number; candidate: V3Candidate | null; action: BotAction | null; buyVerdict: Verdict | null; sellVerdict: Verdict | null;
+  forwardBuySignals: number; forwardSellSignals: number; contradicted: boolean; counts: boolean; text: string;
+};
+export type V3View = {
+  available: boolean; signals: V3Signal[]; counts: boolean; nudge: number; tRequired: number; note: string;
+  pro: string | null; con: string | null; conHeld: string | null;
+};
+
+export const V3_SHORT: Record<V3Candidate, string> = {
+  trend: "Tendance", v1: "Logistique v1", logit: "Logistique 24", trees: "Arbres v2", treesLong: "Arbres longs",
+  xsMomentum: "Momentum entre pairs", xsLogit: "Logistique entre pairs", xsTrees: "Arbres longs entre pairs",
+};
+export const FAMILY_LABEL: Record<Family, string> = { absolute: "Hausse ou baisse de l'actif", peers: "Classement entre pairs", v2: "Sélection v2 (log-loss)" };
+
+/** "12/10/2026" from "2026-10-12". */
+export const frIso = (s: string) => s.split("-").reverse().join("/");
+
+/** "t = −1,2 (requis 3,52)". */
+export function tVsRequired(t: number | null, required: number): string {
+  return `t = ${t == null ? "—" : plain(t, 1)} (requis ${plain(required, 2)})`;
+}
+
+/** "t par jour 3,7 (requis 3,52) · par actif 0,6": the verdict's t, the one it needs, and the t by asset. */
+export function tLine(s: SideStats, required: number): string {
+  return `t par jour ${s.t == null ? "—" : plain(s.t, 1)} (requis ${plain(required, 2)}) · par actif ${s.tByAsset == null ? "—" : plain(s.tByAsset, 1)}`;
+}
+
+/** Verdict at the corrected threshold, in French; says when only the raw t ≥ 2 was reached. */
+export function v3VerdictLabel(s: SideStats, required: number): string {
+  switch (s.verdict) {
+    case "edge": return `Avantage au seuil corrigé (t ≥ ${plain(required, 2)}), à confirmer`;
+    case "negative": return "Pire que la référence au seuil corrigé";
+    case "insufficient": return "Trop peu de signaux pour conclure";
+    default: return s.rawVerdict === "edge" ? "t ≥ 2 atteint, pas le seuil corrigé : non démontré" : "Non démontré";
+  }
+}
+
+/** A side of a configuration in one sentence: "412 achats : +0,31 point face à la médiane du groupe (t par jour 1,1 (requis 3,52) · par actif 0,4)." */
+export function v3SideText(family: Family, side: "buy" | "sell", s: SideStats, required: number): string {
+  if (s.signals === 0) return side === "buy" ? "Aucun achat." : "Aucune vente.";
+  const ref = family === "peers" ? "la médiane du groupe" : "une entrée au hasard";
+  const plural = s.signals > 1 ? "s" : "";
+  if (side === "buy") return `${s.signals} achat${plural} : ${points(s.excess)} face à ${ref} (${tLine(s, required)}).`;
+  const verb = family === "peers" ? "gain à passer sur l'actif médian" : "baisse évitée";
+  return `${s.signals} vente${plural} : ${verb} ${points(s.excess)} (${tLine(s, required)}).`;
+}
+
+/** Forward test of a configuration so far. */
+export function forwardText(c: ConfigStats, required: number): string {
+  const n = c.buy.signals + c.sell.signals;
+  if (n === 0) return "Aucun signal jugé pour l'instant (il faut 20 à 60 jours de bourse après le signal).";
+  return `${c.buy.signals} achat${c.buy.signals > 1 ? "s" : ""} (${points(c.buy.excess)}, ${tVsRequired(c.buy.t, required)}) · ${c.sell.signals} vente${c.sell.signals > 1 ? "s" : ""} (${points(c.sell.excess)}).`;
+}
+
+/** Sharpe, max drawdown, yearly return and volatility of the managed trend vs holding (equal-weight portfolio). */
+export function volRows(v: VolManaged): { label: string; managed: string; hold: string }[] {
+  return [
+    { label: "Ratio de Sharpe", managed: plain(v.managed.sharpe, 2), hold: plain(v.hold.sharpe, 2) },
+    { label: "Pire baisse", managed: signedPct(v.managed.maxDrawdown), hold: signedPct(v.hold.maxDrawdown) },
+    { label: "Rendement annuel", managed: signedPct(v.managed.annualReturn), hold: signedPct(v.hold.annualReturn) },
+    { label: "Volatilité annuelle", managed: pct0(v.managed.annualVol), hold: pct0(v.hold.annualVol) },
+  ];
+}
+
+/** "7 min 12 s de calcul sur 1 cœur, pic mémoire 243 Mo (téléchargement 15 s)". */
+export function computeText(t: BotReport["timing"]): string | null {
+  if (!t) return null;
+  const s = Math.round(t.computeMs / 1000);
+  const dur = s >= 60 ? `${Math.floor(s / 60)} min ${s % 60} s` : `${s} s`;
+  const mem = t.peakRssMb != null ? `, pic mémoire ${Math.round(t.peakRssMb)} Mo` : "";
+  return `${dur} de calcul sur ${t.threads} cœur${t.threads > 1 ? "s" : ""}${mem} (téléchargement ${Math.round(t.fetchMs / 1000)} s)`;
+}
+
+/** The 4 headline configurations of a group: (horizon, config). */
+export function headlineConfigs(g: V3Group): { horizon: number; c: V3Config }[] {
+  return g.horizons.flatMap((h) => h.configs.filter((c) => c.headline).map((c) => ({ horizon: h.horizon, c })));
+}
+
+/** The figures that judge a side: family B's control against the group's mean when measured, else the side itself. */
+export function judged(c: ConfigStats, side: "buy" | "sell"): SideStats {
+  return (side === "buy" ? c.buyVsMean : c.sellVsMean) ?? c[side];
+}
+
+/** A side proven at the corrected threshold (family B: against the median and the mean). */
+export function proven(c: ConfigStats, side: "buy" | "sell"): boolean {
+  return c[side].verdict === "edge" && judged(c, side).verdict === "edge";
+}
+
+/** Whether a v3 headline configuration has an edge on either side (at the corrected threshold, both references). */
+export function v3AnyEdge(r: V3Report): boolean {
+  return r.groups.some((g) => headlineConfigs(g).some(({ c }) => proven(c.main, "buy") || proven(c.main, "sell")));
+}
+
+/** Signals judged so far in the forward test (headline configurations). */
+export function forwardSignals(r: V3Report): number {
+  return r.groups.reduce((s, g) => s + headlineConfigs(g).reduce((t, { c }) => t + c.forward.buy.signals + c.forward.sell.signals, 0), 0);
 }

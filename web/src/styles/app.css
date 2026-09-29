@@ -906,3 +906,14 @@
 .alert-row > span:first-child { min-width: 0; overflow-wrap: anywhere; }
 .alert-list .row-actions { display: flex; flex-wrap: wrap; gap: 16px; }
 .fx-note { margin: 4px 0 0; overflow-wrap: anywhere; }
+
+/* Bot v3 (BotV3.tsx) */
+.bot-v3-horizon { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--line); min-width: 0; }
+.bot-v3-horizon > p { margin: 0; overflow-wrap: anywhere; }
+.bot-v3-now { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0; }
+.bot-v3-sig { display: inline-flex; align-items: center; gap: 4px; }
+.bot-vol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.bot-vol li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); min-width: 0; }
+.bot-vol li > span { min-width: 0; overflow-wrap: anywhere; }
+.bot-v3-control { display: grid; gap: 4px; padding-left: 8px; border-left: 2px solid var(--line); min-width: 0; }
+.bot-v3-control > p { margin: 0; overflow-wrap: anywhere; }

@@ -8,6 +8,7 @@ import { Sources } from "./components/Sources";
 import { HowItWorks } from "./components/HowItWorks";
 import { Security } from "./components/Security";
 import { Transparency } from "./components/Transparency";
+import { BotSection } from "./components/BotSection";
 import { FAQ } from "./components/FAQ";
 import { Download } from "./components/Download";
 import { Apps } from "./components/Apps";
@@ -48,6 +49,7 @@ function Home() {
         <Apps />
         <Sources />
         <HowItWorks />
+        <BotSection />
         <Transparency />
         <Security />
         <FAQ />

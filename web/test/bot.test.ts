@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import raw from "../../backend/tests/samples/bot.json";
+import raw from "../../backend/tests/samples/bot-v2.json";
 import rawV1 from "../../backend/tests/samples/bot-v1.json";
 import {
   ACTION_UI, CANDIDATE_SHORT, anyEdge, botSummary, botUrl, botViewsUrl, buyText, calibrationRows, clusteredText, dataText, exitText, isBotView, points,

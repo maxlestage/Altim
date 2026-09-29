@@ -1,6 +1,6 @@
-//! Long daily histories for the « Bot Altim » v2 (training and walk-forward test), fetched once per report:
-//! - stocks and ETFs: Yahoo Finance's daily chart over the last `STOCK_YEARS` years (`period1` / `period2`, one call;
-//!   prices adjusted for splits, not for dividends);
+//! Long daily histories for the « Bot Altim » (training and walk-forward test), fetched once per report:
+//! - stocks and ETFs: Yahoo Finance's daily chart since 1990-01-01 (v3; v2 asked the last `STOCK_YEARS` years)
+//!   (`period1` / `period2`, one call; prices adjusted for splits, not for dividends);
 //! - cryptos: Bitstamp's daily candles paged backwards (`end`, 1 000 per call) since the pair's listing, and Yahoo's
 //!   `<SYMBOL>-USD` daily chart; the longer of the two is kept (never chosen on performance), its name reported.
 //!
@@ -48,10 +48,10 @@ pub fn merge_pages(pages: Vec<Vec<Candle>>) -> Vec<Candle> {
     all
 }
 
-/// Stock daily candles over the last `STOCK_YEARS` years (closed sessions only).
+/// Stock daily candles since 1990-01-01 (`bot_v3::STOCK_FROM_S`; closed sessions only).
 pub async fn stock_history(symbol: &str, now: i64) -> Result<Vec<Candle>> {
     let to = now / 1000;
-    let from = to - STOCK_YEARS * 365 * 86_400 - 30 * 86_400;
+    let from = crate::engine::bot_v3::STOCK_FROM_S;
     let c = parse_stock::yahoo(&get_json_with(&yahoo_url(symbol, from, to), &[], TIMEOUT).await?)?;
     let c = stock_closed_at(c, Interval::D1, now);
     if c.is_empty() { Err(Error("Yahoo : aucune bougie".into())) } else { Ok(c) }
@@ -93,7 +93,7 @@ pub fn longer(a: (&str, Result<Vec<Candle>>), b: (&str, Result<Vec<Candle>>)) ->
 /// One asset's long history and the name of its source.
 pub async fn long_history(symbol: &str, kind: Kind, now: i64) -> Result<(Vec<Candle>, String)> {
     match kind {
-        Kind::Stock => stock_history(symbol, now).await.map(|c| (c, format!("Yahoo Finance ({STOCK_YEARS} ans max.)"))),
+        Kind::Stock => stock_history(symbol, now).await.map(|c| (c, "Yahoo Finance (depuis 1990)".into())),
         Kind::Crypto => {
             let (b, y) = tokio::join!(bitstamp_history(symbol, now), yahoo_crypto_history(symbol, now));
             longer(("Bitstamp", b), ("Yahoo Finance", y))
