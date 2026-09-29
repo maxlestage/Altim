@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { onLink } from "./router";
 import { Segmented } from "./ui";
-import { formatPrice } from "../market";
+import { moneyCompact, moneyPrice } from "../money";
 import {
   DEFAULT_FILTERS, OPP_CATEGORIES, OPP_SHORT, compactUsd, countByCategory, filterItems,
   type OppCategory, type OppFilters, type OpportunityReport,
@@ -23,9 +23,12 @@ function readSaved(): Saved {
   return { market: "stock", filters: DEFAULT_FILTERS };
 }
 
-const CAPS: [string, number | null][] = [["Toutes", null], ["≥ 10 Md$", 1e10], ["≥ 50 Md$", 5e10], ["≥ 200 Md$", 2e11]];
+// Thresholds in dollars (the sources' currency), labelled in the display currency at render time.
+const CAPS_USD = [null, 1e10, 5e10, 2e11];
+const caps = (): [string, number | null][] => CAPS_USD.map((v) => [v == null ? "Toutes" : `≥ ${moneyCompact(v)}`, v]);
 const RANKS: [string, number | null][] = [["Tous", null], ["Top 20", 20], ["Top 50", 50], ["Top 100", 100]];
-const LIQ: [string, number | null][] = [["Toutes", null], ["≥ 1 M$ / jour", 1e6], ["≥ 10 M$ / jour", 1e7], ["≥ 100 M$ / jour", 1e8]];
+const LIQ_USD = [null, 1e6, 1e7, 1e8];
+const liq = (): [string, number | null][] => LIQ_USD.map((v) => [v == null ? "Toutes" : `≥ ${moneyCompact(v)} / jour`, v]);
 const VOL: [string, number | null][] = [["Toutes", null], ["≤ 2 % / jour", 2], ["≤ 4 % / jour", 4], ["≤ 8 % / jour", 8]];
 
 function Select({ label, value, options, onChange }: { label: string; value: number | null; options: [string, number | null][]; onChange: (v: number | null) => void }) {
@@ -114,9 +117,9 @@ export function Opportunities() {
         </div>
         <div className="opp-selects">
           {market === "stock"
-            ? <Select label="Capitalisation" value={filters.minCap} options={CAPS} onChange={(v) => setFilters({ minCap: v })} />
+            ? <Select label="Capitalisation" value={filters.minCap} options={caps()} onChange={(v) => setFilters({ minCap: v })} />
             : <Select label="Rang (capitalisation)" value={filters.maxRank} options={RANKS} onChange={(v) => setFilters({ maxRank: v })} />}
-          <Select label="Liquidité (volume échangé)" value={filters.minLiquidity} options={LIQ} onChange={(v) => setFilters({ minLiquidity: v })} />
+          <Select label="Liquidité (volume échangé)" value={filters.minLiquidity} options={liq()} onChange={(v) => setFilters({ minLiquidity: v })} />
           <Select label="Volatilité max (ATR)" value={filters.maxVolatility} options={VOL} onChange={(v) => setFilters({ maxVolatility: v })} />
         </div>
         {limited.map((c) => (
@@ -147,7 +150,7 @@ export function Opportunities() {
                     <small className="muted">{i.symbol} · {market === "crypto" ? (i.rank ? `rang ${i.rank}` : "crypto") : i.sector}</small>
                   </div>
                   <div className="opp-price mono">
-                    <b>{formatPrice(i.price)} $</b>
+                    <b>{moneyPrice(i.price)}</b>
                     {i.change1d != null && <small className={i.change1d >= 0 ? "buy" : "sell"}>{signed(i.change1d)}</small>}
                   </div>
                 </div>

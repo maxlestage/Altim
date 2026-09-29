@@ -33,6 +33,10 @@ async fn main() {
     if production {
         warm_selections();
     }
+    // EUR/USD rate of the euro texts, read before the first visitor asks.
+    tokio::spawn(async {
+        altim::fx::ensure().await;
+    });
     // Heroku restarts every dyno at least once a day with SIGTERM, then kills it 30 s later: new requests are refused,
     // live streams are closed (the apps and the browser reconnect at once to the new dyno) and the exchanges' sockets
     // are shut before leaving.

@@ -1,3 +1,4 @@
+import { moneyFmt } from "../money";
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { compactUsd, longShare, type Anomaly, type AnomalyReport, type Derivatives } from "../engine/opportunities";
@@ -30,7 +31,7 @@ function DerivativesBlock({ d }: { d: Derivatives }) {
           <p className="kv small"><span>Acheteurs liquidés ({l.longCount})</span><b className="sell">{compactUsd(l.longUsd)}{share != null && ` · ${Math.round(share)} %`}</b></p>
           <p className="kv small"><span>Vendeurs liquidés ({l.shortCount})</span><b className="buy">{compactUsd(l.shortUsd)}</b></p>
           {l.largest && (
-            <p className="kv small"><span>Plus grosse</span><b>{compactUsd(l.largest.usd)} · {l.largest.long ? "acheteur" : "vendeur"} à {fr(l.largest.price, 2)} $ · {time(l.largest.time)}</b></p>
+            <p className="kv small"><span>Plus grosse</span><b>{compactUsd(l.largest.usd)} · {l.largest.long ? "acheteur" : "vendeur"} à {moneyFmt(l.largest.price, (x) => fr(x, 2))} · {time(l.largest.time)}</b></p>
           )}
           <p className="muted small">{l.scope}</p>
         </div>

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { analyzePortfolio, insightText, REASON_TEXT, RECOMMENDATION_LABEL, type Holding, type MarketInput, type PortfolioAnalysis, type Recommendation } from "../engine/holdings";
-import { formatPrice } from "../market";
+import { currencySymbol, displayCurrency, fromDisplay, money, moneyPrice, storedCurrency, toDisplay } from "../money";
 import { api } from "./api";
 import { onLink } from "./router";
 import { AddHoldings } from "./AddHoldings";
 import { KIND_LABEL } from "./AssetPicker";
-import { exportHoldings, importHoldings, setHoldings, upsertHolding, useAppState, useHoldings } from "./store";
+import { exportHoldings, importHoldings, setHoldings, shown, upsertHolding, useAppState, useHoldings, useStoredHoldings, type StoredHolding } from "./store";
+import { FxNote } from "./FxNote";
 import {
   BENCHMARK, checkLimits, correlatedClusters, dailyChange, dangerousPositions, estimateBeta, stressTest, type BetaEstimate, type Danger,
 } from "../engine/portfolio-risk";
@@ -23,7 +24,9 @@ import { HistoryCard } from "./HistoryCard";
 import { PortfolioTabs } from "./Simulation";
 import { ProjectionCard, RebalanceCard, SaleCard } from "./ToolCards";
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+const usd = (v: number) => money(v, 2, 2);
+/** A saved amount put back in an input, in the display currency ("" when no rate allows it). */
+const inputText = (v: number) => (Number.isFinite(v) ? String(Math.round(v * 1e8) / 1e8).replace(".", ",") : "");
 const REC_CLASS: Record<Recommendation, string> = { sell: "sell", protect: "sell", lighten: "hold", strengthen: "buy", hold: "hold", unknown: "unknown" };
 // CSV columns: quantities and prices keep their precision (small cryptos), the rest 2 decimals.
 const CSV_DIGITS = [0, 0, 0, 8, 6, 6, 2, 2, 2, 2, 0];
@@ -31,16 +34,22 @@ const LEVEL_ICON ={ danger: "⛔", warning: "⚠", info: "ℹ", good: "✔" } as
 
 /** Real portfolio entered by the user (localStorage) and full analysis. */
 export function MyHoldings() {
-  const { holdings, cash, updatedAt } = useHoldings();
+  const { holdings, cash, updatedAt, unconverted, cashUnconverted } = useHoldings();
+  const stored = useStoredHoldings();
+  const cur = displayCurrency();
   const { risk } = useAppState();
   const [market, setMarket] = useState<Record<string, MarketInput>>({});
   // Daily candles of the benchmarks (Bitcoin, S&P 500 via SPY) when they are not held: betas of the stress tests.
   const [bench, setBench] = useState<Record<string, Candle[]>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Holding | null>(null);
+  const [editing, setEditing] = useState<StoredHolding | null>(null);
   const [adding, setAdding] = useState(false);
-  const [cashText, setCashText] = useState(cash ? String(cash) : "");
+  const cashShown = shown(stored.cash, stored.cashCurrency);
+  const cashInitial = stored.cash ? inputText(cashShown) : "";
+  const [cashText, setCashText] = useState(cashInitial);
+  // The display currency or the rate changed: the field follows (unless being typed in).
+  useEffect(() => setCashText(cashInitial), [cashInitial]);
   const fileInput = useRef<HTMLInputElement>(null);
   const symbolsKey = holdings.map((h) => `${h.kind}:${h.symbol}`).sort().join(",");
 
@@ -143,14 +152,17 @@ export function MyHoldings() {
     else if (riskView && Object.keys(market).length) saveDangers(riskView.dangers);
   }, [dangerKey]);
 
+  // Typed in the display currency and saved with it (an untouched field keeps its saved currency).
   const saveCash = () => {
+    if (cashText === cashInitial) return;
     const v = Number(cashText.replace(/\s/g, "").replace(",", "."));
-    if (Number.isFinite(v) && v >= 0) setHoldings({ cash: v });
-    else setCashText(cash ? String(cash) : "");
+    if (Number.isFinite(v) && v >= 0) setHoldings({ cash: v, cashCurrency: cur });
+    else setCashText(cashInitial);
   };
 
   /** Spreadsheet export (French Excel: ";" separator, decimal comma); texts starting like a formula are neutralised. */
   const downloadCsv = () => {
+    const sym = currencySymbol();
     const cell = (v: string | number | null, digits = 2) => {
       if (v == null) return "";
       if (typeof v === "number") return Number.isFinite(v) ? String(Math.round(v * 10 ** digits) / 10 ** digits).replace(".", ",") : "";
@@ -158,9 +170,12 @@ export function MyHoldings() {
       return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const rows = [
-      ["Symbole", "Nom", "Type", "Quantité", "Prix moyen ($)", "Cours ($)", "Valeur ($)", "Plus-value ($)", "Plus-value (%)", "Poids (%)", "Conseil Altim"],
-      ...analysis.lines.map((l) => [l.symbol, l.name, l.kind === "crypto" ? "Crypto" : "Action", l.quantity, l.averagePrice, l.price, l.value, l.pnl, l.pnlPercent, l.weight, RECOMMENDATION_LABEL[l.recommendation]]),
-      ["Liquidités", "", "", "", "", "", analysis.cash, "", "", "", ""],
+      ["Symbole", "Nom", "Type", "Quantité", `Prix moyen (${sym})`, `Cours (${sym})`, `Valeur (${sym})`, `Plus-value (${sym})`, "Plus-value (%)", "Poids (%)", "Conseil Altim"],
+      ...analysis.lines.map((l) => [
+        l.symbol, l.name, l.kind === "crypto" ? "Crypto" : "Action", l.quantity, toDisplay(l.averagePrice), l.price == null ? null : toDisplay(l.price), toDisplay(l.value),
+        unconverted.includes(l.symbol) ? null : toDisplay(l.pnl), unconverted.includes(l.symbol) ? null : l.pnlPercent, l.weight, RECOMMENDATION_LABEL[l.recommendation],
+      ]),
+      ["Liquidités", "", "", "", "", "", toDisplay(analysis.cash), "", "", "", ""],
     ];
     const blob = new Blob(["﻿" + rows.map((r) => r.map((v, i) => cell(v, CSV_DIGITS[i])).join(";")).join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a");
@@ -203,12 +218,21 @@ export function MyHoldings() {
 
       <div className="card">
         <label className="field">
-          <span>Liquidités disponibles (USD)</span>
+          <span>Liquidités disponibles ({cur === "EUR" ? "€" : "$"})</span>
           <input inputMode="decimal" value={cashText} placeholder="0" onChange={(e) => setCashText(e.target.value)} onBlur={saveCash} onKeyDown={(e) => e.key === "Enter" && (e.currentTarget as HTMLInputElement).blur()} />
         </label>
+        {stored.cash > 0 && storedCurrency(stored.cashCurrency) !== cur && !cashUnconverted && (
+          <p className="muted small">Montant saisi en {storedCurrency(stored.cashCurrency) === "USD" ? "$" : "€"}, converti au taux du jour.</p>
+        )}
       </div>
 
       {error && <p className="notice warn">⚠ {error} — nouvelle tentative automatique.</p>}
+      {(unconverted.length > 0 || cashUnconverted) && (
+        <p className="notice warn" role="status">
+          ⚠ Taux EUR/USD indisponible : {[...unconverted, ...(cashUnconverted ? ["liquidités"] : [])].join(", ")} saisi(es) en € ne peuvent pas être converti(es) ;
+          plus-values de ces lignes non calculées, liquidités comptées à 0 jusqu'au retour du taux.
+        </p>
+      )}
 
       {holdings.length > 0 && (
         <>
@@ -218,12 +242,13 @@ export function MyHoldings() {
               <LiveBadge status={live.status} last={live.last} />
             </div>
             <b className="mono big">{ready ? usd(analysis.total) : "…"}</b>
-            {ready && (
+            {ready && !unconverted.length && (
               <p className="kv"><span>Plus-value latente</span><b className={analysis.pnl >= 0 ? "up" : "down"}>{analysis.pnl >= 0 ? "+" : "−"}{usd(Math.abs(analysis.pnl))} (<Change value={analysis.pnlPercent} />)</b></p>
             )}
-            <p className="kv small"><span>Investi (prix d'achat)</span><b>{usd(analysis.invested)}</b></p>
+            <p className="kv small"><span>Investi (prix d'achat)</span><b>{unconverted.length ? "non calculé" : usd(analysis.invested)}</b></p>
             {ready && <AllocationBar a={analysis.allocation} />}
             {loading && <p className="muted small">Actualisation des cours et des signaux…</p>}
+            <FxNote />
           </div>
 
           <HistoryCard holdings={holdings} />
@@ -276,14 +301,19 @@ export function MyHoldings() {
                       <div className="holding-head">
                         <a href={`/app/actif/${l.kind}/${l.symbol}`} onClick={onLink} className="holding-name">
                           <b>{l.name}</b>
-                          <small className="muted mono">{l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {l.symbol} · PRU {formatPrice(l.averagePrice)} $</small>
+                          <small className="muted mono">
+                            {l.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} {l.symbol} · PRU {unconverted.includes(l.symbol) ? "non converti" : moneyPrice(l.averagePrice)}
+                          </small>
+                          {costNote(stored.holdings.find((h) => h.id === l.id), cur) && <small className="muted">{costNote(stored.holdings.find((h) => h.id === l.id), cur)}</small>}
                         </a>
                         <span className={`rec rec-${REC_CLASS[l.recommendation]}`}>{RECOMMENDATION_LABEL[l.recommendation]}</span>
                       </div>
                       <div className="holding-figures">
                         <div><small>Valeur</small><b>{usd(l.value)}</b></div>
-                        <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>
-                        <div><small>Cours{live.ticks[`${l.kind}:${l.symbol}`]?.market === "closed" ? " (fermé)" : ""}</small><b><LivePrice tick={live.ticks[`${l.kind}:${l.symbol}`]} fallback={l.price || null} format={(v) => `${formatPrice(v)} $`} /></b></div>
+                        {unconverted.includes(l.symbol)
+                          ? <div><small>Gain / perte</small><b className="muted">non calculé</b></div>
+                          : <div><small>Gain / perte</small><b className={l.pnl >= 0 ? "up" : "down"}>{l.pnl >= 0 ? "+" : "−"}{usd(Math.abs(l.pnl))}</b><Change value={l.pnlPercent} /></div>}
+                        <div><small>Cours{live.ticks[`${l.kind}:${l.symbol}`]?.market === "closed" ? " (fermé)" : ""}</small><b><LivePrice tick={live.ticks[`${l.kind}:${l.symbol}`]} fallback={l.price || null} format={(v) => moneyPrice(v)} /></b></div>
                       </div>
                       <div className="weight" role="img" aria-label={`Poids ${l.weight.toFixed(1)} % du patrimoine`}>
                         <div className="weight-track"><i style={{ width: `${Math.min(100, l.weight)}%` }} /></div>
@@ -299,7 +329,7 @@ export function MyHoldings() {
                         {l.reasons.map((r) => <li key={r}>{REASON_TEXT[r] ?? r}</li>)}
                         {stops[l.id] && (
                           <li>
-                            Votre stop : <b>{formatPrice(stops[l.id]!)} $</b>
+                            Votre stop : <b>{moneyPrice(stops[l.id]!)}</b>
                             {l.price ? ` (${(((l.price - stops[l.id]!) / l.price) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} % sous le cours)` : ""}.
                           </li>
                         )}
@@ -310,12 +340,12 @@ export function MyHoldings() {
                         )}
                         {l.stop && l.lossAtStop !== null && (
                           <li>
-                            Stop de protection conseillé : <b>{formatPrice(l.stop)} $</b> (2 × la volatilité journalière) — perte limitée à ≈ {usd(l.lossAtStop)} depuis le cours actuel.
+                            Stop de protection conseillé : <b>{moneyPrice(l.stop)}</b> (2 × la volatilité journalière) — perte limitée à ≈ {usd(l.lossAtStop)} depuis le cours actuel.
                           </li>
                         )}
                       </ul>
                       <div className="holding-actions">
-                        <button className="link-btn" onClick={() => setEditing(holdings.find((h) => h.id === l.id)!)}>Modifier</button>
+                        <button className="link-btn" onClick={() => setEditing(stored.holdings.find((h) => h.id === l.id)!)}>Modifier</button>
                         <button className="link-btn danger" onClick={() => confirm(`Supprimer ${l.name} de vos avoirs ?`) && setHoldings((s) => ({ holdings: s.holdings.filter((h) => h.id !== l.id) }))}>Supprimer</button>
                       </div>
                     </li>
@@ -371,7 +401,7 @@ export function MyHoldings() {
         </div>
       </div>
 
-      {editing && <HoldingForm initial={editing} lastPrice={analysis.lines.find((l) => l.id === editing.id)?.price ?? null} onClose={() => setEditing(null)} />}
+      {editing && <HoldingForm stored={editing} initial={holdings.find((h) => h.id === editing.id) ?? editing} lastPrice={analysis.lines.find((l) => l.id === editing.id)?.price ?? null} onClose={() => setEditing(null)} />}
       {adding && <AddHoldings onClose={() => setAdding(false)} />}
     </section>
   );
@@ -401,11 +431,24 @@ function AllocationBar({ a }: { a: PortfolioAnalysis["allocation"] }) {
   );
 }
 
-/** Editing one existing line (new lines are added with AddHoldings). */
-function HoldingForm({ initial, lastPrice, onClose }: { initial: Holding; lastPrice: number | null; onClose: () => void }) {
+/** « PRU saisi en $, converti au taux du jour » when the cost was typed in the other currency. */
+function costNote(h: StoredHolding | undefined, cur: "EUR" | "USD"): string | null {
+  if (!h || storedCurrency(h.costCurrency) === cur || !Number.isFinite(shown(h.averagePrice, h.costCurrency))) return null;
+  return `Prix de revient saisi en ${storedCurrency(h.costCurrency) === "USD" ? "$" : "€"}, converti au taux du jour.`;
+}
+
+/**
+ * Editing one existing line (new lines are added with AddHoldings). Amounts are typed in the display currency; a
+ * field left untouched keeps its saved value and currency (a dollar cost basis is not silently re-based in euros).
+ */
+function HoldingForm({ stored, initial, lastPrice, onClose }: { stored: StoredHolding; initial: Holding; lastPrice: number | null; onClose: () => void }) {
+  const cur = displayCurrency();
+  const sym = cur === "EUR" ? "€" : "$";
+  const pruInitial = inputText(shown(stored.averagePrice, stored.costCurrency));
+  const stopInitial = stored.stop ? inputText(shown(stored.stop, stored.stopCurrency)) : "";
   const [qty, setQty] = useState(String(initial.quantity));
-  const [pru, setPru] = useState(String(initial.averagePrice));
-  const [stopText, setStopText] = useState(initial.stop ? String(initial.stop) : "");
+  const [pru, setPru] = useState(pruInitial);
+  const [stopText, setStopText] = useState(stopInitial);
   const [price, setPrice] = useState<number | null>(null);
   const [journal, setJournal] = useState(true);
   const [note, setNote] = useState("");
@@ -416,15 +459,22 @@ function HoldingForm({ initial, lastPrice, onClose }: { initial: Holding; lastPr
 
   const n = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
   const quantity = n(qty);
-  const averagePrice = n(pru);
-  const stop = stopText.trim() ? n(stopText) : undefined;
+  const keepCost = pru === pruInitial;
+  const keepStop = stopText === stopInitial;
+  // What is saved (typed currency), and the same in dollars for the journal and the engines.
+  const averagePrice = keepCost ? stored.averagePrice : n(pru);
+  const costCurrency = keepCost ? stored.costCurrency : cur;
+  const stop = keepStop ? stored.stop : stopText.trim() ? n(stopText) : undefined;
+  const stopCurrency = keepStop ? stored.stopCurrency : cur;
   const valid = quantity > 0 && Number.isFinite(averagePrice) && averagePrice >= 0 && (stop === undefined || (Number.isFinite(stop) && stop > 0));
+  const costUsd = keepCost ? initial.averagePrice : fromDisplay(averagePrice);
+  const stopUsd = stop === undefined ? undefined : keepStop ? initial.stop : fromDisplay(stop);
 
-  const change = valid ? holdingChange(initial, { quantity, averagePrice }, price ?? (lastPrice || null)) : null;
+  const change = valid && Number.isFinite(costUsd) ? holdingChange(initial, { quantity, averagePrice: costUsd }, price ?? (lastPrice || null)) : null;
   const save = () => {
     if (!valid) return;
-    upsertHolding({ id: initial.id, symbol: initial.symbol, kind: initial.kind, name: initial.name, quantity, averagePrice, stop });
-    if (journal && change) recordRealTrade({ ...change, symbol: initial.symbol, kind: initial.kind, name: initial.name, stop: change.side === "buy" ? stop : null, note, refId: initial.id });
+    upsertHolding({ id: initial.id, symbol: initial.symbol, kind: initial.kind, name: initial.name, quantity, averagePrice, costCurrency, stop, stopCurrency });
+    if (journal && change) recordRealTrade({ ...change, symbol: initial.symbol, kind: initial.kind, name: initial.name, stop: change.side === "buy" ? stopUsd : null, note, refId: initial.id });
     onClose();
   };
 
@@ -434,24 +484,25 @@ function HoldingForm({ initial, lastPrice, onClose }: { initial: Holding; lastPr
         <div className="sheet-handle" />
         <div className="sheet-head"><h2>Modifier {initial.name}</h2></div>
         <div className="chosen"><b>{initial.name}</b> <small className="muted mono">{initial.symbol}</small></div>
-        {price && <p className="muted small">Cours actuel (consensus) : {formatPrice(price)} $</p>}
+        {price && <p className="muted small">Cours actuel (consensus) : {moneyPrice(price)}</p>}
         <label className="field">
           <span>Quantité détenue</span>
           <input inputMode="decimal" autoFocus value={qty} onChange={(e) => setQty(e.target.value)} />
         </label>
         <label className="field">
-          <span>Prix d'achat moyen (USD, PRU)</span>
+          <span>Prix d'achat moyen ({sym}, PRU)</span>
           <input inputMode="decimal" value={pru} onChange={(e) => setPru(e.target.value)} />
         </label>
+        {keepCost && costNote(stored, cur) && <p className="muted small">{costNote(stored, cur)} Le modifier l'enregistre en {sym}.</p>}
         <label className="field">
-          <span>Mon stop (USD, facultatif)</span>
+          <span>Mon stop ({sym}, facultatif)</span>
           <input inputMode="decimal" value={stopText} placeholder="aucun" onChange={(e) => setStopText(e.target.value)} />
         </label>
         <p className="muted small">Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.</p>
-        {quantity > 0 && averagePrice > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * averagePrice)}</b></p>}
+        {quantity > 0 && costUsd > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(quantity * costUsd)}</b></p>}
         {change && (
           <JournalToggle checked={journal} onChange={setJournal} note={note} onNote={setNote}
-            text={`${change.side === "buy" ? "Achat" : "Vente"} de ${change.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} ${initial.symbol} à ${formatPrice(change.price)} $${change.implied ? " (déduit du nouveau PRU)" : " (cours actuel)"} : l'inscrire au journal`} />
+            text={`${change.side === "buy" ? "Achat" : "Vente"} de ${change.quantity.toLocaleString("fr-FR", { maximumFractionDigits: 8 })} ${initial.symbol} à ${moneyPrice(change.price)}${change.implied ? " (déduit du nouveau PRU)" : " (cours actuel)"} : l'inscrire au journal`} />
         )}
         <button className="btn" disabled={!valid} onClick={save}>Enregistrer</button>
         <button className="btn btn-ghost" onClick={onClose}>Annuler</button>

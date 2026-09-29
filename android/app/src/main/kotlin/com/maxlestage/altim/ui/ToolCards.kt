@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -70,7 +71,8 @@ import kotlin.math.roundToInt
 // (ΔE 6,4, allowed with a second cue): its line is dashed.
 private val SERIES = listOf(Color(0xFF3987E5), Color(0xFFD95926), Color(0xFF199E70), Color(0xFFC24EC9))
 private fun sgn(v: Double) = (if (v >= 0) "+" else "−") + String.format(Locale.FRANCE, "%.1f", abs(v)).removeSuffix(",0") + " %"
-private fun usd0(v: Double) = String.format(Locale.FRANCE, "%,.0f", v).replace(' ', ' ').replace(' ', ' ') + " $"
+/** A dollar amount in the display currency, whole ("12 500 €"). */
+private fun usd0(v: Double) = Format.amount(v, 0)
 
 @Composable
 private fun NumberField(label: String, value: String, suffix: String, modifier: Modifier = Modifier, onChange: (String) -> Unit) {
@@ -197,31 +199,49 @@ fun CompareCard(model: AppModel) {
 fun PositionCard(model: AppModel, asset: Asset, price: Double?, zones: List<FibZone>) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("altim", android.content.Context.MODE_PRIVATE) }
-    val holdingsValue = Portfolio(model.holdings, model.holdings.mapNotNull { h -> model.live.price(h.asset)?.let { h.asset.id to it.price } }.toMap()).total
+    val usd = model.usdHoldings.holdings
+    val holdingsValue = Portfolio(usd, usd.mapNotNull { h -> model.live.price(h.asset)?.let { h.asset.id to it.price } }.toMap()).total
     // Proposed stop: the low that invalidates the nearest buy zone below the price, else 5 % under the price.
     val zone = zones.firstOrNull { (it.invalidation ?: 0.0) > 0 && price != null && it.invalidation!! < price }
     val proposedStop = zone?.invalidation ?: price?.let { it * 0.95 }
     val proposedTarget = zone?.targets?.firstOrNull { price != null && it > price }
-    var capitalText by rememberSaveable(asset.id) { mutableStateOf(prefs.getString("position.capital", null) ?: if (holdingsValue > 0) holdingsValue.roundToInt().toString() else "") }
+    // Capital, stop and target are shown and typed in the display currency, sized in dollars. The saved capital keeps
+    // the currency it was typed in (older versions: dollars, a bare number).
+    var capitalText by rememberSaveable(asset.id) {
+        mutableStateOf(
+            Money.parseBudget(prefs.getString("position.capital.v2", null))?.let { s -> Money.convert(s.amount, s.currency, Money.displayCurrency()).takeIf { it.isFinite() }?.roundToInt()?.toString() }
+                ?: prefs.getString("position.capital", null)?.let { Format.parse(it) }?.let { v -> Money.toDisplay(v).takeIf { it.isFinite() }?.roundToInt()?.toString() }
+                ?: if (holdingsValue > 0) Money.toDisplay(holdingsValue).roundToInt().toString() else "",
+        )
+    }
     var riskText by rememberSaveable(asset.id) { mutableStateOf(prefs.getString("position.risk", null) ?: "1") }
     var stopText by rememberSaveable(asset.id) { mutableStateOf("") }
     var targetText by rememberSaveable(asset.id) { mutableStateOf("") }
     LaunchedEffect(proposedStop, proposedTarget) {
-        if (stopText.isEmpty()) proposedStop?.let { stopText = Format.plain(it, if (it >= 1) 2 else 6) }
-        if (targetText.isEmpty()) proposedTarget?.let { targetText = Format.plain(it, if (it >= 1) 2 else 6) }
+        if (stopText.isEmpty()) proposedStop?.let { Money.toDisplay(it) }?.let { stopText = Format.plain(it, if (it >= 1) 2 else 6) }
+        if (targetText.isEmpty()) proposedTarget?.let { Money.toDisplay(it) }?.let { targetText = Format.plain(it, if (it >= 1) 2 else 6) }
     }
     val p = price?.let {
-        Tools.positionSize(Format.parse(capitalText) ?: 0.0, Format.parse(riskText) ?: 0.0, it, Format.parse(stopText) ?: 0.0, Format.parse(targetText))
+        Tools.positionSize(
+            Money.fromDisplay(Format.parse(capitalText) ?: 0.0), Format.parse(riskText) ?: 0.0, it, Money.fromDisplay(Format.parse(stopText) ?: 0.0),
+            Format.parse(targetText)?.let(Money::fromDisplay),
+        )
     }
 
     Card(title = "Taille de position") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NumberField("Capital", capitalText, "$", Modifier.weight(1f)) { capitalText = it; prefs.edit { putString("position.capital", it) } }
+            NumberField("Capital", capitalText, Money.symbol(), Modifier.weight(1f)) { text ->
+                capitalText = text
+                prefs.edit {
+                    remove("position.capital")
+                    Format.parse(text)?.takeIf { it > 0 }?.let { putString("position.capital.v2", Money.encodeBudget(Money.Typed(it, Money.displayCurrency()))) } ?: remove("position.capital.v2")
+                }
+            }
             NumberField("Risque accepté", riskText, "%", Modifier.weight(1f)) { riskText = it; prefs.edit { putString("position.risk", it) } }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            NumberField("Stop", stopText, "$", Modifier.weight(1f)) { stopText = it }
-            NumberField("Objectif", targetText, "$", Modifier.weight(1f)) { targetText = it }
+            NumberField("Stop", stopText, Money.symbol(), Modifier.weight(1f)) { stopText = it }
+            NumberField("Objectif", targetText, Money.symbol(), Modifier.weight(1f)) { targetText = it }
         }
         Caption("Entrée au prix actuel ${price?.let { Format.price(it) } ?: "…"} ; stop proposé : ${if (zone != null) "plus bas qui invalide la zone d'achat" else "5 % sous le prix (à ajuster)"}.")
         when {
@@ -314,11 +334,12 @@ fun SaleCard(portfolio: Portfolio) {
 fun ProjectionCard(start: Double) {
     var monthlyText by rememberSaveable { mutableStateOf("0") }
     var years by rememberSaveable { mutableIntStateOf(10) }
-    val monthly = Format.parse(monthlyText) ?: 0.0
+    // Typed in the display currency; the projection works in dollars like the holdings.
+    val monthly = Money.fromDisplay(Format.parse(monthlyText) ?: 0.0).takeIf { it.isFinite() } ?: 0.0
     val runs = Tools.PROJECTION_RATES.map { it to Tools.projection(start, monthly, years, it) }
     val paid = runs.first().second.last().paid
     Card(title = "Projection") {
-        NumberField("Versement chaque mois, facultatif", monthlyText, "$", Modifier.fillMaxWidth()) { monthlyText = it }
+        NumberField("Versement chaque mois, facultatif", monthlyText, Money.symbol(), Modifier.fillMaxWidth()) { monthlyText = it }
         SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
             listOf(5, 10, 20).forEachIndexed { i, v ->
                 SegmentedButton(

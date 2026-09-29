@@ -9,13 +9,67 @@ data class Holding(
     val id: String = UUID.randomUUID().toString(),
     val asset: Asset,
     val quantity: Double,
-    /** Average purchase price in dollars (optional: without it, no gain / loss). */
+    /** Average purchase price in [costCurrency] (optional: without it, no gain / loss). */
     val averagePrice: Double? = null,
-    /** Stop set by the user in dollars (optional): "position devenue dangereuse" alerts in Mes avoirs. */
+    /** Stop set by the user in [stopCurrency] (optional): "position devenue dangereuse" alerts in Mes avoirs. */
     val stop: Double? = null,
+    /** Currency the cost was typed in; absent = dollars (the only currency before the euro display). */
+    val costCurrency: Currency? = null,
+    /** Currency the stop was typed in; absent = dollars. */
+    val stopCurrency: Currency? = null,
 ) {
     /** The optional stop is dropped when it is not a positive number (the line itself stays), like the web app. */
-    fun cleaned(): Holding = if (stop == null || (stop.isFinite() && stop > 0)) this else copy(stop = null)
+    fun cleaned(): Holding = if (stop == null || (stop.isFinite() && stop > 0)) this else copy(stop = null, stopCurrency = null)
+}
+
+/** Holdings in dollars for the engines and the server, plus the lines whose euro amounts could not be converted. */
+data class UsdHoldings(
+    val holdings: List<Holding>,
+    /** Symbols whose euro cost could not be converted (no rate): their cost is left out and their P&L is not shown. */
+    val unconverted: List<String>,
+)
+
+/** Saved amounts (in the currency they were typed in) and their dollar view, same rules as web/src/webapp/store.ts. */
+object Holdings {
+    /**
+     * Saved amounts in dollars at the current rate: a euro cost basis becomes `cost ÷ rate`, so that the dollar P&L,
+     * converted back at the same rate, is exactly the euro P&L (price in euros today − cost in euros, currency effect
+     * included). Without a rate, a euro cost is dropped (no P&L) and a euro stop too: never read as dollars.
+     */
+    fun toUsd(list: List<Holding>): UsdHoldings {
+        val unconverted = mutableListOf<String>()
+        val out = list.map { h ->
+            val cost = h.averagePrice?.let { Money.convert(it, Currency.stored(h.costCurrency), Currency.USD) }
+            if (cost != null && !cost.isFinite()) unconverted += h.asset.symbol
+            val stop = h.stop?.let { Money.convert(it, Currency.stored(h.stopCurrency), Currency.USD) }?.takeIf { it.isFinite() && it > 0 }
+            h.copy(averagePrice = cost?.takeIf { it.isFinite() }, stop = stop, costCurrency = null, stopCurrency = null)
+        }
+        return UsdHoldings(out, unconverted)
+    }
+
+    /** A saved amount shown in the display currency (NaN when no rate allows it). */
+    fun shown(v: Double, c: Currency?): Double = Money.convert(v, Currency.stored(c), Money.displayCurrency())
+
+    /** « Prix de revient saisi en $, converti au taux du jour. » when the cost was typed in the other currency. */
+    fun costNote(h: Holding?): String? {
+        val avg = h?.averagePrice ?: return null
+        val c = Currency.stored(h.costCurrency)
+        if (c == Money.displayCurrency() || !shown(avg, h.costCurrency).isFinite()) return null
+        return "Prix de revient saisi en ${c.symbol}, converti au taux du jour."
+    }
+
+    /**
+     * A second purchase merged into a line: weighted average cost in the currency of the new purchase (the previous cost
+     * converted at the current rate when it was typed in another currency). Null when no rate allows the conversion.
+     */
+    fun mergeLine(x: Holding, quantity: Double, averagePrice: Double?, costCurrency: Currency?): Holding? {
+        val cur = Currency.stored(costCurrency)
+        val qty = x.quantity + quantity
+        if (x.averagePrice == null || averagePrice == null) return x.copy(quantity = qty, averagePrice = null, costCurrency = null)
+        val prev = Money.convert(x.averagePrice, Currency.stored(x.costCurrency), cur)
+        if (!prev.isFinite()) return null
+        return x.copy(quantity = qty, averagePrice = (x.quantity * prev + quantity * averagePrice) / qty, costCurrency = cur)
+    }
 }
 
 data class PortfolioLine(

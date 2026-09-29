@@ -15,19 +15,18 @@ struct PortfolioModePicker: View {
     }
 }
 
-/// Dollars with cents when there are some: "10 509,12 $", "10 000 $".
+/// The simulation is kept in dollars like the prices; its amounts are shown in the display currency, with cents when
+/// there are some: "10 509,12 €", "10 000 €".
 enum PaperFormat {
-    static func usd(_ v: Double) -> String { "\(Format.plain(v, digits: 2)) $" }
+    static func usd(_ v: Double) -> String { Money.moneyFmt(v, sep: " ") { Format.plain($0, digits: 2) } }
     static func signed(_ v: Double) -> String { "\(v >= 0 ? "+" : "−")\(usd(abs(v)))" }
     static func tone(_ v: Double) -> Tone { v > 0 ? .good : v < 0 ? .bad : .neutral }
 
     /// Text typed in a French field ("1 000,50") → number.
-    static func number(_ s: String) -> Double? {
-        let t = s.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: "\u{00A0}", with: "")
-            .replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: ".").replacingOccurrences(of: "$", with: "")
-        guard let v = Double(t), v.isFinite else { return nil }
-        return v
-    }
+    static func number(_ s: String) -> Double? { Money.parse(s) }
+
+    /// "euros" / "dollars" for the accessibility labels of the amount fields.
+    static var currencyName: String { Money.displayCurrency == .eur ? "euros" : "dollars" }
 
     static func decisionLine(_ d: PaperDecision?) -> String {
         guard let d else { return "Ouverte sans décision affichée" }
@@ -114,6 +113,11 @@ struct PaperView: View {
             DecisionRow(key: "Liquidités", value: PaperFormat.usd(v.cash))
             DecisionRow(key: "Positions (si vendues maintenant)", value: PaperFormat.usd(v.positionsValue))
             Text("Depuis le \(Format.date(model.paper.startedAt)).").font(.caption).foregroundStyle(Theme.textSecondary)
+            if Money.displayCurrency == .eur {
+                Text("Portefeuille simulé tenu en $ comme les cours ; montants saisis en € convertis au taux du jour de la saisie, affichés au taux du jour.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            FxNote()
             if v.unpriced > 0 {
                 Notice(text: v.unpriced == 1 ? "1 position sans prix pour l'instant : comptée à son coût." : "\(v.unpriced) positions sans prix pour l'instant : comptées à leur coût.", tone: .warn)
             }
@@ -315,21 +319,26 @@ struct PaperView: View {
 struct PaperResetSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
+    // Typed in the display currency (10 000 € by default), kept in dollars at today's rate.
     @State private var capital = Format.plain(Paper.defaultCapital, digits: 0)
     @State private var confirming = false
 
     private var value: Double? { PaperFormat.number(capital).flatMap { $0 > 0 ? $0 : nil } }
+    private var capitalUsd: Double {
+        let v = Money.fromDisplay(value ?? Paper.defaultCapital)
+        return v.isFinite && v > 0 ? v : Paper.defaultCapital
+    }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Capital de départ en $", text: $capital).keyboardType(.decimalPad)
-                        .accessibilityLabel("Capital de départ en dollars")
+                    TextField("Capital de départ en \(Money.symbol())", text: $capital).keyboardType(.decimalPad)
+                        .accessibilityLabel("Capital de départ en \(PaperFormat.currencyName)")
                 } header: {
                     Text("Capital de départ")
                 } footer: {
-                    Text("Les positions ouvertes et le journal simulés seront effacés. Aucun argent réel n'est en jeu.")
+                    Text("Par défaut 10 000 \(Money.symbol()). Les positions ouvertes et le journal simulés seront effacés. Aucun argent réel n'est en jeu.")
                 }
             }
             .scrollContentBackground(.hidden)
@@ -341,8 +350,8 @@ struct PaperResetSheet: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Recommencer") { confirming = true }.disabled(value == nil) }
             }
             .confirmationDialog("Effacer la simulation ?", isPresented: $confirming, titleVisibility: .visible) {
-                Button("Recommencer avec \(PaperFormat.usd(value ?? Paper.defaultCapital))", role: .destructive) {
-                    model.paperReset(capital: value ?? Paper.defaultCapital)
+                Button("Recommencer avec \(PaperFormat.usd(capitalUsd))", role: .destructive) {
+                    model.paperReset(capital: capitalUsd)
                     dismiss()
                 }
             } message: {
@@ -387,18 +396,18 @@ struct PaperBuySheet: View {
                     .listRowBackground(Color.clear)
                 }
                 Section {
-                    TextField("Montant en $ (frais inclus)", text: $amount).keyboardType(.decimalPad)
-                        .accessibilityLabel("Montant en dollars, frais inclus")
+                    TextField("Montant en \(Money.symbol()) (frais inclus)", text: $amount).keyboardType(.decimalPad)
+                        .accessibilityLabel("Montant en \(PaperFormat.currencyName), frais inclus")
                 } header: {
                     Text("Montant")
                 } footer: {
                     Text("Frais de 0,1 % et glissement de 0,05 % déduits, comme pour un vrai ordre.")
                 }
                 Section {
-                    TextField("Stop en $ (facultatif)", text: $stop).keyboardType(.decimalPad)
-                        .accessibilityLabel("Stop en dollars, facultatif")
-                    TextField("Objectif en $ (facultatif)", text: $target).keyboardType(.decimalPad)
-                        .accessibilityLabel("Objectif en dollars, facultatif")
+                    TextField("Stop en \(Money.symbol()) (facultatif)", text: $stop).keyboardType(.decimalPad)
+                        .accessibilityLabel("Stop en \(PaperFormat.currencyName), facultatif")
+                    TextField("Objectif en \(Money.symbol()) (facultatif)", text: $target).keyboardType(.decimalPad)
+                        .accessibilityLabel("Objectif en \(PaperFormat.currencyName), facultatif")
                 } header: {
                     Text("Sortie automatique")
                 } footer: {
@@ -429,11 +438,12 @@ struct PaperBuySheet: View {
         var prices: [String: Double] = [:]
         for p in model.paper.positions { if let t = model.live.price(p.asset) { prices[p.key] = t.price } }
         let equity = Paper.valuation(model.paper, prices: prices).equity
-        let a = (min(equity * 0.1, model.paper.cash) * 100).rounded(.down) / 100
+        // Shown and typed in the display currency; the simulation gets dollars.
+        let a = (Money.toDisplay(min(equity * 0.1, model.paper.cash)) * 100).rounded(.down) / 100
         amount = a > 0 ? Format.plain(a, digits: 2) : ""
         if let plan = decision.plan {
-            stop = Format.quantity(plan.stop)
-            target = Format.quantity(plan.target1)
+            stop = Money.inputPrice(Money.toDisplay(plan.stop))
+            target = Money.inputPrice(Money.toDisplay(plan.target1))
         }
     }
 
@@ -441,7 +451,7 @@ struct PaperBuySheet: View {
     private func parseOptional(_ s: String, _ name: String) -> (Double?, String?) {
         let t = s.trimmingCharacters(in: .whitespaces)
         if t.isEmpty { return (nil, nil) }
-        guard let v = PaperFormat.number(t) else { return (nil, "\(name) invalide.") }
+        guard let v = PaperFormat.number(t).map(Money.fromDisplay), v.isFinite else { return (nil, "\(name) invalide.") }
         return (v, nil)
     }
 
@@ -451,7 +461,7 @@ struct PaperBuySheet: View {
         if let e = e1 ?? e2 { return error = e }
         let order = PaperOrder(
             id: UUID().uuidString, symbol: decision.symbol, kind: decision.kind, name: decision.name,
-            price: price ?? 0, amount: PaperFormat.number(amount) ?? .nan, stop: s, target: t,
+            price: price ?? 0, amount: PaperFormat.number(amount).map(Money.fromDisplay) ?? .nan, stop: s, target: t,
             decision: PaperDecision(verdict: decision.verdict.rawValue, label: label, confidence: decision.confidence, asOf: decision.asOf)
         )
         if let e = model.paperBuy(order) {

@@ -79,12 +79,13 @@ data class DecisionSnapshot(
 )
 
 object Guidance {
-    /** Price in dollars like the web card (`usd` of decision.ts): no decimals when whole, else 2 (4 or 8 below 1 $). */
+    /** A dollar price in the display currency like the web card (`usd` of decision.ts): no decimals when whole, else 2 (4 or 8 below 1). */
     fun usd(v: Double?): String {
         if (v == null || !v.isFinite()) return "—"
-        val a = abs(v)
-        val digits = if (a >= 1) (if (v == Math.rint(v)) 0 else 2) else if (a >= 0.01) 4 else 8
-        return "${Format.fixed(v, digits)} $"
+        val x = Money.toDisplay(v)
+        val a = abs(x)
+        val digits = if (a >= 1) (if (x == Math.rint(x)) 0 else 2) else if (a >= 0.01) 4 else 8
+        return "${Format.fixed(x, digits)}${Money.NNBSP}${Money.symbol()}"
     }
 
     /** Check state: icon and word, never colour alone. */
@@ -118,7 +119,7 @@ object Guidance {
         return out
     }
 
-    /** "280,57 $ – 307,28 $", or the single level. */
+    /** "280,57 € – 307,28 €", or the single level. */
     fun zoneRange(z: ActionZone): String = if (z.from == z.to) usd(z.from) else "${usd(z.from)} – ${usd(z.to)}"
 
     /** "1/2 conditions · en cours". */

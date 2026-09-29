@@ -11,7 +11,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::decision_types::{Degraded, EarningsDate, Family, Plan, Scenario, ScenarioKind, Status, Veto};
-use super::format::format_price;
 use super::structure::{SrLevel, SwingTrend};
 use crate::calendar::{CalendarEvent, EventKind, Importance};
 use crate::js::{fr, iso_date};
@@ -34,7 +33,7 @@ pub const EXIT_ATR: f64 = 0.5;
 pub const BREAKOUT_VOLUME: f64 = 1.5;
 
 fn usd(v: f64) -> String {
-    format!("{} $", format_price(v))
+    crate::fx::money(v)
 }
 /// "29/10/2026".
 fn date_fr(ms: i64) -> String {

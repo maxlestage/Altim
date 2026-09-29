@@ -7,6 +7,7 @@ pub mod calendar;
 pub mod derivatives;
 pub mod engine;
 pub mod fundamentals;
+pub mod fx;
 pub mod guard;
 pub mod http;
 pub mod js;

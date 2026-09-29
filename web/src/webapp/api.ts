@@ -6,6 +6,11 @@ import { decisionUrl, parseDecision, type MarketRegime, type PersonalInput, type
 import { calendarUrl, type CalendarReport } from "./calendar";
 import { strategiesUrl, type StrategiesReport } from "./strategies";
 import { botViewsUrl, type BotViews } from "./model-bot";
+import { displayCurrency } from "../money";
+import type { FxResponse } from "./fx";
+
+/** The server writes its texts in euros when it has a rate; a client showing dollars asks for dollars. */
+const cur = () => (displayCurrency() === "USD" ? "&cur=USD" : "");
 
 export type SourceStatus = { name: string; ok: boolean; deviation?: number; error?: string };
 export type Snapshot = {
@@ -117,19 +122,19 @@ export const api = {
   universe: (kind: Kind, q: string, offset: number, limit: number) =>
     get<{ total: number; offset: number; items: UniverseItem[] }>(`/api/universe?kind=${kind}&q=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}`),
   guard: (symbol: string, kind: Kind) => get<GuardReport>(`/api/guard?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
-  zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  zones: (symbol: string, kind: Kind) => get<ZonesReport>(`/api/zones?symbol=${encodeURIComponent(symbol)}&kind=${kind}${cur()}`),
   macro: () => get<MacroInfo>("/api/macro"),
   history: (items: { symbol: string; kind: Kind }[], days: 30 | 90 | 365 | 730) =>
     get<{ asOf: number; days: number; series: { symbol: string; kind: Kind; closes: [number, number][]; error?: string }[] }>(
       `/api/history?days=${days}${items.length ? `&symbols=${list(items.slice(0, 20))}` : ""}`,
     ),
-  brief: (items: { symbol: string; kind: Kind }[]) => get<BriefReport>(`/api/brief?symbols=${list(items.slice(0, 20))}`),
+  brief: (items: { symbol: string; kind: Kind }[]) => get<BriefReport>(`/api/brief?symbols=${list(items.slice(0, 20))}${cur()}`),
   news: (items: { symbol: string; kind: Kind }[]) => get<NewsReport>(`/api/news${items.length ? `?symbols=${list(items.slice(0, 20))}` : ""}`),
-  alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}`)),
+  alerts: (items: { symbol: string; kind: Kind }[]) => batched(items, (c) => get<BuyAlert[]>(`/api/alerts?symbols=${list(c)}${cur()}`)),
   selection: (horizon: import("../engine/screener").Horizon, kind: Kind = "stock") => get<SelectionReport | { pending: true }>(`/api/selection?horizon=${horizon}&kind=${kind}`),
   /** Decision for one asset; `personal` (average cost, portfolio weights) only for a held asset, never stored by the server. */
   decision: (symbol: string, kind: Kind, personal?: PersonalInput | null, scoreWeights?: ScoreWeights | null) =>
-    get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights)).then(parseDecision),
+    get<unknown>(decisionUrl(symbol, kind, personal, scoreWeights) + cur()).then(parseDecision),
   /** Agenda: economy, central banks, earnings, dividends, splits, IPOs; `symbols` limits the company events. */
   calendar: (days: number, symbols: string[] | null, top = false) => get<CalendarReport>(calendarUrl(days, symbols, top)),
   /** Strategy comparator of one asset (fixed textbook parameters, daily history). */
@@ -144,8 +149,11 @@ export const api = {
   bot: () => get<import("./model-bot").BotReport | { pending: true }>("/api/bot"),
   /** Today's view of the bot for these assets (cached report only). */
   botViews: (items: { symbol: string; kind: Kind }[]) => get<BotViews>(botViewsUrl(items)),
-  anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}`),
+  anomalies: (symbol: string, kind: Kind) => get<import("../engine/opportunities").AnomalyReport>(`/api/anomalies?symbol=${encodeURIComponent(symbol)}&kind=${kind}${cur()}`),
 };
+
+/** EUR/USD rate of the display (webapp/fx.ts reads it every 10 minutes). */
+export const fxApi = () => get<FxResponse>("/api/fx");
 
 export const HIGHER: Record<Interval, Interval | null> = { "1h": "4h", "4h": "1d", "1d": null };
 export const STEP_MS: Record<Interval, number> = { "1h": 3_600_000, "4h": 14_400_000, "1d": 86_400_000 };

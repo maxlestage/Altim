@@ -9,6 +9,10 @@ struct SelectionView: View {
     @State private var pending = false
     @State private var error: String?
     @State private var budgetText = ""
+    /// The text put in the field when the screen opens (not a typing: its currency is kept).
+    @State private var budgetInitial = ""
+    /// Currency of the field: the display currency, or the saved one when no rate allows the conversion.
+    @State private var budgetCurrency: Currency = .usd
     @FocusState private var budgetFocused: Bool
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
@@ -50,7 +54,8 @@ struct SelectionView: View {
                     }
                     if let v = report.validation { ValidationCard(v: v, report: report) }
                     budgetCard
-                    let amounts = report.allocate(budget: model.budget)
+                    // Allocated in dollars (the prices' currency), shown in the display currency.
+                    let amounts = report.allocate(budget: model.budgetUsd)
                     Text("À acheter · \(report.buy.count)").font(.headline)
                     ForEach(report.buy) { c in
                         PickCard(c: c, report: report, amount: amounts[c.symbol])
@@ -99,7 +104,13 @@ struct SelectionView: View {
         .task(id: "\(model.selectionMarket.rawValue)|\(model.selectionHorizon.rawValue)") { await load() }
         .refreshable { await load() }
         .onAppear {
-            if model.budget > 0, budgetText.isEmpty { budgetText = Format.plain(model.budget, digits: 0) }
+            if budgetText.isEmpty {
+                // The saved budget converted to the display currency (as typed when no rate allows it).
+                let shown = Money.convert(model.budget, from: model.budgetCurrency, to: Money.displayCurrency)
+                budgetCurrency = shown.isFinite ? Money.displayCurrency : model.budgetCurrency
+                if model.budget > 0 { budgetText = Format.plain(shown.isFinite ? shown : model.budget, digits: 0) }
+                budgetInitial = budgetText
+            }
             if let r = report { model.selectionAssets = r.buy.map { Asset(symbol: $0.symbol, kind: r.market, name: $0.name) } }
         }
         .onDisappear { model.selectionAssets = [] }
@@ -128,9 +139,13 @@ struct SelectionView: View {
                     .focused($budgetFocused)
                     .font(Theme.mono(18))
                     .onChange(of: budgetText) { _, t in
-                        model.budget = Double(t.replacingOccurrences(of: "\u{202F}", with: "").replacingOccurrences(of: " ", with: "").replacingOccurrences(of: ",", with: ".")) ?? 0
+                        // Typed in the display currency and saved with it.
+                        guard t != budgetInitial else { return }
+                        budgetCurrency = Money.displayCurrency
+                        model.budget = Money.parse(t) ?? 0
+                        model.budgetCurrency = budgetCurrency
                     }
-                Text("$").foregroundStyle(Theme.textSecondary)
+                Text(budgetCurrency.symbol).foregroundStyle(Theme.textSecondary)
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 10).fill(Color.white.opacity(0.06)))

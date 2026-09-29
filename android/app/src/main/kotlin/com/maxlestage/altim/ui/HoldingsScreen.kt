@@ -1,5 +1,7 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
+import com.maxlestage.altim.kit.Holdings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -129,18 +131,21 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
 
     // Live price when available, otherwise the consensus quote.
     val prices = quotes.toMutableMap().apply { model.holdings.forEach { h -> model.live.price(h.asset)?.let { put(h.asset.id, it.price) } } }
-    val portfolio = Portfolio(model.holdings, prices)
+    // The engines work in dollars: a cost or stop typed in euros is converted at the current rate (Holdings.toUsd).
+    val usd = model.usdHoldings
+    val lines = usd.holdings
+    val portfolio = Portfolio(lines, prices)
 
     // Risk beyond the summary: betas, stress scenarios, limits of the settings, dangerous positions (once priced).
     val candles = daily.toMap()
     // Betas depend on the candles only, not on the live prices: computed once per load.
-    val betas = remember(model.holdings, candles) { PortfolioRisk.betas(model.holdings, candles) }
-    val risk = remember(model.holdings, prices, candles, model.risk) {
-        if (model.holdings.isEmpty() || quotes.isEmpty()) null
+    val betas = remember(lines, candles) { PortfolioRisk.betas(lines, candles) }
+    val risk = remember(lines, prices, candles, model.risk) {
+        if (lines.isEmpty() || quotes.isEmpty()) null
         else {
             val d = candles
-            val p = RiskPortfolio.of(model.holdings, 0.0, prices, d)
-            val stops = model.holdings.associate { it.id to it.stop }
+            val p = RiskPortfolio.of(lines, 0.0, prices, d)
+            val stops = lines.associate { it.id to it.stop }
             val clusters = PortfolioRisk.correlatedClusters(
                 p.lines.groupBy { it.key }.map { (k, ls) -> ClusterInput(ls.first().symbol, ls.sumOf { it.weight }, d[k].orEmpty()) },
             )
@@ -193,8 +198,11 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                     }
                     return@LazyColumn
                 }
-                item { Summary(portfolio) }
+                item { Summary(model, portfolio) }
                 error?.let { item { Notice(it, Tone.BAD) } }
+                if (usd.unconverted.isNotEmpty()) item {
+                    Notice("Taux EUR/USD indisponible : ${usd.unconverted.joinToString(", ")} saisi(es) en € ne peuvent pas être converti(es) ; plus-values de ces lignes non calculées jusqu'au retour du taux.", Tone.WARN)
+                }
                 item { HistoryCard(model) }
                 item { RebalanceCard(portfolio) }
                 item { SaleCard(portfolio) }
@@ -207,7 +215,8 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                     }
                 }
                 items(portfolio.lines, key = { it.holding.id }) { line ->
-                    LineRow(line, model.radarDecision(line.holding.asset), dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = line.holding }) {
+                    val stored = model.holdings.firstOrNull { it.id == line.holding.id }
+                    LineRow(line, stored, line.holding.asset.symbol in usd.unconverted, model.radarDecision(line.holding.asset), dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = stored ?: line.holding }) {
                         model.updateHoldings(model.holdings.filterNot { it.id == line.holding.id })
                     }
                 }
@@ -231,7 +240,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
 }
 
 @Composable
-private fun Summary(p: Portfolio) {
+private fun Summary(model: AppModel, p: Portfolio) {
     Card {
         Caption("Valeur totale")
         Text(Format.money(p.total), style = mono(30.sp, FontWeight.Bold))
@@ -257,6 +266,7 @@ private fun Summary(p: Portfolio) {
             }
         }
         p.warnings.forEach { Notice(it, Tone.WARN) }
+        FxNote(model)
     }
 }
 
@@ -278,7 +288,7 @@ private class RiskView(
 )
 
 @Composable
-private fun LineRow(line: PortfolioLine, decision: ConfigSnapshot?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun LineRow(line: PortfolioLine, stored: Holding?, unconverted: Boolean, decision: ConfigSnapshot?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val h = line.holding
     val shape = RoundedCornerShape(14.dp)
     Column(
@@ -291,6 +301,8 @@ private fun LineRow(line: PortfolioLine, decision: ConfigSnapshot?, danger: Dang
             Column(Modifier.weight(1f)) {
                 Text(h.asset.symbol, style = mono(15.sp, FontWeight.Bold))
                 Text("${Format.quantity(h.quantity)} · ${Format.price(line.price)}", color = AltimColors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (unconverted) Caption("PRU non converti")
+                Holdings.costNote(stored)?.let { Caption(it) }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(line.value?.let { Format.money(it) } ?: "—", style = mono(14.sp))
@@ -324,9 +336,15 @@ private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, 
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchItem>>(emptyList()) }
     var quantity by remember { mutableStateOf(holding?.let { Format.quantity(it.quantity) } ?: "") }
-    var average by remember { mutableStateOf(holding?.averagePrice?.let { Format.quantity(it) } ?: "") }
+    // Amounts are typed in the display currency; a field left untouched keeps its saved value and currency (a dollar
+    // cost basis is not silently re-based in euros). The journal and the engines get dollars.
+    val cur = Money.displayCurrency()
+    val avgInitial = remember { holding?.averagePrice?.let { Money.inputText(Holdings.shown(it, holding.costCurrency)) } ?: "" }
+    val stopInitial = remember { holding?.stop?.let { Money.inputText(Holdings.shown(it, holding.stopCurrency)) } ?: "" }
+    val usdLine = remember { holding?.let { Holdings.toUsd(listOf(it)).holdings.first() } }
+    var average by remember { mutableStateOf(avgInitial) }
     var current by remember { mutableStateOf<Double?>(null) }
-    var stopText by remember { mutableStateOf(holding?.stop?.let { Format.quantity(it) } ?: "") }
+    var stopText by remember { mutableStateOf(stopInitial) }
     // A first entry of holdings is usually past purchases: not journaled unless asked; later additions and edits are.
     var journal by remember { mutableStateOf(holding != null || model.holdings.isNotEmpty()) }
     var note by remember { mutableStateOf("") }
@@ -344,14 +362,19 @@ private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, 
         current = asset?.let { a -> runCatching { model.client?.quotes(listOf(a))?.firstOrNull()?.price }.getOrNull() }
     }
     val q = Format.parse(quantity)
+    val keepCost = holding != null && average == avgInitial
+    val keepStop = holding != null && stopText == stopInitial
     val stop = if (stopText.isBlank()) null else Format.parse(stopText)
     val valid = asset != null && q != null && q > 0 && (average.isEmpty() || (Format.parse(average) ?: -1.0) > 0) && (stopText.isBlank() || (stop ?: -1.0) > 0)
     val avgNow = if (average.isEmpty()) null else Format.parse(average)
+    // The same in dollars, for the journal (a kept euro cost without a rate: unknown).
+    val avgUsd = if (keepCost) usdLine?.averagePrice else avgNow?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
+    val stopUsd = if (keepStop) usdLine?.stop else stop?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
     // What the save records: an edit's purchase or sale, or the purchase of a new line (at its average cost, else the current price).
     val change = when {
         !valid -> null
-        holding != null -> TradeJournal.holdingChange(holding.quantity, holding.averagePrice, q!!, avgNow, current ?: lastPrice)
-        else -> (avgNow ?: current)?.let { HoldingChange("buy", q!!, it, false) }
+        holding != null -> TradeJournal.holdingChange(holding.quantity, usdLine?.averagePrice, q!!, avgUsd, current ?: lastPrice)
+        else -> (avgUsd ?: current)?.let { HoldingChange("buy", q!!, it, false) }
     }
 
     ModalBottomSheet(onDismissRequest = close, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = AltimColors.surface) {
@@ -364,14 +387,19 @@ private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, 
                 Text(if (holding == null) "Ajouter un avoir" else "Modifier", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
                 TextButton(enabled = valid, onClick = {
                     val a = asset ?: return@TextButton
-                    val avg = if (average.isEmpty()) null else Format.parse(average)
+                    // What is saved: the typed amounts with their currency (untouched fields keep theirs).
+                    val avg = if (keepCost) holding!!.averagePrice else avgNow
+                    val avgCur = if (keepCost) holding!!.costCurrency else avg?.let { cur }
+                    val savedStop = if (keepStop) holding!!.stop else stop
+                    val stopCur = if (keepStop) holding!!.stopCurrency else savedStop?.let { cur }
                     val list = model.holdings.toMutableList()
                     val i = list.indexOfFirst { it.id == holding?.id }
-                    val saved = if (i >= 0) Holding(holding!!.id, a, q!!, avg, stop) else Holding(asset = a, quantity = q!!, averagePrice = avg, stop = stop)
+                    val saved = if (i >= 0) Holding(holding!!.id, a, q!!, avg, savedStop, avgCur, stopCur).cleaned()
+                    else Holding(asset = a, quantity = q!!, averagePrice = avg, stop = savedStop, costCurrency = avgCur, stopCurrency = stopCur).cleaned()
                     if (i >= 0) list[i] = saved else list += saved
                     model.updateHoldings(list)
                     if (journal && change != null) {
-                        model.recordRealTrade(a, change.side, change.price, change.quantity, if (change.side == "buy") stop else null, note, saved.id)
+                        model.recordRealTrade(a, change.side, change.price, change.quantity, if (change.side == "buy") stopUsd else null, note, saved.id)
                     }
                     close()
                 }) { Text("Enregistrer", color = if (valid) AltimColors.cyan else AltimColors.textSecondary, fontWeight = FontWeight.Bold) }
@@ -404,9 +432,10 @@ private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, 
                 }
             }
             FormField(quantity, "Quantité (ex. 0,25)", KeyboardType.Decimal) { quantity = it }
-            FormField(average, current?.let { "Prix moyen d'achat (actuel ${Format.price(it)})" } ?: "Prix moyen d'achat en $ (facultatif)", KeyboardType.Decimal) { average = it }
+            FormField(average, current?.let { "Prix moyen d'achat (actuel ${Format.price(it)})" } ?: "Prix moyen d'achat en ${cur.symbol} (facultatif)", KeyboardType.Decimal) { average = it }
+            if (keepCost) Holdings.costNote(holding)?.let { Caption("$it Le modifier l'enregistre en ${cur.symbol}.") }
             Caption("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
-            FormField(stopText, "Mon stop (USD, facultatif)", KeyboardType.Decimal) { stopText = it }
+            FormField(stopText, "Mon stop (${cur.symbol}, facultatif)", KeyboardType.Decimal) { stopText = it }
             Caption("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
             change?.let { c ->
                 val text = if (holding == null) {

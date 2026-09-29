@@ -31,6 +31,11 @@ import com.maxlestage.altim.kit.RiskSettings
 import com.maxlestage.altim.kit.ScoreWeights
 import com.maxlestage.altim.kit.FileResponseCache
 import com.maxlestage.altim.kit.Holding
+import com.maxlestage.altim.kit.Holdings
+import com.maxlestage.altim.kit.UsdHoldings
+import com.maxlestage.altim.kit.Currency
+import com.maxlestage.altim.kit.Fx
+import com.maxlestage.altim.kit.Money
 import com.maxlestage.altim.kit.Horizon
 import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.kit.NewsAlertTracker
@@ -93,8 +98,31 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     var watchlist by mutableStateOf(load(ListSerializer(Asset.serializer()), "watchlist") ?: Asset.defaults)
         private set
+    /** Holdings exactly as saved (cost and stop in the currency they were typed in): the editing forms. */
     var holdings by mutableStateOf(load(ListSerializer(Holding.serializer()), "holdings")?.map { it.cleaned() } ?: emptyList())
         private set
+
+    /** Display currency of every amount (Réglages → Devise d'affichage): euros by default, dollars on request. */
+    var currency by mutableStateOf(Currency.of(prefs.getString("currency", "EUR")))
+        private set
+    /** Last EUR/USD rate (/api/fx, kept 7 days on the phone), null when none is known: amounts then stay in dollars. */
+    var fx by mutableStateOf(Fx.saved(prefs.getString(Fx.KEY, null)))
+        private set
+    /** Why the last rate read failed (shown in Réglages), null when it worked. */
+    var fxError by mutableStateOf<String?>(null)
+        private set
+
+    /** Currency actually shown: euros only when chosen and a rate is known (read by the screens to redraw on a change). */
+    val displayCurrency: Currency get() = if (currency == Currency.EUR && fx != null) Currency.EUR else Currency.USD
+
+    /** Holdings in dollars at the current rate (engines, server, decision), recomputed when the holdings or the rate change. */
+    val usdHoldings: UsdHoldings
+        get() {
+            // Read so that a composable using it redraws when the currency or the rate changes.
+            currency
+            fx
+            return Holdings.toUsd(holdings)
+        }
     /** Limits of Réglages → Prudence des conseils, checked in Mes avoirs (same defaults as the web app). */
     var risk by mutableStateOf(load(RiskSettings.serializer(), "risk")?.sanitized() ?: RiskSettings.DEFAULT)
         private set
@@ -107,8 +135,14 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     /** Last "positions devenues dangereuses" measured on Mes avoirs, shown on the Radar with their time. */
     var dangers by mutableStateOf(PortfolioRisk.parseDangers(prefs.getString("dangers.v1", null)))
         private set
-    /** Budget in dollars for the Sélection tab (0 = not set). */
-    var budget by mutableStateOf(prefs.getFloat("budget", 0f).toDouble())
+    /**
+     * Budget of the Sélection tab and the currency it was typed in (null = not set). Older versions saved a bare number
+     * of dollars ("budget").
+     */
+    var budget by mutableStateOf(
+        Money.parseBudget(prefs.getString("budget.v2", null))
+            ?: prefs.getFloat("budget", 0f).toDouble().takeIf { it > 0 }?.let { Money.Typed(it, Currency.USD) },
+    )
         private set
     var selectionMarket by mutableStateOf(Kind.of(prefs.getString("selectionMarket", null)) ?: Kind.STOCK)
         private set
@@ -188,6 +222,7 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     private var lastBackground: Long? = null
 
     init {
+        Money.set(currency, fx)
         restore()
     }
 
@@ -203,9 +238,53 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         prefs.edit().putBoolean("biometricLock", on).apply()
     }
 
-    fun updateBudget(v: Double) {
-        budget = v
-        prefs.edit().putFloat("budget", v.toFloat()).apply()
+    /** The budget as typed, with its currency (a rate arriving later never re-reads it in another one). */
+    fun updateBudget(v: Money.Typed?) {
+        budget = v?.takeIf { it.amount > 0 && it.amount.isFinite() }
+        val edit = prefs.edit().remove("budget")
+        budget?.let { edit.putString("budget.v2", Money.encodeBudget(it)) } ?: edit.remove("budget.v2")
+        edit.apply()
+    }
+
+    /** Réglages → Devise d'affichage. */
+    fun updateCurrency(c: Currency) {
+        currency = c
+        prefs.edit().putString("currency", c.name).apply()
+        applyMoney()
+    }
+
+    /** Every formatter (kit Money / Format) reads the currency and rate set here. */
+    private fun applyMoney() {
+        Money.set(currency, fx)
+        BuyWidget.refresh(appContext)
+    }
+
+    /**
+     * Reads the EUR/USD rate (/api/fx; every 10 minutes while the app is open, and at each background check). The last
+     * valid rate is kept 7 days; older, or never read, the amounts stay in dollars with « Taux EUR/USD indisponible ».
+     */
+    suspend fun refreshFx(now: Long = System.currentTimeMillis()) {
+        val c = client ?: return
+        try {
+            val body = c.fx()
+            val r = Fx.parse(body, now)?.takeIf { now - it.fetchedAt < Fx.KEEP_MS }
+            if (r != null) {
+                prefs.edit().putString(Fx.KEY, Fx.encode(body)).apply()
+                fx = if (offlineSince != null) r.copy(stale = true) else r
+                fxError = null
+            } else {
+                fx = Fx.saved(prefs.getString(Fx.KEY, null), now)
+                fxError = body.error ?: "taux indisponible"
+            }
+        } catch (e: AltimException.Unauthorized) {
+            throw e
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            fx = Fx.saved(prefs.getString(Fx.KEY, null), now)
+            fxError = "taux indisponible (${e.message})"
+        }
+        applyMoney()
     }
 
     fun updateScoreWeights(w: ScoreWeights) {
@@ -324,6 +403,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
     suspend fun checkAlerts(): CheckResult? {
         val c = client ?: return null
         val now = System.currentTimeMillis()
+        // The rate first: the notification texts (server and phone) and the euro price alerts use it.
+        refreshFx(now)
         var fresh = emptyList<BuyAlert>()
         if (alertsEnabled) {
             val assets = (watchlist + holdings.map { it.asset }).distinctBy { it.id }
@@ -395,7 +476,8 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
      * entered a danger state or have a new reason. The Radar's "measured on Mes avoirs" notice is left as it is.
      */
     private suspend fun checkDangers(c: AltimClient): List<Danger> {
-        val list = holdings
+        // In dollars like the quotes (a euro stop converted at the current rate; without a rate it is left out).
+        val list = usdHoldings.holdings
         if (list.isEmpty()) {
             prefs.edit().remove(DangerNotices.KEY).apply()
             return emptyList()

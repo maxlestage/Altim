@@ -43,7 +43,8 @@ use crate::universe::{search_universe, universe};
 use data::*;
 use error::{ApiError, ApiResult, bad};
 use validate::{
-    int_or, js_number, parse_cost, parse_days, parse_interval, parse_kind, parse_score_weights, parse_symbol, parse_symbol_list, parse_weights,
+    int_or, js_number, parse_cost, parse_currency, parse_days, parse_interval, parse_kind, parse_score_weights, parse_symbol, parse_symbol_list,
+    parse_weights,
 };
 
 type Q = Query<HashMap<String, String>>;
@@ -215,7 +216,23 @@ async fn live(State(st): State<AppState>, Query(p): Q, req: Request) -> ApiResul
 /// Buy zones by horizon (Fibonacci, short / medium / long term) with the macro context.
 async fn zones_route(Query(p): Q) -> ApiResult<Response> {
     let kind = parse_kind(q(&p, "kind"))?;
-    Ok(json_of(&zones(&parse_symbol(q(&p, "symbol"), kind)?, kind).await?))
+    let symbol = parse_symbol(q(&p, "symbol"), kind)?;
+    let usd = parse_currency(q(&p, "cur"))?;
+    crate::fx::ensure().await;
+    crate::fx::scope(usd, async { Ok(json_of(&with_fx(to_value(&zones(&symbol, kind).await?)))) }).await
+}
+
+/// Adds the rate the French texts were written with (`fx`, see `crate::fx::info`) to an object response.
+fn with_fx(mut v: Value) -> Value {
+    if let Some(o) = v.as_object_mut() {
+        o.insert("fx".into(), crate::fx::info());
+    }
+    v
+}
+
+/// EUR/USD rate for the euro display (Yahoo Finance, else ECB, else Frankfurter), cached 10 minutes.
+async fn fx_route() -> ApiResult<Response> {
+    Ok(json_of(&crate::fx::report().await))
 }
 
 /// Which stocks or cryptos to buy: ranked, finalists checked.
@@ -235,7 +252,11 @@ async fn selection_route(Query(p): Q) -> ApiResult<Response> {
 
 /// "Can I buy now?" for the notifications of the apps (iPhone, Apple Watch, Android): same rule everywhere.
 async fn alerts(Query(p): Q) -> ApiResult<Response> {
-    Ok(json_of(&alerts_for(&assets(&p, "symbols")?).await))
+    let list = assets(&p, "symbols")?;
+    let usd = parse_currency(q(&p, "cur"))?;
+    crate::fx::ensure().await;
+    let out: Vec<Value> = crate::fx::scope(usd, async { alerts_for(&list).await.iter().map(|a| with_fx(to_value(a))).collect() }).await;
+    Ok(json_of(&out))
 }
 
 /// Daily closes of the held assets over 30, 90, 365 or 730 days, plus Bitcoin and the S&P 500 to compare.
@@ -283,48 +304,57 @@ fn market_level(l: MacroLevel) -> MarketLevel {
 /// part that fails is left empty: the rest still comes.
 async fn brief(Query(p): Q) -> ApiResult<Response> {
     let list = assets(&p, "symbols")?;
-    let key = format!("brief:{}", quotes_key(&list));
-    let out = crate::cache::cached(&key, 120_000, || async move {
-        let (m, alerts, prices, closes, news) = tokio::join!(
-            macro_now(),
-            alerts_for(&list),
-            quotes(&list),
-            join_all(list.iter().map(|a| async move {
-                let k = format!("{}:{}", a.kind.as_str(), a.symbol);
-                (k, snap(&a.symbol, a.kind, crate::types::Interval::D1).await.ok().and_then(|d| d.candles.last().map(|c| c.close)))
-            })),
-            news_report(&list),
-        );
-        let m = m.ok();
-        let mut buyable: Vec<BriefBuy> = alerts
-            .iter()
-            .filter_map(|x| match x {
-                AlertItem::Ok(a) if a.alert.buy => {
-                    Some(BriefBuy { symbol: a.symbol.clone(), kind: a.kind, strong: a.alert.strong, title: a.alert.title.clone() })
-                }
-                _ => None,
-            })
-            .collect();
-        buyable.sort_by_key(|b| std::cmp::Reverse(b.strong));
-        let prices: Vec<PriceNow> =
-            prices.map(|p| p.iter().map(|q| PriceNow { symbol: q.symbol.clone(), kind: q.kind, price: Some(q.price) }).collect()).unwrap_or_default();
-        let moves = movers(&prices, &closes.into_iter().collect());
-        let top: Vec<Value> =
-            news.ok().map(|n| n.top.iter().filter_map(|id| n.items.iter().find(|i| &i.id == id)).take(3).map(to_value).collect()).unwrap_or_default();
-        let level = m.as_ref().map(|m| market_level(m.level));
-        Ok::<_, crate::http::Error>(json!({
-            "asOf": now_ms(),
-            "headline": headline(level, &buyable, &moves),
-            "market": m.as_ref().map(|m| json!({
-                "level": market_level(m.level),
-                "label": MARKET_LABEL.iter().find(|(l, _)| *l == market_level(m.level)).map(|(_, s)| *s),
-                "score": m.score,
-                "themes": m.themes.iter().filter(|t| t.count > 0).map(|t| t.label.clone()).take(3).collect::<Vec<_>>(),
-            })),
-            "buyable": to_value(&buyable),
-            "movers": to_value(&moves[..moves.len().min(6)]),
-            "news": top,
-        }))
+    let usd = parse_currency(q(&p, "cur"))?;
+    crate::fx::ensure().await;
+    let key = format!("brief:{}:{}", quotes_key(&list), crate::fx::scope(usd, async { crate::fx::cache_tag() }).await);
+    // The load runs on the cache's own task: the currency asked is carried into it.
+    let out = crate::cache::cached(&key, 120_000, || {
+        crate::fx::scope(usd, async move {
+            let (m, alerts, prices, closes, news) = tokio::join!(
+                macro_now(),
+                alerts_for(&list),
+                quotes(&list),
+                join_all(list.iter().map(|a| async move {
+                    let k = format!("{}:{}", a.kind.as_str(), a.symbol);
+                    (k, snap(&a.symbol, a.kind, crate::types::Interval::D1).await.ok().and_then(|d| d.candles.last().map(|c| c.close)))
+                })),
+                news_report(&list),
+            );
+            let m = m.ok();
+            let mut buyable: Vec<BriefBuy> = alerts
+                .iter()
+                .filter_map(|x| match x {
+                    AlertItem::Ok(a) if a.alert.buy => {
+                        Some(BriefBuy { symbol: a.symbol.clone(), kind: a.kind, strong: a.alert.strong, title: a.alert.title.clone() })
+                    }
+                    _ => None,
+                })
+                .collect();
+            buyable.sort_by_key(|b| std::cmp::Reverse(b.strong));
+            let prices: Vec<PriceNow> = prices
+                .map(|p| p.iter().map(|q| PriceNow { symbol: q.symbol.clone(), kind: q.kind, price: Some(q.price) }).collect())
+                .unwrap_or_default();
+            let moves = movers(&prices, &closes.into_iter().collect());
+            let top: Vec<Value> = news
+                .ok()
+                .map(|n| n.top.iter().filter_map(|id| n.items.iter().find(|i| &i.id == id)).take(3).map(to_value).collect())
+                .unwrap_or_default();
+            let level = m.as_ref().map(|m| market_level(m.level));
+            Ok::<_, crate::http::Error>(json!({
+                "asOf": now_ms(),
+                "headline": headline(level, &buyable, &moves),
+                "market": m.as_ref().map(|m| json!({
+                    "level": market_level(m.level),
+                    "label": MARKET_LABEL.iter().find(|(l, _)| *l == market_level(m.level)).map(|(_, s)| *s),
+                    "score": m.score,
+                    "themes": m.themes.iter().filter(|t| t.count > 0).map(|t| t.label.clone()).take(3).collect::<Vec<_>>(),
+                })),
+                "buyable": to_value(&buyable),
+                "movers": to_value(&moves[..moves.len().min(6)]),
+                "news": top,
+                "fx": crate::fx::info(),
+            }))
+        })
     })
     .await?;
     Ok(json_of(&*out))
@@ -346,10 +376,17 @@ async fn decision_route(Query(p): Q) -> ApiResult<Response> {
     let cost = parse_cost(q(&p, "cost"))?;
     let weights = parse_weights(q(&p, "weights"))?;
     let score_weights = parse_score_weights(q(&p, "w"))?;
-    let d = decision_for(&symbol, kind, cost, &weights, score_weights).await?;
-    // « Pourquoi ça bouge ? » reuses the last informational decision (never a personal one).
-    why::remember_decision(&d);
-    Ok(json_of(&d))
+    let usd = parse_currency(q(&p, "cur"))?;
+    crate::fx::ensure().await;
+    crate::fx::scope(usd, async {
+        let d = decision_for(&symbol, kind, cost, &weights, score_weights).await?;
+        // « Pourquoi ça bouge ? » reuses the last informational decision in euros (never a personal one).
+        if !usd {
+            why::remember_decision(&d);
+        }
+        Ok(json_of(&with_fx(to_value(&d))))
+    })
+    .await
 }
 
 /// Upcoming events (economy, central banks, earnings, dividends, splits, IPOs) over `days` days (14 by default, 30
@@ -358,6 +395,7 @@ async fn decision_route(Query(p): Q) -> ApiResult<Response> {
 async fn calendar_route(Query(p): Q) -> ApiResult<Response> {
     let days = parse_days(q(&p, "days"), crate::calendar::DEFAULT_DAYS, crate::calendar::MAX_DAYS)?;
     let symbols = parse_symbol_list(q(&p, "symbols"))?;
+    crate::fx::ensure().await;
     if q(&p, "top") == Some("1") {
         return Ok(json_of(&crate::calendar::calendar_top(days, symbols.as_deref()).await));
     }
@@ -425,6 +463,7 @@ pub fn api(state: AppState) -> Router {
         .route("/calendar", get(calendar_route))
         .route("/sectors", get(sectors_route))
         .route("/strategies", get(strategies_route))
+        .route("/fx", get(fx_route))
         .route("/why", get(why::why_route))
         // A few questions per minute and per address: each one costs an Anthropic API call.
         .route("/ask", post(why::ask_route).layer(RateLimit::new(4, 60_000)))

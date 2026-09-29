@@ -173,9 +173,9 @@ public enum WhatIf {
     // MARK: Texts (web WhatIfCard.tsx)
 
     static func fr(_ v: Double, _ d: Int = 1) -> String { JSFormat.fr(v, max: d) }
-    /// "1 234 $".
-    public static func usd(_ v: Double) -> String { "\(JSFormat.fr(v, max: 0)) $" }
-    /// A loss is written "−800 $", a gain "+200 $".
+    /// "1 234 €" (a dollar amount in the display currency).
+    public static func usd(_ v: Double) -> String { Money.money(v, min: 0, max: 0, sep: " ") }
+    /// A loss is written "−800 €", a gain "+200 €".
     public static func signedUsd(_ loss: Double) -> String { "\(loss > 0 ? "−" : loss < 0 ? "+" : "")\(usd(abs(loss)))" }
     public static func signedPct(_ v: Double) -> String { "\(v > 0 ? "+" : v < 0 ? "−" : "")\(fr(abs(v))) %" }
     /// JavaScript `toFixed(2)` of a beta or a correlation ("-0.30" keeps its hyphen and dot, as on the web).
@@ -188,7 +188,7 @@ public enum WhatIf {
         "Comment le risque de ce portefeuille évolue si \(f.name) baisse de \(fr(abs(shock))) % ? Chaque ligne bouge selon son bêta face à ce marché."
     }
 
-    /// "4 000 $ · 40 % · bêta 2.00, corrélation 0.80 · −20 %".
+    /// "4 000 € · 40 % · bêta 2.00, corrélation 0.80 · −20 %".
     public static func lineDetail(_ l: WhatIfLine, factor: FactorKey) -> String {
         var s = "\(usd(l.value)) · \(fr(l.weight)) %"
         if l.reference {

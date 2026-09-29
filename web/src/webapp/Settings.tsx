@@ -6,6 +6,8 @@ import { Segmented } from "./ui";
 import { onLink } from "./router";
 import { HORIZONS } from "../engine/fibonacci";
 import { DEFAULT_SCORE_WEIGHTS, NNBSP, SCORE_FACTORS } from "./decision";
+import { FxNote } from "./FxNote";
+import type { Currency } from "../money";
 
 const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: number; step: number; unit: string }[] = [
   { key: "riskPerTradePercent", label: "Risque accepté par idée", min: 0.25, max: 5, step: 0.25, unit: " %" },
@@ -16,7 +18,7 @@ const RISK_FIELDS: { key: keyof RiskSettings; label: string; min: number; max: n
 ];
 
 export function Settings() {
-  const { risk, watchlist, horizon, scoreWeights } = useAppState();
+  const { risk, watchlist, horizon, scoreWeights, currency } = useAppState();
   const [picking, setPicking] = useState(false);
   const weightTotal = SCORE_FACTORS.reduce((a, f) => a + scoreWeights[f.key], 0);
 
@@ -49,6 +51,21 @@ export function Settings() {
       {picking && (
         <AssetPicker title="Actifs du radar" selected={new Set(watchlist.map(assetKey))} onToggle={toggle} onClose={() => setPicking(false)} />
       )}
+
+      <div className="card">
+        <h2 className="card-title">Devise d'affichage</h2>
+        <Segmented<Currency>
+          label="Devise d'affichage"
+          value={currency}
+          onChange={(v) => setState({ currency: v })}
+          options={[["EUR", "Euro (€)"], ["USD", "Dollar ($)"]]}
+        />
+        <FxNote />
+        <p className="muted small">
+          Les cours viennent en dollars des sources (bourses américaines, plateformes crypto en USD ou USDT) ; Altim les convertit au taux EUR/USD du moment
+          (Yahoo Finance, sinon taux de référence de la BCE). Les montants que vous saisissez (prix de revient, budget, liquidités) le sont dans cette devise.
+        </p>
+      </div>
 
       <div className="card">
         <h2 className="card-title">Mon horizon d'investissement</h2>

@@ -3,6 +3,7 @@
  * notices. No React, no fetch, no storage access, so they are tested with `bun test`. The rules themselves live
  * in engine/paper.ts (shared with the iPhone and Android apps) and are not changed here.
  */
+import { currencySymbol, money, toDisplay } from "../money";
 import { DEFAULT_CAPITAL, isPaperState, type DailyCandle, type PaperPosition, type PaperReason, type PaperState, type PaperTrade, type VerdictStats } from "../engine/paper";
 
 export const PAPER_KEY = "altim.paper.v1";
@@ -114,10 +115,15 @@ export const FEW_TRADES_NOTE =
 
 // ---------- French formatting ----------
 
+const NNBSP = "\u202f";
 const fr = (v: number, min: number, max: number) => v.toLocaleString("fr-FR", { minimumFractionDigits: min, maximumFractionDigits: max });
-export const usd = (v: number) => `${fr(v, 2, 2)} $`;
-/** Prices: more decimals for small values (0,000012 $). */
-export const price = (v: number) => `${fr(v, v >= 1 ? 2 : 4, v >= 1 ? 2 : 8)} $`;
+/** Dollar amounts of the simulation, shown in the display currency (money.ts). */
+export const usd = (v: number) => money(v, 2, 2, NNBSP);
+/** Prices: more decimals for small values (0,000012 €). */
+export const price = (v: number) => {
+  const x = toDisplay(v);
+  return `${fr(x, x >= 1 ? 2 : 4, x >= 1 ? 2 : 8)}${NNBSP}${currencySymbol()}`;
+};
 export const signedUsd = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${usd(Math.abs(v))}`;
 export const signedPct = (v: number, digits = 2) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fr(Math.abs(v), digits, digits)} %`;
 export const pct = (v: number, digits = 0) => `${fr(v, digits, digits)} %`;

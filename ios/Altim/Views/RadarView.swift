@@ -115,6 +115,8 @@ struct RadarView: View {
         .listStyle(.insetGrouped)
         .altimScreen()
         .navigationTitle("Radar")
+        // Back from Réglages: the screens follow the currency chosen there.
+        .onAppear { model.syncMoneyStamp() }
         .navigationDestination(for: Asset.self) { AssetDetailView(asset: $0) }
         .searchable(text: $query, prompt: "Ajouter : BTC, Apple, NVDA…")
         .task(id: query) { await search() }

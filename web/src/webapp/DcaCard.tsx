@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { Segmented } from "./ui";
-import { formatPrice } from "../market";
+import { currencySymbol, displayCurrency, fromDisplay, money, moneyPrice } from "../money";
 import { simulateDca } from "../engine/dca";
 import type { Close } from "../engine/history";
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(v, 0, 0);
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const date = (t: number) => new Date(t).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 
@@ -35,14 +35,15 @@ export function DcaCard({ symbol, kind }: { symbol: string; kind: "crypto" | "st
     };
   }, [symbol, kind, period]);
 
-  const amount = Number(amountText.replace(/\s/g, "").replace(",", "."));
+  // Typed in the display currency, replayed in dollars on the dollar closes.
+  const amount = fromDisplay(Number(amountText.replace(/\s/g, "").replace(",", ".")));
   const r = useMemo(() => (closes && amount > 0 ? simulateDca(closes, amount, once ? ONCE : Number(every), Number(period)) : null), [closes, amount, every, period]);
 
   return (
     <div className="card dca-card">
       <h2 className="card-title">Si j'avais investi</h2>
       <label className="field">
-        <span>{once ? "Montant investi ($)" : "Montant par achat ($)"}</span>
+        <span>{once ? `Montant investi (${currencySymbol()})` : `Montant par achat (${currencySymbol()})`}</span>
         <input inputMode="decimal" value={amountText} onChange={(e) => setAmountText(e.target.value)} />
       </label>
       <Segmented label="Achat" value={every} options={[["once", "Une fois"], ["7", "Chaque semaine"], ["30", "Chaque mois"]]} onChange={setEvery} />
@@ -58,8 +59,11 @@ export function DcaCard({ symbol, kind }: { symbol: string; kind: "crypto" | "st
           </p>
           <DcaChart r={r} />
           {!once && <p className="kv small"><span>Tout investi le {date(r.first)}</span><b className={r.lumpSum.gain >= 0 ? "up" : "down"}>{usd(r.lumpSum.value)} ({pct(r.lumpSum.gain)})</b></p>}
-          <p className="kv small"><span>{once ? "Prix d'achat" : "Prix moyen payé"}</span><b>{formatPrice(r.averagePrice)} $</b></p>
-          <p className="kv small"><span>Prix à la dernière clôture</span><b>{formatPrice(r.lastPrice)} $</b></p>
+          <p className="kv small"><span>{once ? "Prix d'achat" : "Prix moyen payé"}</span><b>{moneyPrice(r.averagePrice)}</b></p>
+          <p className="kv small"><span>Prix à la dernière clôture</span><b>{moneyPrice(r.lastPrice)}</b></p>
+          {displayCurrency() === "EUR" && (
+            <p className="muted small">Rejoué en $ sur les cours en dollars, puis converti au taux du jour : l'effet de change passé (EUR/USD) n'est pas compté.</p>
+          )}
           <p className="muted small">
             {once
               ? "Un seul achat, à la clôture de ce jour-là."

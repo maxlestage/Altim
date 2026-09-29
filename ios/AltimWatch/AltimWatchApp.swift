@@ -31,6 +31,7 @@ final class WatchStore: NSObject, WCSessionDelegate {
             alerts = saved
             checked = UserDefaults.standard.object(forKey: "checked") as? Date
         }
+        Self.applyDisplay(currency: UserDefaults.standard.string(forKey: "currency"), fx: UserDefaults.standard.data(forKey: "fx"))
         if WCSession.isSupported() {
             WCSession.default.delegate = self
             WCSession.default.activate()
@@ -56,7 +57,18 @@ final class WatchStore: NSObject, WCSessionDelegate {
         })
     }
 
+    /// Display currency and rate chosen on the iPhone (euros by default; dollars until a rate is known).
+    private static func applyDisplay(currency: String?, fx: Data?) {
+        Money.setDisplay(Currency(rawValue: currency ?? "") ?? .eur, fx.flatMap { try? JSONDecoder().decode(FxRate.self, from: $0) })
+    }
+
     private func apply(_ context: [String: Any]) {
+        if let currency = context["currency"] as? String {
+            let fx = context["fx"] as? Data
+            Self.applyDisplay(currency: currency, fx: fx)
+            UserDefaults.standard.set(currency, forKey: "currency")
+            UserDefaults.standard.set(fx, forKey: "fx")
+        }
         guard let data = context["alerts"] as? Data, let items = try? JSONDecoder().decode([BuyAlert].self, from: data) else { return }
         alerts = items
         checked = context["checked"] as? Date

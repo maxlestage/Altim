@@ -63,6 +63,19 @@ import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.delay
 
+/**
+ * Discreet line under amounts (FxNote of the web): "1 $ = 0,8819 € · Yahoo Finance, 17:15", or why they are still in
+ * dollars (euros asked but no rate: never a made-up conversion). Nothing when dollars are chosen.
+ */
+@Composable
+fun FxNote(model: com.maxlestage.altim.data.AppModel) {
+    // Read so that the line follows the setting and the rate.
+    model.currency
+    model.fx
+    val text = com.maxlestage.altim.kit.Money.note() ?: return
+    Caption(text)
+}
+
 /** Card with title (same structure as the web and iPhone cards). */
 @Composable
 fun Card(title: String? = null, glow: Color = AltimColors.cyan, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {

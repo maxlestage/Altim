@@ -4,8 +4,8 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
- * "Préviens-moi si BTC passe sous 80 000 $": a price threshold chosen by the user, checked with the buy alerts.
- * One shot: once reached it is marked triggered (the user can re-arm it).
+ * "Préviens-moi si BTC passe sous 80 000 €": a price threshold chosen by the user, checked with the buy alerts.
+ * One shot: once reached it is marked triggered (the user can re-arm it). Same rules as web/src/webapp/alerts-store.ts.
  */
 @Serializable
 data class PriceTarget(
@@ -13,24 +13,44 @@ data class PriceTarget(
     val asset: Asset,
     /** true: notify when the price rises to or above [price]; false: when it falls to or below. */
     val above: Boolean,
+    /** Threshold (or reference of a move alert) in [currency]. */
     val price: Double,
     val created: Long = System.currentTimeMillis(),
     val triggered: Long? = null,
     /** Move alert: notify when the price moves by at least this many % (up or down) from [price], the reference. */
     val move: Double? = null,
+    /**
+     * Currency [price] was typed in (the display currency when the alert was created); absent in older data = dollars.
+     * The current dollar price is converted at the current rate before comparing.
+     */
+    val currency: Currency? = null,
 ) {
-    val label: String
-        get() = move?.let { "Variation de ±${Format.plain(it, 1).removeSuffix(",0")} % (depuis ${Format.price(price)})" }
-            ?: "${if (above) "Au-dessus de" else "En dessous de"} ${Format.price(price)}"
+    val cur: Currency get() = Currency.stored(currency)
 
-    fun isReached(current: Double) = when {
-        move != null -> price > 0 && kotlin.math.abs(current / price - 1) * 100 >= move
-        above -> current >= price
-        else -> current <= price
+    /** "Au-dessus de 80 000,00 €" / "Variation de ±5 % (depuis 212,40 €)": the threshold in its own currency. */
+    val label: String
+        get() = move?.let { "Variation de ±${Format.plain(it, 1).removeSuffix(",0")} % (depuis ${Money.threshold(price, cur)})" }
+            ?: "${if (above) "Au-dessus de" else "En dessous de"} ${Money.threshold(price, cur)}"
+
+    /** The dollar price in the alert's currency (NaN when no rate allows it: the alert then waits). */
+    fun inCurrency(usd: Double): Double = Money.convert(usd, Currency.USD, cur)
+
+    /** [current]: the dollar price of the sources. */
+    fun isReached(current: Double): Boolean {
+        val p = inCurrency(current)
+        if (!p.isFinite()) return false
+        return when {
+            move != null -> price > 0 && kotlin.math.abs(p / price - 1) * 100 >= move
+            above -> p >= price
+            else -> p <= price
+        }
     }
 
-    /** Re-armed: a move alert starts again from the current price. */
-    fun rearmed(current: Double?): PriceTarget = copy(triggered = null, price = if (move != null && current != null && current > 0) current else price)
+    /** Re-armed: a move alert starts again from the current (dollar) price, in its own currency. */
+    fun rearmed(current: Double?): PriceTarget {
+        val p = current?.let { inCurrency(it) } ?: Double.NaN
+        return copy(triggered = null, price = if (move != null && p.isFinite() && p > 0) p else price)
+    }
 
     companion object {
         /** Armed targets reached at the given prices (key "kind:SYMBOL"): the updated list and those just reached. */

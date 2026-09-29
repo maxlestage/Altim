@@ -214,7 +214,7 @@ public enum ConfigChanges {
 
     private static let stepState: [Decision.StepState: String] = [.no: "pas encore", .unknown: "non vérifiable"]
 
-    static func usd(_ v: Double) -> String { "\(JSFormat.fr(v, max: v >= 1 ? 2 : 6)) $" }
+    static func usd(_ v: Double) -> String { Money.moneyFmt(v, sep: " ") { JSFormat.fr($0, max: $0 >= 1 ? 2 : 6) } }
 
     private static func level(_ price: Double?, _ touches: Int?) -> SignalMetrics.Level? {
         guard let price, price.isFinite, let touches else { return nil }
@@ -310,7 +310,7 @@ public enum ConfigChanges {
                 "\(s.label) : \(stepState[s.state] ?? s.state.rawValue)\(s.detail.isEmpty ? "" : " (\(s.detail))")"
             },
             triggers: d.toBuy.map { c in
-                if let level = c.level, !c.text.contains("$") { return "\(c.text) (\(usd(level)))" }
+                if let level = c.level, !c.text.contains("$") && !c.text.contains("€") { return "\(c.text) (\(usd(level)))" }
                 return c.text
             },
             at: at,

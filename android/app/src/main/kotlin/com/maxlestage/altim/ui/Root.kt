@@ -92,6 +92,18 @@ fun Root(model: AppModel) {
         if (model.phase != AppModel.Phase.READY || !resumed) model.live.stop()
         else model.live.follow(followed, model.client, onRenewed = { model.persistSession() }) { model.sessionLost() }
     }
+    // EUR/USD rate of the display: read now, then every 10 minutes while the app is in front.
+    LaunchedEffect(model.phase, resumed, model.client) {
+        if (model.phase != AppModel.Phase.READY || !resumed) return@LaunchedEffect
+        while (true) {
+            try {
+                model.refreshFx()
+            } catch (_: com.maxlestage.altim.kit.AltimException.Unauthorized) {
+                // The screens' own calls handle the expired session.
+            }
+            kotlinx.coroutines.delay(com.maxlestage.altim.kit.Fx.REFRESH_MS)
+        }
+    }
 }
 
 /** Screens opened above a tab and its assets (from Réglages or a Décision card). */
@@ -117,6 +129,7 @@ fun MainTabs(model: AppModel) {
     var overlayAt by rememberSaveable { mutableIntStateOf(-1) }
     var overlay by rememberSaveable { mutableStateOf(Overlay.VALIDATION) }
     val overlayOpen = overlayAt >= 0
+    val money = model.displayCurrency
     /** Opens [kind] above the current screen (a no-op when it is already the open one; the other one is replaced). */
     val openOverlay: (Overlay) -> Unit = { kind ->
         if (!overlayOpen || overlay != kind) {
@@ -189,6 +202,9 @@ fun MainTabs(model: AppModel) {
         // The tab stays composed under the open asset: coming back keeps its list, scroll and loaded data.
         // While covered, it is hidden from TalkBack and receives no touch.
         Box(if (covered || settingsOpen || overlayOpen) Modifier.clearAndSetSemantics { } else Modifier) {
+            // The display currency changed (Réglages, or the first rate read): the screens redraw their amounts and
+            // ask the server again (its texts follow the currency).
+            key(money) {
             when (tab) {
             Tab.RADAR -> RadarScreen(model, m, open, onSettings = { settingsOpen = true })
             Tab.SELECTION -> SelectionScreen(model, m, open)
@@ -196,12 +212,13 @@ fun MainTabs(model: AppModel) {
             Tab.ALERTS -> AlertsScreen(model, m, open)
             Tab.NEWS -> NewsScreen(model, m, open)
             }
+            }
         }
         // The asset below the validation screen (or the only one when it is closed).
         stack.lastOrNull()?.takeIf { !overlayOpen || stack.size <= overlayAt }?.let { top ->
             Box(if (overlayOpen || settingsOpen) Modifier.clearAndSetSemantics { } else Modifier) {
                 AppBackground(blockTouches) {
-                    key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+                    key(top.id, stack.size, money) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
                 }
             }
         }
@@ -218,15 +235,17 @@ fun MainTabs(model: AppModel) {
             val coveredByAsset = stack.size > overlayAt
             Box(if (coveredByAsset) Modifier.clearAndSetSemantics { } else Modifier) {
                 AppBackground(blockTouches) {
+                    key(money) {
                     when (overlay) {
                         Overlay.VALIDATION -> ValidationScreen(model, Modifier.fillMaxSize(), open, onBack = { overlayAt = -1 })
                         Overlay.BOT -> BotScreen(model, Modifier.fillMaxSize(), open, onBack = { overlayAt = -1 })
+                    }
                     }
                 }
             }
             stack.lastOrNull()?.takeIf { coveredByAsset }?.let { top ->
                 AppBackground(blockTouches) {
-                    key(top.id, stack.size) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
+                    key(top.id, stack.size, money) { AssetDetailScreen(model, top, Modifier.fillMaxSize(), onBack = { stack.removeAt(stack.lastIndex) }) }
                 }
             }
         }

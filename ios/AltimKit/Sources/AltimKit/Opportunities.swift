@@ -141,9 +141,14 @@ public struct OppSaved: Codable, Sendable, Equatable {
 }
 
 public enum Opportunities {
-    public static let caps: [(label: String, value: Double?)] = [("Toutes", nil), ("≥ 10 Md$", 1e10), ("≥ 50 Md$", 5e10), ("≥ 200 Md$", 2e11)]
+    /// Thresholds in dollars (the sources' currency), labelled in the display currency when read: "≥ 8,8 Md€".
+    public static var caps: [(label: String, value: Double?)] {
+        ([nil, 1e10, 5e10, 2e11] as [Double?]).map { v in (label: v.map { "≥ \(Money.compact($0))" } ?? "Toutes", value: v) }
+    }
     public static let ranks: [(label: String, value: Int?)] = [("Tous", nil), ("Top 20", 20), ("Top 50", 50), ("Top 100", 100)]
-    public static let liquidity: [(label: String, value: Double?)] = [("Toutes", nil), ("≥ 1 M$ / jour", 1e6), ("≥ 10 M$ / jour", 1e7), ("≥ 100 M$ / jour", 1e8)]
+    public static var liquidity: [(label: String, value: Double?)] {
+        ([nil, 1e6, 1e7, 1e8] as [Double?]).map { v in (label: v.map { "≥ \(Money.compact($0)) / jour" } ?? "Toutes", value: v) }
+    }
     public static let volatility: [(label: String, value: Double?)] = [("Toutes", nil), ("≤ 2 % / jour", 2), ("≤ 4 % / jour", 4), ("≤ 8 % / jour", 8)]
 
     /// Whether an asset passes the numeric filters (an unknown value fails a filter that is set).
@@ -192,20 +197,22 @@ public enum Opportunities {
         return x
     }
 
-    /// "12,3 M$", "850 k$", "420 $".
-    public static func compactUsd(_ v: Double) -> String {
+    /// A dollar amount in the display currency: "12,3 M€", "850 k€", "420 €" ("$" without a rate).
+    public static func compactUsd(_ usd: Double) -> String {
+        let v = Money.toDisplay(usd)
+        let s = Money.symbol()
         let a = abs(v)
         func f(_ x: Double, _ d: Int) -> String { JSFormat.fr(x, max: d) }
-        if a >= 1e9 { return "\(f(v / 1e9, 1)) Md$" }
-        if a >= 1e6 { return "\(f(v / 1e6, 1)) M$" }
-        if a >= 1e3 { return "\(f(v / 1e3, 0)) k$" }
-        return "\(f(v, 0)) $"
+        if a >= 1e9 { return "\(f(v / 1e9, 1)) Md\(s)" }
+        if a >= 1e6 { return "\(f(v / 1e6, 1)) M\(s)" }
+        if a >= 1e3 { return "\(f(v / 1e3, 0)) k\(s)" }
+        return "\(f(v, 0)) \(s)"
     }
 
     /// "+1,2 %" / "−0,4 %" (a zero is "+0 %", as on the web).
     public static func signed(_ v: Double, _ d: Int = 1) -> String { "\(v >= 0 ? "+" : "−")\(JSFormat.fr(abs(v), max: d)) %" }
 
-    /// "RSI 14 : 28 · volatilité 2,1 %/j · échangé 12,3 M$/j · capitalisation 1,2 Md$".
+    /// "RSI 14 : 28 · volatilité 2,1 %/j · échangé 12,3 M€/j · capitalisation 1,2 Md€".
     public static func metrics(_ i: OppItem) -> [String] {
         var out: [String] = []
         if let r = i.rsi14 { out.append("RSI 14 : \(Int((r + 0.5).rounded(.down)))") }

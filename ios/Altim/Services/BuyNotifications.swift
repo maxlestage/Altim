@@ -61,6 +61,8 @@ enum BuyNotifications {
     @discardableResult
     static func run(_ model: AppModel) async -> Bool {
         guard model.needsChecks || WatchBridge.shared.isPaired else { return true }
+        // The texts of the notifications (server's and the device's) use the current EUR/USD rate.
+        await model.refreshFxIfOld()
         do {
             guard let result = try await model.checkAlerts() else { return false }
             WatchBridge.shared.send(model.lastAlerts, checked: model.lastAlertCheck)
@@ -68,9 +70,10 @@ enum BuyNotifications {
             if model.alertsEnabled { await post(result.buy) }
             await postNews(result.news)
             for (t, price) in result.targets {
+                // The threshold in its own currency; the move measured on the price in that currency.
                 let title = t.move != nil
-                    ? "\(t.asset.symbol) a bougé de \(Format.percent((price / t.price - 1) * 100, digits: 1))"
-                    : "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Format.price(t.price))"
+                    ? "\(t.asset.symbol) a bougé de \(Format.percent((t.inCurrency(price) / t.price - 1) * 100, digits: 1))"
+                    : "\(t.asset.symbol) \(t.above ? "au-dessus de" : "en dessous de") \(Money.threshold(t.price, Money.stored(t.currency)))"
                 await add(id: "altim.target.\(t.id)", title: title,
                           body: "Prix actuel \(Format.price(price)) : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.", asset: t.asset.id)
             }

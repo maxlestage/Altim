@@ -7,7 +7,7 @@ import { CompareCard } from "./ToolCards";
 import { Change, ReliabilityBadge, Segmented, Sparkline, technicalText } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
 import { DecisionBadge, RATING_RANK, ratingTone } from "./DecisionCard";
-import { formatPrice } from "../market";
+import { moneyPrice } from "../money";
 import { cacheDecision, cachedDecision, shortDateTime, type Decision } from "./decision";
 import { clearTransitions, recordConfiguration, transitionTitle, useTransitions } from "./config-changes";
 
@@ -192,6 +192,8 @@ export function Radar() {
 
       <BriefCard />
 
+      <a href="/app/alertes" onClick={onLink} className="btn btn-ghost btn-small alerts-link">🔔 Alertes : achetables, alertes de prix, notifications</a>
+
       {error && <p className="notice warn">⚠ {error} — nouvelle tentative automatique.</p>}
 
       {macro && macro.level !== "calm" && (
@@ -269,7 +271,7 @@ export function Radar() {
               <li key={`${a.kind}:${a.symbol}`}>
                 <a href={`/app/actif/${a.kind}/${a.symbol}`} onClick={onLink} className="opp-row">
                   <b>{a.name}</b>
-                  <span className="mono">{a.price != null ? `${formatPrice(a.price)} $` : "—"}</span>
+                  <span className="mono">{a.price != null ? moneyPrice(a.price) : "—"}</span>
                   <span className="badge buy">{a.strong ? "ACHETER" : "ZONE D'ACHAT"}</span>
                 </a>
                 <small className="muted">{[...(a.reasons ?? []), ...(a.cautions ?? [])].join(" ")}</small>
@@ -313,7 +315,7 @@ export function Radar() {
                 </div>
                 <Sparkline values={spark} />
                 <div className="asset-price">
-                  <b><LivePrice tick={t} fallback={r?.price} format={(v) => `${formatPrice(v)} $`} /></b>
+                  <b><LivePrice tick={t} fallback={r?.price} format={(v) => moneyPrice(v)} /></b>
                   <Change value={t?.change ?? r?.change} />
                   {t?.market === "closed" && <small className="market-closed" title="Bourse de New York fermée : dernier cours connu">Bourse fermée</small>}
                 </div>

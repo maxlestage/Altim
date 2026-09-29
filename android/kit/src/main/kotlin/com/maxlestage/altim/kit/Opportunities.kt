@@ -153,6 +153,8 @@ data class AnomalyReport(
     val derivatives: Derivatives? = null,
     val errors: List<String> = emptyList(),
     val source: String = "",
+    /** Rate the server wrote its texts with (additive). */
+    val fx: FxInfo? = null,
 )
 
 object Opportunities {
@@ -170,10 +172,12 @@ object Opportunities {
 
     val DEFAULT_FILTERS = OppFilters()
 
-    /** Choices of the filters (label, value), same as the web page. */
-    val CAPS: List<Pair<String, Double?>> = listOf("Toutes" to null, "≥ 10 Md$" to 1e10, "≥ 50 Md$" to 5e10, "≥ 200 Md$" to 2e11)
+    /** Choices of the filters (label, value), same as the web page: thresholds in dollars, labelled in the display currency. */
+    val CAPS: List<Pair<String, Double?>>
+        get() = listOf<Pair<String, Double?>>("Toutes" to null) + listOf(1e10, 5e10, 2e11).map { "≥ ${Format.compactUsd(it)}" to it }
     val RANKS: List<Pair<String, Int?>> = listOf("Tous" to null, "Top 20" to 20, "Top 50" to 50, "Top 100" to 100)
-    val LIQ: List<Pair<String, Double?>> = listOf("Toutes" to null, "≥ 1 M$ / jour" to 1e6, "≥ 10 M$ / jour" to 1e7, "≥ 100 M$ / jour" to 1e8)
+    val LIQ: List<Pair<String, Double?>>
+        get() = listOf<Pair<String, Double?>>("Toutes" to null) + listOf(1e6, 1e7, 1e8).map { "≥ ${Format.compactUsd(it)} / jour" to it }
     val VOL: List<Pair<String, Double?>> = listOf("Toutes" to null, "≤ 2 % / jour" to 2.0, "≤ 4 % / jour" to 4.0, "≤ 8 % / jour" to 8.0)
 
     /** Whether an asset passes the numeric filters (an unknown value fails a filter that is set). */
@@ -231,21 +235,23 @@ object Opportunities {
         return if (total > 0) l.longUsd / total * 100 else null
     }
 
-    /** "12,3 M$", "850 k$", "420 $". */
-    fun compactUsd(v: Double): String {
+    /** A dollar amount in the display currency: "12,3 M€", "850 k€", "420 €" ("$" without a rate). */
+    fun compactUsd(usd: Double): String {
+        val v = Money.toDisplay(usd)
+        val s = Money.symbol()
         val a = abs(v)
         return when {
-            a >= 1e9 -> "${Format.plain(v / 1e9, 1)} Md$"
-            a >= 1e6 -> "${Format.plain(v / 1e6, 1)} M$"
-            a >= 1e3 -> "${Format.plain(v / 1e3, 0)} k$"
-            else -> "${Format.plain(v, 0)} $"
+            a >= 1e9 -> "${Format.plain(v / 1e9, 1)} Md$s"
+            a >= 1e6 -> "${Format.plain(v / 1e6, 1)} M$s"
+            a >= 1e3 -> "${Format.plain(v / 1e3, 0)} k$s"
+            else -> "${Format.plain(v, 0)} $s"
         }
     }
 
     /** "+12,3 %" / "−0,0100 %" (maximum [digits] decimals). */
     fun signed(v: Double, digits: Int = 1) = "${if (v >= 0) "+" else "−"}${Format.plain(abs(v), digits)} %"
 
-    /** "RSI 14 : 61", "volatilité 2,3 %/j", "échangé 32 Md$/j", "capitalisation 4 100 Md$" (the known ones). */
+    /** "RSI 14 : 61", "volatilité 2,3 %/j", "échangé 32 Md€/j", "capitalisation 4 100 Md€" (the known ones). */
     fun metrics(i: OppItem): List<String> = listOfNotNull(
         i.rsi14?.let { "RSI 14 : ${Math.round(it)}" },
         i.volatility?.let { "volatilité ${Format.plain(it, 1)} %/j" },

@@ -1,5 +1,7 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
+import com.maxlestage.altim.kit.Currency
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,9 +74,12 @@ import kotlin.math.floor
 /** Under this number of closed trades, the statistics say little (chance dominates). */
 private const val FEW_TRADES = 20
 
-/** 1 234,56 $ (amounts of the simulation, cents kept: the fees are small), 0,50 $ under a dollar. */
+/**
+ * 1 234,56 € (dollar amounts of the simulation in the display currency, cents kept: the fees are small), 0,50 € under
+ * one unit.
+ */
 private fun usd(v: Double?): String =
-    if (v != null && v.isFinite() && abs(v) < 1) String.format(java.util.Locale.FRANCE, "%.2f $", v) else Format.price(v)
+    if (v != null && v.isFinite() && abs(Money.toDisplay(v)) < 1) Format.amount(v, 2) else Format.price(v)
 private fun signedUsd(v: Double): String = "${if (v >= 0) "+" else "−"}${usd(abs(v))}"
 
 /** Suggested amount of a simulated purchase: 10 % of the simulated value, at most the cash (cents rounded down). */
@@ -174,6 +179,10 @@ fun PaperView(
                 KeyValue("Liquidités", usd(v.cash))
                 KeyValue("Positions ouvertes", usd(v.positionsValue))
                 Caption("Simulation commencée le ${Format.date(state.startedAt)}.")
+                if (Money.displayCurrency() == Currency.EUR) {
+                    Caption("Portefeuille simulé tenu en $ comme les cours ; montants saisis en € convertis au taux du jour de la saisie, affichés au taux du jour.")
+                }
+                Money.note()?.let { Caption(it) }
                 if (v.unpriced > 0) {
                     Caption(if (v.unpriced > 1) "${v.unpriced} positions sans prix pour l'instant : comptées à leur coût." else "1 position sans prix pour l'instant : comptée à son coût.")
                 }
@@ -401,16 +410,16 @@ private fun AmountField(value: String, label: String, onChange: (String) -> Unit
     )
 }
 
-/** Confirmation of "Recommencer", inside the card: the new starting capital (10 000 $ by default). */
+/** Confirmation of "Recommencer", inside the card: the new starting capital (10 000 in the display currency by default), in dollars for the engine. */
 @Composable
 private fun ResetPanel(current: Double, onDismiss: () -> Unit, onConfirm: (Double) -> Unit) {
     var text by remember { mutableStateOf(Format.plain(Paper.DEFAULT_CAPITAL, 2)) }
-    val capital = Format.parse(text)?.takeIf { it > 0 }
+    val capital = Format.parse(text)?.takeIf { it > 0 }?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
         Text("Recommencer la simulation ?", fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.semantics { heading() })
         Text("Les positions et le journal simulés seront effacés (capital de départ actuel : ${usd(current)}).", fontSize = 13.sp)
-        AmountField(text, "Capital de départ en $") { text = it }
+        AmountField(text, "Capital de départ en ${Money.symbol()}") { text = it }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = onDismiss, modifier = Modifier.weight(1f)) { Text("Annuler", color = AltimColors.cyan) }
             OutlinedButton(
@@ -453,9 +462,10 @@ private fun SellDialog(line: OpenLine, error: String?, onDismiss: () -> Unit, on
 fun SimulateSheet(model: AppModel, asset: Asset, decision: Decision, price: Double?, onDone: (String) -> Unit, onDismiss: () -> Unit) {
     val paper = model.paper
     val suggested = suggestedAmount(paper, paper.positions.associate { p -> p.key to model.live.price(p.asset)?.price })
-    var amount by remember { mutableStateOf(if (suggested > 0) Format.plain(suggested, 2) else "") }
-    var stop by remember { mutableStateOf(decision.plan?.stop?.let { Format.plain(it, 8) } ?: "") }
-    var target by remember { mutableStateOf(decision.plan?.target1?.let { Format.plain(it, 8) } ?: "") }
+    // The simulated ledger is kept in dollars like the prices; amounts are typed and shown in the display currency.
+    var amount by remember { mutableStateOf(if (suggested > 0) Format.plain(floor(Money.toDisplay(suggested) * 100) / 100, 2) else "") }
+    var stop by remember { mutableStateOf(decision.plan?.stop?.let { Format.plain(Money.toDisplay(it), 8) } ?: "") }
+    var target by remember { mutableStateOf(decision.plan?.target1?.let { Format.plain(Money.toDisplay(it), 8) } ?: "") }
     var error by remember { mutableStateOf<String?>(null) }
     var note by remember { mutableStateOf("") }
     val against = decision.verdict != Verdict.BUY && decision.verdict != Verdict.BUY_ZONE
@@ -466,11 +476,13 @@ fun SimulateSheet(model: AppModel, asset: Asset, decision: Decision, price: Doub
             amount = amount, stop = stop, target = target, error = error, note = note,
             onAmount = { amount = it }, onStop = { stop = it }, onTarget = { target = it }, onNote = { note = it.take(1000) }, onCancel = onDismiss,
         ) {
-            val a = Format.parse(amount)
-            val s = if (stop.isBlank()) null else Format.parse(stop)
-            val t = if (target.isBlank()) null else Format.parse(target)
+            val a = Format.parse(amount)?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
+            val s = if (stop.isBlank()) null else Format.parse(stop)?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
+            val t = if (target.isBlank()) null else Format.parse(target)?.let(Money::fromDisplay)?.takeIf { it.isFinite() }
             error = when {
                 a == null -> "Montant invalide."
+                // Said in the display currency (the engine's own message counts in dollars).
+                a > paper.cash + 1e-9 -> "Liquidités simulées insuffisantes (${usd(paper.cash)} disponibles)."
                 stop.isNotBlank() && s == null -> "Stop invalide."
                 target.isNotBlank() && t == null -> "Objectif invalide."
                 else -> {
@@ -519,14 +531,15 @@ fun SimulateForm(
         if (against) {
             Notice("La décision affichée est « ${decision.verdictLabel} » : vous simulez contre la décision.", Tone.WARN)
         }
-        AmountField(amount, "Montant en $ (frais compris)", onAmount)
-        AmountField(stop, "Stop en $ (facultatif)", onStop)
-        AmountField(target, "Objectif en $ (facultatif)", onTarget)
+        val sym = Money.symbol()
+        AmountField(amount, "Montant en $sym (frais compris)", onAmount)
+        AmountField(stop, "Stop en $sym (facultatif)", onStop)
+        AmountField(target, "Objectif en $sym (facultatif)", onTarget)
         Caption("Stop et objectif pré-remplis depuis le plan de la décision. Vérifiés chaque jour sur les bougies journalières, à partir du lendemain.")
         // The engine ignores a stop above the fill price and a target below it: said before, not discovered after.
         val entry = price?.let { it * (1 + Paper.SLIPPAGE) }
-        val s = Format.parse(stop)
-        val t = Format.parse(target)
+        val s = Format.parse(stop)?.let(Money::fromDisplay)
+        val t = Format.parse(target)?.let(Money::fromDisplay)
         if (entry != null && s != null && s >= entry) Notice("Stop au-dessus du prix d'achat : il sera ignoré.", Tone.WARN)
         if (entry != null && t != null && t <= entry) Notice("Objectif sous le prix d'achat : il sera ignoré.", Tone.WARN)
         JournalNoteField(note, onNote)

@@ -214,6 +214,8 @@ data class Decision(
     val modelEvidence: ModelEvidence? = null,
     /** « Bot Altim » (added later, absent from older answers): the learned model's ACHETER / ATTENDRE / VENDRE and whether it counts. */
     val bot: BotView? = null,
+    /** Rate the server wrote its French texts with (additive, absent from older answers). */
+    val fx: FxInfo? = null,
 ) {
     /** The rating's words when the server gives it, else the verdict's. */
     val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel

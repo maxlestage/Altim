@@ -86,14 +86,16 @@ fn fx(v: f64) -> String {
 }
 
 fn price(v: f64) -> String {
-    let d = if v >= 100.0 {
-        0
-    } else if v >= 1.0 {
-        2
-    } else {
-        4
-    };
-    format!("{} $", fr(v, 0, d))
+    crate::fx::money_with(v, |v| {
+        let d = if v >= 100.0 {
+            0
+        } else if v >= 1.0 {
+            2
+        } else {
+            4
+        };
+        fr(v, 0, d)
+    })
 }
 
 fn valid(c: &Candle) -> bool {

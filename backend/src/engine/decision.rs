@@ -40,7 +40,6 @@ use super::Evidence;
 use super::bot::{BotReport, bot_view};
 use super::decision_types::*;
 use super::fibonacci::{FibZone, Horizon, Swing, Trend as SwingTrend, ZoneStatus, fib_zones, level, weekly};
-use super::format::format_price;
 use super::guard::{Direction, GuardResult, NewsItem, Regime, ShockLevel, Trend, divergence, news_tone, percentile_rank, regime};
 use super::guidance::{self, Observed};
 use super::macro_ctx::{MACRO, MacroLevel, MacroReport};
@@ -162,7 +161,7 @@ pub struct DecisionInput<'a> {
 // ---------- Formatting ----------
 
 fn usd(v: f64) -> String {
-    format!("{} $", format_price(v))
+    crate::fx::money(v)
 }
 fn pct(v: f64) -> String {
     format!("{} %", fr(v, 0, 1))
@@ -179,14 +178,15 @@ fn ratio(v: f64) -> String {
     fr(v, 1, 1)
 }
 fn money(v: f64) -> String {
+    let (v, sym) = crate::fx::convert(v);
     if v >= 1e12 {
-        format!("{} T$", fr(v / 1e12, 0, 1))
+        format!("{} T{sym}", fr(v / 1e12, 0, 1))
     } else if v >= 1e9 {
-        format!("{} Md$", fr(v / 1e9, 0, 1))
+        format!("{} Md{sym}", fr(v / 1e9, 0, 1))
     } else if v >= 1e6 {
-        format!("{} M$", fr(v / 1e6, 0, 1))
+        format!("{} M{sym}", fr(v / 1e6, 0, 1))
     } else {
-        format!("{} $", fr(v, 0, 0))
+        format!("{} {sym}", fr(v, 0, 0))
     }
 }
 fn r1(v: f64) -> f64 {
