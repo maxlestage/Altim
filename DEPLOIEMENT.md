@@ -29,11 +29,7 @@ En cas de doute (appareil perdu, fuite), relancez `bun run secrets` et remplacez
 
 Ensuite, chaque fusion sur `master` qui touche au site redéploie automatiquement.
 
-**Option B : bouton Heroku**
-
-Ouvrez `https://www.heroku.com/deploy?template=https://github.com/maxlestage/altim` (le dépôt doit être public ou votre GitHub connecté à Heroku), choisissez un nom, **Deploy app**.
-
-**Option C : intégration GitHub de Heroku**
+**Option B : intégration GitHub de Heroku** (dépôt privé : connectez votre compte GitHub à Heroku)
 
 Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
 
@@ -46,7 +42,7 @@ Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent
 
 La phase `release` refuse le déploiement si le site ou le serveur manque, avec un message clair.
 
-Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option C), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`https://github.com/jakeg/heroku-buildpack-bun`, puis `emk/rust`, dans cet ordre), ou dans un terminal :
+Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option B), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`https://github.com/jakeg/heroku-buildpack-bun`, puis `emk/rust`, dans cet ordre), ou dans un terminal :
 
 ```bash
 heroku stack:set heroku-24 -a VOTRE-APP
