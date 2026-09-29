@@ -1,5 +1,7 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
+import com.maxlestage.altim.kit.Currency
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,15 +45,16 @@ import java.util.Locale
 import kotlin.math.abs
 
 private fun signed(v: Double) = (if (v >= 0) "+" else "−") + String.format(Locale.FRANCE, "%.1f", abs(v)).removeSuffix(",0") + " %"
-private fun dollars(v: Double) = String.format(Locale.FRANCE, "%,.0f", v).replace('\u202F', ' ').replace('\u00A0', ' ') + " $"
+/** A dollar amount in the display currency, whole ("1 000 €"). */
+private fun dollars(v: Double) = Format.amount(v, 0)
 private val LONG_DAY = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.FRANCE).withZone(ZoneOffset.UTC)
 
-/** "If I had invested 100 $ every month": regular purchases replayed on the real daily closes of the asset. */
+/** "If I had invested 100 € every month": regular purchases replayed on the real daily closes of the asset. */
 /** One purchase repeats nothing: its "next purchase" is far beyond any period. */
 private const val ONCE = 100_000
 
 /**
- * "If I had invested 1 000 $": one purchase by default (not everybody wants to spend every month), regular
+ * "If I had invested 1 000 €": one purchase by default (not everybody wants to spend every month), regular
  * purchases as an option, replayed on the real daily closes of the asset.
  */
 @Composable
@@ -74,7 +77,8 @@ fun DcaCard(model: AppModel, asset: Asset) {
             error = e.message ?: "Historique indisponible"
         }
     }
-    val amount = Format.parse(amountText) ?: 0.0
+    // Typed in the display currency, replayed in dollars on the dollar closes.
+    val amount = Money.fromDisplay(Format.parse(amountText) ?: 0.0).takeIf { it.isFinite() } ?: 0.0
     val r = closes?.let { if (amount > 0) DcaResult.simulate(it, amount, every, days) else null }
 
     Card(title = "Si j'avais investi") {
@@ -82,7 +86,7 @@ fun DcaCard(model: AppModel, asset: Asset) {
             value = amountText,
             onValueChange = { amountText = it },
             label = { Text(if (once) "Montant investi" else "Montant par achat") },
-            suffix = { Text("$") },
+            suffix = { Text(Money.symbol()) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
             modifier = Modifier.fillMaxWidth(),
@@ -105,6 +109,7 @@ fun DcaCard(model: AppModel, asset: Asset) {
                 if (!once) KeyValue("Tout investi le $firstDay", "${dollars(r.lumpValue)} (${signed(r.lumpGain)})", if (r.lumpGain >= 0) Tone.GOOD else Tone.BAD)
                 KeyValue(if (once) "Prix d'achat" else "Prix moyen payé", Format.price(r.averagePrice))
                 KeyValue("Prix à la dernière clôture", Format.price(r.lastPrice))
+                if (Money.displayCurrency() == Currency.EUR) Caption("Rejoué en $ sur les cours en dollars, puis converti au taux du jour : l'effet de change passé (EUR/USD) n'est pas compté.")
                 Caption(
                     when {
                         once -> "Un seul achat, à la clôture de ce jour-là."

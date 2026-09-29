@@ -78,6 +78,8 @@ data class Brief(
     val buyable: List<Buy> = emptyList(),
     val movers: List<Mover> = emptyList(),
     val news: List<NewsItem> = emptyList(),
+    /** Rate the server wrote its texts with (additive). */
+    val fx: FxInfo? = null,
 ) {
     @Serializable data class Market(val level: String, val label: String, val score: Double, val themes: List<String> = emptyList())
     @Serializable data class Buy(val symbol: String, val kind: Kind, val strong: Boolean = false, val title: String = "")

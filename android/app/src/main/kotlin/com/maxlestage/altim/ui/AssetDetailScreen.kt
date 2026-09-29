@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -89,7 +90,8 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             var cost: Double? = null
             var weights: String? = null
             if (held) {
-                cost = Decision.cost(model.holdings, asset)
+                // In dollars like the prices (a euro cost converted at the current rate; unknown without a rate).
+                cost = Decision.cost(model.usdHoldings.holdings, asset)
                 val assets = model.holdings.map { it.asset }.distinctBy { it.id }
                 val prices = runCatching { client.quotes(assets).associate { "${it.kind.raw}:${it.symbol}" to it.price } }.getOrDefault(emptyMap()) +
                     assets.mapNotNull { a -> model.live.price(a)?.let { a.id to it.price } }
@@ -294,7 +296,7 @@ fun PriceChart(candles: List<Candle>, zone: FibZone?, modifier: Modifier) {
         for (k in 0..3) {
             val v = lo + (hi - lo) * (k + 0.5) / 4
             drawLine(Color.White.copy(alpha = 0.06f), Offset(0f, y(v)), Offset(right, y(v)))
-            drawContext.canvas.nativeCanvas.drawText(Format.price(v).removeSuffix(" $"), right + 6.dp.toPx(), y(v) + 4.dp.toPx(), paint)
+            drawContext.canvas.nativeCanvas.drawText(Format.price(v).removeSuffix(" ${Money.symbol()}"), right + 6.dp.toPx(), y(v) + 4.dp.toPx(), paint)
         }
         val path = Path()
         candles.forEachIndexed { i, c -> if (i == 0) path.moveTo(x(i), y(c.close)) else path.lineTo(x(i), y(c.close)) }

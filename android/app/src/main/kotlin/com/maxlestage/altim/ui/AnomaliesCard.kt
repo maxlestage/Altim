@@ -1,5 +1,6 @@
 package com.maxlestage.altim.ui
 
+import com.maxlestage.altim.kit.Money
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -128,7 +129,7 @@ private fun DerivativesBlock(d: Derivatives) {
             DerivRow("Liquidations ${if (l.complete) "24 h" else "${Format.plain(l.hours, 1)} h (lecture partielle)"}", Opportunities.compactUsd(l.longUsd + l.shortUsd))
             DerivRow("Acheteurs liquidés (${l.longCount})", Opportunities.compactUsd(l.longUsd) + (share?.let { " · ${Math.round(it)} %" } ?: ""), Tone.BAD)
             DerivRow("Vendeurs liquidés (${l.shortCount})", Opportunities.compactUsd(l.shortUsd), Tone.GOOD)
-            l.largest?.let { g -> DerivRow("Plus grosse", "${Opportunities.compactUsd(g.usd)} · ${if (g.long) "acheteur" else "vendeur"} à ${Format.plain(g.price, 2)} $ · ${moment(g.time)}") }
+            l.largest?.let { g -> DerivRow("Plus grosse", "${Opportunities.compactUsd(g.usd)} · ${if (g.long) "acheteur" else "vendeur"} à ${Money.moneyFmt(g.price, " ") { Format.plain(it, 2) }} · ${moment(g.time)}") }
             if (l.scope.isNotBlank()) Caption(l.scope)
         }
         d.openInterest?.let { o ->

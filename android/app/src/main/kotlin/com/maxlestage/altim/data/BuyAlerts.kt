@@ -23,6 +23,7 @@ import com.maxlestage.altim.R
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Format
+import com.maxlestage.altim.kit.Money
 import com.maxlestage.altim.kit.NewsItem
 import com.maxlestage.altim.kit.Notice
 import com.maxlestage.altim.kit.ConfigNotices
@@ -142,7 +143,7 @@ object BuyAlerts {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
             NotificationManagerCompat.from(context).areNotificationsEnabled()
 
-    /** A price alert reached: "BTC en dessous de 80 000 $" with the price now. */
+    /** A price alert reached: "BTC en dessous de 80 000,00 €" (the threshold in its own currency) with the price now. */
     fun postTarget(context: Context, t: PriceTarget, price: Double) = post(
         context,
         BuyAlert(
@@ -151,8 +152,8 @@ object BuyAlerts {
             name = t.asset.name,
             price = price,
             buy = true,
-            title = if (t.move != null) "${t.asset.symbol} a bougé de ${Format.percent((price / t.price - 1) * 100, 1)}"
-            else "${t.asset.symbol} ${if (t.above) "au-dessus de" else "en dessous de"} ${Format.price(t.price)}",
+            title = if (t.move != null) "${t.asset.symbol} a bougé de ${Format.percent((t.inCurrency(price) / t.price - 1) * 100, 1)}"
+            else "${t.asset.symbol} ${if (t.above) "au-dessus de" else "en dessous de"} ${Money.threshold(t.price, t.cur)}",
             body = "Prix actuel ${Format.price(price)} : votre alerte de prix est atteinte. Réarmez-la dans l'onglet Alertes si besoin.",
         ),
         tag = "target:${t.id}",

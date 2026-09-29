@@ -135,7 +135,7 @@ object ConfigChanges {
         StepState.OK -> "validée"
     }
 
-    private fun usd(v: Double) = "${Format.plain(v, if (v >= 1) 2 else 6)} $"
+    private fun usd(v: Double) = Money.moneyFmt(v, " ") { x -> Format.plain(x, if (x >= 1) 2 else 6) }
 
     private fun fin(v: Double?): Double? = v?.takeIf { it.isFinite() }
 
@@ -226,7 +226,7 @@ object ConfigChanges {
         levelLabel = d.levelText,
         missing = d.setup?.steps.orEmpty().filter { it.state != StepState.OK }
             .map { "${it.label} : ${stepState(it.state)}${if (it.detail.isNotEmpty()) " (${it.detail})" else ""}" },
-        triggers = d.toBuy.map { c -> if (c.level != null && !c.text.contains("$")) "${c.text} (${usd(c.level)})" else c.text },
+        triggers = d.toBuy.map { c -> if (c.level != null && !c.text.contains(Regex("[$€]"))) "${c.text} (${usd(c.level)})" else c.text },
         at = at,
         rating = d.rating,
         ratingLabel = d.rating?.let { r -> d.ratingLabel.ifBlank { r.label } },
