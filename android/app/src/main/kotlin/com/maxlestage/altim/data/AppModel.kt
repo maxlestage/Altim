@@ -17,6 +17,9 @@ import com.maxlestage.altim.kit.PriceTarget
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.ConfigChanges
+import com.maxlestage.altim.kit.ConfigNotices
+import com.maxlestage.altim.kit.DangerNotices
+import com.maxlestage.altim.kit.RiskPortfolio
 import com.maxlestage.altim.kit.ConfigTransition
 import com.maxlestage.altim.kit.Credentials
 import com.maxlestage.altim.kit.Danger
@@ -49,6 +52,9 @@ import com.maxlestage.altim.kit.TradeJournalState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import java.util.UUID
 import kotlinx.serialization.builtins.ListSerializer
@@ -56,6 +62,13 @@ import okhttp3.HttpUrl
 
 /** App state: server access, lock, watch list and holdings (stored on the phone only). Same as the iPhone AppModel. */
 class AppModel(context: Context, private val secure: SecretStore = SecureStore(context)) {
+    companion object {
+        /** Watched assets whose decision the background check re-reads (as many as the Radar). */
+        const val MAX_BACKGROUND_DECISIONS = 20
+        /** A decision compared less than 10 minutes ago (Radar open, previous check) is not fetched again. */
+        const val BACKGROUND_DECISION_EVERY = 10 * 60_000.0
+    }
+
     private val appContext = context.applicationContext
     enum class Phase { SETUP, LOCKED, READY }
 
@@ -107,6 +120,14 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     /** News alerts (Réglages): serious escalation, or a story about one of my assets told by at least 3 sources. */
     var newsAlertsEnabled by mutableStateOf(prefs.getBoolean("newsAlertsEnabled", false))
+        private set
+    /**
+     * Configuration changes of the Radar and positions that became dangerous, notified in the background (Réglages).
+     * Never set yet: on only if the buy notifications already are (written once, so it no longer follows them).
+     */
+    var configAlertsEnabled by mutableStateOf(initialSwitch("configAlertsEnabled"))
+        private set
+    var dangerAlertsEnabled by mutableStateOf(initialSwitch("dangerAlertsEnabled"))
         private set
     /** Time of the last background check and what it found (shown in Réglages). */
     var lastAlertCheck by mutableStateOf(prefs.getLong("lastAlertCheck", 0L).takeIf { it > 0 })
@@ -234,14 +255,33 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         BuyAlerts.schedule(context, needsChecks)
     }
 
+    private fun initialSwitch(key: String): Boolean {
+        if (!prefs.contains(key)) prefs.edit().putBoolean(key, prefs.getBoolean("alertsEnabled", false)).apply()
+        return prefs.getBoolean(key, false)
+    }
+
+    /** Turned on again: the transitions listed meanwhile are a new baseline (only the next ones are notified). */
+    fun updateConfigAlerts(context: Context, enabled: Boolean) {
+        configAlertsEnabled = enabled
+        prefs.edit().putBoolean("configAlertsEnabled", enabled).remove(ConfigNotices.KEY).apply()
+        BuyAlerts.schedule(context, needsChecks)
+    }
+
+    fun updateDangerAlerts(context: Context, enabled: Boolean) {
+        dangerAlertsEnabled = enabled
+        prefs.edit().putBoolean("dangerAlertsEnabled", enabled).remove(DangerNotices.KEY).apply()
+        BuyAlerts.schedule(context, needsChecks)
+    }
+
     fun updateNewsAlerts(context: Context, enabled: Boolean) {
         newsAlertsEnabled = enabled
         prefs.edit().putBoolean("newsAlertsEnabled", enabled).apply()
         BuyAlerts.schedule(context, needsChecks)
     }
 
-    /** The background check runs for the buy alerts, the news alerts or at least one armed price alert. */
-    val needsChecks: Boolean get() = alertsEnabled || newsAlertsEnabled || priceTargets.any { it.triggered == null }
+    /** The background check runs for the buy, news, configuration or danger notifications, or an armed price alert. */
+    val needsChecks: Boolean get() = alertsEnabled || newsAlertsEnabled || configAlertsEnabled || dangerAlertsEnabled ||
+        priceTargets.any { it.triggered == null }
 
     fun addTarget(context: Context, t: PriceTarget) = setTargets(context, priceTargets + t)
     fun removeTarget(context: Context, id: String) = setTargets(context, priceTargets.filterNot { it.id == id })
@@ -259,8 +299,17 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         save(ListSerializer(JournalEntry.serializer()), "journal", journal)
     }
 
-    /** What one background check found: new buy alerts and price alerts just reached (with the price). */
-    data class CheckResult(val buy: List<BuyAlert>, val targets: List<Pair<PriceTarget, Double>>, val news: List<NewsItem> = emptyList())
+    /**
+     * What one background check found: new buy alerts, price alerts just reached (with the price), news, new
+     * configuration changes and lines that newly became dangerous.
+     */
+    data class CheckResult(
+        val buy: List<BuyAlert>,
+        val targets: List<Pair<PriceTarget, Double>>,
+        val news: List<NewsItem> = emptyList(),
+        val changes: List<ConfigTransition> = emptyList(),
+        val dangers: List<Danger> = emptyList(),
+    )
 
     /**
      * One check of the buy alerts (background worker): the server's rule applied to the watch list and the holdings;
@@ -298,11 +347,67 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
             save(ListSerializer(JournalEntry.serializer()), "journal", journal)
         }
         val news = if (newsAlertsEnabled) checkNews(c, now) else emptyList()
+        val changes = if (configAlertsEnabled) checkConfigChanges(c, now.toDouble()) else emptyList()
+        val dangers = if (dangerAlertsEnabled) checkDangers(c) else emptyList()
         lastAlertCheck = now
         prefs.edit().putLong("lastAlertCheck", now).apply()
         persistSession()
         BuyWidget.refresh(appContext)
-        return CheckResult(fresh, fired, news)
+        return CheckResult(fresh, fired, news, changes, dangers)
+    }
+
+    /** A failed call is null (checked again next time), except an expired session, which stops the check. */
+    private suspend fun <T> orNull(call: suspend () -> T): T? = try {
+        call()
+    } catch (e: AltimException.Unauthorized) {
+        throw e
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+    /**
+     * Decisions of the watched assets (market data only, the first 20, 2 at a time, like the Radar) not compared for
+     * 10 minutes, recorded through the same configuration diff; returns the transitions not notified yet (those
+     * recorded by the app in the foreground too), each one once.
+     */
+    private suspend fun checkConfigChanges(c: AltimClient, now: Double): List<ConfigTransition> {
+        val notified = ConfigNotices.parse(prefs.getString(ConfigNotices.KEY, null)) ?: ConfigNotices.baseline(configChanges.transitions)
+        val due = watchlist.take(MAX_BACKGROUND_DECISIONS).filter { a -> ConfigChanges.lastSeen(configChanges, a)?.let { now - it >= BACKGROUND_DECISION_EVERY } ?: true }
+        for (pair in due.chunked(2)) {
+            coroutineScope { pair.map { a -> async { orNull { c.decision(a) } } }.awaitAll() }.filterNotNull().forEach { recordDecision(it, personal = false) }
+        }
+        val (keys, fresh) = ConfigNotices.fresh(notified, configChanges.transitions)
+        prefs.edit().putString(ConfigNotices.KEY, ConfigNotices.encode(keys)).apply()
+        return fresh
+    }
+
+    /**
+     * Dangers of Mes avoirs (PortfolioRisk rule: stop broken, within one daily ATR of the stop, loss beyond the risk
+     * per idea) on consensus quotes and daily candles (lines with a stop, 2 at a time); returns the lines that newly
+     * entered a danger state or have a new reason. The Radar's "measured on Mes avoirs" notice is left as it is.
+     */
+    private suspend fun checkDangers(c: AltimClient): List<Danger> {
+        val list = holdings
+        if (list.isEmpty()) {
+            prefs.edit().remove(DangerNotices.KEY).apply()
+            return emptyList()
+        }
+        val assets = list.map { it.asset }.distinctBy { it.id }
+        val prices = orNull { c.quotes(assets) }?.associate { "${it.kind.raw}:${it.symbol}" to it.price }.orEmpty()
+        // No quote, or old quotes served offline: nothing measured this time (the state is kept as it is).
+        if (prices.isEmpty() || offlineSince != null) return emptyList()
+        val withStop = list.filter { it.stop != null }.map { it.asset }.distinctBy { it.id }.take(MAX_BACKGROUND_DECISIONS)
+        val daily = withStop.chunked(2).flatMap { pair ->
+            coroutineScope { pair.map { a -> async { a.id to orNull { c.candles(a, "1d").candles }?.takeIf { it.isNotEmpty() } } }.awaitAll() }
+        }.mapNotNull { (id, candles) -> candles?.let { id to it } }.toMap()
+        val p = RiskPortfolio.of(list, 0.0, prices, daily)
+        val found = PortfolioRisk.dangerousPositions(p, risk, daily, list.associate { it.id to it.stop })
+        val unmeasured = list.filter { h -> prices[h.asset.id] == null || (h.stop != null && daily[h.asset.id] == null) }.map { it.id }.toSet()
+        val (state, fresh) = DangerNotices.fresh(DangerNotices.parse(prefs.getString(DangerNotices.KEY, null)), found, unmeasured)
+        prefs.edit().putString(DangerNotices.KEY, DangerNotices.encode(state)).apply()
+        return fresh
     }
 
     /** News to notify (NewsAlertTracker): a feed that fails does not stop the buy and price alerts. */

@@ -296,6 +296,18 @@ pub mod parse {
         })
     }
 
+    /// SEC submissions read for the sector exposure: the operating sector, or a fund (no SIC code and an entity
+    /// type other than "operating": SPY's and QQQ's trusts, for instance).
+    pub fn filer(d: &Value) -> SecFiler {
+        let no_sic = d.get("sic").and_then(|x| x.as_str()).is_none_or(|s| s.trim().is_empty());
+        let entity = d.get("entityType").and_then(|x| x.as_str()).unwrap_or("").trim().to_lowercase();
+        SecFiler {
+            sector: submissions(d),
+            fund: no_sic && !entity.is_empty() && entity != "operating",
+            name: d.get("name").and_then(|x| x.as_str()).unwrap_or("").trim().to_string(),
+        }
+    }
+
     /// Short French label of a SIC division (first two digits of the code, SEC / OSHA division table).
     pub fn sic_division(sic: &str) -> Option<&'static str> {
         let major: u32 = sic.get(..2)?.parse().ok()?;
@@ -335,6 +347,7 @@ pub mod parse {
                             && !lower.contains("depositary")
                             && !lower.contains("preferred"),
                         industry: industry.to_string(),
+                        sector: r.get("sector").and_then(|x| x.as_str()).unwrap_or("").trim().to_string(),
                         price: num(r.get("lastsale")).filter(|p| *p > 0.0),
                         market_cap: num(r.get("marketCap")).filter(|c| *c > 0.0),
                     })
@@ -351,10 +364,22 @@ pub struct Listing {
     pub symbol: String,
     pub name: String,
     pub industry: String,
+    /// Nasdaq sector ("Technology"), empty when the screener gives none.
+    pub sector: String,
     /// Common shares (the ones the filed EPS and share count are about): not preferred, depositary shares, units…
     pub common: bool,
     pub price: Option<f64>,
     pub market_cap: Option<f64>,
+}
+
+/// What the SEC submissions say about a filer.
+#[derive(Debug, Clone, PartialEq)]
+pub struct SecFiler {
+    /// Operating sector (SIC division), None without a SIC code.
+    pub sector: Option<Sector>,
+    /// No SIC code and a non-operating entity: a fund or a trust (ETF).
+    pub fund: bool,
+    pub name: String,
 }
 
 // ---------- Trailing twelve months ----------
@@ -1029,19 +1054,24 @@ async fn street(symbol: &str) -> Result<Arc<Street>> {
     .await
 }
 
-/// Sector from the SEC submissions (SIC code), cached for the day.
-async fn sector(symbol: &str) -> Option<Sector> {
-    let cik = cik(symbol).await.ok().flatten()?;
-    cached(&format!("sec:sector:{cik}"), 24 * HOUR, move || async move {
-        Ok(parse::submissions(&sec_json(&format!("https://data.sec.gov/submissions/CIK{cik:010}.json")).await?))
+/// SEC submissions of a symbol (SIC code, fund or not), cached a week (a SIC code hardly ever changes). Ok(None):
+/// no SEC filer under this symbol.
+pub async fn sec_filer(symbol: &str) -> Result<Option<SecFiler>> {
+    let Some(cik) = cik(symbol).await? else { return Ok(None) };
+    let f = cached(&format!("sec:filer:{cik}"), 7 * 24 * HOUR, move || async move {
+        Ok(parse::filer(&sec_json(&format!("https://data.sec.gov/submissions/CIK{cik:010}.json")).await?))
     })
-    .await
-    .ok()
-    .and_then(|s| (*s).clone())
+    .await?;
+    Ok(Some((*f).clone()))
+}
+
+/// Sector from the SEC submissions (SIC code).
+async fn sector(symbol: &str) -> Option<Sector> {
+    sec_filer(symbol).await.ok().flatten()?.sector
 }
 
 /// Nasdaq screener (≈ 2 MB, every US listing), cached for the day, with the time it was read.
-async fn screener() -> Result<Arc<(Vec<Listing>, i64)>> {
+pub async fn screener() -> Result<Arc<(Vec<Listing>, i64)>> {
     cached("nasdaq:screener:industry", 24 * HOUR, || async {
         let d = get_json_with(
             "https://api.nasdaq.com/api/screener/stocks?tableonly=true&download=true",

@@ -36,6 +36,9 @@ import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.kit.PortfolioRisk
 import com.maxlestage.altim.kit.RiskPortfolio
 import com.maxlestage.altim.kit.RiskSettings
+import com.maxlestage.altim.kit.SectorItem
+import com.maxlestage.altim.kit.SectorLine
+import com.maxlestage.altim.kit.Sectors
 import com.maxlestage.altim.kit.Verdict
 import com.maxlestage.altim.ui.AgendaUi
 import com.maxlestage.altim.ui.AltimTheme
@@ -46,6 +49,7 @@ import com.maxlestage.altim.ui.DangersNotice
 import com.maxlestage.altim.ui.LimitsCard
 import com.maxlestage.altim.ui.RiskBanners
 import com.maxlestage.altim.ui.SettingsScreen
+import com.maxlestage.altim.ui.SectorExposureCard
 import com.maxlestage.altim.ui.StressCard
 import com.maxlestage.altim.ui.agendaItems
 import org.junit.Assert.assertEquals
@@ -159,6 +163,39 @@ class NewCardsTest {
         expect("Stop cassé")
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/new-risk.png")
+    }
+
+    /** Exposition sectorielle: sectors, ETF, crypto and unknown blocks, then the fallback when the server fails. */
+    @Test fun sectorCard() {
+        fun item(symbol: String, sector: String?, c: String?, reason: String? = null) = SectorItem(symbol, sector, c, c?.let { "test" }, reason, c == "etf")
+        val sectors = listOf(
+            item("AAPL", "Technologie", "nasdaq"), item("NVDA", "Technologie", "nasdaq"), item("JPM", "Finance", "nasdaq"),
+            item("BRK-B", "Finance et immobilier", "sec"), item("SPY", "ETF / fonds indiciel (plusieurs secteurs)", "etf"),
+            item("ABCD", null, null, "Secteur non couvert : aucun dépôt à la SEC sous ce symbole (société étrangère ou fonds ?) ; pas de secteur au screener Nasdaq."),
+        ).associateBy { it.symbol }
+        val lines = listOf(
+            SectorLine("AAPL", Kind.STOCK, 3000.0), SectorLine("NVDA", Kind.STOCK, 1000.0), SectorLine("JPM", Kind.STOCK, 1000.0),
+            SectorLine("BRK-B", Kind.STOCK, 500.0), SectorLine("SPY", Kind.STOCK, 1000.0), SectorLine("ABCD", Kind.STOCK, 500.0),
+            SectorLine("BTC", Kind.CRYPTO, 2000.0), SectorLine("ETH", Kind.CRYPTO, 500.0),
+        )
+        val e = Sectors.exposure(lines, 0.0, sectors)
+        val failed = Sectors.exposure(lines.take(2) + lines.last(), 0.0, null, "classement indisponible (Erreur 502)")
+        screen {
+            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectorExposureCard(e)
+                SectorExposureCard(failed)
+                SectorExposureCard(null)
+            }
+        }
+        expect(
+            "Exposition sectorielle", "Technologie", "42,1 %", "AAPL, NVDA · 57,1 % des actions", "Finance et immobilier (SIC)", "Crypto",
+            "ETF / fonds (plusieurs secteurs)", "Secteur inconnu", "Technologie pèse 42,1 % de votre patrimoine", "Secteur non couvert pour ABCD (5,3 %)",
+            "Secteurs effectifs (actions classées)", "ABCD", "Nasdaq (secteur du screener) · 3 actions ; SEC EDGAR (code SIC, grandes divisions) · 1 action ; Nasdaq Trader / SEC (ETF) · 1 action",
+            "classement indisponible (Erreur 502)", "aucune action à classer", "Lecture des secteurs de vos actions…",
+        )
+        assertTrue(!has("Liquidités"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/new-sectors.png")
     }
 
     /** Radar: the dangers kept from Mes avoirs and the configuration changes, then clearing asks first. */

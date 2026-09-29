@@ -61,6 +61,22 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
         denied = !granted
         if (granted) model.updateNewsAlerts(context, true)
     }
+    // Configuration changes / dangerous positions: the switch turned on once the permission is granted.
+    var pendingSwitch by remember { mutableStateOf<String?>(null) }
+    val watchPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        denied = !granted
+        if (granted) when (pendingSwitch) {
+            "config" -> model.updateConfigAlerts(context, true)
+            "dangers" -> model.updateDangerAlerts(context, true)
+        }
+        pendingSwitch = null
+    }
+    fun switchOn(which: String, on: Boolean, update: (Boolean) -> Unit) {
+        if (on && android.os.Build.VERSION.SDK_INT >= 33 && !BuyAlerts.canNotify(context)) {
+            pendingSwitch = which
+            watchPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        } else update(on)
+    }
     val version = remember { runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull() ?: "—" }
 
     Column(
@@ -102,6 +118,18 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             }
             Caption("Toutes les 15 minutes : une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
         }
+        Card(title = "Surveillance en arrière-plan") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Changements de configuration", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Switch(model.configAlertsEnabled, { on -> switchOn("config", on) { model.updateConfigAlerts(context, it) } }, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
+            }
+            Caption("Toutes les 15 minutes environ (selon Android), la décision des 20 premiers actifs du radar est relue (marché seul, 2 à la fois) et comparée à la dernière vue sur ce téléphone. Une seule notification regroupe les nouveaux changements (ATTENDRE → ZONE D'ACHAT…), avec les conditions manquantes et ce qui a changé ; un même changement ne prévient qu'une fois.")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Positions dangereuses", modifier = Modifier.weight(1f), fontSize = 15.sp)
+                Switch(model.dangerAlertsEnabled, { on -> switchOn("dangers", on) { model.updateDangerAlerts(context, it) } }, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
+            }
+            Caption("Même vérification sur Mes avoirs : stop cassé, cours à moins d'une volatilité journalière (ATR) de votre stop, ou perte latente au-delà de votre risque accepté par idée. Prévenu quand une ligne entre dans cet état ou pour une nouvelle raison, pas à chaque vérification. Conseil indicatif : Altim ne passe aucun ordre.")
+        }
         RiskCard(model)
         ScoreWeightsCard(model)
         Card(title = "Sécurité") {
@@ -110,6 +138,12 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
                 Switch(model.biometricLock, { model.updateBiometricLock(it) }, colors = SwitchDefaults.colors(checkedTrackColor = AltimColors.cyan))
             }
             Caption("Demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés par une clé du Keystore Android propre à ce téléphone, et exclus des sauvegardes.")
+        }
+        LocalOpenValidation.current?.let { openValidation ->
+            Card(title = "Validation du modèle") {
+                Caption("Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.")
+                TextButton(onClick = openValidation) { Text("Voir la validation", color = AltimColors.cyan) }
+            }
         }
         GlossaryCard()
         Card(title = "Données") {

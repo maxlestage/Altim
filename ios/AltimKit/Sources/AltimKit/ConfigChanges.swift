@@ -135,7 +135,10 @@ public struct ConfigTransition: Codable, Sendable, Equatable, Identifiable {
     public var asset: Asset { Asset(symbol: symbol, kind: kind, name: name) }
 
     /// "🚨 BTC — changement de configuration : ATTENDRE → ZONE D'ACHAT" (the level, then the rating, when only it changed).
-    public var title: String {
+    public var title: String { "🚨 \(symbol) — changement de configuration : \(change)" }
+
+    /// "ATTENDRE → ZONE D'ACHAT": the verdicts, else the levels, else the ratings (the end of `title`).
+    public var change: String {
         let (a, b): (String, String)
         if from.verdict != to.verdict {
             (a, b) = (from.label, to.label)
@@ -144,7 +147,7 @@ public struct ConfigTransition: Codable, Sendable, Equatable, Identifiable {
         } else {
             (a, b) = ("note \(from.ratingLabel ?? "")", "note \(to.ratingLabel ?? "")")
         }
-        return "🚨 \(symbol) — changement de configuration : \(a) → \(b)"
+        return "\(a) → \(b)"
     }
 
     /// Colour meaning: towards a buy, towards a sale, or neither.
