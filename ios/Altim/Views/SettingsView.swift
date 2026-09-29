@@ -63,6 +63,46 @@ struct SettingsView: View {
                 Text("Une escalade grave (guerre déclarée, invasion, panique bancaire…) reprise par au moins 2 sources, ou un sujet sur un actif de votre radar ou de vos avoirs repris par au moins 3 sources, dans les 6 dernières heures. Un même sujet raconté par plusieurs médias ne prévient qu'une fois.")
             }
             Section {
+                Toggle("Changements de configuration", isOn: Binding(
+                    get: { model.configAlertsEnabled },
+                    set: { on in
+                        if on {
+                            Task {
+                                let granted = await BuyNotifications.authorize()
+                                denied = !granted
+                                model.configAlertsEnabled = granted
+                                BuyNotifications.schedule(enabled: model.needsChecks)
+                            }
+                        } else {
+                            model.configAlertsEnabled = false
+                            BuyNotifications.schedule(enabled: model.needsChecks)
+                        }
+                    }
+                ))
+                Toggle("Positions dangereuses", isOn: Binding(
+                    get: { model.dangerAlertsEnabled },
+                    set: { on in
+                        if on {
+                            Task {
+                                let granted = await BuyNotifications.authorize()
+                                denied = !granted
+                                // Measured again from the last state shown on Mes avoirs (the dangers of before are not kept).
+                                if granted && !model.dangerAlertsEnabled { model.changeNotices.dangerActive = nil }
+                                model.dangerAlertsEnabled = granted
+                                BuyNotifications.schedule(enabled: model.needsChecks)
+                            }
+                        } else {
+                            model.dangerAlertsEnabled = false
+                            BuyNotifications.schedule(enabled: model.needsChecks)
+                        }
+                    }
+                ))
+            } header: {
+                Text("Radar et avoirs")
+            } footer: {
+                Text("Pendant la vérification en arrière-plan (au mieux toutes les 15 minutes, iOS décide) et à chaque ouverture. Changements de configuration : les décisions des 20 premiers actifs du radar sont relues, 2 à la fois, celles déjà analysées depuis moins de 15 minutes attendent ; une seule notification regroupe les nouveaux changements (ATTENDRE → ZONE D'ACHAT…), avec les conditions manquantes. Positions dangereuses : cours de vos avoirs et bougies journalières des lignes qui ont un stop ; prévenu quand une ligne devient dangereuse (stop cassé, à moins d'une volatilité journalière du stop, perte au-delà de votre risque accepté par idée), pas à chaque vérification, et pas de nouveau avant 24 h si elle sort puis revient. Rien n'est vérifié hors ligne. Conseil indicatif : Altim ne passe aucun ordre.")
+            }
+            Section {
                 Toggle("Suivi en direct (écran verrouillé et Dynamic Island)", isOn: $model.liveActivityEnabled)
                 if let a = model.activityAsset {
                     Button("Arrêter le suivi de \(a.symbol)", role: .destructive) {
