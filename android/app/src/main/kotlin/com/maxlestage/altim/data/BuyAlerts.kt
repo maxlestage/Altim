@@ -24,13 +24,18 @@ import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.BuyAlert
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.NewsItem
+import com.maxlestage.altim.kit.Notice
+import com.maxlestage.altim.kit.ConfigNotices
+import com.maxlestage.altim.kit.DangerNotices
 import com.maxlestage.altim.kit.PriceTarget
 import java.util.concurrent.TimeUnit
 
 /**
  * Notifications "you can buy": every 15 minutes (the shortest period Android allows in the background), the server
  * applies its rule (/api/alerts: buy signal or price in a Fibonacci zone, nothing blocking) to the watch list and the
- * holdings; a notification is posted only when an asset becomes buyable or its reason changes.
+ * holdings; a notification is posted only when an asset becomes buyable or its reason changes. The same worker posts
+ * the price alerts, the news alerts, the Radar's configuration changes and the positions that became dangerous
+ * (each on its own channel, each told once: kit ConfigNotices / DangerNotices).
  */
 object BuyAlerts {
     const val CHANNEL = "achats"
@@ -38,6 +43,11 @@ object BuyAlerts {
     const val EXTRA_ASSET = "altim.asset"
     const val EXTRA_NEWS = "altim.news"
     const val NEWS_CHANNEL = "actualites"
+    const val CONFIG_CHANNEL = "configurations"
+    const val DANGER_CHANNEL = "dangers"
+    /** Tags of the grouped notifications: a newer one replaces the previous (one each at most). */
+    const val CONFIG_TAG = "config:changes"
+    const val DANGER_TAG = "dangers:positions"
 
     fun schedule(context: Context, enabled: Boolean) {
         val wm = WorkManager.getInstance(context)
@@ -55,7 +65,13 @@ object BuyAlerts {
         val news = NotificationChannel(NEWS_CHANNEL, "Actualités importantes", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "Escalade grave (guerre, panique bancaire…) ou sujet sur un de vos actifs repris par au moins 3 sources."
         }
-        context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(channel, news))
+        val config = NotificationChannel(CONFIG_CHANNEL, "Changements de configuration", NotificationManager.IMPORTANCE_DEFAULT).apply {
+            description = "Quand la décision d'un actif de votre radar change (ATTENDRE → ZONE D'ACHAT…), avec les conditions manquantes."
+        }
+        val dangers = NotificationChannel(DANGER_CHANNEL, "Positions dangereuses", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Quand une ligne de vos avoirs casse son stop, s'en approche à moins d'une volatilité journalière ou perd plus que votre risque accepté."
+        }
+        context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(channel, news, config, dangers))
     }
 
     /** Up to 2 stories: one notification each; beyond, a single summary. A tap opens the Actu tab. */
@@ -85,6 +101,40 @@ object BuyAlerts {
             } catch (_: SecurityException) {
                 return
             }
+        }
+    }
+
+    /** New configuration changes of the Radar: ONE notification (the newest replaces the previous one). */
+    fun postChanges(context: Context, notice: Notice?) = notice?.let { postNotice(context, CONFIG_CHANNEL, CONFIG_TAG, it, "Changement de configuration sur votre radar") }
+
+    /** Lines that newly became dangerous: ONE notification, details hidden on the lock screen (holdings are private). */
+    fun postDangers(context: Context, notice: Notice?) = notice?.let { postNotice(context, DANGER_CHANNEL, DANGER_TAG, it, "Position à surveiller dans vos avoirs") }
+
+    /** A kit [Notice]: a tap opens its asset when it names one, otherwise the app. */
+    fun postNotice(context: Context, channel: String, tag: String, notice: Notice, publicText: String) {
+        if (!canNotify(context)) return
+        val open = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            notice.asset?.let { putExtra(EXTRA_ASSET, it) }
+        }
+        // One request code per target: a grouped notification never reuses the previous one's asset.
+        val pending = PendingIntent.getActivity(context, "$tag:${notice.asset.orEmpty()}".hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        val n = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(notice.title)
+            .setContentText(notice.body.lineSequence().first())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(notice.body + "\nConseil indicatif : Altim ne passe aucun ordre."))
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(NotificationCompat.Builder(context, channel).setSmallIcon(R.drawable.ic_notification).setContentTitle("Altim").setContentText(publicText).build())
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
+        try {
+            NotificationManagerCompat.from(context).notify(tag.hashCode(), n)
+        } catch (_: SecurityException) {
+            // Permission withdrawn in the meantime: nothing to post.
         }
     }
 
@@ -166,6 +216,8 @@ class AlertWorker(context: Context, params: WorkerParameters) : CoroutineWorker(
                 BuyAlerts.postAll(applicationContext, r.buy)
                 r.targets.forEach { (t, price) -> BuyAlerts.postTarget(applicationContext, t, price) }
                 BuyAlerts.postNews(applicationContext, r.news)
+                BuyAlerts.postChanges(applicationContext, ConfigNotices.notice(r.changes))
+                BuyAlerts.postDangers(applicationContext, DangerNotices.notice(r.dangers))
             }
             Result.success()
         } catch (e: AltimException.Unauthorized) {
