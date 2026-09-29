@@ -4,6 +4,7 @@
  * positions that became dangerous (stop broken or close, loss beyond the risk accepted per idea).
  * Pure, deterministic functions (same inputs, same results).
  */
+import { money } from "../money";
 import { alignedReturns, correlation, type PortfolioAnalysis } from "./holdings";
 import type { Kind } from "./reliability";
 import type { RiskSettings } from "./risk";
@@ -204,7 +205,7 @@ export interface LimitCheck { code: string; level: LimitLevel; label: string; de
 export const DAILY_LOSS_REACHED = "Limite de perte du jour atteinte : n'ouvrez plus de position aujourd'hui.";
 
 const fr = (v: number, d = 1) => v.toLocaleString("fr-FR", { maximumFractionDigits: d });
-const usd0 = (v: number) => `${fr(Math.abs(v), 0)} $`;
+const usd0 = (v: number) => money(Math.abs(v), 0, 0, " ");
 
 /** Loss (USD) if the stop of the line is hit: the user's stop when set, else the protective stop of the analysis. */
 function lossAtStop(l: PortfolioAnalysis["lines"][number], userStop: number | undefined): number | null {

@@ -1,3 +1,5 @@
+import { currencySymbol, displayCurrency, fromDisplay } from "../money";
+import { FxNote } from "./FxNote";
 import { useEffect, useMemo, useState } from "react";
 import { checkExits, closePosition, DEFAULT_CAPITAL, paperStats, valuation, type DailyCandle, type OpenLine, type PaperTrade } from "../engine/paper";
 import { api } from "./api";
@@ -119,7 +121,7 @@ export function Simulation() {
       )}
 
       {!state ? (
-        <StartCard onStart={(c) => resetPaper(c)} />
+        <StartCard onStart={(c) => resetPaper(fromDisplay(c))} />
       ) : (
         <>
           <div className="card paper-summary">
@@ -141,6 +143,8 @@ export function Simulation() {
             </dl>
             {val && val.unpriced > 0 && <p className="muted small">{val.unpriced} position{val.unpriced > 1 ? "s" : ""} sans cours pour l'instant : comptée{val.unpriced > 1 ? "s" : ""} à son prix d'achat.</p>}
             <p className="muted small">La valeur compte les frais et le glissement d'une vente immédiate.</p>
+            {displayCurrency() === "EUR" && <p className="muted small">Portefeuille simulé tenu en $ comme les cours ; montants saisis en € convertis au taux du jour de la saisie, affichés au taux du jour.</p>}
+            <FxNote />
           </div>
 
           <div className="card">
@@ -178,7 +182,7 @@ export function Simulation() {
 
       <Rules />
 
-      {restarting && <RestartSheet onClose={() => setRestarting(false)} onConfirm={(c) => { resetPaper(c); setNotices([]); setRestarting(false); }} />}
+      {restarting && <RestartSheet onClose={() => setRestarting(false)} onConfirm={(c) => { resetPaper(fromDisplay(c)); setNotices([]); setRestarting(false); }} />}
     </section>
   );
 }
@@ -310,7 +314,7 @@ function StartCard({ onStart }: { onStart: (capital: number) => void }) {
         Un portefeuille virtuel : vous « achetez » depuis la carte Décision d'un actif, Altim suit le cours, vend au stop ou à l'objectif, et mesure quels verdicts ont vraiment marché.
       </p>
       <label className="field">
-        <span>Capital de départ simulé (USD)</span>
+        <span>Capital de départ simulé ({currencySymbol()})</span>
         <input inputMode="decimal" value={text} onChange={(e) => setText(e.target.value)} />
       </label>
       <button className="btn" onClick={() => onStart(startCapital(text))}>Commencer la simulation</button>
@@ -327,11 +331,11 @@ function RestartSheet({ onClose, onConfirm }: { onClose: () => void; onConfirm: 
         <div className="sheet-head"><h2 id="paper-restart-title">Recommencer la simulation</h2></div>
         <p className="notice warn small">⚠ Les positions ouvertes, le journal et les statistiques simulés seront effacés. Vos avoirs réels ne sont pas touchés.</p>
         <label className="field">
-          <span>Capital de départ simulé (USD)</span>
+          <span>Capital de départ simulé ({currencySymbol()})</span>
           <input inputMode="decimal" autoFocus value={text} onChange={(e) => setText(e.target.value)} />
         </label>
-        <small className="muted">Par défaut 10 000 $. Un montant illisible ou nul reprend 10 000 $.</small>
-        <button className="btn" onClick={() => onConfirm(startCapital(text))}>Effacer et recommencer avec {usd(startCapital(text))}</button>
+        <small className="muted">Par défaut 10 000 {currencySymbol()}. Un montant illisible ou nul reprend 10 000 {currencySymbol()}.</small>
+        <button className="btn" onClick={() => onConfirm(startCapital(text))}>Effacer et recommencer avec {usd(fromDisplay(startCapital(text)))}</button>
         <button className="btn btn-ghost" onClick={onClose}>Annuler</button>
       </div>
     </div>

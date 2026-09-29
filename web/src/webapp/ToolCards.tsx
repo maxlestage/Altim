@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "./api";
 import { Segmented } from "./ui";
-import { formatPrice } from "../market";
+import { currencySymbol, fromDisplay, money, moneyPrice, toDisplay } from "../money";
 import { compareAssets, PROJECTION_RATES, positionSize, projection, rebalance, saleTotal, type AssetClass } from "../engine/tools";
 import type { Close } from "../engine/history";
 import type { PortfolioAnalysis } from "../engine/holdings";
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} $`;
+const usd = (v: number) => money(v, 0, 0);
 const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
 const num = (s: string) => Number(s.replace(/[\s ]/g, "").replace(",", "."));
 const plain = (v: number) => (v >= 1 ? v.toFixed(2) : v.toPrecision(4)).replace(".", ",");
@@ -136,27 +136,34 @@ export function PositionCard({ symbol, price, stop, stopSource, target, capital,
   capital: number;
   riskPct: number;
 }) {
-  const [capitalText, setCapitalText] = useState(capital > 0 ? String(Math.round(capital)) : "");
+  // Capital, stop and target are shown and typed in the display currency, sized in dollars.
+  const [capitalText, setCapitalText] = useState(capital > 0 ? String(Math.round(toDisplay(capital))) : "");
   const [riskText, setRiskText] = useState(String(riskPct).replace(".", ","));
-  const [stopText, setStopText] = useState(stop ? plain(stop) : "");
-  const [targetText, setTargetText] = useState(target ? plain(target) : "");
+  const [stopText, setStopText] = useState(stop ? plain(toDisplay(stop)) : "");
+  const [targetText, setTargetText] = useState(target ? plain(toDisplay(target)) : "");
   useEffect(() => {
-    if (!stopText && stop) setStopText(plain(stop));
-    if (!targetText && target) setTargetText(plain(target));
-    if (!capitalText && capital > 0) setCapitalText(String(Math.round(capital)));
+    if (!stopText && stop) setStopText(plain(toDisplay(stop)));
+    if (!targetText && target) setTargetText(plain(toDisplay(target)));
+    if (!capitalText && capital > 0) setCapitalText(String(Math.round(toDisplay(capital))));
   }, [stop, target, capital]);
 
-  const p = price ? positionSize({ capital: num(capitalText), riskPct: num(riskText), entry: price, stop: num(stopText), target: targetText ? num(targetText) : null }) : null;
+  const p = price
+    ? positionSize({
+      capital: fromDisplay(num(capitalText)), riskPct: num(riskText), entry: price, stop: fromDisplay(num(stopText)),
+      target: targetText ? fromDisplay(num(targetText)) : null,
+    })
+    : null;
+  const sym = currencySymbol();
   return (
     <div className="card position-card">
       <h2 className="card-title">Taille de position</h2>
       <div className="grid-2">
-        <label className="field"><span>Capital ($)</span><input inputMode="decimal" value={capitalText} onChange={(e) => setCapitalText(e.target.value)} /></label>
+        <label className="field"><span>Capital ({sym})</span><input inputMode="decimal" value={capitalText} onChange={(e) => setCapitalText(e.target.value)} /></label>
         <label className="field"><span>Risque accepté (%)</span><input inputMode="decimal" value={riskText} onChange={(e) => setRiskText(e.target.value)} /></label>
-        <label className="field"><span>Stop ($)</span><input inputMode="decimal" value={stopText} onChange={(e) => setStopText(e.target.value)} /></label>
-        <label className="field"><span>Objectif ($, facultatif)</span><input inputMode="decimal" value={targetText} onChange={(e) => setTargetText(e.target.value)} /></label>
+        <label className="field"><span>Stop ({sym})</span><input inputMode="decimal" value={stopText} onChange={(e) => setStopText(e.target.value)} /></label>
+        <label className="field"><span>Objectif ({sym}, facultatif)</span><input inputMode="decimal" value={targetText} onChange={(e) => setTargetText(e.target.value)} /></label>
       </div>
-      <p className="muted small">Entrée au prix actuel {price ? `${formatPrice(price)} $` : "…"} ; stop proposé : {stopSource}.</p>
+      <p className="muted small">Entrée au prix actuel {price ? moneyPrice(price) : "…"} ; stop proposé : {stopSource}.</p>
       {!p && price && <p className="muted small">Le stop doit être sous le prix d'entrée, et le capital et le risque positifs.</p>}
       {p && (
         <>
@@ -201,7 +208,7 @@ export function SaleCard({ analysis }: { analysis: PortfolioAnalysis }) {
                 <td>{symbol(l.id)}</td>
                 <td data-label="Valeur">{usd(l.gross)}</td>
                 <td data-label="Plus-value" className={l.gain == null ? "muted" : l.gain >= 0 ? "up" : "down"}>{l.gain == null ? "—" : `${l.gain >= 0 ? "+" : "−"}${usd(Math.abs(l.gain))}`}</td>
-                <td data-label="Impôt">{l.tax > 0 ? `−${usd(l.tax)}` : "0 $"}</td>
+                <td data-label="Impôt">{l.tax > 0 ? `−${usd(l.tax)}` : usd(0)}</td>
                 <td data-label="Net"><b>{usd(l.net)}</b></td>
               </tr>
             ))}
@@ -228,13 +235,13 @@ export function SaleCard({ analysis }: { analysis: PortfolioAnalysis }) {
 export function ProjectionCard({ start }: { start: number }) {
   const [monthlyText, setMonthlyText] = useState("0");
   const [years, setYears] = useState<"5" | "10" | "20">("10");
-  const monthly = num(monthlyText) || 0;
+  const monthly = fromDisplay(num(monthlyText) || 0) || 0;
   const runs = PROJECTION_RATES.map((rate) => ({ rate, points: projection(start, monthly, Number(years), rate) }));
   const paid = runs[0]!.points.at(-1)!.paid;
   return (
     <div className="card projection-card">
       <h2 className="card-title">Projection</h2>
-      <label className="field"><span>Versement chaque mois, facultatif ($)</span><input inputMode="decimal" value={monthlyText} onChange={(e) => setMonthlyText(e.target.value)} /></label>
+      <label className="field"><span>Versement chaque mois, facultatif ({currencySymbol()})</span><input inputMode="decimal" value={monthlyText} onChange={(e) => setMonthlyText(e.target.value)} /></label>
       <Segmented label="Durée" value={years} options={[["5", "5 ans"], ["10", "10 ans"], ["20", "20 ans"]]} onChange={setYears} />
       <p className="kv small"><span>{monthly > 0 ? `Aujourd'hui ${usd(start)} + versements` : "Vos avoirs aujourd'hui, sans rien ajouter"}</span><b>{usd(paid)}{monthly > 0 ? " versés" : ""}</b></p>
       {runs.map((r) => {

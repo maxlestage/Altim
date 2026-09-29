@@ -1,7 +1,9 @@
 /**
  * Web app state, persisted in localStorage (stays in the browser, nothing sent to the server).
  */
-import { useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
+import { convert, displayCurrency, storedCurrency, type Currency } from "../money";
+import { useFx } from "./fx";
 import { DEFAULT_RISK, type RiskSettings } from "../engine/risk";
 import type { Kind } from "../engine/reliability";
 import type { Holding } from "../engine/holdings";
@@ -21,6 +23,8 @@ export interface AppState {
   horizon: HorizonPref;
   /** Weights of the decision's composite score (Réglages), sent as `w=` when not the defaults. */
   scoreWeights: ScoreWeights;
+  /** Display currency of every amount (Réglages): euros by default, dollars on request. */
+  currency: Currency;
 }
 
 export const DEFAULT_WATCHLIST: WatchItem[] = [
@@ -44,6 +48,7 @@ const initial = (): AppState => ({
   risk: DEFAULT_RISK,
   horizon: "medium",
   scoreWeights: DEFAULT_SCORE_WEIGHTS,
+  currency: "EUR",
 });
 
 function load(): AppState {
@@ -60,6 +65,7 @@ function load(): AppState {
           risk: { ...DEFAULT_RISK, ...parsed.risk },
           horizon: ["short", "medium", "long"].includes(parsed.horizon as string) ? parsed.horizon! : "medium",
           scoreWeights: sanitizeScoreWeights(parsed.scoreWeights),
+          currency: parsed.currency === "USD" ? "USD" : "EUR",
         };
       }
     }
@@ -79,6 +85,9 @@ export function setState(update: Partial<AppState> | ((s: AppState) => Partial<A
   listeners.forEach((l) => l());
 }
 
+/** Current state outside React (the alert checks). */
+export const getAppState = () => state;
+
 export function useAppState(): AppState {
   return useSyncExternalStore(
     (l) => (listeners.add(l), () => listeners.delete(l)),
@@ -92,10 +101,18 @@ export const assetKey = (a: { symbol: string; kind: Kind }) => `${a.kind}:${a.sy
 // ---------- My holdings (real portfolio entered by the user) ----------
 
 
+/**
+ * A line as saved: `averagePrice` and `stop` are in the currency they were typed in (`costCurrency`, `stopCurrency`;
+ * absent = dollars, the only currency before the euro display). The engines get dollars (`useHoldings`).
+ */
+export type StoredHolding = Holding & { costCurrency?: Currency; stopCurrency?: Currency };
+
 export interface HoldingsState {
   version: 1;
+  /** Cash in `cashCurrency` (absent = dollars). */
   cash: number;
-  holdings: Holding[];
+  cashCurrency?: Currency;
+  holdings: StoredHolding[];
   updatedAt: number;
 }
 
@@ -112,11 +129,13 @@ function loadHoldings(): HoldingsState {
   return { version: 1, cash: 0, holdings: [], updatedAt: 0 };
 }
 
-/** The optional stop is dropped when it is not a positive number (the line itself stays). */
-export function cleanStop(h: Holding): Holding {
+/** The optional stop is dropped when it is not a positive number (the line itself stays); unknown currency tags too. */
+export function cleanStop<H extends StoredHolding>(h: H): H {
+  if (h.costCurrency !== undefined && h.costCurrency !== "EUR" && h.costCurrency !== "USD") h = { ...h, costCurrency: undefined };
+  if (h.stopCurrency !== undefined && h.stopCurrency !== "EUR" && h.stopCurrency !== "USD") h = { ...h, stopCurrency: undefined };
   if (h.stop === undefined || (Number.isFinite(h.stop) && h.stop > 0)) return h;
-  const { stop: _, ...rest } = h;
-  return rest;
+  const { stop: _, stopCurrency: __, ...rest } = h;
+  return rest as H;
 }
 
 export function isValidHolding(h: unknown): h is Holding {
@@ -137,7 +156,11 @@ export function setHoldings(update: Partial<Omit<HoldingsState, "version">> | ((
   holdingsListeners.forEach((l) => l());
 }
 
-export function useHoldings(): HoldingsState {
+/** Assets held, outside React (the alert checks). */
+export const getHoldingAssets = () => holdingsState.holdings.map((h) => ({ symbol: h.symbol, kind: h.kind, name: h.name }));
+
+/** Holdings exactly as saved (amounts in their own currency): the editing forms. */
+export function useStoredHoldings(): HoldingsState {
   return useSyncExternalStore(
     (l) => (holdingsListeners.add(l), () => holdingsListeners.delete(l)),
     () => holdingsState,
@@ -145,33 +168,91 @@ export function useHoldings(): HoldingsState {
   );
 }
 
+/** Dollars view for the engines and the server, plus what could not be converted. */
+export interface UsdHoldings {
+  holdings: Holding[];
+  cash: number;
+  updatedAt: number;
+  /** Symbols whose euro cost could not be converted (no rate): their cost is left at 0 and their P&L is not shown. */
+  unconverted: string[];
+  /** The euro cash could not be converted (no rate): counted as 0. */
+  cashUnconverted: boolean;
+}
+
+/**
+ * Saved amounts in dollars at the current rate: a euro cost basis becomes `cost ÷ rate`, so that the dollar P&L,
+ * converted back at the same rate, is exactly the euro P&L (price in euros today − cost in euros, currency effect
+ * included). Pure: `rate` = euros per dollar, null when unknown.
+ */
+export function toUsdHoldings(s: HoldingsState): UsdHoldings {
+  const unconverted: string[] = [];
+  const holdings = s.holdings.map((h) => {
+    const { costCurrency, stopCurrency, ...line } = h;
+    let averagePrice = convert(h.averagePrice, storedCurrency(costCurrency), "USD");
+    if (!Number.isFinite(averagePrice)) {
+      unconverted.push(h.symbol);
+      averagePrice = 0;
+    }
+    const out: Holding = { ...line, averagePrice };
+    if (h.stop !== undefined) {
+      const stop = convert(h.stop, storedCurrency(stopCurrency), "USD");
+      if (Number.isFinite(stop) && stop > 0) out.stop = stop;
+      else delete out.stop;
+    }
+    return out;
+  });
+  const cash = convert(s.cash, storedCurrency(s.cashCurrency), "USD");
+  return { holdings, cash: Number.isFinite(cash) ? cash : 0, updatedAt: s.updatedAt, unconverted, cashUnconverted: !Number.isFinite(cash) };
+}
+
+/** Holdings in dollars (engines, server, decision): recomputed when the holdings or the rate change. */
+export function useHoldings(): UsdHoldings {
+  const s = useStoredHoldings();
+  const { fx } = useFx();
+  const cur = displayCurrency();
+  return useMemo(() => toUsdHoldings(s), [s, fx, cur]);
+}
+
+/** A saved amount shown in the display currency (NaN when no rate allows it). */
+export const shown = (v: number, c: Currency | undefined) => convert(v, storedCurrency(c), displayCurrency());
+
+type NewLine = Omit<StoredHolding, "id">;
+
+/**
+ * A second purchase merged into a line: weighted average cost in the currency of the new purchase (the previous cost
+ * converted at the current rate when it was typed in another currency). Null when no rate allows the conversion.
+ */
+export function mergeLine(x: StoredHolding, h: Pick<NewLine, "quantity" | "averagePrice" | "costCurrency">): StoredHolding | null {
+  const cur = storedCurrency(h.costCurrency);
+  const prev = convert(x.averagePrice, storedCurrency(x.costCurrency), cur);
+  if (!Number.isFinite(prev)) return null;
+  const qty = x.quantity + h.quantity;
+  return { ...x, quantity: qty, averagePrice: (x.quantity * prev + h.quantity * h.averagePrice) / qty, costCurrency: cur };
+}
+
 /** Adds or updates a line (a second purchase of the same asset recomputes the weighted average cost). */
-export function upsertHolding(h: Omit<Holding, "id"> & { id?: string }, merge = false) {
+export function upsertHolding(h: NewLine & { id?: string }, merge = false) {
   setHoldings((s) => {
     const existing = s.holdings.find((x) => (h.id ? x.id === h.id : x.symbol === h.symbol && x.kind === h.kind));
     if (existing && merge && !h.id) {
-      const qty = existing.quantity + h.quantity;
-      const avg = (existing.quantity * existing.averagePrice + h.quantity * h.averagePrice) / qty;
-      return { holdings: s.holdings.map((x) => (x.id === existing.id ? { ...x, quantity: qty, averagePrice: avg } : x)) };
+      const merged = mergeLine(existing, h);
+      if (merged) return { holdings: s.holdings.map((x) => (x.id === existing.id ? merged : x)) };
+      return { holdings: [...s.holdings, { ...h, id: crypto.randomUUID() }] };
     }
-    if (existing) return { holdings: s.holdings.map((x) => (x.id === existing.id ? { ...existing, ...h, id: existing.id } : x)) };
+    if (existing) return { holdings: s.holdings.map((x) => (x.id === existing.id ? cleanStop({ ...existing, ...h, id: existing.id }) : x)) };
     return { holdings: [...s.holdings, { ...h, id: crypto.randomUUID() }] };
   });
 }
 
 /** Adds several lines at once; an asset already held is merged (quantities added, weighted average cost). */
-export function addHoldings(items: Omit<Holding, "id">[]) {
+export function addHoldings(items: NewLine[]) {
   setHoldings((s) => {
     const holdings = [...s.holdings];
     for (const h of items) {
       const i = holdings.findIndex((x) => x.symbol === h.symbol && x.kind === h.kind);
-      if (i < 0) {
-        holdings.push({ ...h, id: crypto.randomUUID() });
-        continue;
-      }
-      const x = holdings[i]!;
-      const qty = x.quantity + h.quantity;
-      holdings[i] = { ...x, quantity: qty, averagePrice: (x.quantity * x.averagePrice + h.quantity * h.averagePrice) / qty };
+      const merged = i < 0 ? null : mergeLine(holdings[i]!, h);
+      if (merged) holdings[i] = merged;
+      else holdings.push({ ...h, id: crypto.randomUUID() });
     }
     return { holdings };
   });
@@ -186,7 +267,10 @@ export function importHoldings(json: string): string | null {
     const p = JSON.parse(json) as Partial<HoldingsState>;
     if (!Array.isArray(p.holdings)) return "Fichier invalide.";
     const holdings = p.holdings.filter(isValidHolding).map(cleanStop);
-    setHoldings({ holdings, cash: Number.isFinite(p.cash) && (p.cash as number) >= 0 ? (p.cash as number) : 0 });
+    setHoldings({
+      holdings, cash: Number.isFinite(p.cash) && (p.cash as number) >= 0 ? (p.cash as number) : 0,
+      cashCurrency: p.cashCurrency === "EUR" ? "EUR" : undefined,
+    });
     return null;
   } catch {
     return "Fichier illisible.";

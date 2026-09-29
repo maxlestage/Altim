@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Kind } from "../engine/reliability";
 import { formatPrice } from "../market";
+import { currencySymbol, displayCurrency, fromDisplay, money, moneyPrice, toDisplay } from "../money";
 import { api, type UniverseItem } from "./api";
 import { AssetPicker, KIND_LABEL } from "./AssetPicker";
 import { AssetSearch } from "./AssetSearch";
@@ -10,7 +11,6 @@ import { JournalToggle } from "./Journal";
 
 type Line = { asset: UniverseItem; qty: string; pru: string };
 
-const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 const num = (s: string) => Number(s.replace(/\s/g, "").replace(",", "."));
 
 /** Several holdings entered at once, in two sections: cryptos and stocks / ETF. */
@@ -37,10 +37,12 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
     setLines((ls) => (ls.some((l) => assetKey(l.asset) === assetKey(asset)) ? ls.filter((l) => assetKey(l.asset) !== assetKey(asset)) : [...ls, { asset, qty: "", pru: "" }]));
   const update = (key: string, patch: Partial<Line>) => setLines((ls) => ls.map((l) => (assetKey(l.asset) === key ? { ...l, ...patch } : l)));
 
+  // Costs are typed in the display currency and saved with it; the journal gets dollars.
+  const cur = displayCurrency();
   const parsed = lines.map((l) => {
     const price = prices[assetKey(l.asset)] || 0;
     const quantity = num(l.qty);
-    const averagePrice = l.pru.trim() === "" ? price : num(l.pru);
+    const averagePrice = l.pru.trim() === "" ? toDisplay(price) : num(l.pru);
     const valid = quantity > 0 && Number.isFinite(averagePrice) && averagePrice > 0;
     return { l, price, quantity, averagePrice, valid };
   });
@@ -49,8 +51,8 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
   const invested = ready.reduce((a, p) => a + p.quantity * p.averagePrice, 0);
 
   const save = () => {
-    addHoldings(ready.map((p) => ({ symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, quantity: p.quantity, averagePrice: p.averagePrice })));
-    if (journal) for (const p of ready) recordRealTrade({ side: "buy", symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, price: p.averagePrice, quantity: p.quantity, note });
+    addHoldings(ready.map((p) => ({ symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, quantity: p.quantity, averagePrice: p.averagePrice, costCurrency: cur })));
+    if (journal) for (const p of ready) recordRealTrade({ side: "buy", symbol: p.l.asset.symbol, kind: p.l.asset.kind, name: p.l.asset.name, price: fromDisplay(p.averagePrice), quantity: p.quantity, note });
     onClose();
   };
 
@@ -67,7 +69,7 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
               <div className="entry-head">
                 <div className="holding-name">
                   <b>{l.asset.name}</b>
-                  <small className="muted mono">{l.asset.symbol}{price ? ` · cours ${formatPrice(price)} $` : ""}</small>
+                  <small className="muted mono">{l.asset.symbol}{price ? ` · cours ${moneyPrice(price)}` : ""}</small>
                 </div>
                 <button className="link-btn danger" aria-label={`Retirer ${l.asset.name}`} onClick={() => toggle(l.asset)}>Retirer</button>
               </div>
@@ -77,8 +79,8 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
                   <input inputMode="decimal" value={l.qty} placeholder="ex. 0,5" onChange={(e) => update(key, { qty: e.target.value })} />
                 </label>
                 <label className="field">
-                  <span>Prix moyen payé ($)</span>
-                  <input inputMode="decimal" value={l.pru} placeholder={price ? formatPrice(price) : "ex. 100"} onChange={(e) => update(key, { pru: e.target.value })} />
+                  <span>Prix moyen payé ({currencySymbol()})</span>
+                  <input inputMode="decimal" value={l.pru} placeholder={price ? formatPrice(toDisplay(price)) : "ex. 100"} onChange={(e) => update(key, { pru: e.target.value })} />
                 </label>
               </div>
               {held && <p className="muted small">Déjà dans vos avoirs : la quantité sera ajoutée et le prix moyen recalculé.</p>}
@@ -105,7 +107,7 @@ export function AddHoldings({ onClose }: { onClose: () => void }) {
           </p>
           {section("crypto")}
           {section("stock")}
-          {ready.length > 0 && <p className="kv small"><span>Montant investi</span><b>{usd(invested)}</b></p>}
+          {ready.length > 0 && <p className="kv small"><span>Montant investi</span><b>{money(fromDisplay(invested), 2, 2)}</b></p>}
           {ready.length > 0 && <JournalToggle checked={journal} onChange={setJournal} note={note} onNote={setNote} text="Achats faits aujourd'hui : les inscrire au journal" />}
           {incomplete > 0 &&<p className="muted small">{incomplete} ligne{incomplete > 1 ? "s" : ""} sans quantité : ignorée{incomplete > 1 ? "s" : ""}.</p>}
           <button className="btn" disabled={!ready.length} onClick={save}>

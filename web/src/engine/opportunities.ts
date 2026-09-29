@@ -2,6 +2,7 @@
  * "Opportunités du moment" (/api/opportunities) and anomalies of one asset (/api/anomalies): JSON contracts and
  * the pure filtering of the scan on the page (category chips, market cap or rank, liquidity, volatility).
  */
+import { currencySymbol, toDisplay } from "../money";
 
 export type OppCategory = "setup" | "reversal" | "breakout" | "volume" | "oversold" | "fundamentals";
 export const OPP_CATEGORIES: OppCategory[] = ["setup", "reversal", "breakout", "volume", "oversold", "fundamentals"];
@@ -114,12 +115,14 @@ export function longShare(l: LiquidationSummary): number | null {
   return total > 0 ? (l.longUsd / total) * 100 : null;
 }
 
-/** "12,3 M$", "850 k$", "420 $". */
-export function compactUsd(v: number): string {
+/** A dollar amount in the display currency: "12,3 M€", "850 k€", "420 €" ("$" without a rate). */
+export function compactUsd(usd: number): string {
+  const v = toDisplay(usd);
+  const s = currencySymbol();
   const a = Math.abs(v);
   const f = (x: number, d: number) => x.toLocaleString("fr-FR", { maximumFractionDigits: d });
-  if (a >= 1e9) return `${f(v / 1e9, 1)} Md$`;
-  if (a >= 1e6) return `${f(v / 1e6, 1)} M$`;
-  if (a >= 1e3) return `${f(v / 1e3, 0)} k$`;
-  return `${f(v, 0)} $`;
+  if (a >= 1e9) return `${f(v / 1e9, 1)} Md${s}`;
+  if (a >= 1e6) return `${f(v / 1e6, 1)} M${s}`;
+  if (a >= 1e3) return `${f(v / 1e3, 0)} k${s}`;
+  return `${f(v, 0)} ${s}`;
 }
