@@ -65,6 +65,7 @@ fn input<'a>(symbol: &'a str, s: &'a Series, g: Option<&'a GuardResult>, t: i64)
         score_weights: None,
         events: None,
         validation: None,
+        bot: None,
     }
 }
 
@@ -1254,4 +1255,68 @@ fn model_evidence_caps_only_weak_classes() {
     let d = run(&with(Proof::Negative, 10, 10));
     assert!(d.model_evidence.weak && d.confidence == EVIDENCE_CAP);
     assert!(d.model_evidence.text.contains("perte moyenne par trade"), "{}", d.model_evidence.text);
+}
+
+fn bot_sample() -> altim::engine::bot::BotReport {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot.json");
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// « Bot Altim » in the decision. Saved real report (no edge): shown only, the decision is otherwise the same. A side
+/// with an edge and today's action on it: one pro (ACHETER) or con (VENDRE) and ± 3 confidence points on a buy-side
+/// verdict; the verdict and the vetoes never change.
+#[test]
+fn bot_counts_only_on_a_side_with_an_edge() {
+    use altim::engine::bot::{BotAction, BotGroup, NO_EDGE, NOT_COMPUTED as BOT_NOT_COMPUTED, NUDGE};
+    let report = bot_sample();
+    let t = now();
+    for sym in ["BTC", "SOL", "AAPL", "NVDA"] {
+        let s = real(sym);
+        let base = decide(&input(sym, &s, None, t));
+        assert!(!base.bot.available && base.bot.text == BOT_NOT_COMPUTED, "{sym}");
+        let mut i = input(sym, &s, None, t);
+        i.bot = Some(&report);
+        let d = decide(&i);
+        assert!(d.bot.available && d.bot.action.is_some() && !d.bot.counts, "{sym}");
+        assert_eq!(d.bot.note, NO_EDGE, "{sym}");
+        let mut same = d.clone();
+        same.bot = base.bot.clone();
+        assert_eq!(same, base, "{sym}: sans avantage, le bot ne change rien");
+        let back: Decision = serde_json::from_value(serde_json::to_value(&d).unwrap()).unwrap();
+        assert_eq!(back.bot, d.bot);
+    }
+    // A buy scenario (crypto) and a crypto group with an edge on both sides.
+    let s = buy_setup();
+    let base = decide_on(&s, |_| {});
+    assert!(matches!(base.verdict, Verdict::Buy | Verdict::BuyZone));
+    let forced = |up: f64| {
+        let mut r = report.clone();
+        let g = r.groups.iter_mut().find(|g| g.id == BotGroup::Crypto).unwrap();
+        g.stats.buy.verdict = Some(Proof::Edge);
+        g.stats.sell.verdict = Some(Proof::Edge);
+        let m = g.model.as_mut().unwrap();
+        (m.up.intercept, m.down.intercept) = (up, -up);
+        r
+    };
+    let buy = forced(20.0);
+    let d = decide_on(&s, |i| i.bot = Some(&buy));
+    assert_eq!((d.bot.action, d.bot.counts), (Some(BotAction::Buy), true));
+    assert_eq!((d.verdict, d.vetoes.clone()), (base.verdict, base.vetoes.clone()));
+    assert_eq!(d.confidence, (base.confidence + NUDGE).min(100.0));
+    assert!(d.pros.iter().any(|p| p.starts_with("Le bot appris est favorable")), "{:?}", d.pros);
+    assert!(d.confidence_text.contains("Bot Altim : +3 points"), "{}", d.confidence_text);
+    let sell = forced(-20.0);
+    let d = decide_on(&s, |i| i.bot = Some(&sell));
+    assert_eq!((d.bot.action, d.bot.counts), (Some(BotAction::Sell), true));
+    assert_eq!(d.verdict, base.verdict);
+    assert_eq!(d.confidence, (base.confidence - NUDGE).max(0.0));
+    assert!(d.cons.iter().any(|c| c.starts_with("Le bot appris est défavorable")), "{:?}", d.cons);
+    // Held: « conseille de sortir », as a con; the verdict stays the position's own.
+    let held_base = decide_on(&s, |i| i.cost = Some(100.0));
+    let held = decide_on(&s, |i| {
+        i.cost = Some(100.0);
+        i.bot = Some(&sell);
+    });
+    assert_eq!(held.verdict, held_base.verdict);
+    assert!(held.cons.iter().any(|c| c.starts_with("Le bot appris conseille de sortir")), "{:?}", held.cons);
 }

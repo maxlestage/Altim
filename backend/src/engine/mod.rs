@@ -3,6 +3,7 @@ pub mod alerts;
 pub mod anomalies;
 pub mod ask;
 pub mod backtest;
+pub mod bot;
 pub mod brief;
 pub mod decision;
 pub mod decision_types;

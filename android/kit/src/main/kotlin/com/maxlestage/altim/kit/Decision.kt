@@ -212,6 +212,8 @@ data class Decision(
     val snapshot: DecisionSnapshot? = null,
     /** « Preuve du modèle » (added later, absent from older answers): the cross-asset validation of the asset's class. */
     val modelEvidence: ModelEvidence? = null,
+    /** « Bot Altim » (added later, absent from older answers): the learned model's ACHETER / ATTENDRE / VENDRE and whether it counts. */
+    val bot: BotView? = null,
 ) {
     /** The rating's words when the server gives it, else the verdict's. */
     val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel

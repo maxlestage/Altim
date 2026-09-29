@@ -12,6 +12,7 @@ import { Glossary } from "./Glossary";
 import { Simulation } from "./Simulation";
 import { Journal } from "./Journal";
 import { Validation } from "./Validation";
+import { Bot } from "./Bot";
 
 const TABS = [
   { href: "/app", label: "Radar", icon: "M3 12a9 9 0 1 0 18 0 9 9 0 1 0-18 0M12 12l6-6M7.5 12a4.5 4.5 0 0 0 9 0" },
@@ -51,6 +52,7 @@ export function WebApp() {
   else if (path === "/app/simulation") screen = <Simulation />;
   else if (path === "/app/journal") screen = <Journal />;
   else if (path === "/app/validation") screen = <Validation />;
+  else if (path === "/app/bot") screen = <Bot />;
   else screen = <Radar />;
 
   // The simulation and the journal sit next to the real holdings (tab "Mes avoirs"), the opportunities next to the
@@ -59,7 +61,7 @@ export function WebApp() {
     ? "/app"
     : path === "/app/simulation" || path === "/app/journal"
       ? "/app/avoirs"
-      : path === "/app/opportunites" ? "/app/selection" : path === "/app/validation" ? "/app/reglages" : TABS.find((t) => t.href === path)?.href ?? "/app";
+      : path === "/app/opportunites" ? "/app/selection" : path === "/app/validation" || path === "/app/bot" ? "/app/reglages" : TABS.find((t) => t.href === path)?.href ?? "/app";
 
   return (
     <div className="webapp">

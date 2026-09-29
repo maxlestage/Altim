@@ -145,6 +145,12 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
                 TextButton(onClick = openValidation) { Text("Voir la validation", color = AltimColors.cyan) }
             }
         }
+        LocalOpenBot.current?.let { openBot ->
+            Card(title = "Bot Altim") {
+                Caption("Un modèle appris qui dit ACHETER, ATTENDRE ou VENDRE, jugé seulement sur des périodes qu'il n'avait pas vues, avec ses résultats réels et ses limites.")
+                TextButton(onClick = openBot) { Text("Voir le bot", color = AltimColors.cyan) }
+            }
+        }
         GlossaryCard()
         Card(title = "Données") {
             KeyValue("Sources de prix", "40 (23 crypto, 17 actions)")

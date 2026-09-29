@@ -653,4 +653,7 @@ pub struct Decision {
     /// « Preuve du modèle »: what the cross-asset validation says about this asset's class and current regime.
     #[serde(default)]
     pub model_evidence: ModelEvidence,
+    /// « Bot Altim »: the learned model's view (ACHETER / ATTENDRE / VENDRE) and whether it counts.
+    #[serde(default)]
+    pub bot: super::bot::BotView,
 }
