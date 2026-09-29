@@ -1,4 +1,5 @@
 //! Altim web server (Axum): showcase site, /app web application and multi-source APIs (port of web/server/app.ts).
+pub mod bot;
 pub mod data;
 pub mod error;
 pub mod extras;
@@ -430,6 +431,8 @@ pub fn api(state: AppState) -> Router {
         .route("/opportunities", get(scan::opportunities_route))
         .route("/anomalies", get(scan::anomalies_route))
         .route("/validation", get(validation::validation_route))
+        .route("/bot", get(bot::bot_route))
+        .route("/bot/views", get(bot::views_route))
         .fallback(unknown)
         .method_not_allowed_fallback(unknown)
         .layer(middleware::from_fn(query_errors))
