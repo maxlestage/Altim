@@ -4,8 +4,8 @@
   "keywords": [
     "rust",
     "axum",
-    "react",
-    "typescript",
+    "yew",
+    "webassembly",
     "trading"
   ],
   "stack": "heroku-24",
@@ -17,10 +17,10 @@
   },
   "buildpacks": [
     {
-      "url": "https://github.com/jakeg/heroku-buildpack-bun"
+      "url": "emk/rust"
     },
     {
-      "url": "emk/rust"
+      "url": "https://github.com/jakeg/heroku-buildpack-bun"
     }
   ]
 }

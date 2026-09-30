@@ -33,22 +33,22 @@ Ensuite, chaque fusion sur `master` qui touche au site redéploie automatiquemen
 
 Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
 
-Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent) : **Bun** (`https://github.com/jakeg/heroku-buildpack-bun`) compile le site dans `web/dist`, puis **Rust** (`emk/rust`) compile le serveur de `backend/` (voir `RustConfig`, version de Rust dans le même fichier). Le `Procfile` lance `backend/target/release/altim` ; sa phase `release` refuse le déploiement si le site n'a pas été construit. Première compilation ≈ 5 à 10 min, les suivantes réutilisent le cache.
+Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent) : **Rust** (`emk/rust`) compile le serveur de `backend/` (voir `RustConfig`, version de Rust dans le même fichier) et laisse sa chaîne d'outils aux suivants, puis **Bun** (`https://github.com/jakeg/heroku-buildpack-bun`) lance `scripts/heroku-build.sh`, qui construit le site dans `web/dist` avec `scripts/build-web.sh` : front Rust + Yew (WebAssembly) et, pendant la migration, l'app React servie sous `/app`. Le `Procfile` lance `backend/target/release/altim` ; sa phase `release` refuse le déploiement si le site n'a pas été construit. Première compilation ≈ 5 à 10 min, les suivantes réutilisent le cache.
 
 **Le dépôt se déploie quelle que soit la configuration de l'app** :
-- buildpacks Bun puis Rust (recommandé, le plus rapide grâce au cache) ;
-- aucun buildpack réglé : Heroku détecte Node.js, le script `heroku-postbuild` (`scripts/heroku-build.sh`) construit alors le site avec Bun (obtenu par npm) puis installe Rust et compile le serveur (≈ 5 min à chaque déploiement, sans cache) ;
+- buildpacks Rust puis Bun (recommandé, le plus rapide grâce au cache ; l'ancien ordre Bun puis Rust marche aussi, en installant Rust une seconde fois) ;
+- aucun buildpack réglé : Heroku détecte Node.js, le script `heroku-postbuild` (`scripts/heroku-build.sh`) installe alors Rust, construit le site (Yew, et React avec Bun obtenu par npm) et compile le serveur (≈ 6 min à chaque déploiement, sans cache) ;
 - app restée sur la pile « container » : `heroku.yml` construit le `Dockerfile`.
 
 La phase `release` refuse le déploiement si le site ou le serveur manque, avec un message clair.
 
-Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option B), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`https://github.com/jakeg/heroku-buildpack-bun`, puis `emk/rust`, dans cet ordre), ou dans un terminal :
+Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option B), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`emk/rust`, puis `https://github.com/jakeg/heroku-buildpack-bun`, dans cet ordre), ou dans un terminal :
 
 ```bash
 heroku stack:set heroku-24 -a VOTRE-APP
 heroku buildpacks:clear -a VOTRE-APP
-heroku buildpacks:add https://github.com/jakeg/heroku-buildpack-bun -a VOTRE-APP
 heroku buildpacks:add emk/rust -a VOTRE-APP
+heroku buildpacks:add https://github.com/jakeg/heroku-buildpack-bun -a VOTRE-APP
 ```
 
 ### Source WSJ / MarketWatch (facultatif)

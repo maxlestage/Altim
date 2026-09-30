@@ -492,6 +492,7 @@ async fn log_requests(req: Request, next: Next) -> Response {
 
 /// The whole application: security headers, HTTPS, compression (never on event streams), private access, API, site.
 pub fn router(state: AppState, auth: Arc<Auth>) -> Router {
+    crate::fx::install();
     let app = Router::new()
         .nest("/api", api(state))
         .fallback(web::site)

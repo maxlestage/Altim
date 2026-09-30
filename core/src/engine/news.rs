@@ -15,7 +15,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
-use crate::http::{Error, Result};
+use crate::error::{Error, Result};
 use crate::js::parse_date;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

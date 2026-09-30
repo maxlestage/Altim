@@ -445,11 +445,12 @@ async fn post_json(url: &str, body: &Value) -> Result<Value> {
         .header("Content-Type", "application/json")
         .body(body.to_string())
         .send()
-        .await?;
+        .await
+        .map_err(crate::http::from_reqwest)?;
     if !res.status().is_success() {
         return err(format!("HTTP {}", res.status().as_u16()));
     }
-    let text = res.text().await?;
+    let text = res.text().await.map_err(crate::http::from_reqwest)?;
     serde_json::from_str(&text).map_err(|_| Error("JSON invalide".into()))
 }
 

@@ -6,9 +6,9 @@
     "web"
   ],
   "scripts": {
-    "build": "cd web && bun run build",
+    "build": "sh scripts/build-web.sh",
     "start": "ALTIM_WEB_ROOT=web ./backend/target/release/altim",
-    "test": "cd web && bun test && cd ../backend && cargo test",
+    "test": "cd web && bun test && cd .. && cargo test --locked",
     "heroku-postbuild": "sh scripts/heroku-build.sh"
   }
 }

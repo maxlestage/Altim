@@ -1,6 +1,6 @@
-**/node_modules
 **/target
 web/dist
+**/node_modules
 ios
 android
 .git

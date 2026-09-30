@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Altim — Signaux de trading crypto & actions</title>
+    <meta name="description" content="Altim, l'app web qui analyse crypto et actions en temps réel et vous indique quand acheter, vendre ou attendre. Moteur de signaux transparent, 31 sources de prix, prix en direct, conseil sans passer d'ordre." />
+    <meta name="theme-color" content="#05070f" />
+    <!-- Added to the iPhone home screen (Share → "Sur l'écran d'accueil"): opens full screen, like an app. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Altim" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="author" content="Maxime Nathan Lestage" />
+    <meta property="og:title" content="Altim — Voyez le signal avant le marché" />
+    <meta property="og:description" content="Signaux d'achat et de vente pour la crypto et les actions, en direct." />
+    <meta property="og:type" content="website" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/{{GLOBAL_CSS}}" />
+    <link rel="stylesheet" href="/{{APP_CSS}}" />
+    <!-- Rust + Yew (WebAssembly), built by scripts/build-web.sh: fetched in parallel with the styles. -->
+    <link rel="modulepreload" href="/{{GLUE_JS}}" />
+    <link rel="preload" href="/{{WASM}}" as="fetch" type="application/wasm" crossorigin />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/{{MAIN_JS}}"></script>
+  </body>
+</html>

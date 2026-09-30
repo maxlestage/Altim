@@ -1,12 +1,13 @@
 [package]
 name = "altim"
 version = "1.0.0"
-edition = "2024"
-rust-version = "1.94"
+edition.workspace = true
+rust-version.workspace = true
 publish = false
 description = "Serveur Altim : conseils de trading (aucun ordre passé), Axum."
 
 [dependencies]
+altim-core = { path = "../core" }
 argon2 = "0.6.0"
 async-stream = "0.3.6"
 axum = { version = "0.8.9", features = ["macros"] }
@@ -36,11 +37,6 @@ tower-http = { version = "0.7.1", features = ["fs", "compression-full", "set-hea
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 url = "2.5.8"
-
-[profile.release]
-lto = "thin"
-codegen-units = 4
-strip = true
 
 [lints.clippy]
 # Nested `if let` read closer to the TypeScript they port.
