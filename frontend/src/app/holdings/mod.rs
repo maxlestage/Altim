@@ -154,6 +154,25 @@ async fn load_market(holdings: &[Holding]) -> Result<Market, crate::api::ApiErro
     Ok(Market { by_asset: Rc::new(by_asset), bench: Rc::new(bench) })
 }
 
+/// Market data of one held line for the asset screen (same inputs as here: daily and 4 h radar signals, daily
+/// candles). None when the daily signal or the candles fail (the 4 h signal is optional).
+pub async fn held_market(symbol: &str, kind: Kind) -> Option<MarketInput> {
+    let item = [(symbol.to_string(), kind)];
+    let (day, short, daily) = futures::join!(api::radar(&item, "1d"), api::radar(&item, "4h"), api::candles(symbol, kind, "1d"));
+    let (day, daily) = (day.ok()?, daily.ok()?);
+    let (d, s) = (day.first(), short.ok().and_then(|s| s.into_iter().next()));
+    let (dl, sl) = (d.and_then(|r| r.reliability).map(|r| r.level), s.as_ref().and_then(|r| r.reliability).map(|r| r.level));
+    let signal =
+        |r: Option<&altim_core::web::portfolio::wire::RadarRow>| r.and_then(|r| r.signal).map(|s| LineSignal { action: s.action, score: s.score });
+    Some(MarketInput {
+        price: d.and_then(|r| r.price).unwrap_or(0.0),
+        daily: daily.candles,
+        day_signal: signal(d),
+        short_signal: signal(s.as_ref()),
+        reliability: if dl == Some(ReliabilityLevel::Low) || sl == Some(ReliabilityLevel::Low) { Some(ReliabilityLevel::Low) } else { dl },
+    })
+}
+
 /// Real portfolio entered by the user (localStorage) and full analysis.
 #[component]
 pub fn MyHoldings() -> Html {
@@ -214,7 +233,7 @@ pub fn MyHoldings() -> Html {
                 };
                 load();
                 timer = Some(gloo::timers::callback::Interval::new(120_000, move || {
-                    if browser::visible() {
+                    if crate::hooks::visible() {
                         load();
                     }
                 }));

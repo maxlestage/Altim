@@ -47,11 +47,6 @@ pub fn alert(msg: &str) {
     }
 }
 
-/// The tab is shown (refreshes are skipped while it is hidden).
-pub fn visible() -> bool {
-    gloo::utils::document().visibility_state() == web_sys::VisibilityState::Visible
-}
-
 fn opts(pairs: &[(&str, &str)]) -> JsValue {
     let o = js_sys::Object::new();
     for (k, v) in pairs {

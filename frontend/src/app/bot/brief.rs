@@ -1,12 +1,13 @@
 //! "Point du jour" (BriefCard.tsx): the day in a few lines for the radar and the holdings (/api/brief), refreshed
-//! every 5 minutes while the tab is visible. Used by the Radar (batch B).
+//! every 5 minutes while the tab is visible. Used by the Radar.
 use std::rc::Rc;
 
 use altim_core::web::insights::news::{BriefReport, brief_pct};
 use altim_core::web::store::asset_key;
 use yew::prelude::*;
 
-use crate::app::news::{every_visible, use_my_assets};
+use crate::app::news::use_my_assets;
+use crate::hooks::every_visible;
 use crate::route::use_on_link;
 
 #[component]

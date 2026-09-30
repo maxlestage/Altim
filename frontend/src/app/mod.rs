@@ -1,17 +1,17 @@
-//! The web app (/app/*, WebApp.tsx): header, tabs, disclaimer, and one module per screen. Phase 2 ports each screen
-//! inside its own module (see PORTING.md for the owners); this file only dispatches the routes.
+//! The web app (/app/*, WebApp.tsx): header, tabs, disclaimer, and one module per screen (its sub-components in the
+//! same folder, the pure logic in `altim_core::web`); this file only dispatches the routes.
 pub mod common;
-// Batch A
+// Bot, validation, alerts, news and agenda
 pub mod alerts;
 pub mod bot;
 pub mod news;
 pub mod validation;
-// Batch B
+// Radar and asset screen
 pub mod asset;
 pub mod radar;
-// Batch C
+// Holdings and their tools
 pub mod holdings;
-// Batch D
+// Selection, opportunities, settings, glossary, simulation, journal
 pub mod glossary;
 pub mod journal;
 pub mod opportunities;
@@ -97,7 +97,7 @@ pub fn WebApp(p: &WebAppProps) -> Html {
     use_effect_with((), |_| {
         crate::hooks::set_title("Altim — Application web");
         crate::state::fx::start_fx();
-        // Phase 2 (batch A): start the alert checks here (`startChecks` of notify.ts).
+        // The alert checks of this browser (`startChecks` of notify.ts).
         alerts::start_checks();
     });
     if !state.accepted_disclaimer {

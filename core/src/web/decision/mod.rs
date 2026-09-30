@@ -1,4 +1,4 @@
-//! Phase 2, batch B: pure logic of the Radar and the asset screen, ported from web/src/webapp (decision.ts,
+//! Pure logic of the Radar and the asset screen (from decision.ts,
 //! config-changes.ts, strategies.ts, the helpers of Radar.tsx, NoteCard.tsx and DecisionCard.tsx). One file per
 //! TypeScript module, tests next to the code (`cargo test -p altim-core`). Nothing here touches the browser: the
 //! frontend passes the stored text, the clock and the money display.

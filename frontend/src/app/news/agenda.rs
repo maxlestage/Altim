@@ -1,6 +1,6 @@
 //! Agenda (Agenda.tsx): the coming days' economic releases, central bank decisions, earnings, dividends, splits and
 //! IPOs, each with its source, the 7-day risk calendar on top, and what no free source covers at the bottom. Pure
-//! helpers in `altim_core::web::insights::calendar`; `AgendaEvent` is also the decision card's (batch B).
+//! helpers in `altim_core::web::insights::calendar`; `AgendaEvent` is also the decision card's.
 use std::rc::Rc;
 
 use altim_core::web::insights::calendar::{
@@ -9,8 +9,8 @@ use altim_core::web::insights::calendar::{
 };
 use yew::prelude::*;
 
-use super::every_visible;
 use crate::api::ApiError;
+use crate::hooks::every_visible;
 use crate::state::{local_get, local_set};
 use crate::ui::Segmented;
 

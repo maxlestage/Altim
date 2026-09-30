@@ -1,5 +1,5 @@
 //! Full catalogue (AssetPicker.tsx): every crypto, every US-listed stock and ETF, browsable by category and
-//! searchable. Several assets can be picked in one go. Also used by Réglages (batch D).
+//! searchable. Several assets can be picked in one go. Also used by Réglages.
 use std::cell::Cell;
 use std::collections::HashSet;
 use std::rc::Rc;

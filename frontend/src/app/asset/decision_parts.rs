@@ -8,6 +8,7 @@ use altim_core::engine::decision_types::{
 };
 use altim_core::engine::structure::{Bias, Structure};
 use altim_core::engine::validation::Verdict as ProofVerdict;
+use altim_core::web::bot::screen::{action_ui, pct0};
 use altim_core::web::decision::config_changes::{ConfigTransition, transition_title};
 use altim_core::web::decision::doc::DecisionDoc;
 use altim_core::web::decision::format::*;
@@ -489,7 +490,7 @@ pub fn BotLine(p: &BotProps) -> Html {
             <p class="small dec-proof-head">
                 <b>{ "Bot Altim" }</b>
                 if let Some(a) = action {
-                    <span class={format!("chip bot-action {}", bot_action_ui(a).1)}>{ bot_action_ui(a).0 }</span>
+                    <span class={format!("chip bot-action {}", action_ui(a).1)}>{ action_ui(a).0 }</span>
                     <span class="dec-chip">{ if b.counts { "compte" } else { "ne compte pas" } }</span>
                 }
             </p>

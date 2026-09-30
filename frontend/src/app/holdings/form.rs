@@ -1,13 +1,17 @@
 //! Editing one existing line (`HoldingForm` of MyHoldings.tsx; new lines are added with AddHoldings). Amounts are
 //! typed in the display currency; a field left untouched keeps its saved value and currency (a dollar cost basis is
 //! not silently re-based in euros).
-use altim_core::js::number_to_string;
+use altim_core::js::{fr, number_to_string};
 use altim_core::web::money::Currency;
 use altim_core::web::portfolio::view::{cost_note, input_text, parse_decimal};
 use altim_core::web::store::{Holding, StoredHolding, shown};
+use altim_core::web::trading::journal::{JournalSide, holding_change};
+use altim_core::web::trading::journal_store::RealTrade;
 use yew::prelude::*;
 
 use super::browser::{input_value, stop, use_auto_focus};
+use crate::app::journal::JournalToggle;
+use crate::app::journal::store::record_real_trade;
 use crate::state::holdings::set_holdings;
 
 #[derive(Properties, PartialEq)]
@@ -48,6 +52,8 @@ pub fn HoldingForm(p: &HoldingFormProps) -> Html {
     let pru = use_state(|| pru_initial.clone());
     let stop_text = use_state(|| stop_initial.clone());
     let price = use_state(|| None::<f64>);
+    let journal = use_state(|| true);
+    let journal_note = use_state(String::new);
     let focus = use_auto_focus(true);
     {
         let price = price.clone();
@@ -75,18 +81,35 @@ pub fn HoldingForm(p: &HoldingFormProps) -> Html {
     let stop_currency = if keep_stop { stored.stop_currency } else { Some(cur) };
     let valid = quantity > 0.0 && average_price.is_finite() && average_price >= 0.0 && stop_v.is_none_or(|s| s.is_finite() && s > 0.0);
     let cost_usd = if keep_cost { initial.average_price } else { m.from_display(average_price) };
-    // TODO(phase 3): D `holdingChange` (engine/journal.ts, from `initial`, the new quantity and `cost_usd`, priced at
-    // the consensus `price` or `p.last_price`) → `crate::app::journal::JournalToggle` (checked by default, with a note)
-    // and `altim_core::web::trading::journal_store` (`recordRealTrade`, stop in dollars for a buy) on save:
-    // « Achat / Vente de … à … : l'inscrire au journal ».
+    let stop_usd = stop_v.and_then(|s| if keep_stop { initial.stop } else { Some(m.from_display(s)) });
+    // The purchase or sale this edit records, for the journal (the consensus price, else the analysis' last price).
+    let change = if valid && cost_usd.is_finite() {
+        holding_change((initial.quantity, initial.average_price), (quantity, cost_usd), (*price).or(p.last_price.filter(|v| *v != 0.0)))
+    } else {
+        None
+    };
 
     let save = {
         let (id, on_close) = (initial.id.clone(), p.on_close.clone());
+        let trade = change.filter(|_| *journal).map(|c| RealTrade {
+            side: c.side,
+            symbol: initial.symbol.clone(),
+            kind: initial.kind,
+            name: initial.name.clone(),
+            price: c.price,
+            quantity: c.quantity,
+            stop: if c.side == JournalSide::Buy { stop_usd } else { None },
+            note: (*journal_note).clone(),
+            ref_id: Some(initial.id.clone()),
+        });
         Callback::from(move |_: MouseEvent| {
             if !valid {
                 return;
             }
             update_line(&id, quantity, average_price, cost_currency, stop_v, stop_currency);
+            if let Some(t) = &trade {
+                record_real_trade(t);
+            }
             on_close.emit(());
         })
     };
@@ -128,6 +151,22 @@ pub fn HoldingForm(p: &HoldingFormProps) -> Html {
                 </p>
                 if quantity > 0.0 && cost_usd > 0.0 {
                     <p class="kv small"><span>{ "Montant investi" }</span><b>{ crate::money::money(quantity * cost_usd) }</b></p>
+                }
+                if let Some(c) = change {
+                    <JournalToggle
+                        checked={*journal}
+                        on_change={{ let journal = journal.clone(); Callback::from(move |v| journal.set(v)) }}
+                        note={AttrValue::from((*journal_note).clone())}
+                        on_note={{ let n = journal_note.clone(); Callback::from(move |v| n.set(v)) }}
+                        text={format!(
+                            "{} de {} {} à {}{} : l'inscrire au journal",
+                            if c.side == JournalSide::Buy { "Achat" } else { "Vente" },
+                            fr(c.quantity, 0, 8),
+                            initial.symbol,
+                            crate::money::price(c.price),
+                            if c.implied { " (déduit du nouveau PRU)" } else { " (cours actuel)" }
+                        )}
+                    />
                 }
                 <button class="btn" disabled={!valid} onclick={save}>{ "Enregistrer" }</button>
                 <button class="btn btn-ghost" onclick={on_close}>{ "Annuler" }</button>

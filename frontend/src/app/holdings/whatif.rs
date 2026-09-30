@@ -12,7 +12,7 @@ use altim_core::web::portfolio::holdings::{PortfolioAnalysis, market_key};
 use altim_core::web::portfolio::portfolio_risk::{
     FACTOR_KEYS, FACTOR_SHOCKS, FactorBeta, FactorKey, MIN_BETA_DAYS, WEAK_CORRELATION, WHATIF_BETA_DAYS, factor_beta, what_if,
 };
-use altim_core::web::portfolio::view::parse_amount;
+use altim_core::web::trading::paper_ui::parse_amount;
 use yew::prelude::*;
 
 use super::browser::input_value;

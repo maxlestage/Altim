@@ -1,6 +1,6 @@
-//! Journal (phase 2, batch D: port of web/src/webapp/Journal.tsx, journal-store.ts): every entry with its automatic
+//! Journal (Journal.tsx, journal-store.ts): every entry with its automatic
 //! review, and the profile of the results. `JournalNote` and `JournalToggle` are used by the order sheets and by
-//! « Mes avoirs » (batch C), with `store::record_real_trade`.
+//! « Mes avoirs », with `store::record_real_trade`.
 pub mod store;
 
 use std::collections::HashMap;

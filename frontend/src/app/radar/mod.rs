@@ -18,6 +18,8 @@ use altim_core::web::store::WatchItem;
 use yew::prelude::*;
 
 use crate::app::asset::{DecisionBadge, api, interval_chooser, interval_label, store};
+use crate::app::bot::{BotRadarCard, BriefCard};
+use crate::app::holdings::CompareCard;
 use crate::live::{LiveBadge, LivePrice, use_live};
 use crate::route::use_on_link;
 use crate::state::{local_get, local_set};
@@ -119,7 +121,7 @@ pub fn Radar() -> Html {
             };
             refresh();
             let timer = gloo::timers::callback::Interval::new(60_000, move || {
-                if api::visible() {
+                if crate::hooks::visible() {
                     refresh();
                 }
             });
@@ -159,7 +161,7 @@ pub fn Radar() -> Html {
             };
             load_macro();
             let timer = gloo::timers::callback::Interval::new(300_000, move || {
-                if api::visible() {
+                if crate::hooks::visible() {
                     load_macro();
                 }
             });
@@ -194,7 +196,7 @@ pub fn Radar() -> Html {
                 };
                 load();
                 timer = Some(gloo::timers::callback::Interval::new(300_000, move || {
-                    if api::visible() {
+                    if crate::hooks::visible() {
                         load();
                     }
                 }));
@@ -248,7 +250,7 @@ pub fn Radar() -> Html {
         };
         load();
         let timer = gloo::timers::callback::Interval::new(DECISION_EVERY as u32, move || {
-            if api::visible() {
+            if crate::hooks::visible() {
                 load();
             }
         });
@@ -308,7 +310,8 @@ pub fn Radar() -> Html {
 
             { interval_chooser(interval) }
 
-            // TODO(phase 3): A `crate::app::bot::BriefCard` then `crate::app::bot::BotRadarCard` here.
+            <BriefCard />
+            <BotRadarCard />
 
             <a href="/app/alertes" onclick={on_link.clone()} class="btn btn-ghost btn-small alerts-link">{ "🔔 Alertes : achetables, alertes de prix, notifications" }</a>
 
@@ -484,7 +487,9 @@ pub fn Radar() -> Html {
                 </p>
             }
 
-            // TODO(phase 3): C `crate::app::holdings::CompareCard` (assets = the watchlist) when it has 2 assets or more.
+            if watchlist.len() >= 2 {
+                <CompareCard assets={items_of(&watchlist)} />
+            }
         </section>
     }
 }

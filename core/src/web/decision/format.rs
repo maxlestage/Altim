@@ -87,24 +87,6 @@ pub fn signed_score(v: f64) -> String {
     format!("{s}{}", round(v).abs())
 }
 
-/// "0 %" with no decimal (`pct0` of model-bot.ts, used by the bot's line of the card).
-pub fn pct0(v: Option<f64>) -> String {
-    match v.filter(|v| v.is_finite()) {
-        None => "—".into(),
-        Some(v) => format!("{}{NNBSP}%", fr(v, 0, 0)),
-    }
-}
-
-/// (label, tone) of the bot's action in a decision (`ACTION_UI` of model-bot.ts).
-pub fn bot_action_ui(a: crate::engine::bot::BotAction) -> (&'static str, &'static str) {
-    use crate::engine::bot::BotAction;
-    match a {
-        BotAction::Buy => ("ACHETER", "buy"),
-        BotAction::Wait => ("ATTENDRE", "wait"),
-        BotAction::Sell => ("VENDRE", "sell"),
-    }
-}
-
 // ---------- Dates (`new Date(ms)` then fr-FR in a fixed time zone) ----------
 
 const MONTHS_LONG: [&str; 12] =

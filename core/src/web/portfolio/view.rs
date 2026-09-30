@@ -42,27 +42,6 @@ pub fn parse_decimal(s: &str) -> f64 {
     js_number(&t.replacen(',', ".", 1))
 }
 
-/// An amount typed by the user (`parseAmount` of paper-ui.ts): spaces, "$" and "€" ignored, decimal comma or point.
-/// None when empty, NaN when unreadable. TODO(phase 3): D `altim_core::web::trading::paper_ui::parse_amount` (same
-/// function, one of the two to keep).
-pub fn parse_amount(text: &str) -> Option<f64> {
-    let t: String = text.chars().filter(|c| !c.is_whitespace() && !matches!(c, '$' | '€')).collect::<String>().replacen(',', ".", 1);
-    if t.is_empty() {
-        return None;
-    }
-    let b = t.as_bytes();
-    let digits = |s: &[u8]| s.iter().all(u8::is_ascii_digit);
-    // /^\d*\.?\d+$|^\d+\.$/
-    let ok = match t.find('.') {
-        None => digits(b),
-        Some(i) => {
-            let (int, frac) = (&b[..i], &b[i + 1..]);
-            digits(int) && digits(frac) && (!frac.is_empty() || !int.is_empty()) && !frac.contains(&b'.')
-        }
-    };
-    Some(if ok { t.parse().unwrap_or(f64::NAN) } else { f64::NAN })
-}
-
 /// A saved amount put back in an input, in the display currency ("" when no rate allows it): 8 decimals at most,
 /// decimal comma, no grouping.
 pub fn input_text(v: f64) -> String {
@@ -233,12 +212,6 @@ mod tests {
         assert_eq!(parse_decimal("1\u{202f}234,5"), 1234.5);
         assert_eq!(parse_decimal(""), 0.0);
         assert!(parse_decimal("1,2,3").is_nan());
-        assert_eq!(parse_amount(""), None);
-        assert_eq!(parse_amount("1 000,50 €"), Some(1000.5));
-        assert_eq!(parse_amount("15"), Some(15.0));
-        assert_eq!(parse_amount("5."), Some(5.0));
-        assert_eq!(parse_amount(".5"), Some(0.5));
-        assert!(parse_amount("-5").unwrap().is_nan() && parse_amount("1e3").unwrap().is_nan() && parse_amount(".").unwrap().is_nan());
         assert_eq!(input_text(1234.5), "1234,5");
         assert_eq!(input_text(0.123456789), "0,12345679");
         assert_eq!(input_text(f64::NAN), "");

@@ -1,6 +1,6 @@
 //! « Bot Altim » on the Radar (BotRadarCard.tsx): the report's headline (read from /api/bot, never written here), the
 //! forward test's counter and a link to the Bot screen. Loading, pending (first training) and error states; one
-//! compact card. Used by the Radar (batch B).
+//! compact card. Used by the Radar.
 use std::rc::Rc;
 
 use altim_core::web::bot::{BotReport, forward_signals};

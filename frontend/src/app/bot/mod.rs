@@ -2,7 +2,7 @@
 //! universe (/api/bot, the server's `BotReport`), chosen at each retraining on an inner validation and tested
 //! walk-forward on periods they had not seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets
 //! (/api/bot/views). v3 (`v3::BotV3Section`) first when present, then v2's selection as the reference. Also the
-//! Radar's cards of this batch: `BotRadarCard` and `BriefCard` (« Point du jour »). Texts in
+//! Radar's cards: `BotRadarCard` and `BriefCard` (« Point du jour »). Texts in
 //! `altim_core::web::bot::screen`.
 mod brief;
 mod radar_card;

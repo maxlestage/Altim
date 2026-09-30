@@ -2,8 +2,8 @@
 //! simulated ledger is kept in dollars like the prices; amounts are typed and shown in the display currency.
 use std::rc::Rc;
 
-use altim_core::engine::decision_types::Decision;
 use altim_core::js::{number_to_string, round};
+use altim_core::web::decision::doc::DecisionDoc;
 use altim_core::web::trading::enum_str;
 use altim_core::web::trading::journal::{JournalSide, NewEntry, SOURCE_PAPER};
 use altim_core::web::trading::paper::{DEFAULT_CAPITAL, FEE_RATE, OpenOrder, PaperDecision, SLIPPAGE, new_paper, open_position, valuation};
@@ -19,7 +19,7 @@ use crate::route::use_on_link;
 
 #[derive(Properties, PartialEq)]
 pub struct SimulateBuyProps {
-    pub d: Rc<Decision>,
+    pub d: Rc<DecisionDoc>,
     /// Live price when the stream has one (else the decision's price).
     #[prop_or_default]
     pub live_price: Option<f64>,
@@ -31,7 +31,7 @@ pub fn SimulateBuy(p: &SimulateBuyProps) -> Html {
     let on_link = use_on_link();
     let open = use_state(|| false);
     let done = use_state(|| None::<String>);
-    let d = &p.d;
+    let d = &p.d.d;
     let px = p.live_price.or(d.price).filter(|v| *v > 0.0);
     let verdict = enum_str(&d.verdict);
     let against = against_decision(&verdict);
@@ -56,7 +56,7 @@ pub fn SimulateBuy(p: &SimulateBuyProps) -> Html {
             }
             if let Some(px) = px.filter(|_| *open) {
                 <OrderSheet
-                    d={d.clone()}
+                    d={p.d.clone()}
                     {px}
                     live={p.live_price.is_some()}
                     on_close={{ let open = open.clone(); Callback::from(move |_| open.set(false)) }}
@@ -69,7 +69,7 @@ pub fn SimulateBuy(p: &SimulateBuyProps) -> Html {
 
 #[derive(Properties, PartialEq)]
 struct OrderSheetProps {
-    d: Rc<Decision>,
+    d: Rc<DecisionDoc>,
     px: f64,
     live: bool,
     on_close: Callback<()>,
@@ -80,7 +80,7 @@ struct OrderSheetProps {
 fn OrderSheet(p: &OrderSheetProps) -> Html {
     let m = crate::money::use_money();
     let saved = use_paper();
-    let d = &p.d;
+    let d = &p.d.d;
     let px = p.px;
     let state = saved.state.as_ref();
     // The simulated ledger is kept in dollars like the prices; amounts are typed and shown in the display currency.
@@ -114,8 +114,9 @@ fn OrderSheet(p: &OrderSheetProps) -> Html {
     let against = against_decision(&verdict);
 
     let confirm = {
-        let (d, error, note, on_done) = (d.clone(), error.clone(), note.clone(), p.on_done.clone());
+        let (doc, error, note, on_done) = (p.d.clone(), error.clone(), note.clone(), p.on_done.clone());
         Callback::from(move |_| {
+            let d = &doc.d;
             error.set(None);
             if bad_number {
                 error.set(Some("Stop ou objectif illisible : laissez vide ou saisissez un nombre.".into()));
@@ -164,7 +165,7 @@ fn OrderSheet(p: &OrderSheetProps) -> Html {
                 targets: vec![pos.target],
                 note: (*note).clone(),
                 ref_id: Some(pos.id.clone()),
-                decision: Some(d.as_ref()),
+                decision: Some(d),
                 ..Default::default()
             });
             let dm = crate::money::display();

@@ -4,17 +4,21 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use altim_core::calendar::CalendarEvent;
 use altim_core::engine::decision_types::{Fundamentals, Veto};
 use altim_core::types::Kind;
 use altim_core::web::decision::config_changes::{ConfigTransition, latest_change};
 use altim_core::web::decision::doc::{DecisionDoc, PersonalInput};
 use altim_core::web::decision::format::*;
 use altim_core::web::decision::rows;
+use altim_core::web::insights::calendar::day_label;
 use yew::prelude::*;
 
 use super::decision_parts::*;
 use super::store;
 use super::track_details::TrackDetails;
+use crate::app::news::{AgendaEvent, local_today};
+use crate::app::simulation::SimulateBuy;
 
 /// Where the decision shown comes from.
 #[derive(Debug, Clone, PartialEq)]
@@ -322,9 +326,17 @@ pub fn DecisionView(p: &DecisionViewProps) -> Html {
                                     { format!("Aucune annonce majeure (banques centrales, inflation, emploi, PIB){} dans les 7 jours.", if d.kind == Kind::Stock { ", ni résultats, dividende ou split" } else { "" }) }
                                 </p>
                             },
-                            // TODO(phase 3): A `crate::app::news::AgendaEvent` for each event, its time being
-                            // `altim_core::web::insights::calendar` day label + " · " + time (`dayLabel(e.day)`).
-                            Some(_) => html! { <ul class="news-list"></ul> },
+                            Some(e) => {
+                                let today = local_today();
+                                html! {
+                                    <ul class="news-list">
+                                        { for e.iter().enumerate().map(|(i, e)| {
+                                            let time = format!("{}{}", day_label(&e.day, &today), e.time.as_ref().map(|t| format!(" · {t}")).unwrap_or_default());
+                                            html! { <AgendaEvent key={format!("{:?}:{}:{}:{i}", e.kind, e.title, e.day)} e={CalendarEvent { time: Some(time), ..e.clone() }} /> }
+                                        }) }
+                                    </ul>
+                                }
+                            }
                         },
                     ) }
                 }
@@ -497,7 +509,9 @@ pub fn DecisionView(p: &DecisionViewProps) -> Html {
                 ) }
             </div>
 
-            // TODO(phase 3): D `crate::app::simulation::SimulateBuy` (d, live price `p.simulate`) when `p.simulate` is set.
+            if let Some(live_price) = p.simulate {
+                <SimulateBuy d={p.d.clone()} {live_price} />
+            }
 
             <p class="dec-disclaimer small">{ d.disclaimer.clone() }</p>
         </article>
@@ -603,7 +617,7 @@ pub fn DecisionCard(p: &DecisionCardProps) -> Html {
                 let tick = {
                     let load = load.clone();
                     gloo::timers::callback::Interval::new(300_000, move || {
-                        if super::api::visible() {
+                        if crate::hooks::visible() {
                             load();
                         }
                     })

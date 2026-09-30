@@ -7,7 +7,7 @@ pub mod fx;
 pub mod market;
 pub mod money;
 pub mod store;
-// Phase 2: one folder per batch (see frontend/PORTING.md), so the batches never edit the same file.
+// One folder per group of screens: Radar and asset screen, bot / validation / alerts / news, holdings, trading.
 pub mod decision;
 pub mod insights;
 pub mod portfolio;

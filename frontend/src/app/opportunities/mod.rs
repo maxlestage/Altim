@@ -1,4 +1,4 @@
-//! Opportunités (phase 2, batch D: port of web/src/webapp/Opportunities.tsx): the selection's universe scanned by
+//! Opportunités (Opportunities.tsx): the selection's universe scanned by
 //! category (`/api/opportunities`), with the reason for each asset; filters saved in "altim.opportunities.v1".
 use std::cell::Cell;
 use std::rc::Rc;

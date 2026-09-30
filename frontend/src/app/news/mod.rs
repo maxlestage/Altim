@@ -34,15 +34,6 @@ pub(crate) fn use_my_assets() -> Vec<(String, Kind)> {
     v
 }
 
-/// Reloads every `ms` while the tab is visible (`setInterval(() => document.visibilityState === "visible" && load())`).
-pub(crate) fn every_visible(ms: u32, load: impl Fn() + 'static) -> gloo::timers::callback::Interval {
-    gloo::timers::callback::Interval::new(ms, move || {
-        if gloo::utils::document().visibility_state() == web_sys::VisibilityState::Visible {
-            load();
-        }
-    })
-}
-
 #[derive(Properties, PartialEq)]
 struct StoryProps {
     n: NewsItem,
@@ -228,7 +219,7 @@ pub fn News() -> Html {
                     }
                 };
                 load();
-                timer = Some(every_visible(300_000, load));
+                timer = Some(crate::hooks::every_visible(300_000, load));
             }
             move || {
                 alive.set(false);

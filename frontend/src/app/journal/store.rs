@@ -14,7 +14,7 @@ use altim_core::web::trading::journal::{
     EntryPatch, JournalEntry, JournalState, NewEntry, add_entry, create_entry, journal_json, patch_entry, remove_entry,
 };
 use altim_core::web::trading::journal_store::{
-    JOURNAL_INVALID_KEY, JOURNAL_KEY, MacroLite, RealTrade, SavedJournal, enrich_patch, parse_saved_journal, real_trade_entry,
+    JOURNAL_INVALID_KEY, JOURNAL_KEY, MacroLite, RealTrade, SavedJournal, enrich_patch, is_recent_decision, parse_saved_journal, real_trade_entry,
 };
 use yew::prelude::*;
 
@@ -108,12 +108,13 @@ pub fn record(n: NewEntry) -> String {
     record_entry(create_entry(&NewEntry { id: random_uuid(), now, ..n }))
 }
 
-/// A real purchase or sale saved in « Mes avoirs » (`recordRealTrade`, used by batch C). None when the price or the
+/// A real purchase or sale saved in « Mes avoirs » (`recordRealTrade`). None when the price or the
 /// quantity is not positive (nothing written).
 pub fn record_real_trade(t: &RealTrade) -> Option<String> {
-    // TODO(phase 3): B altim_core::web::decision::…::cached_decision — pass the decision cached on this device for
-    // (t.kind, t.symbol) when `journal_store::is_recent_decision(cached.at, decision.as_of, now)`; until then the
-    // entry is written without it and the background enrichment fetches the current decision.
-    let e = real_trade_entry(t, random_uuid(), now(), None)?;
+    // The decision seen on this device for this asset, when recent enough to be "the one of the moment"; otherwise the
+    // background enrichment fetches the current one.
+    let now = now();
+    let cached = crate::app::asset::store::cached(t.kind, &t.symbol).filter(|c| is_recent_decision(c.at, c.decision.d.as_of as f64, now));
+    let e = real_trade_entry(t, random_uuid(), now, cached.as_ref().map(|c| &c.decision.d))?;
     Some(record_entry(e))
 }

@@ -18,18 +18,23 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use altim_core::engine::backtest::{BacktestResult, backtest_default};
+use altim_core::engine::backtest::{BacktestResult, backtest_default, track_record};
+use altim_core::engine::fibonacci::{Trend, ZoneStatus, zone_state};
 use altim_core::engine::reliability::{ReliabilityLevel, gate};
 use altim_core::engine::signal::{Action, AnalyzeOptions, Candle, Signal, analyze};
 use altim_core::js::{round, to_fixed};
 use altim_core::types::{Interval, Kind};
 use altim_core::web::decision::doc::{PersonalInput, WeightInput, average_cost, portfolio_weights};
 use altim_core::web::decision::reports::{GuardReport, Quote, Sentiment, Snapshot, ZonesReport};
-use altim_core::web::store::asset_key;
+use altim_core::web::portfolio::advice::{Advice, AdviceInput, AdviceTone, GuardContext, ZoneContext, advise_asset};
+use altim_core::web::portfolio::holdings::{MarketInput, analyze_portfolio};
+use altim_core::web::store::{WatchItem, asset_key};
 pub use decision_card::{DecisionBadge, DecisionCard, DecisionView};
 use yew::prelude::*;
 
 use crate::api::INTERVAL_LABEL;
+use crate::app::alerts::PriceAlertButton;
+use crate::app::holdings::{DcaCard, PositionCard, held_market};
 use crate::live::{LiveBadge, LivePrice, use_live};
 use crate::route::use_on_link;
 use crate::state::app::{set_app_state, use_app_state};
@@ -63,15 +68,6 @@ pub fn interval_chooser(interval: Interval) -> Html {
 
 pub fn interval_label(i: Interval) -> &'static str {
     INTERVAL_LABEL.iter().find(|(v, _)| *v == i.as_str()).map(|(_, l)| *l).unwrap_or("")
-}
-
-/// Refreshes `load` every `ms` while the tab is visible (the first load is the caller's).
-fn every(ms: u32, load: impl Fn() + 'static) -> gloo::timers::callback::Interval {
-    gloo::timers::callback::Interval::new(ms, move || {
-        if api::visible() {
-            load();
-        }
-    })
 }
 
 #[component]
@@ -118,6 +114,8 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
     }
 
     let data = use_state(|| None::<Loaded>);
+    // Asset held: its line as « Mes avoirs » sees it (daily and 4 h signals, daily candles).
+    let held_mkt = use_state(|| None::<MarketInput>);
     let bt = use_state(|| None::<Rc<BacktestResult>>);
     let sent = use_state(|| None::<Sentiment>);
     let guard_report = use_state(|| None::<GuardReport>);
@@ -145,7 +143,7 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                 }
             };
             load();
-            let timer = every(120_000, load);
+            let timer = crate::hooks::every_visible(120_000, load);
             move || {
                 alive.set(false);
                 drop(timer);
@@ -172,7 +170,7 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                 }
             };
             load();
-            let timer = every(120_000, load);
+            let timer = crate::hooks::every_visible(120_000, load);
             move || {
                 alive.set(false);
                 drop(timer);
@@ -185,8 +183,8 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
         app.watchlist.iter().find(|w| w.symbol == symbol && w.kind == kind).map(|w| w.name.clone()).or(quote_name).unwrap_or_else(|| symbol.clone());
 
     {
-        let (data, bt, sent, error) = (data.clone(), bt.clone(), sent.clone(), error.clone());
-        use_effect_with((symbol.clone(), kind, interval, held.is_some()), move |(symbol, kind, interval, _)| {
+        let (data, bt, sent, error, held_mkt) = (data.clone(), bt.clone(), sent.clone(), error.clone(), held_mkt.clone());
+        use_effect_with((symbol.clone(), kind, interval, held.is_some()), move |(symbol, kind, interval, held)| {
             let alive = Rc::new(Cell::new(true));
             error.set(None);
             bt.set(None);
@@ -230,7 +228,7 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                 });
             }
             {
-                let a = a.clone();
+                let (a, symbol) = (a.clone(), symbol.clone());
                 wasm_bindgen_futures::spawn_local(async move {
                     if let Ok(s) = api::sentiment(&symbol, kind).await {
                         if a.get() {
@@ -239,8 +237,15 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                     }
                 });
             }
-            // TODO(phase 3): C — asset held: same inputs as "Mes avoirs" (1 d and 4 h radar signals, daily candles)
-            // for `altim_core::web::portfolio::holdings` (analysis of the held line) and the advice below.
+            if *held {
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Some(m) = held_market(&symbol, kind).await {
+                        if a.get() {
+                            held_mkt.set(Some(m));
+                        }
+                    }
+                });
+            }
             move || alive.set(false)
         });
     }
@@ -272,11 +277,55 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
         }
         _ => candles,
     };
-    // TODO(phase 3): C — `altim_core::web::portfolio::holdings` (portfolio valuation, held line) and
-    // `altim_core::web::portfolio::advice` (`adviseAsset`: signal, reliability, price, line, capital, risk, track
-    // record of the backtest, guard, zone of the user's horizon) render the « Lecture du signal · <interval> » card of
-    // AssetScreen.tsx here (title, points, "J'en possède déjà" / "Voir mes avoirs" / "+ Ajouter au radar" when not in
-    // the watchlist, disclaimer).
+    // The portfolio valued at the live prices, this asset's line with its full market data (same analysis as « Mes
+    // avoirs »).
+    let mut valuation: HashMap<String, MarketInput> = holding_prices
+        .iter()
+        .map(|(k, p)| (k.clone(), MarketInput { price: live.ticks.get(k).map(|t| t.price).unwrap_or(*p), ..Default::default() }))
+        .collect();
+    if let (Some(_), Some(m)) = (&held, &*held_mkt) {
+        valuation.insert(asset_key(&symbol, kind), MarketInput { price: tick.as_ref().map(|t| t.price).unwrap_or(m.price), ..m.clone() });
+    }
+    let portfolio = analyze_portfolio(&holdings.holdings, holdings.cash, &valuation);
+    let line = held.as_ref().filter(|_| held_mkt.is_some()).and_then(|h| portfolio.lines.iter().find(|l| l.id == h.id));
+    // Buy zone of the user's horizon, at the live price.
+    let raw_zone = zones_report.as_ref().and_then(|z| z.zones.iter().find(|z| z.zone.horizon == zones_card::horizon_of(app.horizon)));
+    let my_zone = raw_zone.filter(|z| z.zone.status != ZoneStatus::None).map(|z| {
+        let (status, text) = match (price.filter(|p| *p != 0.0), &z.zone.swing) {
+            (Some(p), Some(sw)) if sw.trend == Trend::Up => {
+                let st = zone_state(sw, p);
+                (st.status, st.text)
+            }
+            _ => (z.zone.status, z.zone.text.clone()),
+        };
+        ZoneContext { label: z.zone.label.clone(), status: status.as_str().into(), text, macro_note: z.macro_note.clone() }
+    });
+    let advice = loaded.as_ref().map(|_| {
+        let mut input = AdviceInput::new(signal.as_ref(), rel.as_ref().map(|r| r.level), price, app.risk);
+        input.line = line;
+        input.capital = Some(portfolio.total);
+        input.track = bt.as_ref().map(|b| track_record(b));
+        input.symbol = symbol.clone();
+        input.kind = kind;
+        input.guard = guard_report.as_ref().map(|g| GuardContext {
+            shock: g.result.shock.level,
+            reversal_score: g.result.reversal.score,
+            reversal_direction: g.result.reversal.direction,
+        });
+        input.zone = my_zone;
+        advise_asset(&input)
+    });
+    let in_watchlist = app.watchlist.iter().any(|w| w.symbol == symbol && w.kind == kind);
+    // Position size: the plan's stop when under the price, else the low that invalidates the buy zone, else 5 % under.
+    let (stop, stop_source, target) = match (&signal, raw_zone.map(|z| &z.zone)) {
+        (Some(s), _) if s.has_plan && s.stop_loss < price.unwrap_or(f64::INFINITY) => {
+            (Some(s.stop_loss), "stop du plan (2 × ATR)", (s.take_profit > price.unwrap_or(0.0)).then_some(s.take_profit))
+        }
+        (_, Some(z)) if z.invalidation.is_some_and(|i| i != 0.0 && i < price.unwrap_or(0.0)) => {
+            (z.invalidation, "plus bas qui invalide la zone d'achat", z.targets.iter().copied().find(|t| *t > price.unwrap_or(0.0)))
+        }
+        _ => (price.filter(|p| *p != 0.0).map(|p| p * 0.95), "5 % sous le prix (à ajuster)", None),
+    };
 
     // Personal decision: average cost and each line's share of the portfolio (never quantities nor amounts). Prices
     // of the first load, not the live ticks, so the request does not change at every tick.
@@ -319,7 +368,7 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                     } }
                 </div>
             </div>
-            // TODO(phase 3): A `crate::app::alerts::PriceAlertButton` (symbol, kind, name, live price or price).
+            <PriceAlertButton symbol={p.symbol.clone()} {kind} name={name.clone()} price={tick.as_ref().map(|t| t.price).or(price)} />
 
             <DecisionCard symbol={p.symbol.clone()} {kind} {personal} ready={held.is_none() || *prices_ready} live_price={tick.as_ref().map(|t| t.price)} />
 
@@ -330,6 +379,10 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
             }
             if loaded.is_none() && error.is_none() {
                 <div class="skeleton tall" />
+            }
+
+            if let Some(a) = &advice {
+                { advice_card(a, label, held.is_some(), in_watchlist, &on_link, &name, (&symbol, kind)) }
             }
 
             { match &*zones_report {
@@ -347,12 +400,19 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
 
             <why_card::WhyCard symbol={p.symbol.clone()} {kind} />
 
-            // TODO(phase 3): C `crate::app::holdings::PositionCard` (symbol, price, stop and target of the plan or
-            // the zone, capital, risk per trade) — see AssetScreen.tsx for the stop / target rule.
+            <PositionCard
+                symbol={p.symbol.clone()}
+                {price}
+                {stop}
+                {stop_source}
+                {target}
+                capital={portfolio.total}
+                risk_pct={app.risk.risk_per_trade_percent}
+            />
 
             <note_card::NoteCard id={format!("{}:{symbol}", kind.as_str())} symbol={p.symbol.clone()} />
 
-            // TODO(phase 3): C `crate::app::holdings::DcaCard` (symbol, kind).
+            <DcaCard symbol={p.symbol.clone()} {kind} />
             <strategies_card::StrategiesCard symbol={p.symbol.clone()} {kind} />
 
             if let Some(d) = &loaded {
@@ -452,6 +512,46 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
                 </div>
             }
         </section>
+    }
+}
+
+/// « Lecture du signal · 4 h »: the advice of one timeframe (`adviseAsset`), below the decision that prevails.
+fn advice_card(
+    a: &Advice,
+    label: &str,
+    held: bool,
+    in_watchlist: bool,
+    on_link: &Callback<MouseEvent>,
+    name: &str,
+    (symbol, kind): (&str, Kind),
+) -> Html {
+    let tone = match a.tone {
+        AdviceTone::Buy => "buy",
+        AdviceTone::Hold => "hold",
+        AdviceTone::Sell => "sell",
+        AdviceTone::Unknown => "unknown",
+    };
+    let add = {
+        let item = WatchItem { symbol: symbol.to_string(), kind, name: name.to_string() };
+        Callback::from(move |_: MouseEvent| {
+            let item = item.clone();
+            set_app_state(move |s| s.watchlist.push(item));
+        })
+    };
+    html! {
+        <div class={format!("card advice advice-{tone}")}>
+            <h2 class="card-title">{ format!("Lecture du signal · {label}") }</h2>
+            <p class="muted small">{ "Une seule unité de temps et le signal technique : la décision en haut de page réunit toutes les familles, les interdictions d'achat et le rapport gain/risque, et c'est elle qui prime." }</p>
+            <p class="advice-title">{ a.title.clone() }</p>
+            <ul>{ for a.points.iter().map(|p| html! { <li>{ p.clone() }</li> }) }</ul>
+            <div class="advice-actions">
+                <a href="/app/avoirs" onclick={on_link.clone()} class="link">{ if held { "Voir mes avoirs" } else { "J'en possède déjà" } }</a>
+                if !in_watchlist {
+                    <button class="link-btn" onclick={add}>{ "+ Ajouter au radar" }</button>
+                }
+            </div>
+            <p class="muted small">{ "Conseil indicatif, pas une recommandation d'investissement personnalisée. Altim ne passe aucun ordre." }</p>
+        </div>
     }
 }
 

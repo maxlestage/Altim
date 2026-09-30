@@ -255,22 +255,6 @@ pub fn Segmented(p: &SegmentedProps) -> Html {
     }
 }
 
-#[derive(Properties, PartialEq)]
-pub struct PlaceholderProps {
-    pub title: AttrValue,
-}
-
-/// A screen not yet ported to Rust (phase 1 of the migration): says so plainly instead of showing a blank page.
-#[component]
-pub fn NotPorted(p: &PlaceholderProps) -> Html {
-    html! {
-        <section class="card">
-            <h1>{ p.title.clone() }</h1>
-            <p class="muted">{ "Cet écran est en cours de portage vers la nouvelle version de l'application web." }</p>
-        </section>
-    }
-}
-
 // ---------- French dates (the browser's time zone, like toLocale*String("fr-FR")) ----------
 
 fn opts(pairs: &[(&str, &str)]) -> JsValue {

@@ -8,11 +8,15 @@ use altim_core::types::Kind;
 use altim_core::web::portfolio::view::parse_decimal;
 use altim_core::web::portfolio::wire::UniverseItem;
 use altim_core::web::store::StoredHolding;
+use altim_core::web::trading::journal::JournalSide;
+use altim_core::web::trading::journal_store::RealTrade;
 use yew::prelude::*;
 
 use super::browser::{input_value, stop};
 use super::picker::{AssetPicker, kind_label};
 use super::search::AssetSearch;
+use crate::app::journal::JournalToggle;
+use crate::app::journal::store::record_real_trade;
 use crate::state::holdings::{add_holdings, use_holdings};
 
 #[derive(Clone, PartialEq)]
@@ -76,9 +80,12 @@ pub fn AddHoldings(p: &AddHoldingsProps) -> Html {
     let lines = use_reducer(Lines::default);
     let picking = use_state(|| None::<Kind>);
     let prices = use_reducer(Prices::default);
-    // TODO(phase 3): D `crate::app::journal::JournalToggle` and `altim_core::web::trading::journal_store` (recordRealTrade):
-    // a first entry is usually past purchases (not journaled unless asked), later additions are
-    // (`useState(holdings.length > 0)`), with the note typed.
+    // A first entry of holdings is usually past purchases: not journaled unless asked; later additions are.
+    let journal = {
+        let first = usd.holdings.is_empty();
+        use_state(move || !first)
+    };
+    let note = use_state(String::new);
     let keys: Vec<String> = lines.0.iter().map(|l| l.asset.key()).collect();
     let selected: HashSet<String> = keys.iter().cloned().collect();
 
@@ -144,9 +151,31 @@ pub fn AddHoldings(p: &AddHoldingsProps) -> Html {
                 extra: Default::default(),
             })
             .collect();
+        // The journal gets dollars.
+        let trades: Vec<RealTrade> = if *journal {
+            ready
+                .iter()
+                .map(|p| RealTrade {
+                    side: JournalSide::Buy,
+                    symbol: p.l.asset.symbol.clone(),
+                    kind: p.l.asset.kind,
+                    name: p.l.asset.name.clone(),
+                    price: crate::money::from_display(p.average_price),
+                    quantity: p.quantity,
+                    stop: None,
+                    note: (*note).clone(),
+                    ref_id: None,
+                })
+                .collect()
+        } else {
+            vec![]
+        };
         let on_close = p.on_close.clone();
         Callback::from(move |_: MouseEvent| {
             add_holdings(items.clone());
+            for t in &trades {
+                record_real_trade(t);
+            }
             on_close.emit(());
         })
     };
@@ -223,6 +252,13 @@ pub fn AddHoldings(p: &AddHoldingsProps) -> Html {
                     { section(Kind::Stock) }
                     if n > 0 {
                         <p class="kv small"><span>{ "Montant investi" }</span><b>{ crate::money::money(crate::money::from_display(invested)) }</b></p>
+                        <JournalToggle
+                            checked={*journal}
+                            on_change={{ let journal = journal.clone(); Callback::from(move |v| journal.set(v)) }}
+                            note={AttrValue::from((*note).clone())}
+                            on_note={{ let note = note.clone(); Callback::from(move |v| note.set(v)) }}
+                            text="Achats faits aujourd'hui : les inscrire au journal"
+                        />
                     }
                     if incomplete > 0 {
                         <p class="muted small">{ format!("{incomplete} ligne{s} sans quantité : ignorée{s}.", s = if incomplete > 1 { "s" } else { "" }) }</p>

@@ -30,7 +30,7 @@ thread_local! {
     static LISTENING: RefCell<Option<gloo::events::EventListener>> = const { RefCell::new(None) };
 }
 
-/// Another tab (or the former React app) changed the cache: read it again at the next use.
+/// Another tab changed the cache: read it again at the next use.
 fn listen() {
     LISTENING.with(|l| {
         if l.borrow().is_some() {

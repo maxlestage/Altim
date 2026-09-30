@@ -1,4 +1,4 @@
-//! Lexique (phase 2, batch D: port of web/src/webapp/Glossary.tsx): the words of Altim explained simply.
+//! Lexique (Glossary.tsx): the words of Altim explained simply.
 mod terms;
 
 pub use terms::GLOSSARY;

@@ -1,12 +1,18 @@
-//! Réglages (phase 2, batch D: port of web/src/webapp/Settings.tsx): radar list, display currency, investment
+//! Réglages (Settings.tsx): radar list, display currency, investment
 //! horizon, prudence of the advice, weights of the composite score, links to the other screens, logout.
+use std::collections::HashSet;
+
 use altim_core::engine::fibonacci::HORIZONS;
 use altim_core::js::{number_to_string, to_fixed};
 use altim_core::web::money::Currency;
-use altim_core::web::store::{DEFAULT_RISK, DEFAULT_SCORE_WEIGHTS, HorizonPref, RiskSettings, SCORE_FACTORS, ScoreWeights, default_watchlist};
+use altim_core::web::portfolio::wire::UniverseItem;
+use altim_core::web::store::{
+    DEFAULT_RISK, DEFAULT_SCORE_WEIGHTS, HorizonPref, RiskSettings, SCORE_FACTORS, ScoreWeights, WatchItem, asset_key, default_watchlist,
+};
 use yew::prelude::*;
 
 use crate::app::common::FxNote;
+use crate::app::holdings::AssetPicker;
 use crate::route::use_on_link;
 use crate::state::app::{set_app_state, use_app_state};
 use crate::ui::Segmented;
@@ -183,8 +189,21 @@ pub fn Settings() -> Html {
                 <ul class="watch-edit">{ for watch }</ul>
                 <button class="link-btn" onclick={Callback::from(|_| set_app_state(|s| s.watchlist = default_watchlist()))}>{ "Liste par défaut" }</button>
             </div>
-            // TODO(phase 3): C crate::app::holdings::AssetPicker — when `*picking`, show
-            // <AssetPicker title="Actifs du radar" selected={watchlist keys} on_toggle={add or remove the item} on_close={picking.set(false)} />.
+            if *picking {
+                <AssetPicker
+                    title="Actifs du radar"
+                    selected={s.watchlist.iter().map(|w| asset_key(&w.symbol, w.kind)).collect::<HashSet<String>>()}
+                    on_toggle={Callback::from(|item: UniverseItem| set_app_state(move |s| {
+                        let k = item.key();
+                        if s.watchlist.iter().any(|w| asset_key(&w.symbol, w.kind) == k) {
+                            s.watchlist.retain(|w| asset_key(&w.symbol, w.kind) != k);
+                        } else {
+                            s.watchlist.push(WatchItem { symbol: item.symbol, kind: item.kind, name: item.name });
+                        }
+                    }))}
+                    on_close={{ let picking = picking.clone(); Callback::from(move |_| picking.set(false)) }}
+                />
+            }
 
             <div class="card">
                 <h2 class="card-title">{ "Devise d'affichage" }</h2>

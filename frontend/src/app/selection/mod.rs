@@ -1,4 +1,4 @@
-//! Sélection (phase 2, batch D: port of web/src/webapp/Selection.tsx): which stocks or cryptos to buy, ranked by
+//! Sélection (Selection.tsx): which stocks or cryptos to buy, ranked by
 //! what was measured to work, checked, with an entry plan and an amount from the budget (typed in the display
 //! currency, saved with it in "altim.selection.budget").
 use std::cell::Cell;
@@ -402,9 +402,8 @@ pub fn Selection() -> Html {
             if let Some(r) = &*report {
                 <h2 class="section-label">{ format!("À acheter · {}", r.buy.len()) }</h2>
                 <ol class="pick-list">
-                    // Live ticks looked up under "stock:" as in Selection.tsx (a crypto pick shows the report's price).
                     { for r.buy.iter().map(|c| html! {
-                        <PickCard key={c.symbol.clone()} c={c.clone()} report={r.clone()} live={live.get(&c.symbol, Kind::Stock).cloned()} amount={amounts.get(&c.symbol).copied()} />
+                        <PickCard key={c.symbol.clone()} c={c.clone()} report={r.clone()} live={live.get(&c.symbol, r.market).cloned()} amount={amounts.get(&c.symbol).copied()} />
                     }) }
                 </ol>
 

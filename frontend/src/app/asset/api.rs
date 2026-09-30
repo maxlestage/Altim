@@ -95,11 +95,6 @@ pub async fn ask(symbol: &str, kind: Kind, question: &str) -> Result<AskAnswer, 
     serde_json::from_value(body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
 }
 
-/// `document.visibilityState === "visible"`: the periodic refreshes skip a hidden tab.
-pub fn visible() -> bool {
-    gloo::utils::document().visibility_state() == web_sys::VisibilityState::Visible
-}
-
 /// `navigator.onLine === false`.
 pub fn offline() -> bool {
     let nav = js_sys::Reflect::get(&js_sys::global(), &"navigator".into()).ok();

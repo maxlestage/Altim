@@ -1,38 +1,17 @@
 //! « Bot Altim » JSON contract (`web/src/webapp/model-bot.ts`), the part the presentation site reads: the report's
 //! v3 headline (/api/bot) and today's views (/api/bot/views). Fields are optional or defaulted where the TypeScript
-//! allows an older server; the Bot screen (phase 2, batch A) adds the rest ADDITIVELY here.
+//! allows an older server; the Bot screen's texts are in `screen`.
 use serde::{Deserialize, Serialize};
 
+// The server's own enums (same JSON: "buy", "edge", "peers"…), shared by the site, the Bot screen and the decision.
+pub use crate::engine::bot::BotAction;
+pub use crate::engine::bot_v3::Family;
+pub use crate::engine::validation::Verdict;
 use crate::js::fr;
 use crate::types::Kind;
 
 /// Narrow no-break space (fr-FR before "%").
 pub const NNBSP: &str = "\u{202f}";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum BotAction {
-    Buy,
-    Wait,
-    Sell,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Verdict {
-    Insufficient,
-    Edge,
-    Negative,
-    Unproven,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Family {
-    Absolute,
-    Peers,
-    V2,
-}
 
 /// (label, tone) of an action (`ACTION_UI`).
 pub fn action_ui(a: BotAction) -> (&'static str, &'static str) {
@@ -43,12 +22,9 @@ pub fn action_ui(a: BotAction) -> (&'static str, &'static str) {
     }
 }
 
+/// `FAMILY_LABEL`.
 pub fn family_label(f: Family) -> &'static str {
-    match f {
-        Family::Absolute => "Hausse ou baisse de l'actif",
-        Family::Peers => "Classement entre pairs",
-        Family::V2 => "Sélection v2 (log-loss)",
-    }
+    f.label()
 }
 
 /// One view of /api/bot/views (the fields the site reads).
@@ -243,7 +219,7 @@ pub fn verdict_short(cfg: &V3Config, buy: bool) -> String {
     }
 }
 
-/// The « Bot Altim » screen, its Radar card and the decision's bot line (phase 2, the rest of model-bot.ts): texts
+/// The « Bot Altim » screen, its Radar card and the decision's bot line (the rest of model-bot.ts): texts
 /// over the server's own contract (`engine::bot::BotReport`, `engine::bot_v3::V3Report`, `engine::bot::BotView`).
 /// Returns and probabilities in %, "points" are differences of % (signal − random day), times in ms. The server
 /// computes everything; nothing here recomputes a statistic.
@@ -252,8 +228,9 @@ pub mod screen {
     use serde_json::Value;
 
     use super::{NNBSP, fr_iso, plain};
+    pub use super::{action_ui, family_label};
     use crate::engine::bot::{
-        BlockOut, BotAction, BotGroupStat, BotReport, BotView, Bucket, BuyStats, Candidate, Clustered, ExitStats, SellStats, Timing, WaitStats,
+        BlockOut, BotGroupStat, BotReport, BotView, Bucket, BuyStats, Candidate, Clustered, ExitStats, SellStats, Timing, WaitStats,
     };
     use crate::engine::bot_v3::{ConfigStats, Family, SideStats, V3BlockOut, V3Candidate, V3Config, V3Group, V3Report, VolManaged};
     use crate::engine::validation::Verdict;
@@ -265,15 +242,6 @@ pub mod screen {
 
     fn frm(v: f64, max: usize) -> String {
         fr(v, 0, max)
-    }
-
-    /// (label, tone) of an action (`ACTION_UI`).
-    pub fn action_ui(a: BotAction) -> (&'static str, &'static str) {
-        match a {
-            BotAction::Buy => ("ACHETER", "buy"),
-            BotAction::Wait => ("ATTENDRE", "wait"),
-            BotAction::Sell => ("VENDRE", "sell"),
-        }
     }
 
     /// "+0,52 point", "−2,4 points", "—".
@@ -551,11 +519,6 @@ pub mod screen {
         }
     }
 
-    /// `FAMILY_LABEL`.
-    pub fn family_label(f: Family) -> &'static str {
-        f.label()
-    }
-
     /// "t = −1,2 (requis 3,52)".
     pub fn t_vs_required(t: Option<f64>, required: f64) -> String {
         format!("t = {} (requis {})", if t.is_none() { "—".into() } else { plain(t, 1) }, plain(Some(required), 2))
@@ -706,6 +669,7 @@ pub mod screen {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::engine::bot::BotAction;
 
         fn sample(json: &str) -> BotReport {
             serde_json::from_str(json).unwrap()

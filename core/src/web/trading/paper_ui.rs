@@ -279,6 +279,10 @@ mod tests {
         assert_eq!(parse_amount("5."), Some(5.0));
         assert_eq!(parse_amount(",5"), Some(0.5));
         assert!(parse_amount(".").unwrap().is_nan());
+        // What the holdings tools type (What-if amounts and shocks).
+        assert_eq!(parse_amount("1 000,50 €"), Some(1000.5));
+        assert_eq!(parse_amount("\u{feff}15"), Some(15.0));
+        assert!(parse_amount("1e3").unwrap().is_nan());
 
         assert_eq!(default_amount(10_000.0, 10_000.0), 1_000.0);
         assert_eq!(default_amount(10_000.0, 400.0), 400.0);

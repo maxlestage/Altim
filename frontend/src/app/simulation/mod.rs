@@ -1,6 +1,6 @@
-//! Simulation (phase 2, batch D: port of web/src/webapp/Simulation.tsx, PaperOrder.tsx, paper-store.ts, paper-ui.ts):
+//! Simulation (Simulation.tsx, PaperOrder.tsx, paper-store.ts, paper-ui.ts):
 //! the simulated portfolio (no real money, no order), its open positions, closed trades and statistics.
-//! `SimulateBuy` (the "Simuler cet achat" block of the Décision card) is exported for batch B.
+//! `SimulateBuy` (the "Simuler cet achat" block of the Décision card) is exported for the asset screen.
 mod order;
 pub mod store;
 
@@ -37,9 +37,7 @@ fn up_down(v: Option<f64>) -> Option<&'static str> {
 
 const CHECK_EVERY: u32 = 300_000;
 
-fn visible() -> bool {
-    gloo::utils::document().visibility_state() == web_sys::VisibilityState::Visible
-}
+use crate::hooks::visible;
 
 /// Exit notices and the state of the automatic checks (updated from async tasks, hence a reducer).
 #[derive(Default, PartialEq)]

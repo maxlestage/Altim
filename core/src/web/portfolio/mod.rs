@@ -1,4 +1,4 @@
-//! Phase 2, batch C: pure logic of Mes avoirs and its tools, ported from web/src (engine/holdings.ts,
+//! Pure logic of Mes avoirs and its tools (from engine/holdings.ts,
 //! portfolio-risk.ts, tools.ts, dca.ts, risk.ts, advice.ts, sectors.ts), plus the server replies they read (`wire`)
 //! and the helpers of the screens (`view`). Tests next to the code (`cargo test -p altim-core`).
 pub mod advice;
