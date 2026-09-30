@@ -25,8 +25,6 @@ use std::sync::{Arc, LazyLock, Mutex, Weak};
 use std::task::{Context, Poll};
 use std::time::Duration;
 
-use chrono::{Datelike, Weekday};
-use chrono_tz::America::New_York;
 use futures::future::join_all;
 use futures::{SinkExt, Stream, StreamExt};
 use indexmap::{IndexMap, IndexSet};
@@ -391,16 +389,7 @@ pub fn live_consensus(quotes: &IndexMap<String, LiveQuote>, now: i64, max_age: i
     })
 }
 
-/// US regular session (9:30 – 16:00 New York, weekdays). Holidays are not known: the price simply stops moving.
-pub fn us_market_open(now: i64) -> bool {
-    let Some(d) = chrono::DateTime::from_timestamp_millis(now) else { return false };
-    let d = d.with_timezone(&New_York);
-    if matches!(d.weekday(), Weekday::Sat | Weekday::Sun) {
-        return false;
-    }
-    let open = crate::market::ny_open(d.year(), d.month(), d.day());
-    now >= open && now < open + 23_400_000
-}
+pub use altim_core::jstime::us_market_open;
 
 // ---------- Exchange connections ----------
 

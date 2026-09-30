@@ -19,6 +19,6 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: backend
+          workspaces: ". -> target"
       - name: Toutes les sources, toutes les unités de temps, cours, flux temps réel, séries macro (données réelles)
         run: cd backend && cargo test --locked --test sources_live -- --ignored --nocapture

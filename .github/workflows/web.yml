@@ -2,16 +2,53 @@ name: Web
 
 on:
   push:
-    paths: ["web/**", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "package.json", "bun.lock", ".bun-version", ".github/workflows/web.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
   contents: read
 
 jobs:
-  check:
+  # The Rust + Yew front (frontend/) and the logic it shares with the server (core/), built for the browser.
+  yew:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - run: cargo fmt --all --check
+      - run: cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown --locked -- -D warnings
+      - run: cargo clippy -p altim-core -p altim-web --all-targets --locked -- -D warnings
+      - run: cargo test -p altim-core -p altim-web --locked
+      - run: sh scripts/web-tools.sh
+      - run: bun install --frozen-lockfile
+      # Yew site in web/dist + the React web app in web/dist/app (migration), sizes in the log.
+      - run: sh scripts/build-web.sh
+      - name: Site servi (Yew) et CSP
+        run: |
+          cargo build --locked -p altim
+          ALTIM_DEV_OPEN=1 PORT=3000 ALTIM_WEB_ROOT=$PWD/web ./target/debug/altim > run.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS localhost:3000/health && break; sleep 1; done
+          curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-'
+          WASM=$(cd web/dist && ls altim-*_bg.wasm)
+          curl -fsSI "localhost:3000/$WASM" | grep -qi "content-type: application/wasm"
+          curl -fsSI localhost:3000/ | grep -qi "script-src 'self' 'wasm-unsafe-eval'"
+          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/app/index-'
+      - if: failure()
+        run: cat run.log || true
+
+  # The React web app, still serving /app/* until its screens are ported (phase 3 removes it).
+  react:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,4 +58,4 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: cd web && bun run typecheck
       - run: cd web && bun test
-      - run: bun run build
+      - run: cd web && bun run build-app

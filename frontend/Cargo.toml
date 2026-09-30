@@ -1,0 +1,42 @@
+[package]
+name = "altim-web"
+version = "1.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Altim : site de présentation et application web en Rust + Yew (WebAssembly)."
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+altim-core = { path = "../core" }
+# gloo 0.11 is the one Yew 0.23 and yew-router 0.20 depend on (0.12 would be a second copy in the wasm).
+futures = { version = "0.3.34", default-features = false, features = ["std", "async-await"] }
+gloo = { version = "0.11", default-features = false, features = ["timers", "events", "utils", "render"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
+js-sys = "0.3.106"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.151"
+wasm-bindgen = "0.2.129"
+wasm-bindgen-futures = "0.4.79"
+yew = { version = "0.23.0", features = ["csr"] }
+yew-router = "0.20.0"
+
+[dependencies.web-sys]
+version = "0.3.106"
+features = [
+  "AbortController", "AbortSignal", "CanvasRenderingContext2d", "CanvasGradient", "Document", "DomRect", "DomTokenList", "Element",
+  "EventSource", "Headers", "HtmlCanvasElement", "HtmlElement", "HtmlInputElement", "HtmlSelectElement",
+  "IntersectionObserver", "IntersectionObserverEntry", "IntersectionObserverInit", "Location", "MediaQueryList",
+  "MessageEvent", "Request", "RequestInit", "Response", "Storage", "Url", "UrlSearchParams", "Window",
+  "VisibilityState", "History", "ScrollToOptions", "ScrollBehavior",
+]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.79"
+
+[lints.clippy]
+collapsible_if = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"

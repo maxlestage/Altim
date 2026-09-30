@@ -10,7 +10,8 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use regex::Regex;
 
-pub const CSP: &str = "default-src 'self';script-src 'self';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src https://fonts.gstatic.com;img-src 'self' data:;connect-src 'self' https://api.binance.com https://api.coingecko.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none'";
+/// `'wasm-unsafe-eval'` lets the site's own WebAssembly (web/dist, same origin) be compiled; no JavaScript `eval`.
+pub const CSP: &str = "default-src 'self';script-src 'self' 'wasm-unsafe-eval';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src https://fonts.gstatic.com;img-src 'self' data:;connect-src 'self' https://api.binance.com https://api.coingecko.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none'";
 
 /// Headers of helmet 8 (defaults, custom CSP, HSTS 2 years with subdomains, no COEP) + Permissions-Policy.
 const SECURITY: [(&str, &str); 13] = [
@@ -58,7 +59,7 @@ pub fn web_root() -> PathBuf {
     std::env::var("ALTIM_WEB_ROOT").map(PathBuf::from).unwrap_or_else(|_| Path::new(env!("CARGO_MANIFEST_DIR")).join("../web"))
 }
 
-static HASHED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-[a-z0-9]{8,}\.(js|css|svg|png)$").unwrap());
+static HASHED: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"-[a-z0-9]{8,}(_bg)?\.(js|css|svg|png|wasm)$").unwrap());
 static EXTENSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)\.[a-z0-9]{2,5}$").unwrap());
 
 /// Cache of a static file: hashed build files forever, the others one hour.
@@ -83,6 +84,7 @@ fn mime(path: &Path) -> &'static str {
     match path.extension().and_then(|e| e.to_str()).unwrap_or("").to_ascii_lowercase().as_str() {
         "html" => "text/html; charset=utf-8",
         "js" | "mjs" => "text/javascript; charset=utf-8",
+        "wasm" => "application/wasm",
         "css" => "text/css; charset=utf-8",
         "json" | "map" => "application/json; charset=utf-8",
         "webmanifest" => "application/manifest+json",
@@ -144,7 +146,9 @@ fn not_found() -> Response {
 }
 
 /// Built files, then public files, then the SPA: site, legal pages and /app/* are served by index.html. A missing
-/// file (with an extension) is a real 404, never the HTML page.
+/// file (with an extension) is a real 404, never the HTML page. During the move of the front to Rust + Yew, /app/*
+/// is served by the React build in dist/app when it is there (scripts/build-web.sh builds both); without it, the
+/// Yew front (dist/index.html) serves every page.
 pub async fn site(req: Request) -> Response {
     let head = req.method() == Method::HEAD;
     if req.method() != Method::GET && !head {
@@ -160,12 +164,13 @@ pub async fn site(req: Request) -> Response {
     if EXTENSION.is_match(path) {
         return not_found();
     }
-    let index = root.join("dist/index.html");
+    let react_app = root.join("dist/app/index.html");
+    let index = if (path == "/app" || path.starts_with("/app/")) && react_app.is_file() { react_app } else { root.join("dist/index.html") };
     if !index.is_file() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,
             [(header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-            "Build manquant : lancez `bun run build`.",
+            "Build manquant : lancez `sh scripts/build-web.sh`.",
         )
             .into_response();
     }

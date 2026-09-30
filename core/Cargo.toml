@@ -1,0 +1,27 @@
+[package]
+name = "altim-core"
+version = "1.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Altim : moteurs purs et formats partagés par le serveur et le navigateur (compilé aussi en wasm32)."
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["std"] }
+chrono-tz = "0.10.4"
+icu_normalizer = { version = "2.3.0", default-features = false, features = ["compiled_data"] }
+indexmap = { version = "2", features = ["serde"] }
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order", "float_roundtrip"] }
+url = "2.5.8"
+
+# `Date.now()` in the browser (std::time::SystemTime panics on wasm32-unknown-unknown).
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+js-sys = "0.3.106"
+
+[lints.clippy]
+# Nested `if let` read closer to the TypeScript they port.
+collapsible_if = "allow"
+too_many_arguments = "allow"
+type_complexity = "allow"
