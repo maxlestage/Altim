@@ -7,7 +7,8 @@
 #   web front and compile the server. Slower (no cache: ~6 min) but the deployment works.
 set -eu
 
-if ! command -v cargo >/dev/null 2>&1; then
+# `cargo --version` rather than `command -v cargo`: a rustup proxy with no default toolchain is on PATH but unusable.
+if ! cargo --version >/dev/null 2>&1; then
   echo "-----> Altim : installation de Rust (hors du slug)"
   version=$(sed -n 's/^VERSION=//p' RustConfig)
   export RUSTUP_HOME=/tmp/altim-rust/rustup CARGO_HOME=/tmp/altim-rust/cargo
