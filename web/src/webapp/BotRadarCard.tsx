@@ -53,7 +53,7 @@ export function BotRadarView({ state, report }: { state: "loading" | "pending" |
       {state === "ready" && report && (
         <>
           <p className="small bot-radar-headline">{firstSentence(report.v3?.headline ?? report.headline)}</p>
-          {n != null && <p className="small"><b>Test sur l'avenir : {n} signal{n > 1 ? "s" : ""} sur 30</b></p>}
+          {n != null && <p className="small"><b>Test sur l'avenir : {n} {n > 1 ? "signaux" : "signal"} sur 30</b></p>}
         </>
       )}
       <a href="/app/bot" onClick={onLink} className="link small">Voir le bot →</a>

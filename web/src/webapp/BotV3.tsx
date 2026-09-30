@@ -39,7 +39,7 @@ export function BotV3Section({ v3, timing }: { v3: V3Report; timing: BotReport["
         <div className="val-tiles">
           <div className="val-tile"><span className="muted small">Seuil corrigé</span><b>t ≥ {plain(req, 2)}</b></div>
           <div className="val-tile"><span className="muted small">Tests comptés (v1 à v3)</span><b>{v3.k.total}</b></div>
-          <div className="val-tile"><span className="muted small">Test sur l'avenir</span><b>{fwd} signal{fwd > 1 ? "s" : ""}</b></div>
+          <div className="val-tile"><span className="muted small">Test sur l'avenir</span><b>{fwd} {fwd > 1 ? "signaux" : "signal"}</b></div>
         </div>
         <p className="muted small">
           Protocole écrit avant tout calcul et figé : {v3.k.v1} tests en v1, {v3.k.v2} en v2, {v3.k.v3} en v3. Avec autant d'essais, un t de 2 arrive par hasard ;
