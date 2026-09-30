@@ -2199,7 +2199,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         score: score.value,
         confidence: conf,
         degraded: &degraded,
-        market_open: (inp.kind == Kind::Stock).then(|| crate::live::us_market_open(inp.now)),
+        market_open: (inp.kind == Kind::Stock).then(|| crate::jstime::us_market_open(inp.now)),
     });
     let action_zones = plan.as_ref().map(|pl| guidance::action_zones(pl, m.price, m.atr_d, m.st.nearest_resistance.as_ref()));
     let events: Option<Vec<CalendarEvent>> =

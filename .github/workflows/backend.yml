@@ -2,9 +2,9 @@ name: Serveur (Rust)
 
 on:
   push:
-    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -13,9 +13,6 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -23,14 +20,14 @@ jobs:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: backend
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets --locked -- -D warnings
-      # Unit tests + parity with the TypeScript engines (golden files) + route tests. Network tests are #[ignore].
-      - run: cargo test --locked
+          workspaces: ". -> target"
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      # Unit tests + parity with the TypeScript engines (golden files, now in altim-core) + route tests. Network tests are #[ignore].
+      - run: cargo test --workspace --locked
 
   heroku:
-    name: Build façon Heroku (buildpacks Bun puis Rust) et démarrage
+    name: Build façon Heroku (buildpacks Rust puis Bun) et démarrage
     # heroku-24 is Ubuntu 24.04: the same buildpack scripts, in the same order, on the same system.
     runs-on: ubuntu-24.04
     steps:
@@ -42,8 +39,10 @@ jobs:
           git clone -q --depth 1 https://github.com/jakeg/heroku-buildpack-bun "$W/bp-bun"
           git clone -q --depth 1 https://github.com/emk/heroku-buildpack-rust "$W/bp-rust"
           git archive HEAD | tar -x -C "$W/build"
-          HOME="$W/home" bash "$W/bp-bun/bin/compile" "$W/build" "$W/cache-bun" "$W/env"
+          # Heroku runs the Rust buildpack first (server), then sources its `export` (toolchain) for the Bun buildpack,
+          # whose heroku-postbuild builds the web front (Rust + Yew → WebAssembly) with that toolchain.
           env -u CARGO_HOME -u RUSTUP_HOME bash "$W/bp-rust/bin/compile" "$W/build" "$W/cache-rust" "$W/env"
+          (env -u CARGO_HOME -u RUSTUP_HOME -u CARGO_TARGET_DIR bash -c ". '$W/bp-rust/export' && HOME='$W/home' bash '$W/bp-bun/bin/compile' '$W/build' '$W/cache-bun' '$W/env'")
           echo "BUILD=$W/build" >> "$GITHUB_ENV"
       - name: Phase de publication (release) du Procfile
         run: |
@@ -57,7 +56,9 @@ jobs:
           for i in $(seq 1 30); do curl -fsS localhost:3000/health && curl -fsS localhost:3001/health && break; sleep 1; done
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
-          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/index-'
+          # Yew site at /, the React web app at /app/* during the migration.
+          curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-'
+          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/app/index-'
           test "$(curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w '%{http_code}')" = "404"
           test "$(curl -sS 'localhost:3000/api/candles?base=../x&interval=1h' -o /dev/null -w '%{http_code}')" = "400"
           curl -fsSI localhost:3000/ | grep -qi "content-security-policy"
@@ -71,7 +72,7 @@ jobs:
   heroku-auto:
     name: "Build façon Heroku sans buildpack réglé (détection Node.js) et démarrage"
     # An app connected to GitHub without buildpacks set: Heroku detects Node.js from package.json and runs
-    # "heroku-postbuild" (scripts/heroku-build.sh), which builds the site and compiles the server itself.
+    # "heroku-postbuild" (scripts/heroku-build.sh), which installs Rust, builds the site and compiles the server itself.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
