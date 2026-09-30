@@ -1,4 +1,5 @@
-import { formatPercent, formatPrice, type Tick } from "../market";
+import { formatPercent, type Tick } from "../market";
+import { moneyPrice } from "../money";
 
 const FALLBACK: Tick[] = [
   { symbol: "BTC", name: "Bitcoin", kind: "crypto", price: 0, change: 0, agreeing: 0, total: 0 },
@@ -61,7 +62,7 @@ export function PhoneMockup({ ticks }: { ticks: Tick[] }) {
                   <span className={`badge ${kind}`}>{label}</span>
                 </div>
                 <div className="num">
-                  <b>{t.price ? formatPrice(t.price) : "—"}</b>
+                  <b>{t.price ? moneyPrice(t.price, " ") : "—"}</b>
                   <small className={(t.change ?? 0) >= 0 ? "up" : "down"}>{t.price && t.change !== null ? formatPercent(t.change) : ""}</small>
                 </div>
               </div>

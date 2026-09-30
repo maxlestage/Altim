@@ -28,6 +28,8 @@ import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.Bot
 import com.maxlestage.altim.kit.BotContribution
 import com.maxlestage.altim.kit.BotReport
+import com.maxlestage.altim.kit.BotV3Signal
+import com.maxlestage.altim.kit.BotV3View
 import com.maxlestage.altim.kit.BotView
 import com.maxlestage.altim.kit.BotViews
 import com.maxlestage.altim.kit.Decision
@@ -35,6 +37,8 @@ import com.maxlestage.altim.kit.Kind
 import com.maxlestage.altim.ui.AltimTheme
 import com.maxlestage.altim.ui.AppBackground
 import com.maxlestage.altim.ui.BotAltimView
+import com.maxlestage.altim.ui.BotRadarState
+import com.maxlestage.altim.ui.BotRadarView
 import com.maxlestage.altim.ui.DecisionView
 import com.maxlestage.altim.ui.LocalOpenBot
 import com.maxlestage.altim.ui.LocalOpenValidation
@@ -59,8 +63,8 @@ private class BotMemory : SecretStore {
 }
 
 /**
- * « Bot Altim » rendered from the real /api/bot samples (v2 backend/tests/samples/bot.json, and v1 bot-v1.json which must
- * still render) on a narrow 360 dp phone with the no-overflow check, its card in Réglages and its line in the Décision
+ * « Bot Altim » rendered from the real /api/bot samples (v3 backend/tests/samples/bot.json, v2 bot-v2.json and v1 bot-v1.json,
+ * which must still render) on a narrow 360 dp phone with the no-overflow check, its card in Réglages and its line in the Décision
  * card. Screenshots in app/build/screens/bot*.png.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -113,7 +117,7 @@ class BotScreenTest {
     )
 
     @Test fun wholeScreenFromTheSample() {
-        val report = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot.json"))
+        val report = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot-v2.json"))
         val views = BotViews(
             asOf = report.asOf,
             views = listOf(
@@ -131,7 +135,7 @@ class BotScreenTest {
         compose.waitForIdle()
         val stock = report.groups[0]
         expect(
-            "Bot Altim", "Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre.",
+            "Bot Altim", "Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance, avec un seuil corrigé des essais multiples. Altim ne passe aucun ordre.",
             "Actifs testés", "34 / 34", "Jours testés", "126 990", "Achats / ventes", "2723 / 1326",
             "Ce qui change avec la v2",
             "Vos actifs aujourd'hui", "BTC", "ne compte pas", "compte",
@@ -196,7 +200,7 @@ class BotScreenTest {
         shown = null
         pending = true
         compose.waitForIdle()
-        expect("Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…")
+        expect("Téléchargement des historiques, entraînement et test en cours (plusieurs minutes la première fois)…")
         fitsWidth()
     }
 
@@ -216,6 +220,111 @@ class BotScreenTest {
         fitsWidth()
         reach("(Robinhood)", "Panier fixé le 29/09/2026. Source : ")
         assertTrue(!has("univers élargi"))
+    }
+
+    /** v3 (the real /api/bot answer): the v3 section first, then v2's selection as the reference; nothing wider than the screen. */
+    @Test fun v3ScreenFromTheSample() {
+        val report = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot.json"))
+        val v3 = report.v3!!
+        val views = BotViews(
+            asOf = report.asOf,
+            views = listOf(
+                view.copy(
+                    v3 = BotV3View(
+                        available = true, counts = false, tRequired = v3.tRequired, note = "Aucun avantage démontré",
+                        signals = listOf(BotV3Signal("absolute", 20, action = "wait"), BotV3Signal("peers", 60, action = "buy")),
+                    ),
+                ),
+            ),
+        )
+        compose.setContent { AltimTheme { AppBackground { BotAltimView(report, null, false, Modifier.fillMaxSize(), watched = true, views = views) } } }
+        compose.waitForIdle()
+        expect("Bot v3 · pré-enregistré le 30/09/2026", "Seuil corrigé", "t ≥ 3,52", "Tests comptés (v1 à v3)", "114", "Test sur l'avenir", "0 signal",
+            "Protocole écrit avant tout calcul et figé : 4 tests en v1, 20 en v2, 90 en v3.", "Modifié après le pré-enregistrement :", "Ce qui change avec la v3")
+        assertTrue(has(report.headline))
+        v3.afterPrereg.forEach { assertTrue("afterPrereg absent : $it", has(it)) }
+        assertTrue(!has(v3.changes[0]))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/bot-v3.png")
+        click("Ce qui change avec la v3")
+        assertTrue(has(v3.changes[0]))
+        fitsWidth()
+
+        val stock = v3.groups[0]
+        reach(
+            "Résultats v3 hors échantillon", "Panier fixe, signaux datés jusqu'au 30/09/2026",
+            stock.label, "22 actifs testés, 72 de plus à l'entraînement · historique médian 36,7 ans · classement entre pairs possible depuis ",
+            "À 20 jours", " · 31 réentraînements", "Hausse ou baisse de l'actif", "Classement entre pairs",
+            "requis 3,52", "ACHETER · face à la médiane", "Face à la moyenne du groupe (contrôle ajouté après coup) : +0,67 point",
+            "Sur le passé : avantage face aux deux références.",
+            "Avantage mesuré sur le passé (t = 3,65 contre 3,52 exigé) mais fragile : il ne comptera qu'après 30 signaux sur l'avenir qui le confirment (0 à ce jour).",
+            "Avantage au seuil corrigé (t ≥ 3,52), à confirmer", "Achats cumulés / détention (médianes)", "Modèle retenu à chaque réentraînement",
+            "À 60 jours", v3.groups[1].label,
+        )
+        reach(
+            "Depuis le 30/09/2026 (test sur l'avenir)", v3.forwardHeadline, "Le seul test vraiment neuf",
+            "Actions et ETF américains · Classement entre pairs · 20 jours", "Aucun signal jugé pour l'instant (il faut 20 à 60 jours de bourse après le signal).",
+            "Chaque configuration seule", "Actions et ETF américains · 20 jours", "principal", "2659 achats", "+0,92 point (t = 4,9 (requis 3,52))",
+            "Face à la moyenne", "retenu ",
+            "Cryptos (bitcoin, ether, altcoins) · 60 jours",
+            "Tendance à volatilité gérée", "Règle publiée, sans apprentissage", "Ratio de Sharpe", "gérée 0,96 · détention 0,87", "Pire baisse", "Portefeuille à parts égales : ratio de Sharpe 0,96 contre 0,87 en gardant",
+            "Comment la v3 est jugée", v3.method[0], "Les ${v3.candidates.size} candidats", "Limites de la v3",
+            "Calcul : 9 min 43 s de calcul sur 1 cœur, pic mémoire 301 Mo (téléchargement 13 s) ; 200 réentraînements",
+        )
+        click("Limites de la v3")
+        assertTrue(has(v3.limits[0]))
+        fitsWidth()
+        // v2's selection below, as the reference; its own "what changes" card is not shown.
+        reach(
+            "Vos actifs aujourd'hui", "v3 :", "entre pairs 60 j",
+            "Référence : sélection v2 à 20 jours", "Le modèle de la v2 (choisi par log-loss) refait sur les nouvelles données, jugé au seuil corrigé (t ≥ 3,52).",
+            "Sélection v2 : résultats hors échantillon", "Actif par actif", "v3 : hausse/baisse 20 j", "· entre pairs 20 j",
+        )
+        assertTrue(!has("Ce qui change avec la v2"))
+        reach("Limites", "Panier fixé le ")
+        assertTrue(!has("s d'entraînement et de test."))
+    }
+
+    /** Radar: the compact « Bot Altim » card (headline's first sentence, forward counter, link) and its honest states. */
+    @Test @Config(qualifiers = "w360dp-h2000dp-xhdpi")
+    fun radarCard() {
+        val report = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot.json"))
+        var state by mutableStateOf(BotRadarState.READY)
+        var shown by mutableStateOf<BotReport?>(report)
+        var opens = 0
+        compose.setContent {
+            AltimTheme {
+                AppBackground {
+                    CompositionLocalProvider(LocalOpenBot provides { opens++ }) { Box(Modifier.fillMaxWidth().padding(16.dp)) { BotRadarView(state, shown) } }
+                }
+            }
+        }
+        compose.waitForIdle()
+        val first = report.v3!!.headline.substringBefore(". ") + "."
+        expect("Bot Altim", first, "Test sur l'avenir : 0 signal sur 30", "Voir le bot →")
+        assertTrue(first.endsWith("le bot ne pèse pas dans les décisions."))
+        assertTrue(!has("Face à la médiane du groupe (critère pré-enregistré)"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/bot-radar.png")
+        click("Voir le bot →")
+        assertEquals(1, opens)
+        // A v2 answer: its headline, no forward counter.
+        shown = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot-v2.json"))
+        compose.waitForIdle()
+        assertTrue(!has("Test sur l'avenir"))
+        expect("Hors échantillon, le bot n'a pas fait mieux")
+        fitsWidth()
+        state = BotRadarState.ERROR
+        shown = null
+        compose.waitForIdle()
+        expect("Résultats indisponibles pour le moment.", "Voir le bot →")
+        state = BotRadarState.PENDING
+        compose.waitForIdle()
+        expect("Entraînement et test en cours sur le serveur (plusieurs minutes la première fois)…")
+        state = BotRadarState.LOADING
+        compose.waitForIdle()
+        expect("Chargement…")
+        fitsWidth()
     }
 
     /** Réglages: the « Bot Altim » card opens the screen. */
@@ -258,6 +367,26 @@ class BotScreenTest {
         compose.onRoot().captureRoboImage("build/screens/bot-decision.png")
         click("Voir le bot et ses résultats →")
         assertEquals(1, opens)
+
+        // v3: its note and whether it counts replace v2's; today's action of the 4 headline configurations.
+        val v3Note = "Avantage mesuré sur le passé (t = 3,65 contre 3,52 exigé) mais fragile : il ne comptera qu'après 30 signaux sur l'avenir qui le confirment (0 à ce jour)."
+        shown = d.copy(
+            bot = view.copy(
+                counts = true,
+                v3 = BotV3View(
+                    available = true, counts = false, nudge = 0.0, tRequired = 3.5157, note = v3Note,
+                    signals = listOf(
+                        BotV3Signal("absolute", 20, action = "wait"), BotV3Signal("absolute", 60, action = "wait"),
+                        BotV3Signal("peers", 20, action = "buy", pending = true), BotV3Signal("peers", 60, action = "sell"),
+                    ),
+                ),
+            ),
+        )
+        compose.waitForIdle()
+        expect(v3Note, "ne compte pas", "v3 :", "hausse/baisse 20 j", "hausse/baisse 60 j", "entre pairs 20 j", "entre pairs 60 j", "ACHETER", "VENDRE")
+        assertTrue(!has("Le bot n'a pas démontré d'avantage hors échantillon"))
+        fitsWidth()
+        compose.onRoot().captureRoboImage("build/screens/bot-decision-v3.png")
 
         shown = d.copy(bot = BotView(available = false, text = "Bot pas encore entraîné : ouvrez l'écran « Bot Altim » pour lancer l'entraînement (quelques minutes)."))
         compose.waitForIdle()

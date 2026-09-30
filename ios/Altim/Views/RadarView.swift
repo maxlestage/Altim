@@ -49,6 +49,7 @@ struct RadarView: View {
                 searchSection
             } else {
                 Section { BriefCard() }.listRowBackground(Color.clear)
+                Section { BotRadarCard() }.listRowBackground(Color.clear)
                 if let macro, macro.level != "calm" {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
                 }

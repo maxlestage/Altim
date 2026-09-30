@@ -12,7 +12,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// Same cases and expected values as web/test/bot.test.ts, on the real /api/bot samples: v2 (backend/tests/samples/bot.json)
+// Same cases and expected values as web/test/bot.test.ts, on the real /api/bot samples: v2 (backend/tests/samples/bot-v2.json)
 // and v1 (bot-v1.json, which must still decode and read as before), plus the partial decoding, the `bot` field of a
 // decision, the 202 polling answer, the views route and the offline cache.
 
@@ -21,7 +21,7 @@ private const val N = "\u202F"
 class BotTest {
     private fun raw(name: String) = requireNotNull(javaClass.getResource("/fixtures/$name")).readText()
     private val report = AltimJson.decodeFromString(BotReport.serializer(), raw("bot-v1.json"))
-    private val v2 = AltimJson.decodeFromString(BotReport.serializer(), raw("bot.json"))
+    private val v2 = AltimJson.decodeFromString(BotReport.serializer(), raw("bot-v2.json"))
 
     @Test fun v2GroupsCandidatesAndSelectionAddUp() {
         assertEquals(2, v2.version)
@@ -318,7 +318,7 @@ class BotTest {
             assertTrue("/api/bot/views" in AltimClient.CACHEABLE)
             val c = AltimClient(server.url("/"), null, cache = FileResponseCache(dir))
             server.enqueue(MockResponse.Builder().code(202).body("""{"pending":true}""").build())
-            server.enqueue(MockResponse.Builder().code(200).body(raw("bot.json")).build())
+            server.enqueue(MockResponse.Builder().code(200).body(raw("bot-v2.json")).build())
             assertIs<BotResult.Pending>(c.bot())
             assertEquals("/api/bot", server.takeRequest().url.encodedPath)
             assertEquals(34, assertIs<BotResult.Ready>(c.bot()).report.assets.size)

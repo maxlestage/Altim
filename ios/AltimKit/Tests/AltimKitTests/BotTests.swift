@@ -2,16 +2,16 @@ import Foundation
 import XCTest
 @testable import AltimKit
 
-/// « Bot Altim »: same cases as web/test/bot.test.ts on the real /api/bot answers (backend/tests/samples/bot.json, v2,
-/// and bot-v1.json, copied as Fixtures/bot.json and Fixtures/bot-v1.json), plus the optional-safe decoding,
-/// /api/bot/views and the `bot` field of a decision.
+/// « Bot Altim »: same cases as web/test/bot.test.ts on the real /api/bot answers (backend/tests/samples/bot-v2.json and
+/// bot-v1.json, copied as Fixtures/bot-v2.json and Fixtures/bot-v1.json; the v3 answer bot.json is in BotV3Tests), plus
+/// the optional-safe decoding, /api/bot/views and the `bot` field of a decision.
 final class BotTests: XCTestCase {
     func raw(_ name: String) throws -> Data {
         let url = try XCTUnwrap(Bundle.module.url(forResource: name, withExtension: "json", subdirectory: "Fixtures"))
         return try Data(contentsOf: url)
     }
 
-    func sample() throws -> BotReport { try JSONDecoder().decode(BotReport.self, from: raw("bot")) }
+    func sample() throws -> BotReport { try JSONDecoder().decode(BotReport.self, from: raw("bot-v2")) }
     func sampleV1() throws -> BotReport { try JSONDecoder().decode(BotReport.self, from: raw("bot-v1")) }
 
     /// Narrow no-break spaces (before %) read as plain spaces in the expectations.

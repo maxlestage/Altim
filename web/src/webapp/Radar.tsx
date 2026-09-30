@@ -3,6 +3,7 @@ import { api, INTERVAL_LABEL, type BuyAlert, type MacroInfo, type RadarRow, type
 import { onLink } from "./router";
 import { assetKey, setState, useAppState, type Interval, type WatchItem } from "./store";
 import { BriefCard } from "./BriefCard";
+import { BotRadarCard } from "./BotRadarCard";
 import { CompareCard } from "./ToolCards";
 import { Change, ReliabilityBadge, Segmented, Sparkline, technicalText } from "./ui";
 import { LiveBadge, LivePrice, useLive } from "./live";
@@ -191,6 +192,7 @@ export function Radar() {
       />
 
       <BriefCard />
+      <BotRadarCard />
 
       <a href="/app/alertes" onClick={onLink} className="btn btn-ghost btn-small alerts-link">🔔 Alertes : achetables, alertes de prix, notifications</a>
 

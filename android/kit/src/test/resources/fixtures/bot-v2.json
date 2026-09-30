@@ -1,0 +1,5954 @@
+{
+  "asOf": 1790690207853,
+  "basketFixedOn": "2026-09-29",
+  "headline": "Hors échantillon, le bot n'a pas fait mieux qu'une entrée ou une sortie au hasard de façon démontrée, ni sur les actions ni sur les cryptos : il ne compte pas dans les décisions. Attention : ses achats sur les actions ont fait moins bien qu'une entrée au hasard (t = −2,4) ; ses ventes sur les actions ont été suivies de hausses (t = −4,5).",
+  "overall": {
+    "testRows": 127704,
+    "labelled": 126990,
+    "buy": {
+      "signals": 2723,
+      "meanNet": 2.61,
+      "baselineNet": 3.08,
+      "allDaysNet": 1.98,
+      "excess": -0.47,
+      "tStat": -0.92,
+      "rawTStat": 5.78,
+      "clustered": {
+        "byDate": -0.92,
+        "dates": 1576,
+        "byAsset": -1.78,
+        "assets": 34,
+        "perSignal": -1.12
+      },
+      "hitRate": 55.9,
+      "baselineHitRate": 55.3,
+      "medianBotReturn": 158.8,
+      "medianHoldReturn": 752.62,
+      "beatHold": 6,
+      "assets": 34,
+      "verdict": "unproven",
+      "verdictLabel": "Avantage non démontré"
+    },
+    "sell": {
+      "signals": 1326,
+      "meanAfter": 2.86,
+      "baselineAfter": 1.47,
+      "allDaysAfter": 2.3,
+      "avoided": -1.38,
+      "tStat": -1.93,
+      "clustered": {
+        "byDate": -1.93,
+        "dates": 815,
+        "byAsset": -7.46,
+        "assets": 34,
+        "perSignal": -2.66
+      },
+      "fallRate": 43.2,
+      "baselineFallRate": 41.2,
+      "meanDrawdown": -9.6,
+      "baselineDrawdown": -9.88,
+      "exit": {
+        "assets": 34,
+        "outShare": 20.8,
+        "medianHoldMaxDrawdown": -68.59,
+        "medianBotMaxDrawdown": -62.18,
+        "medianDrawdownAvoided": 2.42,
+        "medianHoldReturn": 752.62,
+        "medianBotReturn": 289.42,
+        "beatHold": 5
+      },
+      "verdict": "unproven",
+      "verdictLabel": "Avantage non démontré"
+    },
+    "wait": {
+      "days": 67917,
+      "share": 53.5,
+      "meanNet": 1.38,
+      "baselineNet": 1.98
+    },
+    "brierSkillUp": -0.6,
+    "brierSkillDown": -0.6,
+    "calibrationUp": [
+      {
+        "from": 0,
+        "to": 30,
+        "label": "moins de 30 %",
+        "rows": 6,
+        "predicted": 18,
+        "realised": 50
+      },
+      {
+        "from": 30,
+        "to": 40,
+        "label": "30 à 40 %",
+        "rows": 496,
+        "predicted": 38.2,
+        "realised": 52.6
+      },
+      {
+        "from": 40,
+        "to": 50,
+        "label": "40 à 50 %",
+        "rows": 25825,
+        "predicted": 46,
+        "realised": 50.9
+      },
+      {
+        "from": 50,
+        "to": 60,
+        "label": "50 à 60 %",
+        "rows": 95773,
+        "predicted": 55.1,
+        "realised": 56.7
+      },
+      {
+        "from": 60,
+        "to": 70,
+        "label": "60 à 70 %",
+        "rows": 4736,
+        "predicted": 62.4,
+        "realised": 51
+      },
+      {
+        "from": 70,
+        "to": 100,
+        "label": "70 % et plus",
+        "rows": 154,
+        "predicted": 73.2,
+        "realised": 59.1
+      }
+    ],
+    "calibrationDown": [
+      {
+        "from": 0,
+        "to": 30,
+        "label": "moins de 30 %",
+        "rows": 365,
+        "predicted": 27.6,
+        "realised": 42.2
+      },
+      {
+        "from": 30,
+        "to": 40,
+        "label": "30 à 40 %",
+        "rows": 48407,
+        "predicted": 38.5,
+        "realised": 39.7
+      },
+      {
+        "from": 40,
+        "to": 50,
+        "label": "40 à 50 %",
+        "rows": 58204,
+        "predicted": 43.7,
+        "realised": 40.8
+      },
+      {
+        "from": 50,
+        "to": 60,
+        "label": "50 à 60 %",
+        "rows": 19819,
+        "predicted": 53.1,
+        "realised": 46.1
+      },
+      {
+        "from": 60,
+        "to": 70,
+        "label": "60 à 70 %",
+        "rows": 189,
+        "predicted": 62.2,
+        "realised": 38.1
+      },
+      {
+        "from": 70,
+        "to": 100,
+        "label": "70 % et plus",
+        "rows": 6,
+        "predicted": 81.8,
+        "realised": 50
+      }
+    ]
+  },
+  "groups": [
+    {
+      "id": "stock",
+      "label": "Actions et ETF américains",
+      "assets": 22,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "blocks": 17,
+      "trainedBlocks": 17,
+      "testRows": 92453,
+      "labelled": 91991,
+      "buy": {
+        "signals": 1977,
+        "meanNet": 0.98,
+        "baselineNet": 1.36,
+        "allDaysNet": 1.06,
+        "excess": -0.38,
+        "tStat": -2.4,
+        "rawTStat": 6.93,
+        "clustered": {
+          "byDate": -2.4,
+          "dates": 1067,
+          "byAsset": -4.46,
+          "assets": 22,
+          "perSignal": -2.84
+        },
+        "hitRate": 57.9,
+        "baselineHitRate": 57.5,
+        "medianBotReturn": 97.16,
+        "medianHoldReturn": 647.46,
+        "beatHold": 0,
+        "assets": 22,
+        "verdict": "negative",
+        "verdictLabel": "Moins bien qu'une entrée au hasard (t ≤ −2 par jour)"
+      },
+      "sell": {
+        "signals": 714,
+        "meanAfter": 2.61,
+        "baselineAfter": 0.76,
+        "allDaysAfter": 1.38,
+        "avoided": -1.85,
+        "tStat": -4.51,
+        "clustered": {
+          "byDate": -4.51,
+          "dates": 409,
+          "byAsset": -8.89,
+          "assets": 22,
+          "perSignal": -5.23
+        },
+        "fallRate": 37,
+        "baselineFallRate": 38.3,
+        "meanDrawdown": -6.04,
+        "baselineDrawdown": -6.12,
+        "exit": {
+          "assets": 22,
+          "outShare": 15.5,
+          "medianHoldMaxDrawdown": -46.13,
+          "medianBotMaxDrawdown": -47.93,
+          "medianDrawdownAvoided": -0.15,
+          "medianHoldReturn": 647.46,
+          "medianBotReturn": 289.42,
+          "beatHold": 1
+        },
+        "verdict": "negative",
+        "verdictLabel": "Ventes à contretemps : la hausse a suivi (t ≤ −2 par jour)"
+      },
+      "wait": {
+        "days": 52561,
+        "share": 57.1,
+        "meanNet": 1.01,
+        "baselineNet": 1.06
+      },
+      "brierSkillUp": -0.6,
+      "brierSkillDown": -0.6,
+      "calibrationUp": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 3,
+          "predicted": 27,
+          "realised": 100
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 339,
+          "predicted": 38,
+          "realised": 47.8
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 6970,
+          "predicted": 44.6,
+          "realised": 55.7
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 81506,
+          "predicted": 55.2,
+          "realised": 57.9
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 3140,
+          "predicted": 62.3,
+          "realised": 54.6
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 33,
+          "predicted": 71.3,
+          "realised": 45.5
+        }
+      ],
+      "calibrationDown": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 225,
+          "predicted": 28.5,
+          "realised": 46.2
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 45492,
+          "predicted": 38.6,
+          "realised": 38.9
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 41294,
+          "predicted": 42.7,
+          "realised": 37
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 4835,
+          "predicted": 54.1,
+          "realised": 42.9
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 142,
+          "predicted": 62.3,
+          "realised": 38
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 3,
+          "predicted": 72.8,
+          "realised": 0
+        }
+      ],
+      "model": {
+        "trainedRows": 89163,
+        "trainedFrom": 1190122200000,
+        "trainedTo": 1787837400000,
+        "up": {
+          "baseRate": 55.47592611284951,
+          "threshold": 60.47592611284951,
+          "intercept": 0.22025810209499364,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": 0.004763057252639396,
+              "mean": 0.25762270290190603,
+              "sd": 4.09969957235678
+            },
+            {
+              "id": "ret20",
+              "coef": -0.017015260035645154,
+              "mean": 1.0146213366870975,
+              "sd": 7.950469659117977
+            },
+            {
+              "id": "ret60",
+              "coef": -0.013102349127005515,
+              "mean": 2.995522995908153,
+              "sd": 13.82721305589591
+            },
+            {
+              "id": "rsi14",
+              "coef": -0.030258977430458373,
+              "mean": 52.58295828643424,
+              "sd": 11.834057802428465
+            },
+            {
+              "id": "ema50",
+              "coef": -0.014358644880735811,
+              "mean": 0.8282654494972752,
+              "sd": 6.064222653628211
+            },
+            {
+              "id": "ema200",
+              "coef": -0.012616387656526886,
+              "mean": 3.3718641994389476,
+              "sd": 12.21438677190629
+            },
+            {
+              "id": "macd",
+              "coef": 0.028206333017092376,
+              "mean": -0.00038044094304102446,
+              "sd": 0.6371220344019464
+            },
+            {
+              "id": "atr14",
+              "coef": -0.038589214369260195,
+              "mean": 2.2977595762550265,
+              "sd": 1.4246733571310182
+            },
+            {
+              "id": "vol20",
+              "coef": -0.00810750110804751,
+              "mean": 1.6136754115199958,
+              "sd": 1.1171145397413376
+            },
+            {
+              "id": "volume",
+              "coef": 0.02088237986270226,
+              "mean": 0.06691945905138949,
+              "sd": 1.2569458503373325
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.0027115714379989846,
+              "mean": -11.299678257003853,
+              "sd": 11.805008119822633
+            },
+            {
+              "id": "range20",
+              "coef": -0.0004797496069784225,
+              "mean": 0.5635976274134583,
+              "sd": 0.3027084192087665
+            },
+            {
+              "id": "bull",
+              "coef": 0.005539558980225383,
+              "mean": 0.5746666218050088,
+              "sd": 0.49439346232330883
+            },
+            {
+              "id": "bear",
+              "coef": -0.011474934854193672,
+              "mean": 0.16753586128775388,
+              "sd": 0.37345360685134943
+            },
+            {
+              "id": "range",
+              "coef": 0.013430257940874,
+              "mean": 0.16680685934748718,
+              "sd": 0.37280334094836126
+            },
+            {
+              "id": "crisis",
+              "coef": -0.012031506300097904,
+              "mean": 0.09099065755975012,
+              "sd": 0.2875958236769852
+            },
+            {
+              "id": "mom12_1",
+              "coef": 0.03048652022614946,
+              "mean": 11.961993207868165,
+              "sd": 32.52054792751061
+            },
+            {
+              "id": "high52",
+              "coef": -0.03515085199300606,
+              "mean": -12.174088323630142,
+              "sd": 12.639386390175122
+            },
+            {
+              "id": "rs20",
+              "coef": 0.04014357889277624,
+              "mean": 0.2009196120740787,
+              "sd": 6.6148334447076955
+            },
+            {
+              "id": "rs60",
+              "coef": 0.006048880201678511,
+              "mean": 0.6128831185752305,
+              "sd": 11.832890243213376
+            },
+            {
+              "id": "rs120",
+              "coef": 0.01834722705405989,
+              "mean": 1.3106488795119098,
+              "sd": 17.907665098560017
+            },
+            {
+              "id": "mkt_trend",
+              "coef": 0.004867327404277407,
+              "mean": 3.5682057691840687,
+              "sd": 8.127976464115992
+            },
+            {
+              "id": "mkt_vol20",
+              "coef": 0.01630173071552245,
+              "mean": 1.0265124742212304,
+              "sd": 0.7189069244456606
+            },
+            {
+              "id": "mkt_ret60",
+              "coef": -0.03314546178577095,
+              "mean": 2.382639885147293,
+              "sd": 7.625319102595461
+            }
+          ]
+        },
+        "down": {
+          "baseRate": 40.43269069008445,
+          "threshold": 45.43269069008445,
+          "intercept": -0.3879486759793353,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": -0.006203136954391247,
+              "mean": 0.25762270290190603,
+              "sd": 4.09969957235678
+            },
+            {
+              "id": "ret20",
+              "coef": 0.015092804775767715,
+              "mean": 1.0146213366870975,
+              "sd": 7.950469659117977
+            },
+            {
+              "id": "ret60",
+              "coef": 0.012267266897831834,
+              "mean": 2.995522995908153,
+              "sd": 13.82721305589591
+            },
+            {
+              "id": "rsi14",
+              "coef": 0.022576878198419473,
+              "mean": 52.58295828643424,
+              "sd": 11.834057802428465
+            },
+            {
+              "id": "ema50",
+              "coef": 0.01958040189518659,
+              "mean": 0.8282654494972752,
+              "sd": 6.064222653628211
+            },
+            {
+              "id": "ema200",
+              "coef": 0.02292988881562324,
+              "mean": 3.3718641994389476,
+              "sd": 12.21438677190629
+            },
+            {
+              "id": "macd",
+              "coef": -0.02425731819014118,
+              "mean": -0.00038044094304102446,
+              "sd": 0.6371220344019464
+            },
+            {
+              "id": "atr14",
+              "coef": 0.056068187923552205,
+              "mean": 2.2977595762550265,
+              "sd": 1.4246733571310182
+            },
+            {
+              "id": "vol20",
+              "coef": 0.010668017120753326,
+              "mean": 1.6136754115199958,
+              "sd": 1.1171145397413376
+            },
+            {
+              "id": "volume",
+              "coef": -0.017915225091442513,
+              "mean": 0.06691945905138949,
+              "sd": 1.2569458503373325
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.011850719496351306,
+              "mean": -11.299678257003853,
+              "sd": 11.805008119822633
+            },
+            {
+              "id": "range20",
+              "coef": -0.003574271600811441,
+              "mean": 0.5635976274134583,
+              "sd": 0.3027084192087665
+            },
+            {
+              "id": "bull",
+              "coef": -0.012078374845850639,
+              "mean": 0.5746666218050088,
+              "sd": 0.49439346232330883
+            },
+            {
+              "id": "bear",
+              "coef": 0.018840996126033675,
+              "mean": 0.16753586128775388,
+              "sd": 0.37345360685134943
+            },
+            {
+              "id": "range",
+              "coef": -0.012577912395085602,
+              "mean": 0.16680685934748718,
+              "sd": 0.37280334094836126
+            },
+            {
+              "id": "crisis",
+              "coef": 0.012602127930944607,
+              "mean": 0.09099065755975012,
+              "sd": 0.2875958236769852
+            },
+            {
+              "id": "mom12_1",
+              "coef": -0.021918573673089276,
+              "mean": 11.961993207868165,
+              "sd": 32.52054792751061
+            },
+            {
+              "id": "high52",
+              "coef": 0.016380624724946037,
+              "mean": -12.174088323630142,
+              "sd": 12.639386390175122
+            },
+            {
+              "id": "rs20",
+              "coef": -0.030609222021599502,
+              "mean": 0.2009196120740787,
+              "sd": 6.6148334447076955
+            },
+            {
+              "id": "rs60",
+              "coef": -0.0038681975834780214,
+              "mean": 0.6128831185752305,
+              "sd": 11.832890243213376
+            },
+            {
+              "id": "rs120",
+              "coef": -0.011924508591444396,
+              "mean": 1.3106488795119098,
+              "sd": 17.907665098560017
+            },
+            {
+              "id": "mkt_trend",
+              "coef": -0.006480857343319483,
+              "mean": 3.5682057691840687,
+              "sd": 8.127976464115992
+            },
+            {
+              "id": "mkt_vol20",
+              "coef": -0.02052725329434383,
+              "mean": 1.0265124742212304,
+              "sd": 0.7189069244456606
+            },
+            {
+              "id": "mkt_ret60",
+              "coef": 0.02824722246925834,
+              "mean": 2.382639885147293,
+              "sd": 7.625319102595461
+            }
+          ]
+        },
+        "candidate": "logit",
+        "scores": [
+          {
+            "id": "v1",
+            "logLoss": 0.6893353032912963
+          },
+          {
+            "id": "logit",
+            "logLoss": 0.6885334037662926
+          },
+          {
+            "id": "trees",
+            "logLoss": 0.7018278944481625
+          },
+          {
+            "id": "trend",
+            "logLoss": 0.6901285997159357
+          }
+        ],
+        "upModel": {
+          "baseRate": 55.47592611284951,
+          "threshold": 60.47592611284951,
+          "logit": {
+            "baseRate": 55.47592611284951,
+            "threshold": 60.47592611284951,
+            "intercept": 0.22025810209499364,
+            "weights": [
+              {
+                "id": "ret5",
+                "coef": 0.004763057252639396,
+                "mean": 0.25762270290190603,
+                "sd": 4.09969957235678
+              },
+              {
+                "id": "ret20",
+                "coef": -0.017015260035645154,
+                "mean": 1.0146213366870975,
+                "sd": 7.950469659117977
+              },
+              {
+                "id": "ret60",
+                "coef": -0.013102349127005515,
+                "mean": 2.995522995908153,
+                "sd": 13.82721305589591
+              },
+              {
+                "id": "rsi14",
+                "coef": -0.030258977430458373,
+                "mean": 52.58295828643424,
+                "sd": 11.834057802428465
+              },
+              {
+                "id": "ema50",
+                "coef": -0.014358644880735811,
+                "mean": 0.8282654494972752,
+                "sd": 6.064222653628211
+              },
+              {
+                "id": "ema200",
+                "coef": -0.012616387656526886,
+                "mean": 3.3718641994389476,
+                "sd": 12.21438677190629
+              },
+              {
+                "id": "macd",
+                "coef": 0.028206333017092376,
+                "mean": -0.00038044094304102446,
+                "sd": 0.6371220344019464
+              },
+              {
+                "id": "atr14",
+                "coef": -0.038589214369260195,
+                "mean": 2.2977595762550265,
+                "sd": 1.4246733571310182
+              },
+              {
+                "id": "vol20",
+                "coef": -0.00810750110804751,
+                "mean": 1.6136754115199958,
+                "sd": 1.1171145397413376
+              },
+              {
+                "id": "volume",
+                "coef": 0.02088237986270226,
+                "mean": 0.06691945905138949,
+                "sd": 1.2569458503373325
+              },
+              {
+                "id": "drawdown",
+                "coef": -0.0027115714379989846,
+                "mean": -11.299678257003853,
+                "sd": 11.805008119822633
+              },
+              {
+                "id": "range20",
+                "coef": -0.0004797496069784225,
+                "mean": 0.5635976274134583,
+                "sd": 0.3027084192087665
+              },
+              {
+                "id": "bull",
+                "coef": 0.005539558980225383,
+                "mean": 0.5746666218050088,
+                "sd": 0.49439346232330883
+              },
+              {
+                "id": "bear",
+                "coef": -0.011474934854193672,
+                "mean": 0.16753586128775388,
+                "sd": 0.37345360685134943
+              },
+              {
+                "id": "range",
+                "coef": 0.013430257940874,
+                "mean": 0.16680685934748718,
+                "sd": 0.37280334094836126
+              },
+              {
+                "id": "crisis",
+                "coef": -0.012031506300097904,
+                "mean": 0.09099065755975012,
+                "sd": 0.2875958236769852
+              },
+              {
+                "id": "mom12_1",
+                "coef": 0.03048652022614946,
+                "mean": 11.961993207868165,
+                "sd": 32.52054792751061
+              },
+              {
+                "id": "high52",
+                "coef": -0.03515085199300606,
+                "mean": -12.174088323630142,
+                "sd": 12.639386390175122
+              },
+              {
+                "id": "rs20",
+                "coef": 0.04014357889277624,
+                "mean": 0.2009196120740787,
+                "sd": 6.6148334447076955
+              },
+              {
+                "id": "rs60",
+                "coef": 0.006048880201678511,
+                "mean": 0.6128831185752305,
+                "sd": 11.832890243213376
+              },
+              {
+                "id": "rs120",
+                "coef": 0.01834722705405989,
+                "mean": 1.3106488795119098,
+                "sd": 17.907665098560017
+              },
+              {
+                "id": "mkt_trend",
+                "coef": 0.004867327404277407,
+                "mean": 3.5682057691840687,
+                "sd": 8.127976464115992
+              },
+              {
+                "id": "mkt_vol20",
+                "coef": 0.01630173071552245,
+                "mean": 1.0265124742212304,
+                "sd": 0.7189069244456606
+              },
+              {
+                "id": "mkt_ret60",
+                "coef": -0.03314546178577095,
+                "mean": 2.382639885147293,
+                "sd": 7.625319102595461
+              }
+            ]
+          },
+          "trees": null,
+          "trend": null
+        },
+        "downModel": {
+          "baseRate": 40.43269069008445,
+          "threshold": 45.43269069008445,
+          "logit": {
+            "baseRate": 40.43269069008445,
+            "threshold": 45.43269069008445,
+            "intercept": -0.3879486759793353,
+            "weights": [
+              {
+                "id": "ret5",
+                "coef": -0.006203136954391247,
+                "mean": 0.25762270290190603,
+                "sd": 4.09969957235678
+              },
+              {
+                "id": "ret20",
+                "coef": 0.015092804775767715,
+                "mean": 1.0146213366870975,
+                "sd": 7.950469659117977
+              },
+              {
+                "id": "ret60",
+                "coef": 0.012267266897831834,
+                "mean": 2.995522995908153,
+                "sd": 13.82721305589591
+              },
+              {
+                "id": "rsi14",
+                "coef": 0.022576878198419473,
+                "mean": 52.58295828643424,
+                "sd": 11.834057802428465
+              },
+              {
+                "id": "ema50",
+                "coef": 0.01958040189518659,
+                "mean": 0.8282654494972752,
+                "sd": 6.064222653628211
+              },
+              {
+                "id": "ema200",
+                "coef": 0.02292988881562324,
+                "mean": 3.3718641994389476,
+                "sd": 12.21438677190629
+              },
+              {
+                "id": "macd",
+                "coef": -0.02425731819014118,
+                "mean": -0.00038044094304102446,
+                "sd": 0.6371220344019464
+              },
+              {
+                "id": "atr14",
+                "coef": 0.056068187923552205,
+                "mean": 2.2977595762550265,
+                "sd": 1.4246733571310182
+              },
+              {
+                "id": "vol20",
+                "coef": 0.010668017120753326,
+                "mean": 1.6136754115199958,
+                "sd": 1.1171145397413376
+              },
+              {
+                "id": "volume",
+                "coef": -0.017915225091442513,
+                "mean": 0.06691945905138949,
+                "sd": 1.2569458503373325
+              },
+              {
+                "id": "drawdown",
+                "coef": -0.011850719496351306,
+                "mean": -11.299678257003853,
+                "sd": 11.805008119822633
+              },
+              {
+                "id": "range20",
+                "coef": -0.003574271600811441,
+                "mean": 0.5635976274134583,
+                "sd": 0.3027084192087665
+              },
+              {
+                "id": "bull",
+                "coef": -0.012078374845850639,
+                "mean": 0.5746666218050088,
+                "sd": 0.49439346232330883
+              },
+              {
+                "id": "bear",
+                "coef": 0.018840996126033675,
+                "mean": 0.16753586128775388,
+                "sd": 0.37345360685134943
+              },
+              {
+                "id": "range",
+                "coef": -0.012577912395085602,
+                "mean": 0.16680685934748718,
+                "sd": 0.37280334094836126
+              },
+              {
+                "id": "crisis",
+                "coef": 0.012602127930944607,
+                "mean": 0.09099065755975012,
+                "sd": 0.2875958236769852
+              },
+              {
+                "id": "mom12_1",
+                "coef": -0.021918573673089276,
+                "mean": 11.961993207868165,
+                "sd": 32.52054792751061
+              },
+              {
+                "id": "high52",
+                "coef": 0.016380624724946037,
+                "mean": -12.174088323630142,
+                "sd": 12.639386390175122
+              },
+              {
+                "id": "rs20",
+                "coef": -0.030609222021599502,
+                "mean": 0.2009196120740787,
+                "sd": 6.6148334447076955
+              },
+              {
+                "id": "rs60",
+                "coef": -0.0038681975834780214,
+                "mean": 0.6128831185752305,
+                "sd": 11.832890243213376
+              },
+              {
+                "id": "rs120",
+                "coef": -0.011924508591444396,
+                "mean": 1.3106488795119098,
+                "sd": 17.907665098560017
+              },
+              {
+                "id": "mkt_trend",
+                "coef": -0.006480857343319483,
+                "mean": 3.5682057691840687,
+                "sd": 8.127976464115992
+              },
+              {
+                "id": "mkt_vol20",
+                "coef": -0.02052725329434383,
+                "mean": 1.0265124742212304,
+                "sd": 0.7189069244456606
+              },
+              {
+                "id": "mkt_ret60",
+                "coef": 0.02824722246925834,
+                "mean": 2.382639885147293,
+                "sd": 7.625319102595461
+              }
+            ]
+          },
+          "trees": null,
+          "trend": null
+        }
+      },
+      "text": "Actions et ETF américains : 1977 achats suivis de +0,98 % en moyenne contre +1,36 % pour une entrée au hasard sur le même actif et la même période (−0,38 point, t = −2,4 par jour) ; 714 ventes suivies de +2,61 % contre +0,76 % (cours ensuite supérieur de 1,85 point à un jour au hasard, t = −4,5 par jour) ; ATTENDRE 57 % des jours.",
+      "universe": {
+        "basket": 22,
+        "extra": 72,
+        "extraFailed": 0,
+        "rows": 447420,
+        "dataFrom": 1157463000000,
+        "medianYears": 20.1,
+        "maxYears": 20.1
+      },
+      "dataYears": 20.1,
+      "selection": [
+        {
+          "start": 1258036200000,
+          "end": 1289572200000,
+          "trainRows": 9215,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.7368
+            },
+            {
+              "id": "logit",
+              "logLoss": 1.13754
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.85124
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69904
+            }
+          ]
+        },
+        {
+          "start": 1289572200000,
+          "end": 1321021800000,
+          "trainRows": 13819,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.71929
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.73071
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.77085
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.71094
+            }
+          ]
+        },
+        {
+          "start": 1321021800000,
+          "end": 1352903400000,
+          "trainRows": 18562,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69261
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.69698
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.82012
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.68946
+            }
+          ]
+        },
+        {
+          "start": 1352903400000,
+          "end": 1384439400000,
+          "trainRows": 23212,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.6706
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.67711
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.69462
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.6704
+            }
+          ]
+        },
+        {
+          "start": 1384439400000,
+          "end": 1415975400000,
+          "trainRows": 27969,
+          "chosen": "v1",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.66528
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.66556
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.7128
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.66694
+            }
+          ]
+        },
+        {
+          "start": 1415975400000,
+          "end": 1447684200000,
+          "trainRows": 32671,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.66231
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.66153
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.68631
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.66392
+            }
+          ]
+        },
+        {
+          "start": 1447684200000,
+          "end": 1479220200000,
+          "trainRows": 37371,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.70426
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.70596
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.74893
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69763
+            }
+          ]
+        },
+        {
+          "start": 1479220200000,
+          "end": 1510756200000,
+          "trainRows": 42164,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.68281
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.68335
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.70563
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.68105
+            }
+          ]
+        },
+        {
+          "start": 1510756200000,
+          "end": 1542292200000,
+          "trainRows": 46865,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.66155
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.661
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.67267
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.66189
+            }
+          ]
+        },
+        {
+          "start": 1542292200000,
+          "end": 1574087400000,
+          "trainRows": 51657,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.67065
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.6687
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.67943
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.67148
+            }
+          ]
+        },
+        {
+          "start": 1574087400000,
+          "end": 1605623400000,
+          "trainRows": 56359,
+          "chosen": "v1",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.6855
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.68649
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.70132
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.68629
+            }
+          ]
+        },
+        {
+          "start": 1605623400000,
+          "end": 1637159400000,
+          "trainRows": 61059,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.67733
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.68033
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.67096
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.66621
+            }
+          ]
+        },
+        {
+          "start": 1637159400000,
+          "end": 1668695400000,
+          "trainRows": 65852,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.66916
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.67069
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.69956
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.6677
+            }
+          ]
+        },
+        {
+          "start": 1668695400000,
+          "end": 1700490600000,
+          "trainRows": 70553,
+          "chosen": "trees",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.72493
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.72392
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.71968
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.7254
+            }
+          ]
+        },
+        {
+          "start": 1700490600000,
+          "end": 1732113000000,
+          "trainRows": 75345,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69524
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.69211
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.70665
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69643
+            }
+          ]
+        },
+        {
+          "start": 1732113000000,
+          "end": 1763994600000,
+          "trainRows": 80047,
+          "chosen": "v1",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.65777
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.65816
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.6718
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.65836
+            }
+          ]
+        },
+        {
+          "start": 1763994600000,
+          "end": null,
+          "trainRows": 84747,
+          "chosen": "trees",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69266
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.69426
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.68893
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.6926
+            }
+          ]
+        }
+      ],
+      "candidates": [
+        {
+          "id": "v1",
+          "label": "Régression logistique v1",
+          "description": "Le modèle de la v1 : régression logistique (pénalité L2 0,05) sur les 16 mesures d'origine.",
+          "trainedBlocks": 17,
+          "chosenBlocks": 3,
+          "testRows": 92453,
+          "labelled": 91991,
+          "buy": {
+            "signals": 419,
+            "meanNet": 1.11,
+            "baselineNet": 0.31,
+            "allDaysNet": 1.06,
+            "excess": 0.81,
+            "tStat": 1.97,
+            "rawTStat": 3.32,
+            "clustered": {
+              "byDate": 1.97,
+              "dates": 306,
+              "byAsset": 2.97,
+              "assets": 22,
+              "perSignal": 2.55
+            },
+            "hitRate": 56.6,
+            "baselineHitRate": 57.5,
+            "medianBotReturn": 17.84,
+            "medianHoldReturn": 647.46,
+            "beatHold": 0,
+            "assets": 22,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 213,
+            "meanAfter": 2.97,
+            "baselineAfter": 1.33,
+            "allDaysAfter": 1.38,
+            "avoided": -1.64,
+            "tStat": -1.58,
+            "clustered": {
+              "byDate": -1.58,
+              "dates": 164,
+              "byAsset": -3.38,
+              "assets": 22,
+              "perSignal": -2.14
+            },
+            "fallRate": 36.2,
+            "baselineFallRate": 38.3,
+            "meanDrawdown": -7.79,
+            "baselineDrawdown": -6.66,
+            "exit": {
+              "assets": 22,
+              "outShare": 4.6,
+              "medianHoldMaxDrawdown": -46.13,
+              "medianBotMaxDrawdown": -45.19,
+              "medianDrawdownAvoided": 0,
+              "medianHoldReturn": 647.46,
+              "medianBotReturn": 435.75,
+              "beatHold": 4
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 88742,
+            "share": 96.5,
+            "meanNet": 0.99,
+            "baselineNet": 1.06
+          },
+          "brierSkillUp": -0.3,
+          "brierSkillDown": -0.2,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 3,
+              "predicted": 27,
+              "realised": 100
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 72,
+              "predicted": 39.2,
+              "realised": 63.9
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 5952,
+              "predicted": 46.2,
+              "realised": 56.4
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 84644,
+              "predicted": 55.4,
+              "realised": 57.6
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 1320,
+              "predicted": 61.1,
+              "realised": 57.5
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 3,
+              "predicted": 29.4,
+              "realised": 33.3
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 43831,
+              "predicted": 38.6,
+              "realised": 38.8
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 45071,
+              "predicted": 42.2,
+              "realised": 37.6
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 3079,
+              "predicted": 52.5,
+              "realised": 40.8
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 4,
+              "predicted": 65.2,
+              "realised": 25
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 3,
+              "predicted": 72.8,
+              "realised": 0
+            }
+          ]
+        },
+        {
+          "id": "logit",
+          "label": "Régression logistique 24 mesures",
+          "description": "Même régression sur les 24 mesures (contexte de marché, force relative, momentum ajoutés).",
+          "trainedBlocks": 17,
+          "chosenBlocks": 4,
+          "testRows": 92453,
+          "labelled": 91991,
+          "buy": {
+            "signals": 502,
+            "meanNet": 1.87,
+            "baselineNet": 0.83,
+            "allDaysNet": 1.06,
+            "excess": 1.03,
+            "tStat": 1.86,
+            "rawTStat": 4.48,
+            "clustered": {
+              "byDate": 1.86,
+              "dates": 353,
+              "byAsset": 3.6,
+              "assets": 22,
+              "perSignal": 2.61
+            },
+            "hitRate": 61,
+            "baselineHitRate": 57.5,
+            "medianBotReturn": 37.68,
+            "medianHoldReturn": 647.46,
+            "beatHold": 0,
+            "assets": 22,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 278,
+            "meanAfter": 2.54,
+            "baselineAfter": 1.31,
+            "allDaysAfter": 1.38,
+            "avoided": -1.23,
+            "tStat": -1.31,
+            "clustered": {
+              "byDate": -1.31,
+              "dates": 188,
+              "byAsset": -4.13,
+              "assets": 22,
+              "perSignal": -1.96
+            },
+            "fallRate": 36.7,
+            "baselineFallRate": 38.3,
+            "meanDrawdown": -7.86,
+            "baselineDrawdown": -6.8,
+            "exit": {
+              "assets": 22,
+              "outShare": 6,
+              "medianHoldMaxDrawdown": -46.13,
+              "medianBotMaxDrawdown": -46.13,
+              "medianDrawdownAvoided": 0.32,
+              "medianHoldReturn": 647.46,
+              "medianBotReturn": 545.95,
+              "beatHold": 2
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 86548,
+            "share": 94.1,
+            "meanNet": 0.96,
+            "baselineNet": 1.06
+          },
+          "brierSkillUp": -0.5,
+          "brierSkillDown": -0.5,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 5,
+              "predicted": 25,
+              "realised": 100
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 246,
+              "predicted": 38.5,
+              "realised": 62.2
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 7080,
+              "predicted": 46.2,
+              "realised": 57.9
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 82113,
+              "predicted": 55.3,
+              "realised": 57.5
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 2547,
+              "predicted": 61.3,
+              "realised": 58.3
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 3,
+              "predicted": 29.3,
+              "realised": 33.3
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 42241,
+              "predicted": 38.5,
+              "realised": 38.8
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 46097,
+              "predicted": 42.3,
+              "realised": 37.8
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 3614,
+              "predicted": 52.7,
+              "realised": 39.2
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 32,
+              "predicted": 63.1,
+              "realised": 28.1
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 4,
+              "predicted": 74.8,
+              "realised": 0
+            }
+          ]
+        },
+        {
+          "id": "trees",
+          "label": "Arbres boostés",
+          "description": "100 petits arbres de décision (profondeur 3 au plus, pas de 0,1, au moins 200 jours par feuille) sur les 24 mesures : capte des effets non linéaires.",
+          "trainedBlocks": 17,
+          "chosenBlocks": 2,
+          "testRows": 92453,
+          "labelled": 91991,
+          "buy": {
+            "signals": 2778,
+            "meanNet": 1.12,
+            "baselineNet": 1,
+            "allDaysNet": 1.06,
+            "excess": 0.12,
+            "tStat": 1.04,
+            "rawTStat": 7.68,
+            "clustered": {
+              "byDate": 1.04,
+              "dates": 637,
+              "byAsset": 1.4,
+              "assets": 22,
+              "perSignal": 0.85
+            },
+            "hitRate": 57.2,
+            "baselineHitRate": 57.5,
+            "medianBotReturn": 109.69,
+            "medianHoldReturn": 647.46,
+            "beatHold": 0,
+            "assets": 22,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 2988,
+            "meanAfter": 1.45,
+            "baselineAfter": 1.43,
+            "allDaysAfter": 1.38,
+            "avoided": -0.02,
+            "tStat": -1.46,
+            "clustered": {
+              "byDate": -1.46,
+              "dates": 803,
+              "byAsset": -0.27,
+              "assets": 22,
+              "perSignal": -0.15
+            },
+            "fallRate": 37.6,
+            "baselineFallRate": 38.3,
+            "meanDrawdown": -4.92,
+            "baselineDrawdown": -4.89,
+            "exit": {
+              "assets": 22,
+              "outShare": 64.7,
+              "medianHoldMaxDrawdown": -46.13,
+              "medianBotMaxDrawdown": -41.87,
+              "medianDrawdownAvoided": 7.14,
+              "medianHoldReturn": 647.46,
+              "medianBotReturn": 43.23,
+              "beatHold": 0
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 36971,
+            "share": 40.2,
+            "meanNet": 0.99,
+            "baselineNet": 1.06
+          },
+          "brierSkillUp": -5.3,
+          "brierSkillDown": -5.3,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 3422,
+              "predicted": 22.6,
+              "realised": 54.1
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 8802,
+              "predicted": 35.8,
+              "realised": 56.7
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 20995,
+              "predicted": 45.8,
+              "realised": 58.9
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 33365,
+              "predicted": 55.1,
+              "realised": 57.1
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 18592,
+              "predicted": 64,
+              "realised": 55.1
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 6815,
+              "predicted": 75.5,
+              "realised": 65.2
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 11741,
+              "predicted": 24.2,
+              "realised": 34.7
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 28477,
+              "predicted": 35.7,
+              "realised": 40.1
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 30521,
+              "predicted": 44.4,
+              "realised": 37.7
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 14235,
+              "predicted": 54.2,
+              "realised": 38.4
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 5006,
+              "predicted": 63.8,
+              "realised": 37.4
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 2011,
+              "predicted": 78.5,
+              "realised": 43.7
+            }
+          ]
+        },
+        {
+          "id": "trend",
+          "label": "Règle de tendance",
+          "description": "Règle publiée, sans apprentissage : ACHETER au-dessus de la moyenne 200 jours avec un momentum 12-1 mois positif, VENDRE sous la moyenne avec un momentum négatif.",
+          "trainedBlocks": 17,
+          "chosenBlocks": 8,
+          "testRows": 92453,
+          "labelled": 91991,
+          "buy": {
+            "signals": 3106,
+            "meanNet": 0.85,
+            "baselineNet": 1.49,
+            "allDaysNet": 1.06,
+            "excess": -0.64,
+            "tStat": -4.8,
+            "rawTStat": 6.89,
+            "clustered": {
+              "byDate": -4.8,
+              "dates": 2087,
+              "byAsset": -9.69,
+              "assets": 22,
+              "perSignal": -5.44
+            },
+            "hitRate": 57.2,
+            "baselineHitRate": 57.5,
+            "medianBotReturn": 136.31,
+            "medianHoldReturn": 647.46,
+            "beatHold": 0,
+            "assets": 22,
+            "verdict": "negative",
+            "verdictLabel": "Moins bien qu'une entrée au hasard (t ≤ −2 par jour)"
+          },
+          "sell": {
+            "signals": 947,
+            "meanAfter": 1.9,
+            "baselineAfter": 0.14,
+            "allDaysAfter": 1.38,
+            "avoided": -1.76,
+            "tStat": -5.46,
+            "clustered": {
+              "byDate": -5.46,
+              "dates": 760,
+              "byAsset": -10.7,
+              "assets": 22,
+              "perSignal": -6.21
+            },
+            "fallRate": 38.2,
+            "baselineFallRate": 38.3,
+            "meanDrawdown": -5.6,
+            "baselineDrawdown": -6.15,
+            "exit": {
+              "assets": 22,
+              "outShare": 20.5,
+              "medianHoldMaxDrawdown": -46.13,
+              "medianBotMaxDrawdown": -44.92,
+              "medianDrawdownAvoided": 3.17,
+              "medianHoldReturn": 647.46,
+              "medianBotReturn": 262.62,
+              "beatHold": 1
+            },
+            "verdict": "negative",
+            "verdictLabel": "Ventes à contretemps : la hausse a suivi (t ≤ −2 par jour)"
+          },
+          "wait": {
+            "days": 20782,
+            "share": 22.6,
+            "meanNet": 1.32,
+            "baselineNet": 1.06
+          },
+          "brierSkillUp": -0.2,
+          "brierSkillDown": -0.1,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 4611,
+              "predicted": 43.9,
+              "realised": 54.1
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 87380,
+              "predicted": 55.3,
+              "realised": 57.7
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 55432,
+              "predicted": 39.1,
+              "realised": 38.3
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 33146,
+              "predicted": 42.9,
+              "realised": 37.7
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 3413,
+              "predicted": 54.1,
+              "realised": 43.5
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ]
+        }
+      ],
+      "holdout": {
+        "from": 1759152600000,
+        "to": 1790602200000,
+        "testRows": 5522,
+        "labelled": 5060,
+        "buy": {
+          "signals": 102,
+          "meanNet": 1.31,
+          "baselineNet": 2.24,
+          "allDaysNet": 1.65,
+          "excess": -0.93,
+          "tStat": 0.27,
+          "rawTStat": 1.25,
+          "clustered": {
+            "byDate": 0.27,
+            "dates": 30,
+            "byAsset": -2.34,
+            "assets": 22,
+            "perSignal": -0.94
+          },
+          "hitRate": 48,
+          "baselineHitRate": 53.9,
+          "medianBotReturn": 2.86,
+          "medianHoldReturn": 13.49,
+          "beatHold": 4,
+          "assets": 22,
+          "verdict": "unproven",
+          "verdictLabel": "Avantage non démontré"
+        },
+        "sell": {
+          "signals": 132,
+          "meanAfter": 2.58,
+          "baselineAfter": 2.09,
+          "allDaysAfter": 1.97,
+          "avoided": -0.49,
+          "tStat": -0.81,
+          "clustered": {
+            "byDate": -0.81,
+            "dates": 35,
+            "byAsset": -1.46,
+            "assets": 22,
+            "perSignal": -0.64
+          },
+          "fallRate": 41.7,
+          "baselineFallRate": 42,
+          "meanDrawdown": -5.45,
+          "baselineDrawdown": -5.53,
+          "exit": {
+            "assets": 22,
+            "outShare": 48.2,
+            "medianHoldMaxDrawdown": -20.93,
+            "medianBotMaxDrawdown": -15.61,
+            "medianDrawdownAvoided": 2.5,
+            "medianHoldReturn": 13.49,
+            "medianBotReturn": 2.86,
+            "beatHold": 3
+          },
+          "verdict": "unproven",
+          "verdictLabel": "Avantage non démontré"
+        },
+        "wait": {
+          "days": 3056,
+          "share": 60.4,
+          "meanNet": 1.22,
+          "baselineNet": 1.65
+        },
+        "brierSkillUp": -2.1,
+        "brierSkillDown": -1.6,
+        "calibrationUp": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 46,
+            "predicted": 38.7,
+            "realised": 71.7
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 1241,
+            "predicted": 45.9,
+            "realised": 56.6
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 2955,
+            "predicted": 55.2,
+            "realised": 51.9
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 799,
+            "predicted": 63.1,
+            "realised": 55.8
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 19,
+            "predicted": 71.3,
+            "realised": 57.9
+          }
+        ],
+        "calibrationDown": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 52,
+            "predicted": 28.6,
+            "realised": 25
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 2058,
+            "predicted": 37.5,
+            "realised": 43.3
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 2339,
+            "predicted": 43.6,
+            "realised": 41.7
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 605,
+            "predicted": 53.6,
+            "realised": 40.3
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 6,
+            "predicted": 61.1,
+            "realised": 33.3
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          }
+        ]
+      },
+      "extra": {
+        "testRows": 305305,
+        "labelled": 303793,
+        "buy": {
+          "signals": 6301,
+          "meanNet": 0.64,
+          "baselineNet": 1.05,
+          "allDaysNet": 0.75,
+          "excess": -0.4,
+          "tStat": -2.07,
+          "rawTStat": 7.94,
+          "clustered": {
+            "byDate": -2.07,
+            "dates": 1861,
+            "byAsset": -9.74,
+            "assets": 72,
+            "perSignal": -5.21
+          },
+          "hitRate": 55.8,
+          "baselineHitRate": 55.6,
+          "medianBotReturn": 31.04,
+          "medianHoldReturn": 349.73,
+          "beatHold": 3,
+          "assets": 72,
+          "verdict": "negative",
+          "verdictLabel": "Moins bien qu'une entrée au hasard (t ≤ −2 par jour)"
+        },
+        "sell": {
+          "signals": 2633,
+          "meanAfter": 1.89,
+          "baselineAfter": 0.41,
+          "allDaysAfter": 1.06,
+          "avoided": -1.48,
+          "tStat": -5.01,
+          "clustered": {
+            "byDate": -5.01,
+            "dates": 1076,
+            "byAsset": -15.17,
+            "assets": 72,
+            "perSignal": -8.71
+          },
+          "fallRate": 39.6,
+          "baselineFallRate": 40.1,
+          "meanDrawdown": -5.82,
+          "baselineDrawdown": -5.87,
+          "exit": {
+            "assets": 72,
+            "outShare": 17.3,
+            "medianHoldMaxDrawdown": -48.05,
+            "medianBotMaxDrawdown": -46.64,
+            "medianDrawdownAvoided": 0.13,
+            "medianHoldReturn": 349.73,
+            "medianBotReturn": 157.85,
+            "beatHold": 1
+          },
+          "verdict": "negative",
+          "verdictLabel": "Ventes à contretemps : la hausse a suivi (t ≤ −2 par jour)"
+        },
+        "wait": {
+          "days": 174175,
+          "share": 57.3,
+          "meanNet": 0.67,
+          "baselineNet": 0.75
+        },
+        "brierSkillUp": -0.6,
+        "brierSkillDown": -0.6,
+        "calibrationUp": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 13,
+            "predicted": 23.5,
+            "realised": 92.3
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 1149,
+            "predicted": 38.1,
+            "realised": 39.5
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 23993,
+            "predicted": 44.5,
+            "realised": 56.4
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 268256,
+            "predicted": 55.2,
+            "realised": 55.8
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 10300,
+            "predicted": 62.2,
+            "realised": 50.1
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 82,
+            "predicted": 71.3,
+            "realised": 32.9
+          }
+        ],
+        "calibrationDown": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 694,
+            "predicted": 28.6,
+            "realised": 48.1
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 146796,
+            "predicted": 38.5,
+            "realised": 41.5
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 138722,
+            "predicted": 42.8,
+            "realised": 38.2
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 17128,
+            "predicted": 54.1,
+            "realised": 42.1
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 438,
+            "predicted": 62,
+            "realised": 45.9
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 15,
+            "predicted": 77,
+            "realised": 6.7
+          }
+        ]
+      },
+      "market": "S&P 500 (SPY)"
+    },
+    {
+      "id": "crypto",
+      "label": "Cryptos (bitcoin, ether, altcoins)",
+      "assets": 12,
+      "testFrom": 1448409600000,
+      "testTo": 1790553600000,
+      "blocks": 19,
+      "trainedBlocks": 16,
+      "testRows": 35251,
+      "labelled": 34999,
+      "buy": {
+        "signals": 746,
+        "meanNet": 6.94,
+        "baselineNet": 7.64,
+        "allDaysNet": 4.4,
+        "excess": -0.7,
+        "tStat": -0.58,
+        "rawTStat": 4.35,
+        "clustered": {
+          "byDate": -0.58,
+          "dates": 576,
+          "byAsset": -0.92,
+          "assets": 12,
+          "perSignal": -0.47
+        },
+        "hitRate": 50.7,
+        "baselineHitRate": 49.4,
+        "medianBotReturn": 614.83,
+        "medianHoldReturn": 1420.72,
+        "beatHold": 6,
+        "assets": 12,
+        "verdict": "unproven",
+        "verdictLabel": "Avantage non démontré"
+      },
+      "sell": {
+        "signals": 612,
+        "meanAfter": 3.14,
+        "baselineAfter": 2.3,
+        "allDaysAfter": 4.73,
+        "avoided": -0.84,
+        "tStat": -0.65,
+        "clustered": {
+          "byDate": -0.65,
+          "dates": 449,
+          "byAsset": -2.33,
+          "assets": 12,
+          "perSignal": -0.8
+        },
+        "fallRate": 50.5,
+        "baselineFallRate": 48.9,
+        "meanDrawdown": -13.75,
+        "baselineDrawdown": -14.26,
+        "exit": {
+          "assets": 12,
+          "outShare": 34.7,
+          "medianHoldMaxDrawdown": -92.88,
+          "medianBotMaxDrawdown": -87.49,
+          "medianDrawdownAvoided": 4.49,
+          "medianHoldReturn": 1420.72,
+          "medianBotReturn": 375.47,
+          "beatHold": 4
+        },
+        "verdict": "unproven",
+        "verdictLabel": "Avantage non démontré"
+      },
+      "wait": {
+        "days": 15356,
+        "share": 43.9,
+        "meanNet": 2.64,
+        "baselineNet": 4.4
+      },
+      "brierSkillUp": -0.8,
+      "brierSkillDown": -0.8,
+      "calibrationUp": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 3,
+          "predicted": 9.1,
+          "realised": 0
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 157,
+          "predicted": 38.5,
+          "realised": 63.1
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 18855,
+          "predicted": 46.5,
+          "realised": 49.2
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 14267,
+          "predicted": 54.3,
+          "realised": 50.1
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 1596,
+          "predicted": 62.6,
+          "realised": 44
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 121,
+          "predicted": 73.7,
+          "realised": 62.8
+        }
+      ],
+      "calibrationDown": [
+        {
+          "from": 0,
+          "to": 30,
+          "label": "moins de 30 %",
+          "rows": 140,
+          "predicted": 26.2,
+          "realised": 35.7
+        },
+        {
+          "from": 30,
+          "to": 40,
+          "label": "30 à 40 %",
+          "rows": 2915,
+          "predicted": 37.5,
+          "realised": 51.9
+        },
+        {
+          "from": 40,
+          "to": 50,
+          "label": "40 à 50 %",
+          "rows": 16910,
+          "predicted": 46.1,
+          "realised": 50.2
+        },
+        {
+          "from": 50,
+          "to": 60,
+          "label": "50 à 60 %",
+          "rows": 14984,
+          "predicted": 52.8,
+          "realised": 47.2
+        },
+        {
+          "from": 60,
+          "to": 70,
+          "label": "60 à 70 %",
+          "rows": 47,
+          "predicted": 61.8,
+          "realised": 38.3
+        },
+        {
+          "from": 70,
+          "to": 100,
+          "label": "70 % et plus",
+          "rows": 3,
+          "predicted": 90.8,
+          "realised": 100
+        }
+      ],
+      "model": {
+        "trainedRows": 17328,
+        "trainedFrom": 1336089600000,
+        "trainedTo": 1788739200000,
+        "up": {
+          "baseRate": 46.72783933518006,
+          "threshold": 51.72783933518006,
+          "intercept": -0.13213414219495645,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": -0.030330106290537645,
+              "mean": 0.7745245772777694,
+              "sd": 12.892230828804099
+            },
+            {
+              "id": "ret20",
+              "coef": 0.1566819300004959,
+              "mean": 3.4790864128751973,
+              "sd": 31.411142737519842
+            },
+            {
+              "id": "ret60",
+              "coef": -0.0011205958204686592,
+              "mean": 12.422907911272107,
+              "sd": 77.5568738994264
+            },
+            {
+              "id": "rsi14",
+              "coef": -0.02510083349401624,
+              "mean": 49.628521372489324,
+              "sd": 12.448607457888551
+            },
+            {
+              "id": "ema50",
+              "coef": -0.034798543869198006,
+              "mean": 0.13762537351631382,
+              "sd": 19.84403173356951
+            },
+            {
+              "id": "ema200",
+              "coef": -0.0038493094078710047,
+              "mean": 0.7901816946101875,
+              "sd": 45.00184447120025
+            },
+            {
+              "id": "macd",
+              "coef": -0.02311859779895429,
+              "mean": 0.02090935278037496,
+              "sd": 1.789739850736098
+            },
+            {
+              "id": "atr14",
+              "coef": -0.025779888227777766,
+              "mean": 7.037602268331379,
+              "sd": 3.6303914002222593
+            },
+            {
+              "id": "vol20",
+              "coef": -0.10550265563353828,
+              "mean": 4.680016561991786,
+              "sd": 2.6426112143451923
+            },
+            {
+              "id": "volume",
+              "coef": 0.049165841725098414,
+              "mean": 0.03546274212888421,
+              "sd": 1.3123198321302705
+            },
+            {
+              "id": "drawdown",
+              "coef": -0.007391154450883104,
+              "mean": -42.58621934559932,
+              "sd": 21.25096538350862
+            },
+            {
+              "id": "range20",
+              "coef": 0.05685236492643923,
+              "mean": 0.47193597316337127,
+              "sd": 0.28313357441572257
+            },
+            {
+              "id": "bull",
+              "coef": 0.02143481067454936,
+              "mean": 0.1795360110803324,
+              "sd": 0.38380051042917085
+            },
+            {
+              "id": "bear",
+              "coef": 0.001862905440090512,
+              "mean": 0.0039242843951985225,
+              "sd": 0.06252107154537832
+            },
+            {
+              "id": "range",
+              "coef": 0.056779261141986094,
+              "mean": 0.02239150507848569,
+              "sd": 0.1479531195304646
+            },
+            {
+              "id": "crisis",
+              "coef": -0.04141204882199857,
+              "mean": 0.7941481994459834,
+              "sd": 0.40432268890409995
+            },
+            {
+              "id": "mom12_1",
+              "coef": -0.009227362457229353,
+              "mean": 78.90559500790309,
+              "sd": 505.99019726496067
+            },
+            {
+              "id": "high52",
+              "coef": -0.023268463818307467,
+              "mean": -46.266012515171326,
+              "sd": 22.156560300819617
+            },
+            {
+              "id": "rs20",
+              "coef": -0.1111731659950285,
+              "mean": 0.5986364182237816,
+              "sd": 26.770266764291016
+            },
+            {
+              "id": "rs60",
+              "coef": -0.029156347401415695,
+              "mean": 2.8966870301009835,
+              "sd": 66.97944767899199
+            },
+            {
+              "id": "rs120",
+              "coef": 0.008462495661308852,
+              "mean": 8.374442431662468,
+              "sd": 175.0258614812526
+            },
+            {
+              "id": "mkt_trend",
+              "coef": -0.02603869845459209,
+              "mean": 10.66895846873932,
+              "sd": 37.61574673983115
+            },
+            {
+              "id": "mkt_vol20",
+              "coef": 0.14287744502553829,
+              "mean": 2.9529193855877125,
+              "sd": 1.4563606788339787
+            },
+            {
+              "id": "mkt_ret60",
+              "coef": 0.05140351633930736,
+              "mean": 9.526220908027103,
+              "sd": 36.30036223078654
+            }
+          ]
+        },
+        "down": {
+          "baseRate": 51.488919667590025,
+          "threshold": 56.48891966759003,
+          "intercept": 0.060118602970956704,
+          "weights": [
+            {
+              "id": "ret5",
+              "coef": 0.031265244693854555,
+              "mean": 0.7745245772777694,
+              "sd": 12.892230828804099
+            },
+            {
+              "id": "ret20",
+              "coef": -0.15671186806126358,
+              "mean": 3.4790864128751973,
+              "sd": 31.411142737519842
+            },
+            {
+              "id": "ret60",
+              "coef": -0.0007536410422769298,
+              "mean": 12.422907911272107,
+              "sd": 77.5568738994264
+            },
+            {
+              "id": "rsi14",
+              "coef": 0.027217655280410518,
+              "mean": 49.628521372489324,
+              "sd": 12.448607457888551
+            },
+            {
+              "id": "ema50",
+              "coef": 0.04067786069755749,
+              "mean": 0.13762537351631382,
+              "sd": 19.84403173356951
+            },
+            {
+              "id": "ema200",
+              "coef": 0.0110872221108943,
+              "mean": 0.7901816946101875,
+              "sd": 45.00184447120025
+            },
+            {
+              "id": "macd",
+              "coef": 0.02780352114848603,
+              "mean": 0.02090935278037496,
+              "sd": 1.789739850736098
+            },
+            {
+              "id": "atr14",
+              "coef": 0.044693927537053285,
+              "mean": 7.037602268331379,
+              "sd": 3.6303914002222593
+            },
+            {
+              "id": "vol20",
+              "coef": 0.0882153908250871,
+              "mean": 4.680016561991786,
+              "sd": 2.6426112143451923
+            },
+            {
+              "id": "volume",
+              "coef": -0.05159939553037499,
+              "mean": 0.03546274212888421,
+              "sd": 1.3123198321302705
+            },
+            {
+              "id": "drawdown",
+              "coef": 0.006034508881457745,
+              "mean": -42.58621934559932,
+              "sd": 21.25096538350862
+            },
+            {
+              "id": "range20",
+              "coef": -0.05565675002193153,
+              "mean": 0.47193597316337127,
+              "sd": 0.28313357441572257
+            },
+            {
+              "id": "bull",
+              "coef": -0.021984368732497924,
+              "mean": 0.1795360110803324,
+              "sd": 0.38380051042917085
+            },
+            {
+              "id": "bear",
+              "coef": 0.002158167043019258,
+              "mean": 0.0039242843951985225,
+              "sd": 0.06252107154537832
+            },
+            {
+              "id": "range",
+              "coef": -0.053402198287848784,
+              "mean": 0.02239150507848569,
+              "sd": 0.1479531195304646
+            },
+            {
+              "id": "crisis",
+              "coef": 0.04007616514245906,
+              "mean": 0.7941481994459834,
+              "sd": 0.40432268890409995
+            },
+            {
+              "id": "mom12_1",
+              "coef": 0.011858404936178877,
+              "mean": 78.90559500790309,
+              "sd": 505.99019726496067
+            },
+            {
+              "id": "high52",
+              "coef": 0.02143217221444749,
+              "mean": -46.266012515171326,
+              "sd": 22.156560300819617
+            },
+            {
+              "id": "rs20",
+              "coef": 0.11593159676495245,
+              "mean": 0.5986364182237816,
+              "sd": 26.770266764291016
+            },
+            {
+              "id": "rs60",
+              "coef": 0.027618578641352216,
+              "mean": 2.8966870301009835,
+              "sd": 66.97944767899199
+            },
+            {
+              "id": "rs120",
+              "coef": -0.009883571096991658,
+              "mean": 8.374442431662468,
+              "sd": 175.0258614812526
+            },
+            {
+              "id": "mkt_trend",
+              "coef": 0.033145528786221845,
+              "mean": 10.66895846873932,
+              "sd": 37.61574673983115
+            },
+            {
+              "id": "mkt_vol20",
+              "coef": -0.13937880599562222,
+              "mean": 2.9529193855877125,
+              "sd": 1.4563606788339787
+            },
+            {
+              "id": "mkt_ret60",
+              "coef": -0.05257047520163146,
+              "mean": 9.526220908027103,
+              "sd": 36.30036223078654
+            }
+          ]
+        },
+        "candidate": "logit",
+        "scores": [
+          {
+            "id": "v1",
+            "logLoss": 0.6918371448591136
+          },
+          {
+            "id": "logit",
+            "logLoss": 0.6837386985319264
+          },
+          {
+            "id": "trees",
+            "logLoss": 0.7029101440040568
+          },
+          {
+            "id": "trend",
+            "logLoss": 0.6894503398268269
+          }
+        ],
+        "upModel": {
+          "baseRate": 46.72783933518006,
+          "threshold": 51.72783933518006,
+          "logit": {
+            "baseRate": 46.72783933518006,
+            "threshold": 51.72783933518006,
+            "intercept": -0.13213414219495645,
+            "weights": [
+              {
+                "id": "ret5",
+                "coef": -0.030330106290537645,
+                "mean": 0.7745245772777694,
+                "sd": 12.892230828804099
+              },
+              {
+                "id": "ret20",
+                "coef": 0.1566819300004959,
+                "mean": 3.4790864128751973,
+                "sd": 31.411142737519842
+              },
+              {
+                "id": "ret60",
+                "coef": -0.0011205958204686592,
+                "mean": 12.422907911272107,
+                "sd": 77.5568738994264
+              },
+              {
+                "id": "rsi14",
+                "coef": -0.02510083349401624,
+                "mean": 49.628521372489324,
+                "sd": 12.448607457888551
+              },
+              {
+                "id": "ema50",
+                "coef": -0.034798543869198006,
+                "mean": 0.13762537351631382,
+                "sd": 19.84403173356951
+              },
+              {
+                "id": "ema200",
+                "coef": -0.0038493094078710047,
+                "mean": 0.7901816946101875,
+                "sd": 45.00184447120025
+              },
+              {
+                "id": "macd",
+                "coef": -0.02311859779895429,
+                "mean": 0.02090935278037496,
+                "sd": 1.789739850736098
+              },
+              {
+                "id": "atr14",
+                "coef": -0.025779888227777766,
+                "mean": 7.037602268331379,
+                "sd": 3.6303914002222593
+              },
+              {
+                "id": "vol20",
+                "coef": -0.10550265563353828,
+                "mean": 4.680016561991786,
+                "sd": 2.6426112143451923
+              },
+              {
+                "id": "volume",
+                "coef": 0.049165841725098414,
+                "mean": 0.03546274212888421,
+                "sd": 1.3123198321302705
+              },
+              {
+                "id": "drawdown",
+                "coef": -0.007391154450883104,
+                "mean": -42.58621934559932,
+                "sd": 21.25096538350862
+              },
+              {
+                "id": "range20",
+                "coef": 0.05685236492643923,
+                "mean": 0.47193597316337127,
+                "sd": 0.28313357441572257
+              },
+              {
+                "id": "bull",
+                "coef": 0.02143481067454936,
+                "mean": 0.1795360110803324,
+                "sd": 0.38380051042917085
+              },
+              {
+                "id": "bear",
+                "coef": 0.001862905440090512,
+                "mean": 0.0039242843951985225,
+                "sd": 0.06252107154537832
+              },
+              {
+                "id": "range",
+                "coef": 0.056779261141986094,
+                "mean": 0.02239150507848569,
+                "sd": 0.1479531195304646
+              },
+              {
+                "id": "crisis",
+                "coef": -0.04141204882199857,
+                "mean": 0.7941481994459834,
+                "sd": 0.40432268890409995
+              },
+              {
+                "id": "mom12_1",
+                "coef": -0.009227362457229353,
+                "mean": 78.90559500790309,
+                "sd": 505.99019726496067
+              },
+              {
+                "id": "high52",
+                "coef": -0.023268463818307467,
+                "mean": -46.266012515171326,
+                "sd": 22.156560300819617
+              },
+              {
+                "id": "rs20",
+                "coef": -0.1111731659950285,
+                "mean": 0.5986364182237816,
+                "sd": 26.770266764291016
+              },
+              {
+                "id": "rs60",
+                "coef": -0.029156347401415695,
+                "mean": 2.8966870301009835,
+                "sd": 66.97944767899199
+              },
+              {
+                "id": "rs120",
+                "coef": 0.008462495661308852,
+                "mean": 8.374442431662468,
+                "sd": 175.0258614812526
+              },
+              {
+                "id": "mkt_trend",
+                "coef": -0.02603869845459209,
+                "mean": 10.66895846873932,
+                "sd": 37.61574673983115
+              },
+              {
+                "id": "mkt_vol20",
+                "coef": 0.14287744502553829,
+                "mean": 2.9529193855877125,
+                "sd": 1.4563606788339787
+              },
+              {
+                "id": "mkt_ret60",
+                "coef": 0.05140351633930736,
+                "mean": 9.526220908027103,
+                "sd": 36.30036223078654
+              }
+            ]
+          },
+          "trees": null,
+          "trend": null
+        },
+        "downModel": {
+          "baseRate": 51.488919667590025,
+          "threshold": 56.48891966759003,
+          "logit": {
+            "baseRate": 51.488919667590025,
+            "threshold": 56.48891966759003,
+            "intercept": 0.060118602970956704,
+            "weights": [
+              {
+                "id": "ret5",
+                "coef": 0.031265244693854555,
+                "mean": 0.7745245772777694,
+                "sd": 12.892230828804099
+              },
+              {
+                "id": "ret20",
+                "coef": -0.15671186806126358,
+                "mean": 3.4790864128751973,
+                "sd": 31.411142737519842
+              },
+              {
+                "id": "ret60",
+                "coef": -0.0007536410422769298,
+                "mean": 12.422907911272107,
+                "sd": 77.5568738994264
+              },
+              {
+                "id": "rsi14",
+                "coef": 0.027217655280410518,
+                "mean": 49.628521372489324,
+                "sd": 12.448607457888551
+              },
+              {
+                "id": "ema50",
+                "coef": 0.04067786069755749,
+                "mean": 0.13762537351631382,
+                "sd": 19.84403173356951
+              },
+              {
+                "id": "ema200",
+                "coef": 0.0110872221108943,
+                "mean": 0.7901816946101875,
+                "sd": 45.00184447120025
+              },
+              {
+                "id": "macd",
+                "coef": 0.02780352114848603,
+                "mean": 0.02090935278037496,
+                "sd": 1.789739850736098
+              },
+              {
+                "id": "atr14",
+                "coef": 0.044693927537053285,
+                "mean": 7.037602268331379,
+                "sd": 3.6303914002222593
+              },
+              {
+                "id": "vol20",
+                "coef": 0.0882153908250871,
+                "mean": 4.680016561991786,
+                "sd": 2.6426112143451923
+              },
+              {
+                "id": "volume",
+                "coef": -0.05159939553037499,
+                "mean": 0.03546274212888421,
+                "sd": 1.3123198321302705
+              },
+              {
+                "id": "drawdown",
+                "coef": 0.006034508881457745,
+                "mean": -42.58621934559932,
+                "sd": 21.25096538350862
+              },
+              {
+                "id": "range20",
+                "coef": -0.05565675002193153,
+                "mean": 0.47193597316337127,
+                "sd": 0.28313357441572257
+              },
+              {
+                "id": "bull",
+                "coef": -0.021984368732497924,
+                "mean": 0.1795360110803324,
+                "sd": 0.38380051042917085
+              },
+              {
+                "id": "bear",
+                "coef": 0.002158167043019258,
+                "mean": 0.0039242843951985225,
+                "sd": 0.06252107154537832
+              },
+              {
+                "id": "range",
+                "coef": -0.053402198287848784,
+                "mean": 0.02239150507848569,
+                "sd": 0.1479531195304646
+              },
+              {
+                "id": "crisis",
+                "coef": 0.04007616514245906,
+                "mean": 0.7941481994459834,
+                "sd": 0.40432268890409995
+              },
+              {
+                "id": "mom12_1",
+                "coef": 0.011858404936178877,
+                "mean": 78.90559500790309,
+                "sd": 505.99019726496067
+              },
+              {
+                "id": "high52",
+                "coef": 0.02143217221444749,
+                "mean": -46.266012515171326,
+                "sd": 22.156560300819617
+              },
+              {
+                "id": "rs20",
+                "coef": 0.11593159676495245,
+                "mean": 0.5986364182237816,
+                "sd": 26.770266764291016
+              },
+              {
+                "id": "rs60",
+                "coef": 0.027618578641352216,
+                "mean": 2.8966870301009835,
+                "sd": 66.97944767899199
+              },
+              {
+                "id": "rs120",
+                "coef": -0.009883571096991658,
+                "mean": 8.374442431662468,
+                "sd": 175.0258614812526
+              },
+              {
+                "id": "mkt_trend",
+                "coef": 0.033145528786221845,
+                "mean": 10.66895846873932,
+                "sd": 37.61574673983115
+              },
+              {
+                "id": "mkt_vol20",
+                "coef": -0.13937880599562222,
+                "mean": 2.9529193855877125,
+                "sd": 1.4563606788339787
+              },
+              {
+                "id": "mkt_ret60",
+                "coef": -0.05257047520163146,
+                "mean": 9.526220908027103,
+                "sd": 36.30036223078654
+              }
+            ]
+          },
+          "trees": null,
+          "trend": null
+        }
+      },
+      "text": "Cryptos (bitcoin, ether, altcoins) : 746 achats suivis de +6,94 % en moyenne contre +7,64 % pour une entrée au hasard sur le même actif et la même période (−0,7 point, t = −0,6 par jour) ; 612 ventes suivies de +3,14 % contre +2,3 % (cours ensuite supérieur de 0,84 point à un jour au hasard, t = −0,7 par jour) ; ATTENDRE 44 % des jours.",
+      "universe": {
+        "basket": 12,
+        "extra": 19,
+        "extraFailed": 0,
+        "rows": 87265,
+        "dataFrom": 1313625600000,
+        "medianYears": 8.9,
+        "maxYears": 15.1
+      },
+      "dataYears": 8.9,
+      "selection": [
+        {
+          "start": 1383091200000,
+          "end": 1404864000000,
+          "trainRows": 101,
+          "chosen": null,
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": null
+            },
+            {
+              "id": "logit",
+              "logLoss": null
+            },
+            {
+              "id": "trees",
+              "logLoss": null
+            },
+            {
+              "id": "trend",
+              "logLoss": null
+            }
+          ]
+        },
+        {
+          "start": 1404864000000,
+          "end": 1426636800000,
+          "trainRows": 151,
+          "chosen": null,
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": null
+            },
+            {
+              "id": "logit",
+              "logLoss": null
+            },
+            {
+              "id": "trees",
+              "logLoss": null
+            },
+            {
+              "id": "trend",
+              "logLoss": null
+            }
+          ]
+        },
+        {
+          "start": 1426636800000,
+          "end": 1448409600000,
+          "trainRows": 202,
+          "chosen": null,
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": null
+            },
+            {
+              "id": "logit",
+              "logLoss": null
+            },
+            {
+              "id": "trees",
+              "logLoss": null
+            },
+            {
+              "id": "trend",
+              "logLoss": null
+            }
+          ]
+        },
+        {
+          "start": 1448409600000,
+          "end": 1470182400000,
+          "trainRows": 279,
+          "chosen": "v1",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": null
+            },
+            {
+              "id": "logit",
+              "logLoss": null
+            },
+            {
+              "id": "trees",
+              "logLoss": null
+            },
+            {
+              "id": "trend",
+              "logLoss": null
+            }
+          ]
+        },
+        {
+          "start": 1470182400000,
+          "end": 1491955200000,
+          "trainRows": 380,
+          "chosen": "trees",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.76017
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.77497
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.66979
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.68563
+            }
+          ]
+        },
+        {
+          "start": 1491955200000,
+          "end": 1513728000000,
+          "trainRows": 481,
+          "chosen": "trees",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.7353
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.7521
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.67181
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.67943
+            }
+          ]
+        },
+        {
+          "start": 1513728000000,
+          "end": 1535500800000,
+          "trainRows": 595,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.62212
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.71545
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.65787
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.60403
+            }
+          ]
+        },
+        {
+          "start": 1535500800000,
+          "end": 1557273600000,
+          "trainRows": 763,
+          "chosen": "v1",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.76297
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.77667
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.8452
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.81459
+            }
+          ]
+        },
+        {
+          "start": 1557273600000,
+          "end": 1579046400000,
+          "trainRows": 1788,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.70081
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.69816
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.71611
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69645
+            }
+          ]
+        },
+        {
+          "start": 1579046400000,
+          "end": 1600819200000,
+          "trainRows": 2858,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69765
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.71133
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.81185
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69538
+            }
+          ]
+        },
+        {
+          "start": 1600819200000,
+          "end": 1622592000000,
+          "trainRows": 4008,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.71749
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.72416
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.73087
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.701
+            }
+          ]
+        },
+        {
+          "start": 1622592000000,
+          "end": 1644364800000,
+          "trainRows": 5234,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69243
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.74262
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.86235
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.68613
+            }
+          ]
+        },
+        {
+          "start": 1644364800000,
+          "end": 1666137600000,
+          "trainRows": 6719,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.7233
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.72304
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.7965
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.71957
+            }
+          ]
+        },
+        {
+          "start": 1666137600000,
+          "end": 1687910400000,
+          "trainRows": 8272,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.71635
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.70909
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.75124
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.72887
+            }
+          ]
+        },
+        {
+          "start": 1687910400000,
+          "end": 1709683200000,
+          "trainRows": 9847,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69844
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.69658
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.71126
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69318
+            }
+          ]
+        },
+        {
+          "start": 1709683200000,
+          "end": 1731456000000,
+          "trainRows": 11402,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.70877
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.70064
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.79238
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69536
+            }
+          ]
+        },
+        {
+          "start": 1731456000000,
+          "end": 1753228800000,
+          "trainRows": 12957,
+          "chosen": "trend",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.70255
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.7129
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.74912
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69331
+            }
+          ]
+        },
+        {
+          "start": 1753228800000,
+          "end": 1775001600000,
+          "trainRows": 14531,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.68219
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.67247
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.694
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.69194
+            }
+          ]
+        },
+        {
+          "start": 1775001600000,
+          "end": null,
+          "trainRows": 16084,
+          "chosen": "logit",
+          "scores": [
+            {
+              "id": "v1",
+              "logLoss": 0.69019
+            },
+            {
+              "id": "logit",
+              "logLoss": 0.68109
+            },
+            {
+              "id": "trees",
+              "logLoss": 0.69403
+            },
+            {
+              "id": "trend",
+              "logLoss": 0.6872
+            }
+          ]
+        }
+      ],
+      "candidates": [
+        {
+          "id": "v1",
+          "label": "Régression logistique v1",
+          "description": "Le modèle de la v1 : régression logistique (pénalité L2 0,05) sur les 16 mesures d'origine.",
+          "trainedBlocks": 16,
+          "chosenBlocks": 2,
+          "testRows": 35251,
+          "labelled": 34999,
+          "buy": {
+            "signals": 806,
+            "meanNet": 7.18,
+            "baselineNet": 5.57,
+            "allDaysNet": 4.4,
+            "excess": 1.61,
+            "tStat": 0.89,
+            "rawTStat": 5.5,
+            "clustered": {
+              "byDate": 0.89,
+              "dates": 598,
+              "byAsset": 3,
+              "assets": 12,
+              "perSignal": 1.36
+            },
+            "hitRate": 51.5,
+            "baselineHitRate": 49.4,
+            "medianBotReturn": 758.48,
+            "medianHoldReturn": 1420.72,
+            "beatHold": 5,
+            "assets": 12,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 435,
+            "meanAfter": 8.58,
+            "baselineAfter": 9.48,
+            "allDaysAfter": 4.73,
+            "avoided": 0.9,
+            "tStat": 0.48,
+            "clustered": {
+              "byDate": 0.48,
+              "dates": 351,
+              "byAsset": 0.53,
+              "assets": 12,
+              "perSignal": 0.36
+            },
+            "fallRate": 46.4,
+            "baselineFallRate": 48.9,
+            "meanDrawdown": -15.28,
+            "baselineDrawdown": -14.34,
+            "exit": {
+              "assets": 12,
+              "outShare": 24.7,
+              "medianHoldMaxDrawdown": -92.88,
+              "medianBotMaxDrawdown": -89.37,
+              "medianDrawdownAvoided": 2.63,
+              "medianHoldReturn": 1420.72,
+              "medianBotReturn": 239.01,
+              "beatHold": 2
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 23998,
+            "share": 68.6,
+            "meanNet": 2.13,
+            "baselineNet": 4.4
+          },
+          "brierSkillUp": -1,
+          "brierSkillDown": -1,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 131,
+              "predicted": 16.5,
+              "realised": 60.3
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 405,
+              "predicted": 37.2,
+              "realised": 67.2
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 15553,
+              "predicted": 46.6,
+              "realised": 49.5
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 15125,
+              "predicted": 54.1,
+              "realised": 47.3
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 3448,
+              "predicted": 63.5,
+              "realised": 54.7
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 337,
+              "predicted": 74.5,
+              "realised": 60.8
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 438,
+              "predicted": 25.9,
+              "realised": 40.9
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 4480,
+              "predicted": 36.5,
+              "realised": 46.3
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 17376,
+              "predicted": 45.8,
+              "realised": 51.5
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 12261,
+              "predicted": 52.8,
+              "realised": 47.2
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 308,
+              "predicted": 62.9,
+              "realised": 29.5
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 136,
+              "predicted": 83.6,
+              "realised": 40.4
+            }
+          ]
+        },
+        {
+          "id": "logit",
+          "label": "Régression logistique 24 mesures",
+          "description": "Même régression sur les 24 mesures (contexte de marché, force relative, momentum ajoutés).",
+          "trainedBlocks": 16,
+          "chosenBlocks": 3,
+          "testRows": 35251,
+          "labelled": 34999,
+          "buy": {
+            "signals": 707,
+            "meanNet": 8.25,
+            "baselineNet": 6.67,
+            "allDaysNet": 4.4,
+            "excess": 1.58,
+            "tStat": 0.34,
+            "rawTStat": 5.86,
+            "clustered": {
+              "byDate": 0.34,
+              "dates": 521,
+              "byAsset": 2.88,
+              "assets": 12,
+              "perSignal": 1.2
+            },
+            "hitRate": 54.9,
+            "baselineHitRate": 49.4,
+            "medianBotReturn": 927.58,
+            "medianHoldReturn": 1420.72,
+            "beatHold": 6,
+            "assets": 12,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 594,
+            "meanAfter": 7.65,
+            "baselineAfter": 6.19,
+            "allDaysAfter": 4.73,
+            "avoided": -1.46,
+            "tStat": -0.39,
+            "clustered": {
+              "byDate": -0.39,
+              "dates": 413,
+              "byAsset": -2.08,
+              "assets": 12,
+              "perSignal": -0.84
+            },
+            "fallRate": 45.8,
+            "baselineFallRate": 48.9,
+            "meanDrawdown": -14.17,
+            "baselineDrawdown": -14.29,
+            "exit": {
+              "assets": 12,
+              "outShare": 33.7,
+              "medianHoldMaxDrawdown": -92.88,
+              "medianBotMaxDrawdown": -86.31,
+              "medianDrawdownAvoided": 1.89,
+              "medianHoldReturn": 1420.72,
+              "medianBotReturn": 71.42,
+              "beatHold": 2
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 22192,
+            "share": 63.4,
+            "meanNet": 2.09,
+            "baselineNet": 4.4
+          },
+          "brierSkillUp": -2.1,
+          "brierSkillDown": -2.2,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 204,
+              "predicted": 18.9,
+              "realised": 66.7
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 814,
+              "predicted": 36.5,
+              "realised": 69.4
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 17418,
+              "predicted": 45.9,
+              "realised": 47.3
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 12404,
+              "predicted": 54,
+              "realised": 50
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 3335,
+              "predicted": 64,
+              "realised": 50.9
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 824,
+              "predicted": 78.4,
+              "realised": 54.1
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 965,
+              "predicted": 22,
+              "realised": 46.1
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 4145,
+              "predicted": 35.9,
+              "realised": 48.4
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 14543,
+              "predicted": 46,
+              "realised": 49.3
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 14620,
+              "predicted": 53.4,
+              "realised": 50.1
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 535,
+              "predicted": 64.3,
+              "realised": 23.2
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 191,
+              "predicted": 81.1,
+              "realised": 33.5
+            }
+          ]
+        },
+        {
+          "id": "trees",
+          "label": "Arbres boostés",
+          "description": "100 petits arbres de décision (profondeur 3 au plus, pas de 0,1, au moins 200 jours par feuille) sur les 24 mesures : capte des effets non linéaires.",
+          "trainedBlocks": 16,
+          "chosenBlocks": 2,
+          "testRows": 35251,
+          "labelled": 34999,
+          "buy": {
+            "signals": 1061,
+            "meanNet": 1.71,
+            "baselineNet": 3.05,
+            "allDaysNet": 4.4,
+            "excess": -1.33,
+            "tStat": -1.2,
+            "rawTStat": 2.19,
+            "clustered": {
+              "byDate": -1.2,
+              "dates": 678,
+              "byAsset": -2.88,
+              "assets": 12,
+              "perSignal": -1.72
+            },
+            "hitRate": 46.7,
+            "baselineHitRate": 49.4,
+            "medianBotReturn": -44.47,
+            "medianHoldReturn": 1420.72,
+            "beatHold": 2,
+            "assets": 12,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 1037,
+            "meanAfter": 6.07,
+            "baselineAfter": 5.44,
+            "allDaysAfter": 4.73,
+            "avoided": -0.63,
+            "tStat": -0.88,
+            "clustered": {
+              "byDate": -0.88,
+              "dates": 644,
+              "byAsset": -1.69,
+              "assets": 12,
+              "perSignal": -0.65
+            },
+            "fallRate": 48.2,
+            "baselineFallRate": 48.9,
+            "meanDrawdown": -14.63,
+            "baselineDrawdown": -14.38,
+            "exit": {
+              "assets": 12,
+              "outShare": 58.9,
+              "medianHoldMaxDrawdown": -92.88,
+              "medianBotMaxDrawdown": -81.29,
+              "medianDrawdownAvoided": 9.32,
+              "medianHoldReturn": 1420.72,
+              "medianBotReturn": -35.97,
+              "beatHold": 1
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 11472,
+            "share": 32.8,
+            "meanNet": 3.56,
+            "baselineNet": 4.4
+          },
+          "brierSkillUp": -10.8,
+          "brierSkillDown": -10.3,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 2032,
+              "predicted": 24.4,
+              "realised": 64
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 5824,
+              "predicted": 35.5,
+              "realised": 53.6
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 9138,
+              "predicted": 45.2,
+              "realised": 47.4
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 9731,
+              "predicted": 55,
+              "realised": 50.4
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 5640,
+              "predicted": 64.4,
+              "realised": 46.8
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 2634,
+              "predicted": 75,
+              "realised": 37.9
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 3081,
+              "predicted": 24.8,
+              "realised": 58.3
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 6538,
+              "predicted": 35.9,
+              "realised": 49.8
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 9987,
+              "predicted": 45,
+              "realised": 49.2
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 8786,
+              "predicted": 54.6,
+              "realised": 49.9
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 4973,
+              "predicted": 64.4,
+              "realised": 45.2
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 1634,
+              "predicted": 75.9,
+              "realised": 32.5
+            }
+          ]
+        },
+        {
+          "id": "trend",
+          "label": "Règle de tendance",
+          "description": "Règle publiée, sans apprentissage : ACHETER au-dessus de la moyenne 200 jours avec un momentum 12-1 mois positif, VENDRE sous la moyenne avec un momentum négatif.",
+          "trainedBlocks": 16,
+          "chosenBlocks": 9,
+          "testRows": 35251,
+          "labelled": 34999,
+          "buy": {
+            "signals": 749,
+            "meanNet": 7.06,
+            "baselineNet": 9.04,
+            "allDaysNet": 4.4,
+            "excess": -1.98,
+            "tStat": -1.21,
+            "rawTStat": 4.34,
+            "clustered": {
+              "byDate": -1.21,
+              "dates": 621,
+              "byAsset": -2.7,
+              "assets": 12,
+              "perSignal": -1.32
+            },
+            "hitRate": 50.5,
+            "baselineHitRate": 49.4,
+            "medianBotReturn": 262.19,
+            "medianHoldReturn": 1420.72,
+            "beatHold": 4,
+            "assets": 12,
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "sell": {
+            "signals": 683,
+            "meanAfter": 1.96,
+            "baselineAfter": 0.68,
+            "allDaysAfter": 4.73,
+            "avoided": -1.27,
+            "tStat": -1.99,
+            "clustered": {
+              "byDate": -1.99,
+              "dates": 505,
+              "byAsset": -3.24,
+              "assets": 12,
+              "perSignal": -1.52
+            },
+            "fallRate": 51.5,
+            "baselineFallRate": 48.9,
+            "meanDrawdown": -13.07,
+            "baselineDrawdown": -13.89,
+            "exit": {
+              "assets": 12,
+              "outShare": 38.8,
+              "medianHoldMaxDrawdown": -92.88,
+              "medianBotMaxDrawdown": -84.76,
+              "medianDrawdownAvoided": 5.77,
+              "medianHoldReturn": 1420.72,
+              "medianBotReturn": 663.9,
+              "beatHold": 5
+            },
+            "verdict": "unproven",
+            "verdictLabel": "Avantage non démontré"
+          },
+          "wait": {
+            "days": 10119,
+            "share": 28.9,
+            "meanNet": 2.43,
+            "baselineNet": 4.4
+          },
+          "brierSkillUp": -0.6,
+          "brierSkillDown": -0.6,
+          "calibrationUp": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 18940,
+              "predicted": 47.1,
+              "realised": 49.1
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 13604,
+              "predicted": 53.6,
+              "realised": 49.7
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 2455,
+              "predicted": 62,
+              "realised": 50
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ],
+          "calibrationDown": [
+            {
+              "from": 0,
+              "to": 30,
+              "label": "moins de 30 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 30,
+              "to": 40,
+              "label": "30 à 40 %",
+              "rows": 3248,
+              "predicted": 36.9,
+              "realised": 51.1
+            },
+            {
+              "from": 40,
+              "to": 50,
+              "label": "40 à 50 %",
+              "rows": 15579,
+              "predicted": 46.3,
+              "realised": 49.8
+            },
+            {
+              "from": 50,
+              "to": 60,
+              "label": "50 à 60 %",
+              "rows": 16172,
+              "predicted": 51.9,
+              "realised": 47.7
+            },
+            {
+              "from": 60,
+              "to": 70,
+              "label": "60 à 70 %",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            },
+            {
+              "from": 70,
+              "to": 100,
+              "label": "70 % et plus",
+              "rows": 0,
+              "predicted": null,
+              "realised": null
+            }
+          ]
+        }
+      ],
+      "holdout": {
+        "from": 1759104000000,
+        "to": 1790553600000,
+        "testRows": 4380,
+        "labelled": 4128,
+        "buy": {
+          "signals": 61,
+          "meanNet": 0.19,
+          "baselineNet": -3.31,
+          "allDaysNet": -3.16,
+          "excess": 3.51,
+          "tStat": 0.71,
+          "rawTStat": 0.13,
+          "clustered": {
+            "byDate": 0.71,
+            "dates": 36,
+            "byAsset": 2.82,
+            "assets": 12,
+            "perSignal": 2.43
+          },
+          "hitRate": 45.9,
+          "baselineHitRate": 41.3,
+          "medianBotReturn": -4.98,
+          "medianHoldReturn": -39.5,
+          "beatHold": 11,
+          "assets": 12,
+          "verdict": "unproven",
+          "verdictLabel": "Avantage non démontré"
+        },
+        "sell": {
+          "signals": 46,
+          "meanAfter": -4.27,
+          "baselineAfter": -6.06,
+          "allDaysAfter": -2.85,
+          "avoided": -1.79,
+          "tStat": -0.11,
+          "clustered": {
+            "byDate": -0.11,
+            "dates": 24,
+            "byAsset": -1.53,
+            "assets": 11,
+            "perSignal": -0.8
+          },
+          "fallRate": 58.7,
+          "baselineFallRate": 56.5,
+          "meanDrawdown": -19.17,
+          "baselineDrawdown": -16.1,
+          "exit": {
+            "assets": 12,
+            "outShare": 21.1,
+            "medianHoldMaxDrawdown": -68.4,
+            "medianBotMaxDrawdown": -61.52,
+            "medianDrawdownAvoided": 6.72,
+            "medianHoldReturn": -39.5,
+            "medianBotReturn": -32.35,
+            "beatHold": 8
+          },
+          "verdict": "unproven",
+          "verdictLabel": "Avantage non démontré"
+        },
+        "wait": {
+          "days": 3638,
+          "share": 88.1,
+          "meanNet": -3.09,
+          "baselineNet": -3.16
+        },
+        "brierSkillUp": 1.3,
+        "brierSkillDown": 1.1,
+        "calibrationUp": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 5,
+            "predicted": 39.5,
+            "realised": 0
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 3618,
+            "predicted": 45.5,
+            "realised": 40.6
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 464,
+            "predicted": 53.4,
+            "realised": 43.8
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 41,
+            "predicted": 62.2,
+            "realised": 78
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          }
+        ],
+        "calibrationDown": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 81,
+            "predicted": 37.8,
+            "realised": 22.2
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 889,
+            "predicted": 47.6,
+            "realised": 55.3
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 3158,
+            "predicted": 53.2,
+            "realised": 57.8
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          }
+        ]
+      },
+      "extra": {
+        "testRows": 50540,
+        "labelled": 50141,
+        "buy": {
+          "signals": 840,
+          "meanNet": 2.89,
+          "baselineNet": 5.79,
+          "allDaysNet": 2.35,
+          "excess": -2.9,
+          "tStat": -2.75,
+          "rawTStat": 2.54,
+          "clustered": {
+            "byDate": -2.75,
+            "dates": 614,
+            "byAsset": -4.1,
+            "assets": 19,
+            "perSignal": -2.7
+          },
+          "hitRate": 41.7,
+          "baselineHitRate": 44.6,
+          "medianBotReturn": -37.4,
+          "medianHoldReturn": -52.99,
+          "beatHold": 11,
+          "assets": 19,
+          "verdict": "negative",
+          "verdictLabel": "Moins bien qu'une entrée au hasard (t ≤ −2 par jour)"
+        },
+        "sell": {
+          "signals": 1142,
+          "meanAfter": 1.71,
+          "baselineAfter": 0.69,
+          "allDaysAfter": 2.68,
+          "avoided": -1.02,
+          "tStat": -2.02,
+          "clustered": {
+            "byDate": -2.02,
+            "dates": 714,
+            "byAsset": -2.11,
+            "assets": 19,
+            "perSignal": -1.41
+          },
+          "fallRate": 53.6,
+          "baselineFallRate": 53.3,
+          "meanDrawdown": -15.1,
+          "baselineDrawdown": -15.89,
+          "exit": {
+            "assets": 19,
+            "outShare": 45.2,
+            "medianHoldMaxDrawdown": -95.45,
+            "medianBotMaxDrawdown": -88.11,
+            "medianDrawdownAvoided": 5.94,
+            "medianHoldReturn": -52.99,
+            "medianBotReturn": 12.79,
+            "beatHold": 10
+          },
+          "verdict": "negative",
+          "verdictLabel": "Ventes à contretemps : la hausse a suivi (t ≤ −2 par jour)"
+        },
+        "wait": {
+          "days": 22131,
+          "share": 44.1,
+          "meanNet": 1.27,
+          "baselineNet": 2.35
+        },
+        "brierSkillUp": -0.4,
+        "brierSkillDown": -0.4,
+        "calibrationUp": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 70,
+            "predicted": 27,
+            "realised": 44.3
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 674,
+            "predicted": 37.8,
+            "realised": 46.1
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 31908,
+            "predicted": 46.2,
+            "realised": 44.6
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 17312,
+            "predicted": 53.9,
+            "realised": 44.7
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 177,
+            "predicted": 61.6,
+            "realised": 26.6
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          }
+        ],
+        "calibrationDown": [
+          {
+            "from": 0,
+            "to": 30,
+            "label": "moins de 30 %",
+            "rows": 0,
+            "predicted": null,
+            "realised": null
+          },
+          {
+            "from": 30,
+            "to": 40,
+            "label": "30 à 40 %",
+            "rows": 764,
+            "predicted": 39,
+            "realised": 69.2
+          },
+          {
+            "from": 40,
+            "to": 50,
+            "label": "40 à 50 %",
+            "rows": 21031,
+            "predicted": 45.9,
+            "realised": 55.1
+          },
+          {
+            "from": 50,
+            "to": 60,
+            "label": "50 à 60 %",
+            "rows": 27976,
+            "predicted": 52.9,
+            "realised": 51.5
+          },
+          {
+            "from": 60,
+            "to": 70,
+            "label": "60 à 70 %",
+            "rows": 307,
+            "predicted": 62.7,
+            "realised": 55
+          },
+          {
+            "from": 70,
+            "to": 100,
+            "label": "70 % et plus",
+            "rows": 63,
+            "predicted": 72.9,
+            "realised": 57.1
+          }
+        ]
+      },
+      "market": "bitcoin"
+    }
+  ],
+  "assets": [
+    {
+      "symbol": "AAPL",
+      "name": "Apple",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 83,
+      "buyMean": 2.09,
+      "buyExcess": -0.09,
+      "sells": 30,
+      "sellAvoided": -1.79,
+      "waitShare": 55.7,
+      "botReturn": 359.69,
+      "holdReturn": 4597.77,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.9,
+        "down": 40.5
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 14.1,
+      "holdMaxDrawdown": -44.77,
+      "botMaxDrawdown": -38.42
+    },
+    {
+      "symbol": "MSFT",
+      "name": "Microsoft",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 84,
+      "buyMean": 1.13,
+      "buyExcess": -0.07,
+      "sells": 35,
+      "sellAvoided": -2.62,
+      "waitShare": 57.7,
+      "botReturn": 123.72,
+      "holdReturn": 1615.2,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 53.8,
+        "down": 41.7
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 16.5,
+      "holdMaxDrawdown": -36.87,
+      "botMaxDrawdown": -38.08
+    },
+    {
+      "symbol": "GOOGL",
+      "name": "Alphabet",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 95,
+      "buyMean": 1.52,
+      "buyExcess": 0.04,
+      "sells": 22,
+      "sellAvoided": -2.33,
+      "waitShare": 57.2,
+      "botReturn": 256.84,
+      "holdReturn": 2291.47,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56,
+        "down": 40.2
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 10.4,
+      "holdMaxDrawdown": -43.54,
+      "botMaxDrawdown": -34.4
+    },
+    {
+      "symbol": "META",
+      "name": "Meta Platforms",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 3350,
+      "testFrom": 1370352600000,
+      "testTo": 1790602200000,
+      "buys": 54,
+      "buyMean": 1.97,
+      "buyExcess": -0.92,
+      "sells": 30,
+      "sellAvoided": -4.28,
+      "waitShare": 61.9,
+      "botReturn": 158.85,
+      "holdReturn": 3112.16,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.1,
+        "down": 42
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 14.4,
+      "dataFrom": 1337347800000,
+      "outShare": 17.9,
+      "holdMaxDrawdown": -76.4,
+      "botMaxDrawdown": -60.51
+    },
+    {
+      "symbol": "AMZN",
+      "name": "Amazon",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 103,
+      "buyMean": 1.17,
+      "buyExcess": -0.6,
+      "sells": 27,
+      "sellAvoided": -2.45,
+      "waitShare": 53.4,
+      "botReturn": 159.94,
+      "holdReturn": 3660.75,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.5,
+        "down": 40.3
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 12.7,
+      "holdMaxDrawdown": -55.77,
+      "botMaxDrawdown": -46.26
+    },
+    {
+      "symbol": "HD",
+      "name": "Home Depot",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 97,
+      "buyMean": 1.19,
+      "buyExcess": -0.35,
+      "sells": 25,
+      "sellAvoided": -3.01,
+      "waitShare": 53.6,
+      "botReturn": 158.75,
+      "holdReturn": 964.82,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.9,
+        "down": 40.9
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 11.8,
+      "holdMaxDrawdown": -39.12,
+      "botMaxDrawdown": -49.48
+    },
+    {
+      "symbol": "JPM",
+      "name": "JPMorgan Chase",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 76,
+      "buyMean": 0.46,
+      "buyExcess": -0.72,
+      "sells": 43,
+      "sellAvoided": 0.05,
+      "waitShare": 58.8,
+      "botReturn": 23.16,
+      "holdReturn": 692.01,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.7,
+        "down": 39.8
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 20.3,
+      "holdMaxDrawdown": -41.7,
+      "botMaxDrawdown": -38.53
+    },
+    {
+      "symbol": "BAC",
+      "name": "Bank of America",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 72,
+      "buyMean": 1.76,
+      "buyExcess": 0.45,
+      "sells": 55,
+      "sellAvoided": -0.62,
+      "waitShare": 56.7,
+      "botReturn": 202.47,
+      "holdReturn": 250.87,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.7,
+        "down": 40.1
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 25.9,
+      "holdMaxDrawdown": -73.97,
+      "botMaxDrawdown": -53.1
+    },
+    {
+      "symbol": "JNJ",
+      "name": "Johnson & Johnson",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 99,
+      "buyMean": 0.5,
+      "buyExcess": -0.09,
+      "sells": 27,
+      "sellAvoided": -2.88,
+      "waitShare": 58.7,
+      "botReturn": 49.73,
+      "holdReturn": 342.25,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.6,
+        "down": 39.8
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 12.7,
+      "holdMaxDrawdown": -24.15,
+      "botMaxDrawdown": -46.38
+    },
+    {
+      "symbol": "UNH",
+      "name": "UnitedHealth",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 106,
+      "buyMean": 1.83,
+      "buyExcess": 0.13,
+      "sells": 17,
+      "sellAvoided": -0.2,
+      "waitShare": 53.4,
+      "botReturn": 471.69,
+      "holdReturn": 1203.19,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 57,
+        "down": 39.2
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 8,
+      "holdMaxDrawdown": -61.55,
+      "botMaxDrawdown": -50.29
+    },
+    {
+      "symbol": "XOM",
+      "name": "Exxon Mobil",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 78,
+      "buyMean": 0.44,
+      "buyExcess": -0.94,
+      "sells": 39,
+      "sellAvoided": -1.56,
+      "waitShare": 58.8,
+      "botReturn": 22.03,
+      "holdReturn": 125.95,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.8,
+        "down": 40.8
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 18.4,
+      "holdMaxDrawdown": -69.92,
+      "botMaxDrawdown": -74.7
+    },
+    {
+      "symbol": "CVX",
+      "name": "Chevron",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 102,
+      "buyMean": 0.21,
+      "buyExcess": -0.7,
+      "sells": 26,
+      "sellAvoided": -2.83,
+      "waitShare": 58,
+      "botReturn": 3.69,
+      "holdReturn": 167.79,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 54.2,
+        "down": 41.2
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 12.3,
+      "holdMaxDrawdown": -58.94,
+      "botMaxDrawdown": -68.51
+    },
+    {
+      "symbol": "PG",
+      "name": "Procter & Gamble",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 100,
+      "buyMean": -0.41,
+      "buyExcess": -0.62,
+      "sells": 27,
+      "sellAvoided": -2.25,
+      "waitShare": 59.1,
+      "botReturn": -38.27,
+      "holdReturn": 137.94,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.3,
+        "down": 39.2
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 12.7,
+      "holdMaxDrawdown": -27.25,
+      "botMaxDrawdown": -37.33
+    },
+    {
+      "symbol": "KO",
+      "name": "Coca-Cola",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 102,
+      "buyMean": 0.28,
+      "buyExcess": 0,
+      "sells": 22,
+      "sellAvoided": -1.01,
+      "waitShare": 58.7,
+      "botReturn": 23.3,
+      "holdReturn": 212.56,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.1,
+        "down": 39.3
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 10.4,
+      "holdMaxDrawdown": -35.19,
+      "botMaxDrawdown": -36.53
+    },
+    {
+      "symbol": "CAT",
+      "name": "Caterpillar",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 80,
+      "buyMean": 0.84,
+      "buyExcess": -0.57,
+      "sells": 45,
+      "sellAvoided": -2.58,
+      "waitShare": 59.7,
+      "botReturn": 58.63,
+      "holdReturn": 1295.16,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 58.5,
+        "down": 38.6
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 21.2,
+      "holdMaxDrawdown": -50.06,
+      "botMaxDrawdown": -63.86
+    },
+    {
+      "symbol": "BA",
+      "name": "Boeing",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 83,
+      "buyMean": 1.24,
+      "buyExcess": -0.64,
+      "sells": 42,
+      "sellAvoided": -1.67,
+      "waitShare": 57.7,
+      "botReturn": 126.32,
+      "holdReturn": 285.39,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 58.1,
+        "down": 38.8
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 19.8,
+      "holdMaxDrawdown": -77.86,
+      "botMaxDrawdown": -76.17
+    },
+    {
+      "symbol": "NEE",
+      "name": "NextEra Energy",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 95,
+      "buyMean": -0.13,
+      "buyExcess": -0.79,
+      "sells": 27,
+      "sellAvoided": -2.67,
+      "waitShare": 58.9,
+      "botReturn": -24.92,
+      "holdReturn": 495.38,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.6,
+        "down": 40
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 12.7,
+      "holdMaxDrawdown": -47.48,
+      "botMaxDrawdown": -55.02
+    },
+    {
+      "symbol": "DUK",
+      "name": "Duke Energy",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 106,
+      "buyMean": 0.03,
+      "buyExcess": -0.23,
+      "sells": 23,
+      "sellAvoided": -2.61,
+      "waitShare": 56.1,
+      "botReturn": -5.38,
+      "holdReturn": 136.02,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.1,
+        "down": 40
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 10.8,
+      "holdMaxDrawdown": -35.24,
+      "botMaxDrawdown": -44.47
+    },
+    {
+      "symbol": "NVDA",
+      "name": "NVIDIA",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 81,
+      "buyMean": 3.8,
+      "buyExcess": -1.27,
+      "sells": 47,
+      "sellAvoided": -0.73,
+      "waitShare": 52.6,
+      "botReturn": 1231.3,
+      "holdReturn": 68227.14,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 55.3,
+        "down": 40.6
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 22.2,
+      "holdMaxDrawdown": -67.27,
+      "botMaxDrawdown": -59.86
+    },
+    {
+      "symbol": "INTC",
+      "name": "Intel",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 74,
+      "buyMean": 1.19,
+      "buyExcess": -0.72,
+      "sells": 56,
+      "sellAvoided": -1.7,
+      "waitShare": 60.5,
+      "botReturn": 70.6,
+      "holdReturn": 511.97,
+      "now": {
+        "time": 1790602200000,
+        "action": "buy",
+        "up": 62.4,
+        "down": 38.8
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 26.4,
+      "holdMaxDrawdown": -73.5,
+      "botMaxDrawdown": -81.44
+    },
+    {
+      "symbol": "SPY",
+      "name": "SPDR S&P 500 ETF",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 104,
+      "buyMean": 0.51,
+      "buyExcess": -0.26,
+      "sells": 24,
+      "sellAvoided": -1.65,
+      "waitShare": 55.9,
+      "botReturn": 54.85,
+      "holdReturn": 602.91,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56,
+        "down": 38.7
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 11.3,
+      "holdMaxDrawdown": -32.45,
+      "botMaxDrawdown": -31.53
+    },
+    {
+      "symbol": "QQQ",
+      "name": "Invesco QQQ (Nasdaq 100)",
+      "kind": "stock",
+      "class": "stock",
+      "group": "stock",
+      "testRows": 4243,
+      "testFrom": 1258036200000,
+      "testTo": 1790602200000,
+      "buys": 103,
+      "buyMean": 1.19,
+      "buyExcess": 0.02,
+      "sells": 25,
+      "sellAvoided": -1.52,
+      "waitShare": 55,
+      "botReturn": 206.65,
+      "holdReturn": 1591.32,
+      "now": {
+        "time": 1790602200000,
+        "action": "wait",
+        "up": 56.5,
+        "down": 38.6
+      },
+      "source": "Yahoo Finance (20 ans max.)",
+      "years": 20.1,
+      "dataFrom": 1157463000000,
+      "outShare": 11.8,
+      "holdMaxDrawdown": -37.09,
+      "botMaxDrawdown": -26.35
+    },
+    {
+      "symbol": "BTC",
+      "name": "Bitcoin",
+      "kind": "crypto",
+      "class": "btc",
+      "group": "crypto",
+      "testRows": 3961,
+      "testFrom": 1448409600000,
+      "testTo": 1790553600000,
+      "buys": 98,
+      "buyMean": 3.36,
+      "buyExcess": -0.23,
+      "sells": 47,
+      "sellAvoided": -0.07,
+      "waitShare": 48.4,
+      "botReturn": 689.08,
+      "holdReturn": 25578.13,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 47.4,
+        "down": 50.6
+      },
+      "source": "Bitstamp",
+      "years": 15.1,
+      "dataFrom": 1313625600000,
+      "outShare": 23.7,
+      "holdMaxDrawdown": -83.42,
+      "botMaxDrawdown": -74.95
+    },
+    {
+      "symbol": "ETH",
+      "name": "Ethereum",
+      "kind": "crypto",
+      "class": "eth",
+      "group": "crypto",
+      "testRows": 3071,
+      "testFrom": 1525305600000,
+      "testTo": 1790553600000,
+      "buys": 70,
+      "buyMean": 5.07,
+      "buyExcess": -0.27,
+      "sells": 48,
+      "sellAvoided": -2.08,
+      "waitShare": 43,
+      "botReturn": 652.62,
+      "holdReturn": 245.99,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 46.7,
+        "down": 51.5
+      },
+      "source": "Bitstamp",
+      "years": 9.1,
+      "dataFrom": 1502841600000,
+      "outShare": 31.3,
+      "holdMaxDrawdown": -89.83,
+      "botMaxDrawdown": -81.61
+    },
+    {
+      "symbol": "SOL",
+      "name": "Solana",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2103,
+      "testFrom": 1608940800000,
+      "testTo": 1790553600000,
+      "buys": 53,
+      "buyMean": 12.6,
+      "buyExcess": -2.92,
+      "sells": 32,
+      "sellAvoided": -0.03,
+      "waitShare": 43.5,
+      "botReturn": 3534.65,
+      "holdReturn": 9111.36,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 45.2,
+        "down": 52.9
+      },
+      "source": "Yahoo Finance",
+      "years": 6.5,
+      "dataFrom": 1586476800000,
+      "outShare": 30.5,
+      "holdMaxDrawdown": -96.27,
+      "botMaxDrawdown": -84.75
+    },
+    {
+      "symbol": "BNB",
+      "name": "BNB",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2986,
+      "testFrom": 1532649600000,
+      "testTo": 1790553600000,
+      "buys": 74,
+      "buyMean": 8.02,
+      "buyExcess": 0.32,
+      "sells": 47,
+      "sellAvoided": 1.53,
+      "waitShare": 40.6,
+      "botReturn": 1801.79,
+      "holdReturn": 5453.38,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 47.6,
+        "down": 50.4
+      },
+      "source": "Yahoo Finance",
+      "years": 8.9,
+      "dataFrom": 1510185600000,
+      "outShare": 31.5,
+      "holdMaxDrawdown": -75.87,
+      "botMaxDrawdown": -70.89
+    },
+    {
+      "symbol": "XRP",
+      "name": "XRP",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 3314,
+      "testFrom": 1504310400000,
+      "testTo": 1790553600000,
+      "buys": 63,
+      "buyMean": 3.98,
+      "buyExcess": -4.83,
+      "sells": 65,
+      "sellAvoided": -1.82,
+      "waitShare": 45.5,
+      "botReturn": -42.58,
+      "holdReturn": 570.27,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 45,
+        "down": 53.1
+      },
+      "source": "Bitstamp",
+      "years": 9.8,
+      "dataFrom": 1481846400000,
+      "outShare": 39.3,
+      "holdMaxDrawdown": -94.99,
+      "botMaxDrawdown": -95.72
+    },
+    {
+      "symbol": "ADA",
+      "name": "Cardano",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2986,
+      "testFrom": 1532649600000,
+      "testTo": 1790553600000,
+      "buys": 55,
+      "buyMean": 7.92,
+      "buyExcess": 0.12,
+      "sells": 60,
+      "sellAvoided": -2.56,
+      "waitShare": 42,
+      "botReturn": 452.8,
+      "holdReturn": 53.71,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 45.8,
+        "down": 52.4
+      },
+      "source": "Yahoo Finance",
+      "years": 8.9,
+      "dataFrom": 1510185600000,
+      "outShare": 40.2,
+      "holdMaxDrawdown": -95.16,
+      "botMaxDrawdown": -91.17
+    },
+    {
+      "symbol": "DOGE",
+      "name": "Dogecoin",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2986,
+      "testFrom": 1532649600000,
+      "testTo": 1790553600000,
+      "buys": 53,
+      "buyMean": 27.74,
+      "buyExcess": 6.57,
+      "sells": 56,
+      "sellAvoided": -0.94,
+      "waitShare": 45.7,
+      "botReturn": 12123.85,
+      "holdReturn": 2747.3,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 44.7,
+        "down": 53.3
+      },
+      "source": "Yahoo Finance",
+      "years": 8.9,
+      "dataFrom": 1510185600000,
+      "outShare": 37.5,
+      "holdMaxDrawdown": -92.29,
+      "botMaxDrawdown": -87.22
+    },
+    {
+      "symbol": "AVAX",
+      "name": "Avalanche",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 1940,
+      "testFrom": 1623024000000,
+      "testTo": 1790553600000,
+      "buys": 30,
+      "buyMean": 9.17,
+      "buyExcess": 0.38,
+      "sells": 38,
+      "sellAvoided": -1.71,
+      "waitShare": 47.2,
+      "botReturn": 195.45,
+      "holdReturn": -29.84,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 41.9,
+        "down": 56.2
+      },
+      "source": "Yahoo Finance",
+      "years": 6.2,
+      "dataFrom": 1594598400000,
+      "outShare": 39.2,
+      "holdMaxDrawdown": -95.62,
+      "botMaxDrawdown": -94.94
+    },
+    {
+      "symbol": "DOT",
+      "name": "Polkadot",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 1971,
+      "testFrom": 1620345600000,
+      "testTo": 1790553600000,
+      "buys": 27,
+      "buyMean": -4.68,
+      "buyExcess": -4.21,
+      "sells": 49,
+      "sellAvoided": 0.05,
+      "waitShare": 48.8,
+      "botReturn": -84.39,
+      "holdReturn": -96.81,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 43.4,
+        "down": 54.7
+      },
+      "source": "Yahoo Finance",
+      "years": 6.1,
+      "dataFrom": 1597881600000,
+      "outShare": 49.8,
+      "holdMaxDrawdown": -98.61,
+      "botMaxDrawdown": -90.44
+    },
+    {
+      "symbol": "LINK",
+      "name": "Chainlink",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2986,
+      "testFrom": 1532649600000,
+      "testTo": 1790553600000,
+      "buys": 71,
+      "buyMean": 6.47,
+      "buyExcess": -2.71,
+      "sells": 50,
+      "sellAvoided": -1.99,
+      "waitShare": 41.6,
+      "botReturn": 577.05,
+      "holdReturn": 5161.82,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 46.6,
+        "down": 51.7
+      },
+      "source": "Yahoo Finance",
+      "years": 8.9,
+      "dataFrom": 1510185600000,
+      "outShare": 33.5,
+      "holdMaxDrawdown": -90.2,
+      "botMaxDrawdown": -87.77
+    },
+    {
+      "symbol": "LTC",
+      "name": "Litecoin",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 3961,
+      "testFrom": 1448409600000,
+      "testTo": 1790553600000,
+      "buys": 66,
+      "buyMean": 0.68,
+      "buyExcess": -2.68,
+      "sells": 81,
+      "sellAvoided": 0.53,
+      "waitShare": 49.5,
+      "botReturn": -56.59,
+      "holdReturn": 2028.21,
+      "now": {
+        "time": 1790553600000,
+        "action": "wait",
+        "up": 43.4,
+        "down": 54.9
+      },
+      "source": "Yahoo Finance",
+      "years": 12,
+      "dataFrom": 1410912000000,
+      "outShare": 40.9,
+      "holdMaxDrawdown": -93.47,
+      "botMaxDrawdown": -95.17
+    },
+    {
+      "symbol": "TRX",
+      "name": "TRON",
+      "kind": "crypto",
+      "class": "altcoin",
+      "group": "crypto",
+      "testRows": 2986,
+      "testFrom": 1532649600000,
+      "testTo": 1790553600000,
+      "buys": 86,
+      "buyMean": 4.94,
+      "buyExcess": 0.83,
+      "sells": 39,
+      "sellAvoided": -0.95,
+      "waitShare": 29.9,
+      "botReturn": 1387.99,
+      "holdReturn": 813.23,
+      "now": {
+        "time": 1790553600000,
+        "action": "buy",
+        "up": 51.9,
+        "down": 46
+      },
+      "source": "Yahoo Finance",
+      "years": 8.9,
+      "dataFrom": 1510185600000,
+      "outShare": 26.1,
+      "holdMaxDrawdown": -77.58,
+      "botMaxDrawdown": -75.16
+    }
+  ],
+  "failures": [],
+  "features": [
+    {
+      "id": "ret5",
+      "label": "Variation sur 5 jours",
+      "help": "Variation du cours de clôture sur 5 bougies, en %."
+    },
+    {
+      "id": "ret20",
+      "label": "Variation sur 20 jours",
+      "help": "Variation du cours de clôture sur 20 bougies, en %."
+    },
+    {
+      "id": "ret60",
+      "label": "Variation sur 60 jours",
+      "help": "Variation du cours de clôture sur 60 bougies, en %."
+    },
+    {
+      "id": "rsi14",
+      "label": "RSI 14",
+      "help": "Indice de force relative sur 14 jours (0 à 100)."
+    },
+    {
+      "id": "ema50",
+      "label": "Écart à la moyenne 50 jours",
+      "help": "Écart de la clôture à sa moyenne mobile exponentielle 50 jours, en %."
+    },
+    {
+      "id": "ema200",
+      "label": "Écart à la moyenne 200 jours",
+      "help": "Écart de la clôture à sa moyenne mobile exponentielle 200 jours, en %."
+    },
+    {
+      "id": "macd",
+      "label": "MACD (histogramme)",
+      "help": "Histogramme du MACD 12/26/9 rapporté au cours, en %."
+    },
+    {
+      "id": "atr14",
+      "label": "Amplitude moyenne (ATR 14)",
+      "help": "ATR 14 jours rapporté au cours, en %."
+    },
+    {
+      "id": "vol20",
+      "label": "Volatilité 20 jours",
+      "help": "Écart type des variations journalières sur 20 jours, en %."
+    },
+    {
+      "id": "volume",
+      "label": "Volume inhabituel",
+      "help": "Volume du jour en écarts types par rapport aux 20 jours précédents (0 sans volume)."
+    },
+    {
+      "id": "drawdown",
+      "label": "Recul depuis le plus haut 200 jours",
+      "help": "Écart de la clôture au plus haut des 200 derniers jours, en % (≤ 0)."
+    },
+    {
+      "id": "range20",
+      "label": "Position dans la fourchette 20 jours",
+      "help": "0 au plus bas des 20 derniers jours, 1 au plus haut."
+    },
+    {
+      "id": "bull",
+      "label": "Régime haussier",
+      "help": "1 en marché haussier (règle de la validation), sinon 0."
+    },
+    {
+      "id": "bear",
+      "label": "Régime baissier",
+      "help": "1 en marché baissier, sinon 0."
+    },
+    {
+      "id": "range",
+      "label": "Régime sans tendance",
+      "help": "1 en marché sans tendance, sinon 0."
+    },
+    {
+      "id": "crisis",
+      "label": "Régime de crise",
+      "help": "1 à plus de 30 % sous le plus haut d'un an, sinon 0."
+    },
+    {
+      "id": "mom12_1",
+      "label": "Momentum 12-1 mois",
+      "help": "Variation de la clôture entre il y a 252 et il y a 21 bougies (le dernier mois exclu), en %."
+    },
+    {
+      "id": "high52",
+      "label": "Écart au plus haut d'un an",
+      "help": "Écart de la clôture au plus haut des 252 dernières bougies, en % (≤ 0)."
+    },
+    {
+      "id": "rs20",
+      "label": "Force relative 20 jours",
+      "help": "Variation sur 20 jours de l'actif moins celle du marché (S&P 500 ou bitcoin), en points."
+    },
+    {
+      "id": "rs60",
+      "label": "Force relative 60 jours",
+      "help": "Variation sur 60 jours de l'actif moins celle du marché, en points."
+    },
+    {
+      "id": "rs120",
+      "label": "Force relative 120 jours",
+      "help": "Variation sur 120 jours de l'actif moins celle du marché, en points."
+    },
+    {
+      "id": "mkt_trend",
+      "label": "Tendance du marché",
+      "help": "Écart du marché (S&P 500 via SPY, ou bitcoin) à sa moyenne simple 200 jours, en %."
+    },
+    {
+      "id": "mkt_vol20",
+      "label": "Volatilité du marché",
+      "help": "Écart type des variations journalières du marché sur 20 jours, en %."
+    },
+    {
+      "id": "mkt_ret60",
+      "label": "Variation du marché sur 60 jours",
+      "help": "Variation du marché sur 60 bougies, en %."
+    }
+  ],
+  "parameters": {
+    "horizonDays": 20,
+    "retrainEvery": 252,
+    "purgeDays": 20,
+    "minTrainDays": 504,
+    "warmup": 260,
+    "l2": 0.05,
+    "thresholdMargin": 5,
+    "costStockPct": 0.31,
+    "costCryptoPct": 0.32,
+    "minSignals": 30,
+    "tEdge": 2,
+    "nudge": 3,
+    "innerValidationDays": 252,
+    "trainStride": 5,
+    "holdoutDays": 365,
+    "stockYears": 20,
+    "trees": 100,
+    "treeDepth": 3,
+    "shrinkage": 0.1,
+    "minLeaf": 200,
+    "selection": "À chaque réentraînement, chaque candidat est entraîné sans la dernière année de la fenêtre d'entraînement puis noté sur cette année (log-loss moyenne des deux modèles, après un écart de 20 jours) ; le meilleur est réentraîné sur toute la fenêtre."
+  },
+  "method": [
+    "Test principal sur le panier fixe de la validation (34 actifs fixés le 29 septembre 2026, jamais choisis sur leurs performances). Entraînement aussi sur 91 autres actifs liquides fixés le même jour, jugés à part.",
+    "À chaque clôture, 24 mesures lues sur les seules bougies connues ce jour-là : variations, RSI, moyennes, MACD, ATR, volatilité, volume, reculs, régime, momentum 12-1 mois, force relative et contexte du marché (S&P 500 ou bitcoin).",
+    "Deux modèles estiment la probabilité d'une hausse (gain net des coûts d'un aller-retour, 0,31 % actions, 0,32 % cryptos) et d'une baisse (plus que ces coûts) sur les 20 bougies suivantes, achat à l'ouverture du lendemain.",
+    "4 candidats fixés d'avance : la régression logistique de la v1 (16 mesures), la même sur 24 mesures, des arbres de décision boostés, et une règle de tendance publiée (moyenne 200 jours + momentum 12-1 mois) sans apprentissage.",
+    "À chaque réentraînement, chaque candidat est entraîné sans la dernière année de la fenêtre d'entraînement puis noté sur cette année (log-loss moyenne des deux modèles, après un écart de 20 jours) ; le meilleur est réentraîné sur toute la fenêtre.",
+    "ACHETER si la probabilité de hausse dépasse de 5 points sa fréquence à l'entraînement ; VENDRE (sortir ou rester dehors, jamais de vente à découvert) si c'est celle de baisse ; ATTENDRE sinon (la règle de tendance donne directement son action).",
+    "Walk-forward : au moins 504 jours d'apprentissage, nouvel entraînement tous les 252 jours sur tout le passé, écart de 20 jours entre la fin des résultats connus et le début du test ; un jour sur 5 de chaque actif sert à l'entraînement (les résultats à 20 jours se chevauchent), tous les jours au test.",
+    "Mesures standardisées, découpages des arbres et seuils calculés sur l'entraînement seul ; calcul déterministe, sans hasard.",
+    "Un signal n'est compté qu'une fois sa période de 20 jours finie et comparé à un jour pris au hasard sur le même actif et la même période. Avantage dit « observé » seulement avec au moins 30 signaux et t ≥ 2 calculé par jour (les signaux d'un même jour comptent pour un).",
+    "Chaque candidat est aussi montré seul, à titre d'information : il ne sert pas à choisir. La dernière année (365 jours) est présentée à part.",
+    "Dans une décision, le bot ne compte que du côté (achat ou vente) où il a montré un avantage hors échantillon : une ligne pour ou contre et au plus 3 points de confiance ; jamais contre un veto, jamais seul."
+  ],
+  "limits": [
+    "Biais du survivant : les actifs (panier et univers élargi) sont de grands actifs d'aujourd'hui ; ceux qui ont disparu ou chuté entre-temps manquent, ce qui embellit le passé.",
+    "Actifs corrélés (les altcoins suivent le bitcoin, les actions le S&P 500) : même compté par jour, le t reste optimiste si les jours voisins se ressemblent.",
+    "Changements de régime : 20 ans couvrent plusieurs cycles pour les actions, beaucoup moins pour les cryptos (bitcoin seul avant 2017) ; un avantage passé peut disparaître.",
+    "Le panier a déjà servi à la validation du signal et à la v1 du bot : la liste des candidats a été fixée avant de voir les résultats v2, mais pas en ignorant ceux de la v1.",
+    "Le critère de choix (log-loss) favorise les probabilités prudentes : la règle de tendance, dont les probabilités ne sont que des fréquences par état, peut être retenue alors que ses actions ne découlent pas de ces probabilités. Critère fixé avant les résultats, pas changé après.",
+    "Cours ajustés des divisions, pas des dividendes ; coûts supposés (frais, glissement, écart moyen de la classe), sans impôt.",
+    "Pour un actif hors du panier, le modèle de son groupe s'applique sans avoir été testé sur lui.",
+    "Sources : Yahoo Finance (actions, cryptos) et Bitstamp (cryptos) ; en cas d'échec, l'historique habituel d'Altim (≈ 3 à 5 ans) est utilisé pour les actifs du panier."
+  ],
+  "source": "Bougies journalières longues : Yahoo Finance (actions, jusqu'à 20 ans ; cryptos) et Bitstamp (cryptos, depuis la cotation) ; source retenue indiquée par actif",
+  "version": 2,
+  "changes": [
+    "Plus de données : jusqu'à 20 ans d'historique journalier pour les actions et depuis leur cotation pour les cryptos (≈ 5 et 2,7 ans en v1).",
+    "Plus d'actifs à l'entraînement : 72 actions et ETF et 19 cryptos de plus, fixés d'avance ; le test principal reste le panier des 34 actifs.",
+    "24 mesures au lieu de 16 : contexte de marché, force relative, momentum 12-1 mois, écart au plus haut d'un an.",
+    "4 modèles candidats fixés d'avance (dont celui de la v1 et une règle de tendance sans apprentissage), choisis à chaque réentraînement sur une validation interne, jamais sur le test.",
+    "Jugement plus strict : t calculé par jour (les signaux d'un même jour comptent ensemble), baisse maximale évitée par les ventes, dernière année présentée à part.",
+    "Résultat de la v1 (29/09/2026) : aucun avantage démontré (achats sur les actions −0,15 point, t = −0,1 ; sur les cryptos +0,52 point, t = 0,5 ; ventes sans effet ; probabilités moins précises que la fréquence de base)."
+  ],
+  "extraFailures": [],
+  "extraFixedOn": "2026-09-29",
+  "timing": {
+    "fetchMs": 13147,
+    "computeMs": 34579,
+    "threads": 4
+  }
+}

@@ -16,7 +16,8 @@ import kotlin.math.abs
 // times in ms. The server computes everything; nothing here recomputes a statistic. Codes (group, action, verdict)
 // stay strings so an unknown value never breaks decoding. v2 fields are additive and defaulted (a v1 answer still
 // decodes): `version`, `changes`, per group `universe`, `dataYears`, `selection`, `candidates`, `holdout`, `extra`,
-// `market`, `clustered` t in each side, `exit` of the sell side, the live model's `candidate`.
+// `market`, `clustered` t in each side, `exit` of the sell side, the live model's `candidate`. v3 (additive, defaulted):
+// `v3` of the report, of an asset row and of a view, in BotV3.kt.
 
 /** t of a side's excesses: by date (the verdict's since v2), by asset, per signal (v1's). */
 @Serializable
@@ -281,6 +282,8 @@ data class BotAssetRow(
     val outShare: Double? = null,
     val holdMaxDrawdown: Double? = null,
     val botMaxDrawdown: Double? = null,
+    /** Since v3: today's actions of the 4 headline configurations. */
+    val v3: BotV3AssetNow? = null,
 ) {
     val asset: Asset get() = Asset(symbol, kind, name.ifBlank { symbol })
 }
@@ -315,7 +318,14 @@ data class BotParameters(
 )
 
 @Serializable
-data class BotTiming(val fetchMs: Double = 0.0, val computeMs: Double = 0.0, val threads: Int = 0)
+data class BotTiming(
+    val fetchMs: Double = 0.0,
+    val computeMs: Double = 0.0,
+    val threads: Int = 0,
+    // Since v3 (MB).
+    val rssBeforeMb: Double? = null,
+    val peakRssMb: Double? = null,
+)
 
 @Serializable
 data class BotReport(
@@ -339,6 +349,8 @@ data class BotReport(
     val extraFailures: List<ValFailure> = emptyList(),
     val extraFixedOn: String? = null,
     val timing: BotTiming? = null,
+    /** Since v3 (see BotV3.kt): the v2-shaped fields then hold v2's selection at 20 days, at the corrected threshold. */
+    val v3: BotV3Report? = null,
 )
 
 /** A feature's weight in today's probability ("up": pushes the probability up, "down": down). */
@@ -386,9 +398,11 @@ data class BotView(
     // Items of /api/bot/views only.
     val symbol: String = "",
     val kind: Kind? = null,
+    /** Since v3: the 4 headline configurations today; `counts` and `note` are then theirs. */
+    val v3: BotV3View? = null,
 ) {
     /** Tone of the decision's block (web `dec-proof` classes): "na", "edge" (counts) or "unproven". */
-    val tone: String get() = if (!available || action == null) "na" else if (counts) "edge" else "unproven"
+    val tone: String get() = if (!available || action == null) "na" else if (effectiveCounts) "edge" else "unproven"
 }
 
 @Serializable
