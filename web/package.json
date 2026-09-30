@@ -6,10 +6,11 @@
   "type": "module",
   "scripts": {
     "dev": "bun --hot ./src/index.html",
-    "build": "rm -rf dist && bun build ./src/index.html --outdir ./dist --production --public-path=/",
+    "build": "bun run build-app",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "secrets": "bun ./scripts/secrets.ts"
+    "secrets": "bun ./scripts/secrets.ts",
+    "build-app": "rm -rf dist/app && bun build ./src/index.html --outdir ./dist/app --production --public-path=/app/"
   },
   "dependencies": {
     "react": "^19.3.0",

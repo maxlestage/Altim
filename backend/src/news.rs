@@ -94,11 +94,18 @@ pub struct FeedResult {
 
 /// `fetch(url).text()`: follows redirects, 8 s, the body read as UTF-8 whatever the charset (BOM dropped).
 async fn fetch_text(url: &str) -> Result<String> {
-    let res = CLIENT.get(url).header("User-Agent", UA).header("Accept", ACCEPT).timeout(Duration::from_secs(8)).send().await?;
+    let res = CLIENT
+        .get(url)
+        .header("User-Agent", UA)
+        .header("Accept", ACCEPT)
+        .timeout(Duration::from_secs(8))
+        .send()
+        .await
+        .map_err(crate::http::from_reqwest)?;
     if !res.status().is_success() {
         return err(format!("HTTP {}", res.status().as_u16()));
     }
-    let bytes = res.bytes().await?;
+    let bytes = res.bytes().await.map_err(crate::http::from_reqwest)?;
     let text = String::from_utf8_lossy(&bytes);
     Ok(text.strip_prefix('\u{FEFF}').unwrap_or(&text).to_string())
 }

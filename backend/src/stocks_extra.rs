@@ -42,11 +42,11 @@ async fn fetch_text(url: &str, headers: &[(&str, &str)], body: Option<String>) -
     if let Some(b) = body {
         req = req.body(b);
     }
-    let res = req.send().await?;
+    let res = req.send().await.map_err(crate::http::from_reqwest)?;
     if !res.status().is_success() {
         return err(format!("HTTP {}", res.status().as_u16()));
     }
-    Ok(res.text().await?)
+    res.text().await.map_err(crate::http::from_reqwest)
 }
 
 fn json_parse(text: &str) -> Result<Value> {

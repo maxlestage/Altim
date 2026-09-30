@@ -1,4 +1,4 @@
-//! Pure engines, ported line for line from `web/src/engine/*.ts` (the web app keeps using the TypeScript ones).
+//! Pure engines, ported line for line from `web/src/engine/*.ts`; shared by the server and the Yew front (wasm32).
 pub mod alerts;
 pub mod anomalies;
 pub mod ask;

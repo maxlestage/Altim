@@ -120,6 +120,7 @@ thread_local! {
 /// Tests only: forces the rate seen by `current()` and `money()` on this thread (None = no rate), keeping the tests
 /// deterministic whatever the shared cache holds. `clear_test_rate` goes back to the cache.
 pub fn set_test_rate(rate: Option<f64>) {
+    install();
     TEST_RATE.with(|t| t.set(Some(rate)));
 }
 
@@ -129,7 +130,14 @@ pub fn clear_test_rate() {
 
 /// Stores a rate read elsewhere (tests, warm-up).
 pub fn store(r: FxRate) {
+    install();
     *CURRENT.write().unwrap() = Some(r);
+}
+
+/// Gives the engines of altim-core (their French texts) the same rate as `current()`: this thread's test rate, the
+/// request's `cur=USD`, else the cache. Idempotent; done by the router, `ensure`, `store` and `set_test_rate`.
+pub fn install() {
+    altim_core::fx::install(|| current().map(|r| r.rate));
 }
 
 /// The cached rate, when younger than 7 days (no network).
@@ -180,6 +188,7 @@ async fn refresh() {
 /// The rate, refreshed when older than 10 minutes: in the background when a valid one is cached (the request never
 /// waits), otherwise awaited (a few seconds at most per source).
 pub async fn ensure() -> Option<FxRate> {
+    install();
     if TEST_RATE.with(|t| t.get()).is_some() {
         return current();
     }

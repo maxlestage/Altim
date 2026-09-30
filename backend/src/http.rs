@@ -10,35 +10,19 @@ pub static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder().user_agent(UA).timeout(Duration::from_secs(8)).pool_idle_timeout(Duration::from_secs(60)).build().expect("client HTTP")
 });
 
-/// Error carried up to the routes (message only, like `new Error(...)`).
-#[derive(Debug, Clone)]
-pub struct Error(pub String);
+pub use altim_core::error::{Error, Result, err};
 
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+/// `reqwest` failure as the message the TypeScript showed.
+pub fn from_reqwest(e: reqwest::Error) -> Error {
+    if e.is_timeout() {
+        Error("The operation timed out.".into())
+    } else if let Some(s) = e.status() {
+        Error(format!("HTTP {}", s.as_u16()))
+    } else if e.is_decode() {
+        Error("JSON invalide".into())
+    } else {
+        Error(e.to_string())
     }
-}
-impl std::error::Error for Error {}
-
-impl From<reqwest::Error> for Error {
-    fn from(e: reqwest::Error) -> Self {
-        if e.is_timeout() {
-            Error("The operation timed out.".into())
-        } else if let Some(s) = e.status() {
-            Error(format!("HTTP {}", s.as_u16()))
-        } else if e.is_decode() {
-            Error("JSON invalide".into())
-        } else {
-            Error(e.to_string())
-        }
-    }
-}
-
-pub type Result<T> = std::result::Result<T, Error>;
-
-pub fn err<T>(msg: impl Into<String>) -> Result<T> {
-    Err(Error(msg.into()))
 }
 
 /// GET → JSON, `Accept: application/json`, 8 s, error `HTTP <status>` when not 2xx.
@@ -57,9 +41,9 @@ pub async fn get_text_with(url: &str, headers: &[(&str, &str)], timeout: Duratio
     for (k, v) in headers {
         req = req.header(*k, *v);
     }
-    let res = req.send().await?;
+    let res = req.send().await.map_err(from_reqwest)?;
     if !res.status().is_success() {
         return err(format!("HTTP {}", res.status().as_u16()));
     }
-    Ok(res.text().await?)
+    res.text().await.map_err(from_reqwest)
 }

@@ -2,7 +2,7 @@
 
 > **Logiciel propriétaire, tous droits réservés** (voir `LICENSE`). Ce dépôt n'est pas open source : aucune copie, réutilisation ni déploiement n'est autorisé.
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application (`/app`) en React + TypeScript, serveur **Rust + Axum**, déployés sur Heroku (buildpacks Bun et Rust), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation en **Rust + Yew** (WebAssembly, `frontend/`), application (`/app`) en React + TypeScript en cours de portage vers Yew (`frontend/PORTING.md`), serveur **Rust + Axum** et moteurs partagés (`core/`), déployés sur Heroku (buildpacks Rust et Bun), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -10,7 +10,9 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 
 | Dossier | Rôle |
 |---|---|
-| `web` | Site vitrine + **application web `/app`** (React + TS), mobile first |
+| `frontend` | Front **Rust + Yew** (WebAssembly) : site vitrine, puis l'app web écran par écran (`sh scripts/build-web.sh`) |
+| `core` | Logique pure partagée serveur / navigateur : moteurs, formats, contrats JSON |
+| `web` | **Application web `/app`** (React + TS), servie jusqu'à la fin du portage, mobile first |
 | `backend` | Serveur **Rust + Axum** : API **multi-source**, prix en direct, accès privé, **API garde-fou pour bots**, sert le site |
 | `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
 | `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |

@@ -223,7 +223,7 @@ pub async fn ask_route(headers: HeaderMap, body: Bytes) -> ApiResult<Response> {
         .json(&ask::build_request(&question, &data))
         .send()
         .await
-        .map_err(|e| ApiError::Upstream(format!("Service de questions injoignable ({})", crate::http::Error::from(e).0)))?;
+        .map_err(|e| ApiError::Upstream(format!("Service de questions injoignable ({})", crate::http::from_reqwest(e).0)))?;
     let status = res.status();
     let answer: Value =
         res.json().await.map_err(|_| ApiError::Upstream(format!("Service de questions : réponse illisible (HTTP {})", status.as_u16())))?;

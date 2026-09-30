@@ -13,8 +13,7 @@ use crate::jsval::encode_uri_component as enc;
 use crate::market::{closed_only_at, parse, parse_stock, stock_closed_at};
 use crate::types::{Candle, DAY_MS, Interval, Kind};
 
-/// Years of daily stock history asked of Yahoo (≈ 5 000 sessions).
-pub const STOCK_YEARS: i64 = 20;
+pub use altim_core::bot_history::STOCK_YEARS;
 /// Candles per Bitstamp call, and the most calls for one pair (16 000 days: since 2011 for bitcoin).
 pub const BITSTAMP_LIMIT: usize = 1000;
 pub const MAX_PAGES: usize = 16;

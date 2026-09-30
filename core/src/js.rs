@@ -1,13 +1,19 @@
 //! JavaScript semantics the TypeScript engines rely on, so the Rust port gives the same numbers and texts:
 //! `Math.round`, `toFixed`, `toLocaleString("fr-FR")`, `JSON.stringify` of numbers, `Date.now()`.
-use std::time::{SystemTime, UNIX_EPOCH};
-
 use serde::Serialize;
 use serde_json::Value;
 
-/// `Date.now()`.
+/// `Date.now()` (the host clock: the system's on the server, the browser's in wasm).
+#[cfg(not(all(target_arch = "wasm32", target_os = "unknown")))]
 pub fn now_ms() -> i64 {
+    use std::time::{SystemTime, UNIX_EPOCH};
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as i64).unwrap_or(0)
+}
+
+/// `Date.now()` (the host clock: the system's on the server, the browser's in wasm).
+#[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
+pub fn now_ms() -> i64 {
+    js_sys::Date::now() as i64
 }
 
 /// `Math.round`: nearest integer, ties towards +∞.
@@ -168,6 +174,12 @@ pub fn fr_sig(x: f64, max_sig: usize) -> String {
     let (d, p) = shortest(x);
     let (d, p) = round_decimal(d, p, max_sig as i32 - p);
     render_fr(x < 0.0, &d, p, 0)
+}
+
+/// `Number(s)` for the decimal strings of the market APIs ("123.45"): trimmed, "" → 0, anything unreadable NaN.
+pub fn parse_number(s: &str) -> f64 {
+    let s = s.trim();
+    if s.is_empty() { 0.0 } else { s.parse().unwrap_or(f64::NAN) }
 }
 
 /// Median as in the TypeScript (mean of the two middle values when even). Empty → NaN.

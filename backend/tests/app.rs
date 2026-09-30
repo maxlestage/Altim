@@ -38,6 +38,10 @@ async fn security_headers_and_no_powered_by() {
     let (_, h, _) = get("/health").await;
     let csp = h["content-security-policy"].to_str().unwrap();
     assert!(csp.contains("default-src 'self'") && csp.contains("frame-ancestors 'none'"));
+    // The Yew front is WebAssembly: compiling it needs 'wasm-unsafe-eval', never 'unsafe-eval' nor inline scripts.
+    assert!(
+        csp.contains("script-src 'self' 'wasm-unsafe-eval';") && !csp.contains("'unsafe-eval'") && !csp.contains("script-src 'self' 'unsafe-inline'")
+    );
     assert!(h["strict-transport-security"].to_str().unwrap().contains("max-age=63072000"));
     assert_eq!(h["x-content-type-options"], "nosniff");
     assert_eq!(h["permissions-policy"], "camera=(), microphone=(), geolocation=()");
@@ -88,13 +92,13 @@ async fn api_parameter_validation() {
 async fn spa_routes_served_by_index_html() {
     for path in ["/", "/app", "/app/actif/BTC", "/mentions-legales"] {
         let (s, h, b) = get(path).await;
-        // 200 after `bun run build`, 500 with an explicit message otherwise.
+        // 200 after `sh scripts/build-web.sh`, 500 with an explicit message otherwise.
         assert!(s == StatusCode::OK || s == StatusCode::INTERNAL_SERVER_ERROR, "{path}");
         if s == StatusCode::OK {
             assert!(b.contains(r#"<div id="root">"#));
             assert_eq!(h["cache-control"], "no-cache");
         } else {
-            assert_eq!(b, "Build manquant : lancez `bun run build`.");
+            assert_eq!(b, "Build manquant : lancez `sh scripts/build-web.sh`.");
         }
     }
 }
@@ -114,6 +118,14 @@ async fn public_files_and_cache() {
     assert_eq!(s, StatusCode::OK);
     assert_eq!(h["content-type"], "image/svg+xml");
     assert_eq!(h["cache-control"], "private, max-age=3600");
+}
+
+#[test]
+fn wasm_files_cached_and_typed() {
+    use altim::app::web::static_cache;
+    assert_eq!(static_cache("/altim-0123456789abcdef_bg.wasm"), "private, max-age=31536000, immutable");
+    assert_eq!(static_cache("/altim-0123456789abcdef.js"), "private, max-age=31536000, immutable");
+    assert_eq!(static_cache("/app.css"), "private, max-age=3600");
 }
 
 #[tokio::test]
