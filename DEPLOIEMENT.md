@@ -62,6 +62,9 @@ L'app se connecte à **votre serveur Heroku** (étape 1) : déployez-le et régl
 ### Vérifier que l'app compile
 À chaque modification de `ios/`, le workflow **iOS** compile l'app (Debug et Release) sur un Mac de GitHub et lance les tests. Rien à faire.
 
+### Ouvrir le projet dans Xcode
+Le projet Xcode est versionné : ouvrez `ios/Altim.xcodeproj` (schéma **Altim** : app iPhone, Live Activity et app Apple Watch). Dans **Signing & Capabilities**, choisissez votre équipe (Team) pour les trois cibles, puis lancez sur votre iPhone. Il est généré par XcodeGen depuis `ios/project.yml` : après avoir ajouté ou supprimé un fichier Swift, relancez `xcodegen generate` dans `ios/` (la CI prévient si le projet versionné n'est plus à jour).
+
 ### Installer l'app sur votre iPhone via TestFlight
 Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depuis l'app *Apple Developer* sur iPhone.
 
@@ -110,3 +113,22 @@ Altim est un conseiller : il ne passe aucun ordre et ne demande aucune clé de c
 - **Exporter** / **Importer** transfère vos avoirs d'un appareil à l'autre (fichier JSON).
 
 Chaque fiche d'actif affiche alors **« Le conseil d'Altim »**, adapté à ce que vous possédez.
+
+## Récapitulatif des secrets GitHub
+
+GitHub → dépôt → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. Aucun de ces secrets n'est dans le dépôt, et un fork n'y a pas accès.
+
+| Secret | Utilisé par | Où l'obtenir |
+|---|---|---|
+| `HEROKU_API_KEY` | Déploiement Heroku | Heroku → Account settings → API Key (ou `heroku authorizations:create`) |
+| `HEROKU_APP_NAME` | Déploiement Heroku | Le nom de votre app Heroku |
+| `APPLE_TEAM_ID` | TestFlight | developer.apple.com → Account → Membership → Team ID |
+| `ASC_KEY_ID` | TestFlight | App Store Connect → Utilisateurs et accès → Intégrations → Clés → Key ID |
+| `ASC_ISSUER_ID` | TestFlight | Même page, en haut : Issuer ID |
+| `ASC_KEY_P8` | TestFlight | Contenu complet du fichier `.p8` téléchargé à la création de la clé (une seule fois) |
+| `ANDROID_KEYSTORE_BASE64` | APK Android signé | Clé de signature encodée en base64 (voir « Créer la clé de signature ») |
+| `ANDROID_KEYSTORE_PASSWORD` | APK Android signé | Mot de passe de la clé |
+| `ANDROID_KEY_ALIAS` | APK Android signé | `altim` |
+| `ANDROID_KEY_PASSWORD` | APK Android signé | Même mot de passe |
+
+Les variables d'accès du serveur (`ALTIM_USER`, `ALTIM_PASSWORD_HASH`, `ALTIM_SESSION_SECRET`) se règlent dans **Heroku → Settings → Config Vars**, pas sur GitHub.

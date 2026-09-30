@@ -1,9 +1,8 @@
 .build/
-*.xcodeproj
+# Altim.xcodeproj est versionné (généré par XcodeGen depuis project.yml) ; seules les données personnelles d'Xcode sont ignorées.
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
 xcuserdata/
 DerivedData/
 .swiftpm/
-Altim/Info.plist
-AltimWidgets/Info.plist
-AltimWatch/Info.plist
 build/
