@@ -1,0 +1,840 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		07611682578ECCE666585BB2 /* AltimWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1CA47E40BBF6511EA20F66 /* AltimWatchApp.swift */; };
+		0DA92397907A24A8D059869B /* RiskCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFC189745E3EF6BAF8DFDD82 /* RiskCards.swift */; };
+		0DAF505DDC439CAC4E6FB7B1 /* DecisionGuidanceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF258A8C98508A488F99373 /* DecisionGuidanceViews.swift */; };
+		0E41E02ACDFB92202D2B8C38 /* WhyCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DDC31DF8CAB66EF1EDB185 /* WhyCard.swift */; };
+		0F09A221C3AA430B91451BC3 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D87E7DD66F8EC9A07416C426 /* SettingsView.swift */; };
+		13C8D6BAE6058019DD475358 /* BuyNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C55BA991CAEE75C73D2B3DB /* BuyNotifications.swift */; };
+		146ADCCA01462D34A3E9B2C8 /* BotScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34C959FBE2552374F2BF47E1 /* BotScreen.swift */; };
+		18AF59AD3CF31040A566318F /* RadarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F200FFB7965654BB8B50FF1 /* RadarView.swift */; };
+		1D1B0B3AF732F2318106D225 /* AssetDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30AD0F58789516F9B8D20AF9 /* AssetDetailView.swift */; };
+		25FBC3B62BD10F066023A4D7 /* NewsSummaryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEC31325526311E531B7597E /* NewsSummaryCard.swift */; };
+		28D64391B9293DE632C956A4 /* WatchBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8485A0AC4CA528A7150F5195 /* WatchBridge.swift */; };
+		390B648CC080E504A7689226 /* AltimKit in Frameworks */ = {isa = PBXBuildFile; productRef = 99D87499B203FE536A2BC9C4 /* AltimKit */; };
+		3E1FABAFD3BB408CD258390F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C4B2052AD10A8D318F5AA870 /* Assets.xcassets */; };
+		40403D947BD7C3198092ECB1 /* DisclaimerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3ABD3EF14485EBAB7216AF3 /* DisclaimerView.swift */; };
+		41185BC773C72F27D7F7DA14 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81FAACDC3948E0195BEB6923 /* KeychainStore.swift */; };
+		42CF4F8D66DB6BA7BBC02BF7 /* AnomaliesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B18B396E44D756579DD732 /* AnomaliesCard.swift */; };
+		4865F409B38643CF85846CD9 /* PaperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CDDC16BA674D7EB6BA0D4B /* PaperView.swift */; };
+		52898F93882B69E0861C2678 /* HistoryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74762741137D7303795E540 /* HistoryCard.swift */; };
+		54986B52D91A896DB37936D9 /* DecisionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76647AA973CED5E69C075AAA /* DecisionCard.swift */; };
+		5B46D930CEBC015DE7E0821B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9978B040C3FC9EEBB7693F1A /* LoginView.swift */; };
+		5D5625D08A026A71BF905383 /* DecisionParts.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD020FAD784DAE4FB8579337 /* DecisionParts.swift */; };
+		62CE1380D9B1B9F5A04E34B9 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2617DC958E392BDC88007914 /* AppModel.swift */; };
+		6D3C940207C1589192337633 /* NewsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 245A8B336D3AA40AAE42F8E7 /* NewsView.swift */; };
+		6E8CB056C3A3FFA343555339 /* ToolCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A4636C55352F67AC12FC239 /* ToolCards.swift */; };
+		6EB9CCBAF0F0B0CD095790B7 /* SectorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BB1D4A556F1AC5F423444BE /* SectorCard.swift */; };
+		7BE67363EE46949ADA28A7EA /* ValidationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F521E09421C5067B2726287A /* ValidationView.swift */; };
+		838819F04CA004001C48DA42 /* SelectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAC11FB8C25197B0CD133BFD /* SelectionView.swift */; };
+		870B572066D34C8EBB86FB73 /* NoteCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05D5DA1D258DB0D6272602F5 /* NoteCard.swift */; };
+		938A1AC13EBC31FA71A7C9B2 /* AlertsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA131DF339BBA56DA9BF1FB1 /* AlertsView.swift */; };
+		97A2DA0A1E25E3AD00D32AB0 /* LocalStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74F0A79E5171FB42E363BA0A /* LocalStore.swift */; };
+		991DD7628B66B7D08588D7C2 /* StrategiesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 541139493C18357894E32DB1 /* StrategiesCard.swift */; };
+		9B052493BF8CB0AE5C0D2B18 /* LivePrices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA22E545F148AECFE0E267E /* LivePrices.swift */; };
+		9D71A23765E334F00124FB7E /* AgendaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C432C7C718DD20242123278 /* AgendaView.swift */; };
+		9F6A5B63A1EC8D8476451B22 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 0B9D8D823E320DC21F119263 /* Assets.xcassets */; };
+		A7B59783CA3B18732528005C /* OpportunitiesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75CCF10D0398EC74D4889438 /* OpportunitiesView.swift */; };
+		AB74034B47F68C11E55A2B19 /* AltimKit in Frameworks */ = {isa = PBXBuildFile; productRef = 4C59FCFF75BDCEF4EA1CD210 /* AltimKit */; };
+		B373A2290C2E63D590BA95F3 /* AltimWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = F2EE7E1AA4B09B6EB20BDD8E /* AltimWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		B65F47DC924C66C6F7FDE74B /* DcaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C83BF100932D1E6615DDDA4 /* DcaCard.swift */; };
+		BA2D193403F1FFE4FC9C15D4 /* GlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1184807782062E4AE3CBCA /* GlossaryView.swift */; };
+		BD159469B25EAEF47D37DB01 /* AltimKit in Frameworks */ = {isa = PBXBuildFile; productRef = 04405F3D04B71F8EAB052729 /* AltimKit */; };
+		C014505067DAC5CD41EFF0C3 /* BriefCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */; };
+		C8CD470129473743A750D57C /* AltimWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = CBD21CA120784BE78A7FBA9F /* AltimWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CD687E9A52712F75F7F6B691 /* WhatIfCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A13CFC8BA3512668B22639 /* WhatIfCard.swift */; };
+		CF866A46707627B7ED5A945B /* AltimWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 122D85284C805B9093A6567E /* AltimWidgets.swift */; };
+		D1085F01F01D00C9F1475A73 /* JournalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 410995807C0C138A9AFEE2D6 /* JournalView.swift */; };
+		D79A75F85CA4F5B2EE97C0F4 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FD7844BDF9F2F7964BD4D04 /* Theme.swift */; };
+		D954452A978656B9CD3AC6CB /* LiveActivities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E147DC72E78AFE8F4E524201 /* LiveActivities.swift */; };
+		EB262064FC81291318F357E3 /* HoldingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1634EAFB6D24DE5180E557 /* HoldingsView.swift */; };
+		EC181C40A46254F4C6BC3C2E /* PriceActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358F1F23CBED620DABA195B6 /* PriceActivity.swift */; };
+		F093B3F381212E32C3EB62E5 /* TrackDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58EB39E05859EFE22C316EE /* TrackDetails.swift */; };
+		F19E003020BF89CC8AE930F2 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E04A3E58A1A08F0E7619A0 /* Components.swift */; };
+		F6442DD36224B9DBDF74823F /* PriceActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 358F1F23CBED620DABA195B6 /* PriceActivity.swift */; };
+		FAF233B577581801CF6ED515 /* AltimApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5918AC4AAC9D5F2E9D983450 /* AltimApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		0043EA4422D53B86736B7975 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6706579AA95AD9ACEBF96E61 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 1DF2DC8019921012478B7554;
+			remoteInfo = AltimWatch;
+		};
+		25A803664C94DC20A79D694E /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6706579AA95AD9ACEBF96E61 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = AC3908B47EFD084366985849;
+			remoteInfo = AltimWidgets;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		53022D6C518B7D384B9287F1 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				B373A2290C2E63D590BA95F3 /* AltimWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		99189C11795EED65B68306B3 /* Embed Dependencies */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				C8CD470129473743A750D57C /* AltimWatch.app in Embed Dependencies */,
+			);
+			name = "Embed Dependencies";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		05D5DA1D258DB0D6272602F5 /* NoteCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteCard.swift; sourceTree = "<group>"; };
+		0AA22E545F148AECFE0E267E /* LivePrices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePrices.swift; sourceTree = "<group>"; };
+		0B9D8D823E320DC21F119263 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		0C432C7C718DD20242123278 /* AgendaView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgendaView.swift; sourceTree = "<group>"; };
+		0DAECC48D0A4E723855CBB86 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		122D85284C805B9093A6567E /* AltimWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltimWidgets.swift; sourceTree = "<group>"; };
+		1F200FFB7965654BB8B50FF1 /* RadarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RadarView.swift; sourceTree = "<group>"; };
+		245A8B336D3AA40AAE42F8E7 /* NewsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsView.swift; sourceTree = "<group>"; };
+		2617DC958E392BDC88007914 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
+		2BF258A8C98508A488F99373 /* DecisionGuidanceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionGuidanceViews.swift; sourceTree = "<group>"; };
+		30AD0F58789516F9B8D20AF9 /* AssetDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssetDetailView.swift; sourceTree = "<group>"; };
+		34C959FBE2552374F2BF47E1 /* BotScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotScreen.swift; sourceTree = "<group>"; };
+		358F1F23CBED620DABA195B6 /* PriceActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PriceActivity.swift; sourceTree = "<group>"; };
+		3A4636C55352F67AC12FC239 /* ToolCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCards.swift; sourceTree = "<group>"; };
+		3F1184807782062E4AE3CBCA /* GlossaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlossaryView.swift; sourceTree = "<group>"; };
+		410995807C0C138A9AFEE2D6 /* JournalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalView.swift; sourceTree = "<group>"; };
+		427CF261DA7D3DD6C83249D5 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		541139493C18357894E32DB1 /* StrategiesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StrategiesCard.swift; sourceTree = "<group>"; };
+		5918AC4AAC9D5F2E9D983450 /* AltimApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltimApp.swift; sourceTree = "<group>"; };
+		5ACE528CE8AE74F497CFBCE7 /* Altim.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Altim.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		5BB1D4A556F1AC5F423444BE /* SectorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorCard.swift; sourceTree = "<group>"; };
+		6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BriefCard.swift; sourceTree = "<group>"; };
+		6C83BF100932D1E6615DDDA4 /* DcaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DcaCard.swift; sourceTree = "<group>"; };
+		74F0A79E5171FB42E363BA0A /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
+		75CCF10D0398EC74D4889438 /* OpportunitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpportunitiesView.swift; sourceTree = "<group>"; };
+		76647AA973CED5E69C075AAA /* DecisionCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionCard.swift; sourceTree = "<group>"; };
+		7FD7844BDF9F2F7964BD4D04 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		81FAACDC3948E0195BEB6923 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
+		8485A0AC4CA528A7150F5195 /* WatchBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchBridge.swift; sourceTree = "<group>"; };
+		9978B040C3FC9EEBB7693F1A /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		9C55BA991CAEE75C73D2B3DB /* BuyNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuyNotifications.swift; sourceTree = "<group>"; };
+		A0E04A3E58A1A08F0E7619A0 /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		A3ABD3EF14485EBAB7216AF3 /* DisclaimerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisclaimerView.swift; sourceTree = "<group>"; };
+		AA1CA47E40BBF6511EA20F66 /* AltimWatchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AltimWatchApp.swift; sourceTree = "<group>"; };
+		AB1634EAFB6D24DE5180E557 /* HoldingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HoldingsView.swift; sourceTree = "<group>"; };
+		AEC31325526311E531B7597E /* NewsSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsSummaryCard.swift; sourceTree = "<group>"; };
+		B58EB39E05859EFE22C316EE /* TrackDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDetails.swift; sourceTree = "<group>"; };
+		BBB18A5D5E198EB8F00280A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BF22433F7A6087C7829C60FC /* AltimKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AltimKit; path = AltimKit; sourceTree = SOURCE_ROOT; };
+		C1B18B396E44D756579DD732 /* AnomaliesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnomaliesCard.swift; sourceTree = "<group>"; };
+		C4B2052AD10A8D318F5AA870 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		C6CDDC16BA674D7EB6BA0D4B /* PaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaperView.swift; sourceTree = "<group>"; };
+		C74762741137D7303795E540 /* HistoryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryCard.swift; sourceTree = "<group>"; };
+		CBD21CA120784BE78A7FBA9F /* AltimWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AltimWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD020FAD784DAE4FB8579337 /* DecisionParts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecisionParts.swift; sourceTree = "<group>"; };
+		CFC189745E3EF6BAF8DFDD82 /* RiskCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RiskCards.swift; sourceTree = "<group>"; };
+		D0A13CFC8BA3512668B22639 /* WhatIfCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhatIfCard.swift; sourceTree = "<group>"; };
+		D6DDC31DF8CAB66EF1EDB185 /* WhyCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhyCard.swift; sourceTree = "<group>"; };
+		D87E7DD66F8EC9A07416C426 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		DAC11FB8C25197B0CD133BFD /* SelectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectionView.swift; sourceTree = "<group>"; };
+		E147DC72E78AFE8F4E524201 /* LiveActivities.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivities.swift; sourceTree = "<group>"; };
+		F2EE7E1AA4B09B6EB20BDD8E /* AltimWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AltimWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		F521E09421C5067B2726287A /* ValidationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidationView.swift; sourceTree = "<group>"; };
+		FA131DF339BBA56DA9BF1FB1 /* AlertsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		5B04CC7395DCBCE1E219B2EE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				390B648CC080E504A7689226 /* AltimKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		86F9C5DCB2E4A134D418CC3D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AB74034B47F68C11E55A2B19 /* AltimKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B463F9C45526CCCEFA9FCE7E /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BD159469B25EAEF47D37DB01 /* AltimKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03A62FB8CEC24F4C21B4D915 /* AltimWidgets */ = {
+			isa = PBXGroup;
+			children = (
+				122D85284C805B9093A6567E /* AltimWidgets.swift */,
+				0DAECC48D0A4E723855CBB86 /* Info.plist */,
+			);
+			path = AltimWidgets;
+			sourceTree = "<group>";
+		};
+		18A3D01D7A64B7807FC2B47F /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				0C432C7C718DD20242123278 /* AgendaView.swift */,
+				FA131DF339BBA56DA9BF1FB1 /* AlertsView.swift */,
+				C1B18B396E44D756579DD732 /* AnomaliesCard.swift */,
+				30AD0F58789516F9B8D20AF9 /* AssetDetailView.swift */,
+				34C959FBE2552374F2BF47E1 /* BotScreen.swift */,
+				6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */,
+				A0E04A3E58A1A08F0E7619A0 /* Components.swift */,
+				6C83BF100932D1E6615DDDA4 /* DcaCard.swift */,
+				76647AA973CED5E69C075AAA /* DecisionCard.swift */,
+				2BF258A8C98508A488F99373 /* DecisionGuidanceViews.swift */,
+				CD020FAD784DAE4FB8579337 /* DecisionParts.swift */,
+				A3ABD3EF14485EBAB7216AF3 /* DisclaimerView.swift */,
+				3F1184807782062E4AE3CBCA /* GlossaryView.swift */,
+				C74762741137D7303795E540 /* HistoryCard.swift */,
+				AB1634EAFB6D24DE5180E557 /* HoldingsView.swift */,
+				410995807C0C138A9AFEE2D6 /* JournalView.swift */,
+				9978B040C3FC9EEBB7693F1A /* LoginView.swift */,
+				AEC31325526311E531B7597E /* NewsSummaryCard.swift */,
+				245A8B336D3AA40AAE42F8E7 /* NewsView.swift */,
+				05D5DA1D258DB0D6272602F5 /* NoteCard.swift */,
+				75CCF10D0398EC74D4889438 /* OpportunitiesView.swift */,
+				C6CDDC16BA674D7EB6BA0D4B /* PaperView.swift */,
+				1F200FFB7965654BB8B50FF1 /* RadarView.swift */,
+				CFC189745E3EF6BAF8DFDD82 /* RiskCards.swift */,
+				5BB1D4A556F1AC5F423444BE /* SectorCard.swift */,
+				DAC11FB8C25197B0CD133BFD /* SelectionView.swift */,
+				D87E7DD66F8EC9A07416C426 /* SettingsView.swift */,
+				541139493C18357894E32DB1 /* StrategiesCard.swift */,
+				3A4636C55352F67AC12FC239 /* ToolCards.swift */,
+				B58EB39E05859EFE22C316EE /* TrackDetails.swift */,
+				F521E09421C5067B2726287A /* ValidationView.swift */,
+				D0A13CFC8BA3512668B22639 /* WhatIfCard.swift */,
+				D6DDC31DF8CAB66EF1EDB185 /* WhyCard.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		19C17E68E1D3C34B37E549E7 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				5918AC4AAC9D5F2E9D983450 /* AltimApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		205CA083889D526F1CD1FD3C /* AltimWatch */ = {
+			isa = PBXGroup;
+			children = (
+				AA1CA47E40BBF6511EA20F66 /* AltimWatchApp.swift */,
+				0B9D8D823E320DC21F119263 /* Assets.xcassets */,
+				BBB18A5D5E198EB8F00280A9 /* Info.plist */,
+			);
+			path = AltimWatch;
+			sourceTree = "<group>";
+		};
+		219878AC5C6AF8227BC93CF4 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				7FD7844BDF9F2F7964BD4D04 /* Theme.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		463D5CB060D263F695C5A57C /* Altim */ = {
+			isa = PBXGroup;
+			children = (
+				427CF261DA7D3DD6C83249D5 /* Info.plist */,
+				19C17E68E1D3C34B37E549E7 /* App */,
+				B2F943284725FE44E9D8EC26 /* Resources */,
+				F4B09DD9D12AE3F57769EA7D /* Services */,
+				219878AC5C6AF8227BC93CF4 /* Theme */,
+				18A3D01D7A64B7807FC2B47F /* Views */,
+			);
+			path = Altim;
+			sourceTree = "<group>";
+		};
+		9A98B3259BB4318574C65F7C /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				BF22433F7A6087C7829C60FC /* AltimKit */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		B08EFDDD758F6EC10381759C = {
+			isa = PBXGroup;
+			children = (
+				463D5CB060D263F695C5A57C /* Altim */,
+				205CA083889D526F1CD1FD3C /* AltimWatch */,
+				03A62FB8CEC24F4C21B4D915 /* AltimWidgets */,
+				9A98B3259BB4318574C65F7C /* Packages */,
+				BC54A20ABF3B059B7643C166 /* Shared */,
+				D36138596D6E05F6FAB1024A /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		B2F943284725FE44E9D8EC26 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				C4B2052AD10A8D318F5AA870 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		BC54A20ABF3B059B7643C166 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				358F1F23CBED620DABA195B6 /* PriceActivity.swift */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		D36138596D6E05F6FAB1024A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				5ACE528CE8AE74F497CFBCE7 /* Altim.app */,
+				CBD21CA120784BE78A7FBA9F /* AltimWatch.app */,
+				F2EE7E1AA4B09B6EB20BDD8E /* AltimWidgets.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		F4B09DD9D12AE3F57769EA7D /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				2617DC958E392BDC88007914 /* AppModel.swift */,
+				9C55BA991CAEE75C73D2B3DB /* BuyNotifications.swift */,
+				81FAACDC3948E0195BEB6923 /* KeychainStore.swift */,
+				E147DC72E78AFE8F4E524201 /* LiveActivities.swift */,
+				0AA22E545F148AECFE0E267E /* LivePrices.swift */,
+				74F0A79E5171FB42E363BA0A /* LocalStore.swift */,
+				8485A0AC4CA528A7150F5195 /* WatchBridge.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		07CFE70274EEF42B1939C328 /* Altim */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 98713FD26AF3A9023B7A339A /* Build configuration list for PBXNativeTarget "Altim" */;
+			buildPhases = (
+				CA3F2A3291B84D642EB27FEF /* Sources */,
+				619CEA67EB289E48A5D1AD2C /* Resources */,
+				5B04CC7395DCBCE1E219B2EE /* Frameworks */,
+				53022D6C518B7D384B9287F1 /* Embed Foundation Extensions */,
+				99189C11795EED65B68306B3 /* Embed Dependencies */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DF67A4C14A475479D3050C0F /* PBXTargetDependency */,
+				5DA300ED2E1CF2E00F8F5174 /* PBXTargetDependency */,
+			);
+			name = Altim;
+			packageProductDependencies = (
+				99D87499B203FE536A2BC9C4 /* AltimKit */,
+			);
+			productName = Altim;
+			productReference = 5ACE528CE8AE74F497CFBCE7 /* Altim.app */;
+			productType = "com.apple.product-type.application";
+		};
+		1DF2DC8019921012478B7554 /* AltimWatch */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4223E4D901632AB06F754018 /* Build configuration list for PBXNativeTarget "AltimWatch" */;
+			buildPhases = (
+				05A862D0C4818B4DA14166F9 /* Sources */,
+				D9A576AD12157E6ACC54B67A /* Resources */,
+				B463F9C45526CCCEFA9FCE7E /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AltimWatch;
+			packageProductDependencies = (
+				04405F3D04B71F8EAB052729 /* AltimKit */,
+			);
+			productName = AltimWatch;
+			productReference = CBD21CA120784BE78A7FBA9F /* AltimWatch.app */;
+			productType = "com.apple.product-type.application";
+		};
+		AC3908B47EFD084366985849 /* AltimWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8A1A049F04299A719AD7D7CE /* Build configuration list for PBXNativeTarget "AltimWidgets" */;
+			buildPhases = (
+				5BE97154FED11720CB45A1C2 /* Sources */,
+				86F9C5DCB2E4A134D418CC3D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AltimWidgets;
+			packageProductDependencies = (
+				4C59FCFF75BDCEF4EA1CD210 /* AltimKit */,
+			);
+			productName = AltimWidgets;
+			productReference = F2EE7E1AA4B09B6EB20BDD8E /* AltimWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		6706579AA95AD9ACEBF96E61 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					07CFE70274EEF42B1939C328 = {
+						ProvisioningStyle = Automatic;
+					};
+					1DF2DC8019921012478B7554 = {
+						ProvisioningStyle = Automatic;
+					};
+					AC3908B47EFD084366985849 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = C14081DDC9225C423CFF436D /* Build configuration list for PBXProject "Altim" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = fr;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				fr,
+			);
+			mainGroup = B08EFDDD758F6EC10381759C;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				8C43877B66F9F0E4BE22C172 /* XCLocalSwiftPackageReference "AltimKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				07CFE70274EEF42B1939C328 /* Altim */,
+				1DF2DC8019921012478B7554 /* AltimWatch */,
+				AC3908B47EFD084366985849 /* AltimWidgets */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		619CEA67EB289E48A5D1AD2C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3E1FABAFD3BB408CD258390F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D9A576AD12157E6ACC54B67A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9F6A5B63A1EC8D8476451B22 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		05A862D0C4818B4DA14166F9 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				07611682578ECCE666585BB2 /* AltimWatchApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5BE97154FED11720CB45A1C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CF866A46707627B7ED5A945B /* AltimWidgets.swift in Sources */,
+				F6442DD36224B9DBDF74823F /* PriceActivity.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CA3F2A3291B84D642EB27FEF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9D71A23765E334F00124FB7E /* AgendaView.swift in Sources */,
+				938A1AC13EBC31FA71A7C9B2 /* AlertsView.swift in Sources */,
+				FAF233B577581801CF6ED515 /* AltimApp.swift in Sources */,
+				42CF4F8D66DB6BA7BBC02BF7 /* AnomaliesCard.swift in Sources */,
+				62CE1380D9B1B9F5A04E34B9 /* AppModel.swift in Sources */,
+				1D1B0B3AF732F2318106D225 /* AssetDetailView.swift in Sources */,
+				146ADCCA01462D34A3E9B2C8 /* BotScreen.swift in Sources */,
+				C014505067DAC5CD41EFF0C3 /* BriefCard.swift in Sources */,
+				13C8D6BAE6058019DD475358 /* BuyNotifications.swift in Sources */,
+				F19E003020BF89CC8AE930F2 /* Components.swift in Sources */,
+				B65F47DC924C66C6F7FDE74B /* DcaCard.swift in Sources */,
+				54986B52D91A896DB37936D9 /* DecisionCard.swift in Sources */,
+				0DAF505DDC439CAC4E6FB7B1 /* DecisionGuidanceViews.swift in Sources */,
+				5D5625D08A026A71BF905383 /* DecisionParts.swift in Sources */,
+				40403D947BD7C3198092ECB1 /* DisclaimerView.swift in Sources */,
+				BA2D193403F1FFE4FC9C15D4 /* GlossaryView.swift in Sources */,
+				52898F93882B69E0861C2678 /* HistoryCard.swift in Sources */,
+				EB262064FC81291318F357E3 /* HoldingsView.swift in Sources */,
+				D1085F01F01D00C9F1475A73 /* JournalView.swift in Sources */,
+				41185BC773C72F27D7F7DA14 /* KeychainStore.swift in Sources */,
+				D954452A978656B9CD3AC6CB /* LiveActivities.swift in Sources */,
+				9B052493BF8CB0AE5C0D2B18 /* LivePrices.swift in Sources */,
+				97A2DA0A1E25E3AD00D32AB0 /* LocalStore.swift in Sources */,
+				5B46D930CEBC015DE7E0821B /* LoginView.swift in Sources */,
+				25FBC3B62BD10F066023A4D7 /* NewsSummaryCard.swift in Sources */,
+				6D3C940207C1589192337633 /* NewsView.swift in Sources */,
+				870B572066D34C8EBB86FB73 /* NoteCard.swift in Sources */,
+				A7B59783CA3B18732528005C /* OpportunitiesView.swift in Sources */,
+				4865F409B38643CF85846CD9 /* PaperView.swift in Sources */,
+				EC181C40A46254F4C6BC3C2E /* PriceActivity.swift in Sources */,
+				18AF59AD3CF31040A566318F /* RadarView.swift in Sources */,
+				0DA92397907A24A8D059869B /* RiskCards.swift in Sources */,
+				6EB9CCBAF0F0B0CD095790B7 /* SectorCard.swift in Sources */,
+				838819F04CA004001C48DA42 /* SelectionView.swift in Sources */,
+				0F09A221C3AA430B91451BC3 /* SettingsView.swift in Sources */,
+				991DD7628B66B7D08588D7C2 /* StrategiesCard.swift in Sources */,
+				D79A75F85CA4F5B2EE97C0F4 /* Theme.swift in Sources */,
+				6E8CB056C3A3FFA343555339 /* ToolCards.swift in Sources */,
+				F093B3F381212E32C3EB62E5 /* TrackDetails.swift in Sources */,
+				7BE67363EE46949ADA28A7EA /* ValidationView.swift in Sources */,
+				28D64391B9293DE632C956A4 /* WatchBridge.swift in Sources */,
+				CD687E9A52712F75F7F6B691 /* WhatIfCard.swift in Sources */,
+				0E41E02ACDFB92202D2B8C38 /* WhyCard.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		5DA300ED2E1CF2E00F8F5174 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 1DF2DC8019921012478B7554 /* AltimWatch */;
+			targetProxy = 0043EA4422D53B86736B7975 /* PBXContainerItemProxy */;
+		};
+		DF67A4C14A475479D3050C0F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = AC3908B47EFD084366985849 /* AltimWidgets */;
+			targetProxy = 25A803664C94DC20A79D694E /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		29497DA99C0429640A812236 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_FILE = Altim/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		382B8B213E3744E76D89BD71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = AltimWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Debug;
+		};
+		4D29CA73CBEDDCBB8997D540 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = AltimWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		576A4FE18B204AAB7C13F036 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				ENABLE_PREVIEWS = YES;
+				INFOPLIST_FILE = Altim/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		5E0FA5EBEE47F9AE91F1C7DD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = AltimWidgets/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim.widgets;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		96AABEA19724FD54F99A2868 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 2.0.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Debug;
+		};
+		D15EEB49F32D4E2B4757BA13 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				INFOPLIST_FILE = AltimWatch/Info.plist;
+				PRODUCT_BUNDLE_IDENTIFIER = com.maxlestage.altim.watchkitapp;
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 4;
+			};
+			name = Release;
+		};
+		DEE0DCC9C8E3E9CC351126A5 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 2.0.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+				WATCHOS_DEPLOYMENT_TARGET = 10.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4223E4D901632AB06F754018 /* Build configuration list for PBXNativeTarget "AltimWatch" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				382B8B213E3744E76D89BD71 /* Debug */,
+				D15EEB49F32D4E2B4757BA13 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8A1A049F04299A719AD7D7CE /* Build configuration list for PBXNativeTarget "AltimWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5E0FA5EBEE47F9AE91F1C7DD /* Debug */,
+				4D29CA73CBEDDCBB8997D540 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		98713FD26AF3A9023B7A339A /* Build configuration list for PBXNativeTarget "Altim" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				29497DA99C0429640A812236 /* Debug */,
+				576A4FE18B204AAB7C13F036 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C14081DDC9225C423CFF436D /* Build configuration list for PBXProject "Altim" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				96AABEA19724FD54F99A2868 /* Debug */,
+				DEE0DCC9C8E3E9CC351126A5 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		8C43877B66F9F0E4BE22C172 /* XCLocalSwiftPackageReference "AltimKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = AltimKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		04405F3D04B71F8EAB052729 /* AltimKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AltimKit;
+		};
+		4C59FCFF75BDCEF4EA1CD210 /* AltimKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AltimKit;
+		};
+		99D87499B203FE536A2BC9C4 /* AltimKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AltimKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 6706579AA95AD9ACEBF96E61 /* Project object */;
+}

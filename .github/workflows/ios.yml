@@ -29,7 +29,10 @@ jobs:
         run: cd ios/AltimKit && swift test
       - run: brew install xcodegen
       - name: Génération du projet Xcode
-        run: cd ios && xcodegen generate
+        run: |
+          cd ios && xcodegen generate
+          # The committed Altim.xcodeproj (for opening in Xcode) must follow project.yml.
+          git diff --quiet -- . || { echo "::warning::ios/Altim.xcodeproj ou un Info.plist versionné diffère de project.yml : lancez « xcodegen generate » dans ios/ et commitez le résultat."; git diff --stat -- .; }
       - name: Compilation pour le simulateur iPhone
         run: |
           cd ios
