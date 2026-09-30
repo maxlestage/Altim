@@ -917,3 +917,6 @@
 .bot-vol li > span { min-width: 0; overflow-wrap: anywhere; }
 .bot-v3-control { display: grid; gap: 4px; padding-left: 8px; border-left: 2px solid var(--line); min-width: 0; }
 .bot-v3-control > p { margin: 0; overflow-wrap: anywhere; }
+.bot-radar { display: grid; gap: 6px; min-width: 0; }
+.bot-radar > * { margin: 0; overflow-wrap: anywhere; }
+.bot-radar .card-title { margin-bottom: 4px; }

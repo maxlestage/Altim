@@ -621,6 +621,34 @@ fn run_on_saved_histories() {
         let m = if peers20 == BotAction::Sell { c.main.sell_vs_mean.as_mut() } else { c.main.buy_vs_mean.as_mut() };
         m.unwrap().verdict = Some(Verdict::Edge);
     }
+    // Proven on the past against both references, but no forward signal yet: shown only, with the note.
+    let v = bot_view(Some(&forced), "AAPL", Kind::Stock, &long("AAPL"), &long("SPY"), now);
+    if peers20 != BotAction::Wait {
+        assert!(!v.counts && v.nudge() == 0.0 && v.line(true).is_none());
+        let w = v.v3.as_ref().unwrap();
+        assert!(w.signals.iter().any(|x| x.pending && !x.counts));
+        assert!(
+            v.note.starts_with("Avantage mesuré sur le passé (t = ")
+                && v.note.contains("il ne comptera qu'après 30 signaux sur l'avenir qui le confirment (0 à ce jour)"),
+            "{}",
+            v.note
+        );
+    }
+    // A confirming forward block (≥ 30 signals, excess ≥ 0 against both references) makes it count.
+    let set_forward = |forced: &mut BotReport, n: usize, e: f64| {
+        let v3 = forced.v3.as_mut().unwrap();
+        let c = v3.groups[0].horizons[0].configs.iter_mut().find(|c| c.id == "peers").unwrap();
+        let sell = peers20 == BotAction::Sell;
+        let f = if sell { &mut c.forward.sell } else { &mut c.forward.buy };
+        f.signals = n;
+        f.excess = Some(e);
+        let m = if sell { &mut c.forward.sell_vs_mean } else { &mut c.forward.buy_vs_mean };
+        *m = Some(SideStats { signals: n, excess: Some(e), ..SideStats::default() });
+    };
+    set_forward(&mut forced, 29, 0.5);
+    let v = bot_view(Some(&forced), "AAPL", Kind::Stock, &long("AAPL"), &long("SPY"), now);
+    assert!(!v.counts, "29 signaux sur l'avenir : pas encore");
+    set_forward(&mut forced, 30, 0.1);
     let v = bot_view(Some(&forced), "AAPL", Kind::Stock, &long("AAPL"), &long("SPY"), now);
     match peers20 {
         BotAction::Buy => {
@@ -635,15 +663,28 @@ fn run_on_saved_histories() {
         BotAction::Wait => assert!(!v.counts),
     }
     if peers20 != BotAction::Wait {
-        let v3 = forced.v3.as_mut().unwrap();
-        let c = v3.groups[0].horizons[0].configs.iter_mut().find(|c| c.id == "peers").unwrap();
-        let f = if peers20 == BotAction::Sell { &mut c.forward.sell } else { &mut c.forward.buy };
-        f.signals = 30;
-        f.excess = Some(-0.1);
+        set_forward(&mut forced, 30, -0.1);
         let v = bot_view(Some(&forced), "AAPL", Kind::Stock, &long("AAPL"), &long("SPY"), now);
         assert!(!v.counts && v.nudge() == 0.0);
         assert!(v.v3.unwrap().signals.iter().any(|x| x.contradicted));
     }
+}
+
+/// Rewrites the texts of the saved real report that follow from its numbers and from `AFTER_PREREG` (headline,
+/// changes after the pre-registration), without recomputing it: `ALTIM_REFRESH_SAMPLE=1`.
+#[test]
+#[ignore]
+fn refresh_sample_texts() {
+    if !std::env::var("ALTIM_REFRESH_SAMPLE").is_ok_and(|v| v == "1") {
+        return;
+    }
+    let mut r = load("bot.json");
+    let v3 = r.v3.as_mut().unwrap();
+    v3.after_prereg = AFTER_PREREG.iter().map(|s| s.to_string()).collect();
+    v3.headline = bot_v3::headline(&v3.groups, t_required(v3.k.total), v3.k.total);
+    r.headline = v3.headline.clone();
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot.json");
+    std::fs::write(path, serde_json::to_string_pretty(&altim::js::to_value(&r)).unwrap() + "\n").unwrap();
 }
 
 fn load(name: &str) -> BotReport {

@@ -1,14 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../webapp/api";
 import { plain } from "../webapp/model-validation";
-import { FAMILY_LABEL, forwardSignals, frIso, headlineConfigs, judged, proven, type BotReport, type ConfigStats, type SideStats } from "../webapp/model-bot";
+import { FAMILY_LABEL, confirmed, forwardSignals, frIso, headlineConfigs, judged, proven, type BotReport, type SideStats, type V3Config } from "../webapp/model-bot";
 import { Section } from "./Section";
 
 /** "non démontré (t = −1,2)" for a side at the corrected threshold (family B: both references must agree). */
-function verdictShort(c: ConfigStats, side: "buy" | "sell"): string {
+function verdictShort(cfg: V3Config, side: "buy" | "sell"): string {
+  const c = cfg.main;
   const s: SideStats = judged(c, side);
   const t = s.t == null ? "t non calculable" : `t = ${plain(s.t, 1)}`;
-  if (proven(c, side)) return `avantage démontré (${t})`;
+  if (confirmed(cfg, side)) return `avantage démontré et confirmé sur l'avenir (${t})`;
+  if (proven(c, side)) return `avantage mesuré sur le passé (${t}) mais fragile : ne comptera qu'après 30 signaux sur l'avenir qui le confirment`;
   if (c[side].verdict === "edge") return `non démontré face à la moyenne du groupe (${t})`;
   switch (s.verdict) {
     case "negative": return `moins bien que la référence (${t})`;
@@ -95,8 +97,8 @@ export function BotSection() {
                       headlineConfigs(g).map(({ horizon, c }) => (
                         <li key={`${g.id}-${horizon}-${c.id}`}>
                           <span className="muted">{g.id === "stock" ? "Actions" : "Cryptos"} · {FAMILY_LABEL[c.family].toLowerCase()} · {horizon} j</span>
-                          <span>achats : {verdictShort(c.main, "buy")}</span>
-                          <span>ventes : {verdictShort(c.main, "sell")}</span>
+                          <span>achats : {verdictShort(c, "buy")}</span>
+                          <span>ventes : {verdictShort(c, "sell")}</span>
                         </li>
                       )),
                     )}

@@ -4,11 +4,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import raw from "../../backend/tests/samples/bot.json";
 import rawV2 from "../../backend/tests/samples/bot-v2.json";
 import {
-  computeText, forwardSignals, forwardText, frIso, headlineConfigs, judged, proven, tLine, tVsRequired, v3AnyEdge, v3SideText, v3VerdictLabel, volRows,
+  computeText, confirmed, pendingText, forwardSignals, forwardText, frIso, headlineConfigs, judged, proven, tLine, tVsRequired, v3AnyEdge, v3SideText, v3VerdictLabel, volRows,
   type BotReport, type ConfigStats, type SideStats,
 } from "../src/webapp/model-bot";
 import { BotReportView } from "../src/webapp/Bot";
 import { BotSection } from "../src/components/BotSection";
+import { BotRadarView, firstSentence } from "../src/webapp/BotRadarCard";
 
 const report = raw as unknown as BotReport;
 const v2 = rawV2 as unknown as BotReport;
@@ -45,8 +46,18 @@ describe("v3 contract sample (real /api/bot answer)", () => {
     }
     // The headline and the tiles come from the numbers.
     expect(report.headline).toBe(v3.headline);
-    expect(v3.afterPrereg.length).toBe(1);
+    expect(v3.afterPrereg.length).toBe(2);
     expect(v3.afterPrereg[0]).toContain("moyenne à parts égales");
+    expect(v3.afterPrereg[1]).toContain("au moins 30 signaux");
+    // The one side proven on the past (stocks, peers, 20 days, buys) waits for the forward test: shown, not counted.
+    const peers20 = v3.groups[0]!.horizons[0]!.configs.find((c) => c.id === "peers")!;
+    expect(proven(peers20.main, "buy")).toBe(true);
+    expect(confirmed(peers20, "buy")).toBe(false);
+    expect(n(pendingText(peers20, "buy", v3.tRequired)!)).toBe(
+      "Avantage mesuré sur le passé (t = 3,65 contre 3,52 exigé) mais fragile : il ne comptera qu'après 30 signaux sur l'avenir qui le confirment (0 à ce jour).",
+    );
+    expect(v3.headline).toContain("mais fragile");
+    expect(v3.headline).toContain("le bot ne pèse pas dans les décisions");
     expect(v3.headline).toStartWith("Bot v3 : ");
     expect(v3.headline.includes("aucun avantage démontré")).toBe(!v3AnyEdge(v3));
     expect(forwardSignals(v3)).toBeGreaterThanOrEqual(0);
@@ -59,7 +70,7 @@ describe("v3 contract sample (real /api/bot answer)", () => {
     for (const t of [
       "Bot v3 · pré-enregistré le 30/09/2026", "Seuil corrigé", "Résultats v3 hors échantillon", "Depuis le 30/09/2026 (test sur l&#x27;avenir)",
       "Chaque configuration seule", "Tendance à volatilité gérée", "Comment la v3 est jugée", "Référence : sélection v2 à 20 jours", "Classement entre pairs",
-      "Hausse ou baisse de l&#x27;actif", "requis 3,52",
+      "Hausse ou baisse de l&#x27;actif", "requis 3,52", "mais fragile : il ne comptera qu&#x27;après 30 signaux",
     ]) expect(h).toContain(t);
     expect(h).toContain(esc(n(v3.forwardHeadline)));
     expect(h).not.toContain("Ce qui change avec la v2");
@@ -106,5 +117,18 @@ describe("v3 texts", () => {
     expect(volRows(g.volManaged!).map((r) => r.label)).toEqual(["Ratio de Sharpe", "Pire baisse", "Rendement annuel", "Volatilité annuelle"]);
     expect(computeText({ fetchMs: 15_400, computeMs: 432_000, threads: 1, peakRssMb: 243.4 })).toBe("7 min 12 s de calcul sur 1 cœur, pic mémoire 243 Mo (téléchargement 15 s)");
     expect(computeText(null)).toBeNull();
+  });
+});
+
+describe("Radar card", () => {
+  test("first sentence of the live headline, forward counter, link; honest states", () => {
+    const h = n(renderToStaticMarkup(createElement(BotRadarView, { state: "ready", report })));
+    expect(h).toContain(esc(firstSentence(v3.headline)));
+    expect(firstSentence(v3.headline).endsWith("le bot ne pèse pas dans les décisions.")).toBe(true);
+    expect(h).toContain("Test sur l&#x27;avenir : 0 signal sur 30");
+    expect(h).toContain('href="/app/bot"');
+    expect(renderToStaticMarkup(createElement(BotRadarView, { state: "error", report: null }))).toContain("Résultats indisponibles");
+    expect(renderToStaticMarkup(createElement(BotRadarView, { state: "pending", report: null }))).toContain("Entraînement et test en cours");
+    expect(firstSentence("A. B. C")).toBe("A.");
   });
 });

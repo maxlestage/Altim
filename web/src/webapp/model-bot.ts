@@ -293,6 +293,8 @@ export type V3AssetNow = { time: number | null; absolute20: BotAction | null; ab
 export type V3Signal = {
   family: Family; horizon: number; candidate: V3Candidate | null; action: BotAction | null; buyVerdict: Verdict | null; sellVerdict: Verdict | null;
   forwardBuySignals: number; forwardSellSignals: number; contradicted: boolean; counts: boolean; text: string;
+  /** Proven on the past but awaiting 30 confirming forward signals: shown only (since the rule of 30/09/2026). */
+  pending?: boolean;
 };
 export type V3View = {
   available: boolean; signals: V3Signal[]; counts: boolean; nudge: number; tRequired: number; note: string;
@@ -377,6 +379,19 @@ export function judged(c: ConfigStats, side: "buy" | "sell"): SideStats {
 /** A side proven at the corrected threshold (family B: against the median and the mean). */
 export function proven(c: ConfigStats, side: "buy" | "sell"): boolean {
   return c[side].verdict === "edge" && judged(c, side).verdict === "edge";
+}
+
+/** A side proven on the past and confirmed by the forward test (≥ 30 signals, excess ≥ 0 against each reference): only then does it count. */
+export function confirmed(c: V3Config, side: "buy" | "sell"): boolean {
+  const refs = [c.forward[side], side === "buy" ? c.forward.buyVsMean : c.forward.sellVsMean].filter((s): s is SideStats => s != null);
+  return proven(c.main, side) && refs.every((s) => s.signals >= 30 && s.excess != null && s.excess >= 0);
+}
+
+/** « Avantage mesuré sur le passé (t = 3,65 contre 3,52 exigé) mais fragile : … » for a proven side awaiting its forward test; null otherwise. */
+export function pendingText(c: V3Config, side: "buy" | "sell", required: number): string | null {
+  if (!proven(c.main, side) || confirmed(c, side)) return null;
+  const t = judged(c.main, side).t;
+  return `Avantage mesuré sur le passé (t = ${t == null ? "—" : plain(t, 2)} contre ${plain(required, 2)} exigé) mais fragile : il ne comptera qu'après 30 signaux sur l'avenir qui le confirment (${c.forward[side].signals} à ce jour).`;
 }
 
 /** Whether a v3 headline configuration has an edge on either side (at the corrected threshold, both references). */

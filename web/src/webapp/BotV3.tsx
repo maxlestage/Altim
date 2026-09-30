@@ -6,7 +6,7 @@
  */
 import { monthYear, plain, signedPct, verdictTone } from "./model-validation";
 import {
-  FAMILY_LABEL, V3_SHORT, computeText, judged, proven, tLine, forwardSignals, forwardText, frIso, headlineConfigs, points, tVsRequired, v3SideText, v3VerdictLabel, volRows,
+  FAMILY_LABEL, V3_SHORT, computeText, judged, pendingText, proven, tLine, forwardSignals, forwardText, frIso, headlineConfigs, points, tVsRequired, v3SideText, v3VerdictLabel, volRows,
   type BotReport, type SideStats, type V3BlockOut, type V3Candidate, type V3Config, type V3Group, type V3Report, type VolManaged,
 } from "./model-bot";
 
@@ -149,6 +149,10 @@ function HeadlineConfig({ c, req, runs }: { c: V3Config; req: number; runs: Retu
       <p className="small">{v3SideText(c.family, "sell", m.sell, req)}</p>
       <p className="small bot-side-head"><span className="muted">VENDRE{m.sellVsMean ? " · face à la médiane" : ""}</span> <Chip s={m.sell} required={req} /></p>
       {m.sellVsMean && <Control s={m.sellVsMean} req={req} proven={proven(m, "sell")} />}
+      {(["buy", "sell"] as const).map((side) => {
+        const p = pendingText(c, side, req);
+        return p ? <p key={side} className="notice warn small">{p}</p> : null;
+      })}
       {m.holdAssets > 0 && (
         <p className="kv small"><span>Achats cumulés / détention (médianes)</span><b>{signedPct(m.medianBotReturn, 0)} / {signedPct(m.medianHoldReturn, 0)}</b></p>
       )}
@@ -168,7 +172,7 @@ function Control({ s, req, proven: ok }: { s: SideStats; req: number; proven: bo
         <span className="muted">Face à la moyenne du groupe (contrôle ajouté après coup) : {points(s.excess)} ({tLine(s, req)})</span>
         <Chip s={s} required={req} />
       </p>
-      <p className="small"><b>{ok ? "Retenu : avantage face aux deux références." : "Retenu : non démontré (il faut les deux références) ; ne compte pas."}</b></p>
+      <p className="small"><b>{ok ? "Sur le passé : avantage face aux deux références." : "Retenu : non démontré (il faut les deux références) ; ne compte pas."}</b></p>
     </div>
   );
 }

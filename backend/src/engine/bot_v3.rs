@@ -104,8 +104,9 @@ pub const K_V2: usize = 20;
 /// Family-wise error rate of the corrected threshold (two-sided).
 pub const ALPHA: f64 = 0.05;
 /// Changes made after the pre-registration, listed in the report (never hidden).
-pub const AFTER_PREREG: [&str; 1] = [
+pub const AFTER_PREREG: [&str; 2] = [
     "Contrôle ajouté le 29/09/2026 après le premier calcul réel : le classement entre pairs est aussi jugé face à la moyenne à parts égales du groupe, et pas seulement face à sa médiane. Les rendements étant asymétriques (quelques fortes hausses), la moyenne d'un groupe d'actifs pris au hasard dépasse sa médiane : face à la médiane, n'importe quelle sélection paraît gagner à l'achat et perdre à la vente. Un avantage entre pairs ne compte désormais dans les décisions que s'il tient face aux deux (règle plus stricte que celle pré-enregistrée).",
+    "Règle ajoutée le 30/09/2026 après le premier calcul réel (seul avantage restant, achats entre pairs sur les actions à 20 jours : t = 3,65 par jour contre 3,52 exigé, mais 0,6 par actif, donc fragile) : un côté prouvé sur le passé ne compte dans les décisions qu'une fois que le test sur l'avenir a au moins 30 signaux et un écart moyen non négatif (face aux deux références pour le classement entre pairs). D'ici là il est seulement affiché. Règle plus stricte que celle pré-enregistrée.",
 ];
 
 use std::collections::{BTreeMap, HashMap};
@@ -1572,6 +1573,8 @@ pub struct V3Signal {
     /// Today's side is proven but the forward test (≥ 30 signals) says otherwise.
     pub contradicted: bool,
     pub counts: bool,
+    /// Today's side is proven on the past but awaits 30 confirming forward signals: shown only.
+    pub pending: bool,
     pub text: String,
 }
 
@@ -1605,19 +1608,46 @@ impl V3View {
     }
 }
 
-/// Whether today's side counts: proven at the corrected threshold (family B: against the median and the mean) and
-/// not contradicted by the forward test (≥ 30 signals with an excess ≤ 0, against either reference).
-fn side_counts(c: &V3Config, a: BotAction) -> (bool, bool, usize, usize) {
+/// Where today's side stands (`AFTER_PREREG`, 2): proven at the corrected threshold (family B: against the median
+/// and the mean), then counted only once the forward test confirms it — ≥ `MIN_TRADES` forward signals and a mean
+/// excess ≥ 0 against each reference; below 30 it is pending (shown only), with a negative excess contradicted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SideState {
+    pub counts: bool,
+    pub pending: bool,
+    pub contradicted: bool,
+}
+
+pub fn side_state(c: &V3Config, a: BotAction) -> SideState {
+    let none = SideState { counts: false, pending: false, contradicted: false };
     let sell = match a {
         BotAction::Buy => false,
         BotAction::Sell => true,
-        BotAction::Wait => return (false, false, c.forward.buy.signals, c.forward.sell.signals),
+        BotAction::Wait => return none,
     };
+    if !c.main.proven(sell) {
+        return none;
+    }
     let (fwd, fwd_mean) = if sell { (&c.forward.sell, &c.forward.sell_vs_mean) } else { (&c.forward.buy, &c.forward.buy_vs_mean) };
-    let proven = c.main.proven(sell);
-    let negative = |s: &SideStats| s.signals >= MIN_TRADES && s.excess.is_none_or(|e| e <= 0.0);
-    let contradicted = proven && (negative(fwd) || fwd_mean.as_ref().is_some_and(negative));
-    (proven && !contradicted, contradicted, c.forward.buy.signals, c.forward.sell.signals)
+    let refs: Vec<&SideStats> = std::iter::once(fwd).chain(fwd_mean.as_ref()).collect();
+    if refs.iter().any(|s| s.signals < MIN_TRADES) {
+        return SideState { pending: true, ..none };
+    }
+    let confirmed = refs.iter().all(|s| s.excess.is_some_and(|e| e >= 0.0));
+    SideState { counts: confirmed, pending: false, contradicted: !confirmed }
+}
+
+/// « Avantage mesuré sur le passé (t = 3,65 contre 3,52 exigé) mais fragile : … » for a proven side awaiting its
+/// forward test.
+pub fn pending_note(c: &V3Config, sell: bool, t_req: f64) -> String {
+    let s = if sell { c.main.sell_vs_mean.as_ref().unwrap_or(&c.main.sell) } else { c.main.buy_vs_mean.as_ref().unwrap_or(&c.main.buy) };
+    let f = if sell { &c.forward.sell } else { &c.forward.buy };
+    format!(
+        "Avantage mesuré sur le passé (t = {} contre {} exigé) mais fragile : il ne comptera qu'après {MIN_TRADES} signaux sur l'avenir qui le confirment ({} à ce jour).",
+        s.t.map(|t| fr(t, 0, 2)).unwrap_or_else(|| "—".into()),
+        fr(t_req, 0, 2),
+        f.signals
+    )
 }
 
 /// v3's view of an asset from its features at the last closed daily candle; None without a v3 report and models.
@@ -1633,6 +1663,7 @@ pub fn view(report: &BotReport, group: BotGroup, symbol: &str, x: &Features, tre
         });
     };
     let mut signals = Vec::new();
+    let mut pending: Option<String> = None;
     let (mut pro, mut con, mut con_held) = (None, None, None);
     let (mut buy, mut sell) = (false, false);
     for family in [Family::Absolute, Family::Peers] {
@@ -1643,8 +1674,11 @@ pub fn view(report: &BotReport, group: BotGroup, symbol: &str, x: &Features, tre
                 Family::Absolute => (lh.absolute.as_ref().map(|a| a.0), lh.absolute_action(x, trend)),
                 _ => (lh.peers.as_ref().map(|a| a.0), lh.peers_action(x, symbol)),
             };
-            let (counts, contradicted, fb, fs) =
-                action.map_or((false, false, cfg.forward.buy.signals, cfg.forward.sell.signals), |a| side_counts(cfg, a));
+            let st = action.map_or(SideState { counts: false, pending: false, contradicted: false }, |a| side_state(cfg, a));
+            let (counts, contradicted, fb, fs) = (st.counts, st.contradicted, cfg.forward.buy.signals, cfg.forward.sell.signals);
+            if st.pending {
+                pending.get_or_insert_with(|| pending_note(cfg, action == Some(BotAction::Sell), r.t_required));
+            }
             let what = match (family, action) {
                 (_, None) => "pas d'avis".to_string(),
                 (Family::Peers, Some(BotAction::Buy)) => "parmi les 20 % les mieux classés de son groupe".into(),
@@ -1656,7 +1690,9 @@ pub fn view(report: &BotReport, group: BotGroup, symbol: &str, x: &Features, tre
             let text = format!(
                 "{base}{}",
                 if counts {
-                    " (avantage démontré au seuil corrigé, compte un peu)"
+                    " (avantage démontré au seuil corrigé et confirmé sur l'avenir, compte un peu)"
+                } else if st.pending {
+                    " (avantage mesuré sur le passé mais fragile : en attente de 30 signaux sur l'avenir, ne compte pas encore)"
                 } else if contradicted {
                     " (avantage passé contredit par le test sur l'avenir : ne compte pas)"
                 } else {
@@ -1703,6 +1739,7 @@ pub fn view(report: &BotReport, group: BotGroup, symbol: &str, x: &Features, tre
                 forward_sell_signals: fs,
                 contradicted,
                 counts,
+                pending: st.pending,
                 text,
             });
         }
@@ -1726,6 +1763,8 @@ pub fn view(report: &BotReport, group: BotGroup, symbol: &str, x: &Features, tre
         )
     } else if buy && sell {
         "Signaux prouvés contradictoires aujourd'hui : le bot ne compte pas.".into()
+    } else if let Some(p) = pending {
+        p
     } else {
         format!(
             "Aucun avantage démontré au seuil corrigé (t ≥ {}, {} tests) pour les signaux d'aujourd'hui : le bot ne compte pas dans la décision.",
@@ -1801,6 +1840,7 @@ pub fn headline(groups: &[V3Group], t_req: f64, k: usize) -> String {
         return "Aucun actif du panier n'a pu servir à l'entraînement : rien à conclure.".into();
     }
     let mut edges = Vec::new();
+    let mut fragile = Vec::new();
     let mut median_only = Vec::new();
     let mut negatives = Vec::new();
     let mut raw = Vec::new();
@@ -1811,7 +1851,19 @@ pub fn headline(groups: &[V3Group], t_req: f64, k: usize) -> String {
                 for (side, s, m) in [("achats", &c.main.buy, &c.main.buy_vs_mean), ("ventes", &c.main.sell, &c.main.sell_vs_mean)] {
                     // Family B is judged against the group's mean too (the control): its figures decide the rest.
                     let judged = m.as_ref().unwrap_or(s);
-                    if is_edge(s) && is_edge(judged) {
+                    let f = &c.forward;
+                    let (fs, fm) = if side == "achats" { (&f.buy, &f.buy_vs_mean) } else { (&f.sell, &f.sell_vs_mean) };
+                    let refs: Vec<&SideStats> = std::iter::once(fs).chain(fm.as_ref()).collect();
+                    let confirmed = refs.iter().all(|x| x.signals >= MIN_TRADES && x.excess.is_some_and(|e| e >= 0.0));
+                    if is_edge(s) && is_edge(judged) && !confirmed {
+                        fragile.push(format!(
+                            "les {side} en {what} (t = {} par jour contre {} exigé, {} par actif ; {} signaux sur l'avenir)",
+                            num(judged.t, 2),
+                            fr(t_req, 0, 2),
+                            t_text(judged.t_by_asset),
+                            fs.signals
+                        ));
+                    } else if is_edge(s) && is_edge(judged) {
                         // The t by asset next to it: an edge carried by a few assets reads very differently.
                         edges.push(format!("les {side} en {what}, {} par jour ({} par actif)", t_text(judged.t), t_text(judged.t_by_asset)));
                     } else if is_edge(s) {
@@ -1825,18 +1877,26 @@ pub fn headline(groups: &[V3Group], t_req: f64, k: usize) -> String {
             }
         }
     }
-    let mut out = if edges.is_empty() {
+    let mut out = if edges.is_empty() && !fragile.is_empty() {
+        format!(
+            "Bot v3 : avantage mesuré sur le passé au seuil corrigé pour {}, mais fragile : il ne comptera dans les décisions qu'après {MIN_TRADES} signaux sur l'avenir qui le confirment ; d'ici là, le bot ne pèse pas dans les décisions.",
+            fragile.join(" ; ")
+        )
+    } else if edges.is_empty() {
         format!(
             "Bot v3 : aucun avantage démontré au seuil corrigé (t ≥ {}, {k} tests comptés), ni en hausse/baisse ni en classement entre pairs, à 20 comme à 60 jours : le bot ne pèse pas dans les décisions.",
             fr(t_req, 0, 2)
         )
     } else {
         format!(
-            "Bot v3 : avantage observé au seuil corrigé (t ≥ {}) pour {}, à confirmer par le test sur l'avenir : seul ce côté compte, un peu, dans les décisions.",
+            "Bot v3 : avantage au seuil corrigé (t ≥ {}) confirmé par le test sur l'avenir pour {} : seul ce côté compte, un peu, dans les décisions.",
             fr(t_req, 0, 2),
             edges.join(" ; ")
         )
     };
+    if !edges.is_empty() && !fragile.is_empty() {
+        out.push_str(&format!(" En attente de confirmation sur l'avenir (ne compte pas encore) : {}.", fragile.join(" ; ")));
+    }
     if !median_only.is_empty() {
         out.push_str(&format!(
             " Face à la médiane du groupe (critère pré-enregistré), le seuil était passé pour {}, mais pas face à sa moyenne (contrôle ajouté après le premier calcul) : l'écart vient probablement de l'asymétrie des rendements (la moyenne dépasse la médiane), pas d'un vrai avantage ; il ne compte pas.",
