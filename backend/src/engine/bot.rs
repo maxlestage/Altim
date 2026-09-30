@@ -129,7 +129,7 @@ pub type Features = [f32; N_FEATURES];
 pub const V1_COLS: [usize; N_V1] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 pub const ALL_COLS: [usize; N_FEATURES] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
 
-fn round_to(x: f64, d: i32) -> f64 {
+pub(crate) fn round_to(x: f64, d: i32) -> f64 {
     let p = 10f64.powi(d);
     (x * p).round() / p
 }
@@ -168,7 +168,7 @@ impl BotGroup {
         }
     }
 
-    fn short(self) -> &'static str {
+    pub fn short(self) -> &'static str {
         match self {
             BotGroup::Stock => "actions",
             BotGroup::Crypto => "cryptos",
@@ -297,7 +297,7 @@ pub static EXTRA: [BasketAsset; 91] = [
 
 // ---------- Features (no look-ahead) ----------
 
-fn day_of(t: i64) -> i64 {
+pub(crate) fn day_of(t: i64) -> i64 {
     t.div_euclid(DAY_MS)
 }
 
@@ -477,7 +477,12 @@ pub struct Forward {
 }
 
 pub fn forward(c: &[Candle], i: usize, kind: Kind) -> Option<Forward> {
-    let (e, x) = (i + 1, i + 1 + HORIZON);
+    forward_h(c, i, kind, HORIZON)
+}
+
+/// `forward` over `h` candles (v3's horizons).
+pub fn forward_h(c: &[Candle], i: usize, kind: Kind, h: usize) -> Option<Forward> {
+    let (e, x) = (i + 1, i + 1 + h);
     if x >= c.len() || c[e].open <= 0.0 {
         return None;
     }
@@ -514,6 +519,11 @@ pub struct Row {
 /// Every feature row of one history (`raw` and `market` in any order; sanitized here). `market` empty: the asset is
 /// its own market.
 pub fn asset_rows(asset: usize, raw: &[Candle], market: &[Candle], kind: Kind) -> Vec<Row> {
+    asset_rows_h(asset, raw, market, kind, HORIZON)
+}
+
+/// `asset_rows` with labels over `h` candles (v3's horizons).
+pub fn asset_rows_h(asset: usize, raw: &[Candle], market: &[Candle], kind: Kind, h: usize) -> Vec<Row> {
     let c = sanitize(raw);
     let m = if market.is_empty() { c.clone() } else { sanitize(market) };
     let ind = Indicators::new(&c, &m);
@@ -527,7 +537,7 @@ pub fn asset_rows(asset: usize, raw: &[Candle], market: &[Candle], kind: Kind) -
             x,
             trend: ind.trend(i),
             train: (i - WARMUP).is_multiple_of(TRAIN_STRIDE),
-            fwd: forward(&c, i, kind),
+            fwd: forward_h(&c, i, kind, h),
             day,
         });
     }
@@ -909,6 +919,10 @@ pub struct Selection {
     pub scores: Vec<CandidateScore>,
     pub chosen: Option<Candidate>,
     pub train_rows: usize,
+    /// Since v3: the candidates fitted on the inner training rows (scored on the inner validation; empty when there
+    /// is no inner validation), and the date index where the inner validation starts.
+    pub inner: Vec<Option<Pair>>,
+    pub val_start: Option<usize>,
 }
 
 /// Chooses and fits at the date index `ci` of the timeline `dates`: training = the training rows whose label ended
@@ -916,17 +930,25 @@ pub struct Selection {
 /// `INNER_VAL` dates that end the training window, inner training = those whose label ended `PURGE` dates before
 /// the inner validation starts.
 pub fn select(rows: &[Row], dates: &[i64], ci: usize) -> Selection {
+    select_h(rows, dates, ci, HORIZON)
+}
+
+/// `select` for labels over `h` candles (purge `h` dates): v2's selection at v3's horizons.
+pub fn select_h(rows: &[Row], dates: &[i64], ci: usize, h: usize) -> Selection {
     let cutoff = dates.get(ci).copied().unwrap_or(i64::MAX);
     let known = |r: &&Row, t: i64| r.fwd.is_some_and(|f| f.exit_time < t);
     let train: Vec<&Row> = rows.iter().filter(|r| r.train && known(r, cutoff)).collect();
     let pairs: Vec<Option<Pair>> = CANDIDATES.iter().map(|c| Pair::fit(*c, &train)).collect();
-    let v = ci.min(dates.len()).checked_sub(HORIZON + INNER_VAL);
-    let scores: Vec<CandidateScore> = match v.filter(|v| *v >= PURGE) {
+    let v = ci.min(dates.len()).checked_sub(h + INNER_VAL);
+    let mut inner_pairs: Vec<Option<Pair>> = Vec::new();
+    let v = v.filter(|v| *v >= h);
+    let scores: Vec<CandidateScore> = match v {
         Some(v) => {
-            let (val_start, inner_cutoff) = (dates[v], dates[v - PURGE]);
+            let (val_start, inner_cutoff) = (dates[v], dates[v - h]);
             let val: Vec<&Row> = rows.iter().filter(|r| r.time >= val_start && known(r, cutoff)).collect();
             let inner: Vec<&Row> = rows.iter().filter(|r| r.train && known(r, inner_cutoff)).collect();
-            CANDIDATES.iter().map(|c| CandidateScore { id: *c, log_loss: Pair::fit(*c, &inner).and_then(|p| p.log_loss(&val)) }).collect()
+            inner_pairs = CANDIDATES.iter().map(|c| Pair::fit(*c, &inner)).collect();
+            CANDIDATES.iter().zip(&inner_pairs).map(|(c, p)| CandidateScore { id: *c, log_loss: p.as_ref().and_then(|p| p.log_loss(&val)) }).collect()
         }
         None => CANDIDATES.iter().map(|c| CandidateScore { id: *c, log_loss: None }).collect(),
     };
@@ -939,7 +961,7 @@ pub fn select(rows: &[Row], dates: &[i64], ci: usize) -> Selection {
         }
     }
     let chosen = best.map(|b| b.0).or_else(|| CANDIDATES.iter().copied().find(|c| pairs[c.index()].is_some()));
-    Selection { pairs, scores, chosen, train_rows: train.len() }
+    Selection { pairs, scores, chosen, train_rows: train.len(), inner: inner_pairs, val_start: v }
 }
 
 /// One retraining: test dates [start, end), trained on the rows whose label ended before `cutoff`.
@@ -1157,7 +1179,7 @@ pub struct AssetEval {
     pub exit: Option<Exit>,
 }
 
-fn mean(v: &[f64]) -> Option<f64> {
+pub(crate) fn mean(v: &[f64]) -> Option<f64> {
     (!v.is_empty()).then(|| v.iter().sum::<f64>() / v.len() as f64)
 }
 
@@ -1199,6 +1221,17 @@ pub fn evaluate(
     preds: &[Option<Prediction>],
     keep: impl Fn(&Row) -> bool,
     cost: impl Fn(usize) -> f64,
+) -> (Samples, HashMap<usize, AssetEval>) {
+    evaluate_h(rows, preds, keep, cost, HORIZON)
+}
+
+/// `evaluate` for labels over `h` candles (out for `h` days after a VENDRE).
+pub fn evaluate_h(
+    rows: &[Row],
+    preds: &[Option<Prediction>],
+    keep: impl Fn(&Row) -> bool,
+    cost: impl Fn(usize) -> f64,
+    h: usize,
 ) -> (Samples, HashMap<usize, AssetEval>) {
     let mut base: HashMap<(usize, u32), (f64, f64, f64, usize)> = HashMap::new();
     for (r, p) in rows.iter().zip(preds) {
@@ -1276,7 +1309,7 @@ pub fn evaluate(
         if let Some(d) = r.day {
             let d = d as f64 / 100.0;
             if sold && e.2 == 0 {
-                e.2 = HORIZON;
+                e.2 = h;
                 e.1 *= 1.0 - cost(r.asset) / 100.0;
             }
             e.0 *= 1.0 + d;
@@ -1390,6 +1423,43 @@ fn verdict_of(values: &[f64], c: &Clustered) -> Verdict {
     verdict(&Pooled { trades: values.len(), t_stat: c.by_date, expectancy: mean(values), ..Pooled::default() })
 }
 
+/// The verdict with the threshold `t_edge` (v2: `T_EDGE`, the validation's rule; v3: the corrected one).
+pub fn verdict_at(signals: usize, t: Option<f64>, mean: Option<f64>, t_edge: f64) -> Verdict {
+    match (signals, t, mean) {
+        (n, _, _) if n < MIN_TRADES => Verdict::Insufficient,
+        (_, Some(t), Some(e)) if t >= t_edge && e > 0.0 => Verdict::Edge,
+        (_, Some(t), _) if t <= -t_edge => Verdict::Negative,
+        _ => Verdict::Unproven,
+    }
+}
+
+/// "t ≥ 3,5 par jour, seuil corrigé" (v3) or v2's "t ≥ 2 par jour".
+fn t_rule(t_edge: f64, sign: &str) -> String {
+    if t_edge == T_EDGE {
+        format!("t {sign} {}2 par jour", if sign == "≤" { "−" } else { "" })
+    } else {
+        format!("t {sign} {}{} par jour, seuil corrigé", if sign == "≤" { "−" } else { "" }, fr(t_edge, 0, 1))
+    }
+}
+
+/// `buy_verdict_label` for the threshold `t_edge`.
+pub fn buy_verdict_label_t(v: Verdict, t_edge: f64) -> String {
+    match v {
+        Verdict::Edge => format!("Mieux qu'une entrée au hasard ({}), à confirmer", t_rule(t_edge, "≥")),
+        Verdict::Negative => format!("Moins bien qu'une entrée au hasard ({})", t_rule(t_edge, "≤")),
+        _ => buy_verdict_label(v).into(),
+    }
+}
+
+/// `sell_verdict_label` for the threshold `t_edge`.
+pub fn sell_verdict_label_t(v: Verdict, t_edge: f64) -> String {
+    match v {
+        Verdict::Edge => format!("Baisse évitée par rapport à un jour au hasard ({}), à confirmer", t_rule(t_edge, "≥")),
+        Verdict::Negative => format!("Ventes à contretemps : la hausse a suivi ({})", t_rule(t_edge, "≤")),
+        _ => sell_verdict_label(v).into(),
+    }
+}
+
 pub fn buy_verdict_label(v: Verdict) -> &'static str {
     match v {
         Verdict::Insufficient => "Trop peu d'achats pour conclure",
@@ -1408,11 +1478,11 @@ pub fn sell_verdict_label(v: Verdict) -> &'static str {
     }
 }
 
-fn r2(x: Option<f64>) -> Option<f64> {
+pub(crate) fn r2(x: Option<f64>) -> Option<f64> {
     x.map(|v| round_to(v, 2))
 }
 
-fn share(k: usize, n: usize) -> Option<f64> {
+pub(crate) fn share(k: usize, n: usize) -> Option<f64> {
     (n > 0).then(|| round_to(k as f64 / n as f64 * 100.0, 1))
 }
 
@@ -1526,10 +1596,22 @@ fn exit_stats(e: &[Exit]) -> ExitStats {
 }
 
 pub fn stats(s: &Samples) -> BotStats {
+    stats_t(s, T_EDGE)
+}
+
+/// `stats` with the verdicts at the threshold `t_edge` (v3: the corrected one).
+pub fn stats_t(s: &Samples, t_edge: f64) -> BotStats {
     let n = s.all_net.len();
     let bc = clustered(&s.buy_excess, &s.buy_time, &s.buy_asset);
     let sc = clustered(&s.sell_avoided, &s.sell_time, &s.sell_asset);
-    let (bv, sv) = (verdict_of(&s.buy_excess, &bc), verdict_of(&s.sell_avoided, &sc));
+    let (bv, sv) = if t_edge == T_EDGE {
+        (verdict_of(&s.buy_excess, &bc), verdict_of(&s.sell_avoided, &sc))
+    } else {
+        (
+            verdict_at(s.buy_excess.len(), bc.by_date, mean(&s.buy_excess), t_edge),
+            verdict_at(s.sell_avoided.len(), sc.by_date, mean(&s.sell_avoided), t_edge),
+        )
+    };
     let beat = s.per_asset.iter().filter(|(b, h)| b > h).count();
     let falls = s.down_pairs.iter().filter(|x| x.1).count();
     BotStats {
@@ -1551,7 +1633,7 @@ pub fn stats(s: &Samples) -> BotStats {
             beat_hold: beat,
             assets: s.per_asset.len(),
             verdict: Some(bv),
-            verdict_label: buy_verdict_label(bv).into(),
+            verdict_label: buy_verdict_label_t(bv, t_edge),
         },
         sell: SellStats {
             signals: s.sell_gross.len(),
@@ -1567,7 +1649,7 @@ pub fn stats(s: &Samples) -> BotStats {
             baseline_drawdown: r2(mean(&s.sell_base_drawdown)),
             exit: exit_stats(&s.exits),
             verdict: Some(sv),
-            verdict_label: sell_verdict_label(sv).into(),
+            verdict_label: sell_verdict_label_t(sv, t_edge),
         },
         wait: WaitStats {
             days: s.wait_net.len(),
@@ -1835,6 +1917,9 @@ pub struct BotAssetRow {
     pub hold_max_drawdown: Option<f64>,
     #[serde(default)]
     pub bot_max_drawdown: Option<f64>,
+    /// Since v3: today's actions of the v3 headline configurations (absent from a v1 / v2 report).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub v3: Option<super::bot_v3::V3AssetNow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1891,6 +1976,10 @@ pub struct Timing {
     pub fetch_ms: i64,
     pub compute_ms: i64,
     pub threads: usize,
+    /// Since v3: resident memory of the process before the computation and its peak at the end (MB, Linux
+    /// `/proc/self/status`; None elsewhere).
+    pub rss_before_mb: Option<f64>,
+    pub peak_rss_mb: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1925,6 +2014,13 @@ pub struct BotReport {
     pub extra_fixed_on: String,
     #[serde(default)]
     pub timing: Option<Timing>,
+    /// Since v3 (additive): the pre-registered v3 (horizons 20 and 60, peers ranking, corrected threshold, forward
+    /// test); the v2-shaped fields above then hold v2's selection at 20 days, judged at the corrected threshold.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub v3: Option<super::bot_v3::V3Report>,
+    /// v3's live models (memory only: the views are computed by the server).
+    #[serde(skip)]
+    pub v3_live: Option<std::sync::Arc<super::bot_v3::V3Live>>,
 }
 
 impl BotReport {
@@ -1941,7 +2037,7 @@ pub struct History<'a> {
     pub extra: bool,
 }
 
-fn signed(x: Option<f64>, d: usize) -> String {
+pub(crate) fn signed(x: Option<f64>, d: usize) -> String {
     match x {
         Some(v) => format!(
             "{}{} %",
@@ -1958,7 +2054,7 @@ fn signed(x: Option<f64>, d: usize) -> String {
     }
 }
 
-fn points(x: Option<f64>) -> String {
+pub(crate) fn points(x: Option<f64>) -> String {
     match x {
         Some(v) => format!(
             "{}{} point{}",
@@ -1988,7 +2084,7 @@ fn sell_phrase(avoided: Option<f64>) -> String {
     }
 }
 
-fn t_text(t: Option<f64>) -> String {
+pub(crate) fn t_text(t: Option<f64>) -> String {
     t.map(|t| format!("t = {}{}", if t < 0.0 { "−" } else { "" }, fr(t.abs(), 0, 1))).unwrap_or_else(|| "t non calculable".into())
 }
 
@@ -2068,11 +2164,11 @@ fn now_of(pair: Option<&Pair>, rows: &[Row]) -> NowView {
     }
 }
 
-fn failure(a: &BasketAsset, error: String) -> Failure {
+pub(crate) fn failure(a: &BasketAsset, error: String) -> Failure {
     Failure { symbol: a.symbol.into(), name: a.name.into(), kind: a.kind, class: a.class, error }
 }
 
-fn years_of(c: &[Candle]) -> Option<f64> {
+pub(crate) fn years_of(c: &[Candle]) -> Option<f64> {
     Some(round_to((c.last()?.time - c.first()?.time) as f64 / (365.25 * DAY_MS as f64), 1))
 }
 
@@ -2095,189 +2191,267 @@ pub fn changes() -> Vec<String> {
     ]
 }
 
-/// Trains and tests the bot on the fetched histories (any order), plus the failures of the fetch (basket and extra
-/// assets). `threads`: blocks computed at the same time (same result).
-pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &str, threads: usize) -> BotReport {
-    let index = |s: &str, k: Kind| {
-        BASKET
-            .iter()
-            .position(|b| b.symbol == s && b.kind == k)
-            .or_else(|| EXTRA.iter().position(|b| b.symbol == s && b.kind == k).map(|i| BASKET.len() + i))
-            .unwrap_or(usize::MAX)
-    };
-    let in_basket = |s: &str, k: Kind| BASKET.iter().any(|b| b.symbol == s && b.kind == k);
-    let mut histories = histories;
-    histories.sort_by_key(|h| index(h.asset.symbol, h.asset.kind));
-    let (mut failures, mut extra_failures): (Vec<Failure>, Vec<Failure>) = failures.into_iter().partition(|f| in_basket(&f.symbol, f.kind));
-    let mut groups = Vec::new();
-    let mut overall = Samples::default();
-    let mut assets: Vec<BotAssetRow> = Vec::new();
-    for g in GROUPS {
-        let members: Vec<(usize, &History)> = histories.iter().enumerate().filter(|(_, h)| BotGroup::of(h.asset.kind) == g).collect();
-        let market: Vec<Candle> =
-            members.iter().find(|(_, h)| h.asset.symbol == g.market() && !h.extra).map(|(_, h)| h.candles.clone()).unwrap_or_default();
-        let mut rows: Vec<Row> = Vec::new();
-        let mut per_asset_rows: HashMap<usize, (usize, usize)> = HashMap::new();
-        let mut years: Vec<f64> = Vec::new();
-        let mut data_from: Option<i64> = None;
-        let (mut basket_n, mut extra_n) = (0, 0);
-        for (k, h) in &members {
-            let r = asset_rows(*k, &h.candles, &market, h.asset.kind);
-            if r.is_empty() {
-                let f = failure(
-                    h.asset,
+/// Position of an asset in the training universe (basket, then extra; unknown last).
+pub fn universe_index(s: &str, k: Kind) -> usize {
+    BASKET
+        .iter()
+        .position(|b| b.symbol == s && b.kind == k)
+        .or_else(|| EXTRA.iter().position(|b| b.symbol == s && b.kind == k).map(|i| BASKET.len() + i))
+        .unwrap_or(usize::MAX)
+}
+
+/// Sorts the histories in universe order and splits the fetch failures: (basket, extra).
+pub fn prepare(histories: &mut [History], failures: Vec<Failure>) -> (Vec<Failure>, Vec<Failure>) {
+    histories.sort_by_key(|h| universe_index(h.asset.symbol, h.asset.kind));
+    failures.into_iter().partition(|f| BASKET.iter().any(|b| b.symbol == f.symbol && b.kind == f.kind))
+}
+
+/// A group's feature rows and where they came from.
+pub struct GroupData {
+    pub group: BotGroup,
+    /// Indices of the group's histories (all of them, used or not).
+    pub members: Vec<usize>,
+    pub market: Vec<Candle>,
+    pub rows: Vec<Row>,
+    /// Row range of each used history (by history index).
+    pub spans: HashMap<usize, (usize, usize)>,
+    /// By history index.
+    pub is_extra: Vec<bool>,
+    pub basket: usize,
+    pub extra: usize,
+    pub years: Vec<f64>,
+    pub data_from: Option<i64>,
+    /// Years of history and first candle of each used history (by history index).
+    pub asset_years: HashMap<usize, (Option<f64>, Option<i64>)>,
+}
+
+/// The rows of group `g` with labels over `h` candles (`histories` sorted by `prepare`). A history too short for a
+/// feature row goes to `failures` (basket, extra) when given. None without a usable basket asset.
+pub fn group_rows(g: BotGroup, histories: &[History], h: usize, mut failures: Option<(&mut Vec<Failure>, &mut Vec<Failure>)>) -> Option<GroupData> {
+    let members: Vec<usize> = (0..histories.len()).filter(|k| BotGroup::of(histories[*k].asset.kind) == g).collect();
+    let market: Vec<Candle> =
+        members.iter().map(|k| &histories[*k]).find(|h| h.asset.symbol == g.market() && !h.extra).map(|h| h.candles.clone()).unwrap_or_default();
+    let mut rows: Vec<Row> = Vec::new();
+    let mut spans: HashMap<usize, (usize, usize)> = HashMap::new();
+    let mut years: Vec<f64> = Vec::new();
+    let mut data_from: Option<i64> = None;
+    let mut asset_years = HashMap::new();
+    let (mut basket_n, mut extra_n) = (0, 0);
+    for k in &members {
+        let hi = &histories[*k];
+        let r = asset_rows_h(*k, &hi.candles, &market, hi.asset.kind, h);
+        if r.is_empty() {
+            if let Some((f, xf)) = failures.as_mut() {
+                let e = failure(
+                    hi.asset,
                     format!(
                         "historique journalier trop court ({} bougies, {} nécessaires, et {} du marché)",
-                        h.candles.len(),
+                        hi.candles.len(),
                         WARMUP + 1,
                         MARKET_WARMUP + 1
                     ),
                 );
-                if h.extra {
-                    extra_failures.push(f)
-                } else {
-                    failures.push(f)
-                }
-                continue;
+                if hi.extra { xf.push(e) } else { f.push(e) }
             }
-            if h.extra {
-                extra_n += 1
-            } else {
-                basket_n += 1
-            }
-            years.extend(years_of(&sanitize(&h.candles)));
-            data_from = h.candles.iter().map(|c| c.time).min().into_iter().chain(data_from).min();
-            per_asset_rows.insert(*k, (rows.len(), rows.len() + r.len()));
-            rows.extend(r);
-        }
-        if basket_n == 0 {
             continue;
         }
-        let is_extra: Vec<bool> = members.iter().fold(vec![false; histories.len()], |mut v, (k, h)| {
-            v[*k] = h.extra;
-            v
-        });
-        let cost = |_: usize| round_trip_cost(if g == BotGroup::Crypto { Kind::Crypto } else { Kind::Stock });
-        let wf = walk_forward(&rows, threads);
-        let nested = wf.nested();
-        let basket = |r: &Row| !is_extra[r.asset];
-        let (samples, per) = evaluate(&rows, &nested, basket, cost);
-        let (extra_samples, _) = evaluate(&rows, &nested, |r: &Row| is_extra[r.asset], cost);
-        let last = rows.iter().zip(&nested).filter(|(r, p)| p.is_some() && basket(r)).map(|(r, _)| r.time).max();
-        let holdout = last.map(|t| {
-            let from = t - HOLDOUT_DAYS * DAY_MS;
-            let (s, _) = evaluate(&rows, &nested, |r: &Row| basket(r) && r.time > from, cost);
-            Holdout { from: Some(from + DAY_MS), to: Some(t), stats: stats(&s) }
-        });
-        let candidates: Vec<CandidateStat> = CANDIDATES
-            .iter()
-            .map(|c| {
-                let (s, _) = evaluate(&rows, &wf.preds[c.index()], basket, cost);
-                CandidateStat {
-                    id: *c,
-                    label: c.label().into(),
-                    description: c.description(),
-                    trained_blocks: wf.preds[c.index()].iter().flatten().map(|p| p.block).collect::<std::collections::BTreeSet<_>>().len(),
-                    chosen_blocks: wf.blocks.iter().filter(|b| b.chosen == Some(*c)).count(),
-                    stats: stats(&s),
-                }
-            })
-            .collect();
-        // Live: chosen and fitted on every known outcome.
-        let dates = timeline(&rows);
-        let live = select(&rows, &dates, dates.len());
-        let live_pair = live.chosen.and_then(|c| live.pairs[c.index()].clone());
-        let live_train: Vec<&Row> = rows.iter().filter(|r| r.train && r.fwd.is_some()).collect();
-        let model = live_pair.as_ref().map(|p| {
-            let logit = |m: &SideModel| if let SideModel::Logit(x) = m { ModelOut::of(x) } else { ModelOut::default() };
-            LiveModel {
-                trained_rows: live_train.len(),
-                trained_from: live_train.iter().map(|r| r.time).min(),
-                trained_to: live_train.iter().map(|r| r.time).max(),
-                up: logit(&p.up),
-                down: logit(&p.down),
-                candidate: p.candidate,
-                scores: live.scores.clone(),
-                up_model: LiveSide::of(&p.up),
-                down_model: LiveSide::of(&p.down),
-            }
-        });
-        for (k, h) in &members {
-            if h.extra {
-                continue;
-            }
-            let Some((a0, a1)) = per_asset_rows.get(k) else { continue };
-            let e = per.get(k).cloned().unwrap_or_default();
-            let clean = sanitize(&h.candles);
-            assets.push(BotAssetRow {
-                symbol: h.asset.symbol.into(),
-                name: h.asset.name.into(),
-                kind: h.asset.kind,
-                class: h.asset.class,
-                group: g,
-                test_rows: e.test_rows,
-                test_from: e.from,
-                test_to: e.to,
-                buys: e.buys.len(),
-                buy_mean: r2(mean(&e.buys)),
-                buy_excess: r2(mean(&e.buy_excess)),
-                sells: e.sells,
-                sell_avoided: r2(mean(&e.sell_avoided)),
-                wait_share: share(e.wait_days, e.labelled),
-                bot_return: r2(e.bot_return),
-                hold_return: r2(e.hold_return),
-                now: now_of(live_pair.as_ref(), &rows[*a0..*a1]),
-                source: h.source.clone(),
-                years: years_of(&clean),
-                data_from: clean.first().map(|c| c.time),
-                out_share: e.exit.and_then(|x| share(x.out_days, x.days)),
-                hold_max_drawdown: e.exit.map(|x| round_to(x.hold_max_drawdown, 2)),
-                bot_max_drawdown: e.exit.map(|x| round_to(x.bot_max_drawdown, 2)),
-            });
+        if hi.extra {
+            extra_n += 1
+        } else {
+            basket_n += 1
         }
-        let st = stats(&samples);
-        overall.merge(&samples);
-        let test_times: Vec<i64> = rows.iter().zip(&nested).filter(|(r, p)| p.is_some() && basket(r)).map(|(r, _)| r.time).collect();
-        let extra_failed = extra_failures.iter().filter(|f| BotGroup::of(f.kind) == g).count();
-        groups.push(BotGroupStat {
-            id: g,
-            label: g.label().into(),
-            assets: basket_n,
-            test_from: test_times.iter().min().copied(),
-            test_to: test_times.iter().max().copied(),
-            blocks: wf.blocks.len(),
-            trained_blocks: wf.blocks.iter().filter(|b| b.trained).count(),
-            text: group_text(g.label(), &st),
-            stats: st,
-            model,
-            universe: Universe {
-                basket: basket_n,
-                extra: extra_n,
-                extra_failed,
-                rows: rows.len(),
-                data_from,
-                median_years: r2(median(&years)).map(|y| round_to(y, 1)),
-                max_years: years.iter().copied().reduce(f64::max).map(|y| round_to(y, 1)),
-            },
-            data_years: r2(median(&years)).map(|y| round_to(y, 1)),
-            selection: wf
-                .blocks
-                .iter()
-                .map(|b| BlockOut {
-                    start: b.start,
-                    end: (b.end != i64::MAX).then_some(b.end),
-                    train_rows: b.train_rows,
-                    chosen: b.chosen,
-                    scores: b.scores.iter().map(|s| CandidateScore { id: s.id, log_loss: s.log_loss.map(|l| round_to(l, 5)) }).collect(),
-                })
-                .collect(),
-            candidates,
-            holdout,
-            extra: (extra_n > 0).then(|| stats(&extra_samples)),
-            market: if market.is_empty() { "l'actif lui-même (marché indisponible)".into() } else { g.market_label().into() },
+        let clean = sanitize(&hi.candles);
+        years.extend(years_of(&clean));
+        asset_years.insert(*k, (years_of(&clean), clean.first().map(|c| c.time)));
+        data_from = hi.candles.iter().map(|c| c.time).min().into_iter().chain(data_from).min();
+        spans.insert(*k, (rows.len(), rows.len() + r.len()));
+        rows.extend(r);
+    }
+    if basket_n == 0 {
+        return None;
+    }
+    let mut is_extra = vec![false; histories.len()];
+    for k in &members {
+        is_extra[*k] = histories[*k].extra;
+    }
+    Some(GroupData { group: g, members, market, rows, spans, is_extra, basket: basket_n, extra: extra_n, years, data_from, asset_years })
+}
+
+/// The v2-shaped figures of a group from a walk-forward's blocks (with v2's choice) and its predictions
+/// (`preds_of(None)`: v2's nested selection, `preds_of(Some(c))`: candidate `c`; made on demand, one at a time): the
+/// nested result on the basket rows dated before `until` (the headline), the extra assets apart, the last year, each
+/// candidate alone, v2's live model (`live`: `select` with every known label), the basket's asset rows; verdicts at
+/// the threshold `t_edge`. Returns the group, its asset rows and the headline samples.
+pub fn assemble(
+    d: &GroupData,
+    histories: &[History],
+    blocks: &[Block],
+    preds_of: &dyn Fn(Option<Candidate>) -> Vec<Option<Prediction>>,
+    live: &Selection,
+    extra_failed: usize,
+    t_edge: f64,
+    until: i64,
+) -> (BotGroupStat, Vec<BotAssetRow>, Samples) {
+    let g = d.group;
+    let rows = &d.rows;
+    let is_extra = &d.is_extra;
+    let cost = |_: usize| round_trip_cost(if g == BotGroup::Crypto { Kind::Crypto } else { Kind::Stock });
+    let nested = preds_of(None);
+    let basket = |r: &Row| !is_extra[r.asset] && r.time < until;
+    let (samples, per) = evaluate(rows, &nested, basket, cost);
+    let (extra_samples, _) = evaluate(rows, &nested, |r: &Row| is_extra[r.asset] && r.time < until, cost);
+    let last = rows.iter().zip(&nested).filter(|(r, p)| p.is_some() && basket(r)).map(|(r, _)| r.time).max();
+    let holdout = last.map(|t| {
+        let from = t - HOLDOUT_DAYS * DAY_MS;
+        let (s, _) = evaluate(rows, &nested, |r: &Row| basket(r) && r.time > from, cost);
+        Holdout { from: Some(from + DAY_MS), to: Some(t), stats: stats_t(&s, t_edge) }
+    });
+    let candidates: Vec<CandidateStat> = CANDIDATES
+        .iter()
+        .map(|c| {
+            let preds = preds_of(Some(*c));
+            let (s, _) = evaluate(rows, &preds, basket, cost);
+            CandidateStat {
+                id: *c,
+                label: c.label().into(),
+                description: c.description(),
+                trained_blocks: preds.iter().flatten().map(|p| p.block).collect::<std::collections::BTreeSet<_>>().len(),
+                chosen_blocks: blocks.iter().filter(|b| b.chosen == Some(*c)).count(),
+                stats: stats_t(&s, t_edge),
+            }
+        })
+        .collect();
+    // Live: chosen and fitted on every known outcome.
+    let live_pair = live.chosen.and_then(|c| live.pairs[c.index()].clone());
+    let live_train: Vec<&Row> = rows.iter().filter(|r| r.train && r.fwd.is_some()).collect();
+    let model = live_pair.as_ref().map(|p| {
+        let logit = |m: &SideModel| if let SideModel::Logit(x) = m { ModelOut::of(x) } else { ModelOut::default() };
+        LiveModel {
+            trained_rows: live_train.len(),
+            trained_from: live_train.iter().map(|r| r.time).min(),
+            trained_to: live_train.iter().map(|r| r.time).max(),
+            up: logit(&p.up),
+            down: logit(&p.down),
+            candidate: p.candidate,
+            scores: live.scores.clone(),
+            up_model: LiveSide::of(&p.up),
+            down_model: LiveSide::of(&p.down),
+        }
+    });
+    let mut assets = Vec::new();
+    for k in &d.members {
+        let h = &histories[*k];
+        if h.extra {
+            continue;
+        }
+        let Some((a0, a1)) = d.spans.get(k) else { continue };
+        let e = per.get(k).cloned().unwrap_or_default();
+        let (years, from) = d.asset_years.get(k).copied().unwrap_or_default();
+        assets.push(BotAssetRow {
+            symbol: h.asset.symbol.into(),
+            name: h.asset.name.into(),
+            kind: h.asset.kind,
+            class: h.asset.class,
+            group: g,
+            test_rows: e.test_rows,
+            test_from: e.from,
+            test_to: e.to,
+            buys: e.buys.len(),
+            buy_mean: r2(mean(&e.buys)),
+            buy_excess: r2(mean(&e.buy_excess)),
+            sells: e.sells,
+            sell_avoided: r2(mean(&e.sell_avoided)),
+            wait_share: share(e.wait_days, e.labelled),
+            bot_return: r2(e.bot_return),
+            hold_return: r2(e.hold_return),
+            now: now_of(live_pair.as_ref(), &rows[*a0..*a1]),
+            source: h.source.clone(),
+            years,
+            data_from: from,
+            out_share: e.exit.and_then(|x| share(x.out_days, x.days)),
+            hold_max_drawdown: e.exit.map(|x| round_to(x.hold_max_drawdown, 2)),
+            bot_max_drawdown: e.exit.map(|x| round_to(x.bot_max_drawdown, 2)),
+            v3: None,
         });
     }
-    let index_f = |f: &Failure| index(&f.symbol, f.kind);
+    let st = stats_t(&samples, t_edge);
+    let test_times: Vec<i64> = rows.iter().zip(&nested).filter(|(r, p)| p.is_some() && basket(r)).map(|(r, _)| r.time).collect();
+    let group = BotGroupStat {
+        id: g,
+        label: g.label().into(),
+        assets: d.basket,
+        test_from: test_times.iter().min().copied(),
+        test_to: test_times.iter().max().copied(),
+        blocks: blocks.len(),
+        trained_blocks: blocks.iter().filter(|b| b.trained).count(),
+        text: group_text(g.label(), &st),
+        stats: st,
+        model,
+        universe: Universe {
+            basket: d.basket,
+            extra: d.extra,
+            extra_failed,
+            rows: rows.len(),
+            data_from: d.data_from,
+            median_years: r2(median(&d.years)).map(|y| round_to(y, 1)),
+            max_years: d.years.iter().copied().reduce(f64::max).map(|y| round_to(y, 1)),
+        },
+        data_years: r2(median(&d.years)).map(|y| round_to(y, 1)),
+        selection: blocks
+            .iter()
+            .map(|b| BlockOut {
+                start: b.start,
+                end: (b.end != i64::MAX).then_some(b.end),
+                train_rows: b.train_rows,
+                chosen: b.chosen,
+                scores: b.scores.iter().map(|s| CandidateScore { id: s.id, log_loss: s.log_loss.map(|l| round_to(l, 5)) }).collect(),
+            })
+            .collect(),
+        candidates,
+        holdout,
+        extra: (d.extra > 0).then(|| stats_t(&extra_samples, t_edge)),
+        market: if d.market.is_empty() { "l'actif lui-même (marché indisponible)".into() } else { g.market_label().into() },
+    };
+    (group, assets, samples)
+}
+
+/// Trains and tests the bot (v2) on the fetched histories (any order), plus the failures of the fetch (basket and
+/// extra assets). `threads`: blocks computed at the same time (same result).
+pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &str, threads: usize) -> BotReport {
+    let mut histories = histories;
+    let (mut failures, mut extra_failures) = prepare(&mut histories, failures);
+    let mut groups = Vec::new();
+    let mut overall = Samples::default();
+    let mut assets: Vec<BotAssetRow> = Vec::new();
+    for g in GROUPS {
+        let Some(d) = group_rows(g, &histories, HORIZON, Some((&mut failures, &mut extra_failures))) else { continue };
+        let wf = walk_forward(&d.rows, threads);
+        let extra_failed = extra_failures.iter().filter(|f| BotGroup::of(f.kind) == g).count();
+        let preds_of = |c: Option<Candidate>| match c {
+            None => wf.nested(),
+            Some(c) => wf.preds[c.index()].clone(),
+        };
+        let dates = timeline(&d.rows);
+        let live = select(&d.rows, &dates, dates.len());
+        let (group, a, samples) = assemble(&d, &histories, &wf.blocks, &preds_of, &live, extra_failed, T_EDGE, i64::MAX);
+        overall.merge(&samples);
+        assets.extend(a);
+        groups.push(group);
+    }
+    report_of(groups, overall, assets, failures, extra_failures, now, source)
+}
+
+/// The v2 report around the groups (method, limits, parameters).
+pub fn report_of(
+    groups: Vec<BotGroupStat>,
+    overall: Samples,
+    assets: Vec<BotAssetRow>,
+    mut failures: Vec<Failure>,
+    mut extra_failures: Vec<Failure>,
+    now: i64,
+    source: &str,
+) -> BotReport {
+    let index_f = |f: &Failure| universe_index(&f.symbol, f.kind);
     failures.sort_by_key(index_f);
     extra_failures.sort_by_key(index_f);
     let headline = headline(&groups);
@@ -2371,6 +2545,8 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
         extra_failures,
         extra_fixed_on: EXTRA_FIXED_ON.into(),
         timing: None,
+        v3: None,
+        v3_live: None,
     }
 }
 
@@ -2429,6 +2605,9 @@ pub struct BotView {
     /// Since v2: the candidate model behind the view.
     pub model: Option<Candidate>,
     pub model_label: Option<String>,
+    /// Since v3: the four headline configurations today and whether one counts (then `counts` is theirs).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v3: Option<super::bot_v3::V3View>,
 }
 
 impl Default for BotView {
@@ -2457,11 +2636,12 @@ impl Default for BotView {
             link: LINK.into(),
             model: None,
             model_label: None,
+            v3: None,
         }
     }
 }
 
-fn pct0(x: f64) -> String {
+pub(crate) fn pct0(x: f64) -> String {
     format!("{} %", fr(x, 0, 0))
 }
 
@@ -2612,7 +2792,14 @@ pub fn bot_view(report: Option<&BotReport>, symbol: &str, kind: Kind, daily: &[C
         NO_EDGE.into()
     };
     let rising = p.action != BotAction::Sell;
+    // v3: only its headline configurations can count (corrected threshold, forward test); v2's side never does.
+    let v3 = super::bot_v3::view(report, group, symbol, &x, trend);
+    let (counts, note) = match &v3 {
+        Some(v) => (v.counts, v.note.clone()),
+        None => (counts, note),
+    };
     BotView {
+        v3,
         action: Some(p.action),
         action_label: Some(p.action.label().into()),
         up: Some(round_to(up * 100.0, 1)),
@@ -2633,6 +2820,9 @@ pub fn bot_view(report: Option<&BotReport>, symbol: &str, kind: Kind, daily: &[C
 impl BotView {
     /// The pro or con line of a decision, when it counts: (is_pro, text). `held`: the user holds the asset.
     pub fn line(&self, held: bool) -> Option<(bool, String)> {
+        if let Some(v) = &self.v3 {
+            return if v.counts { v.line(held) } else { None };
+        }
         if !self.counts {
             return None;
         }
@@ -2666,8 +2856,19 @@ impl BotView {
         }
     }
 
+    /// What moves the confidence, for the decision's text: v3's counting signal, else today's action.
+    pub fn nudge_label(&self) -> String {
+        if let Some(s) = self.v3.as_ref().and_then(|v| v.signals.iter().find(|s| s.counts)) {
+            return s.text.clone();
+        }
+        self.action_label.clone().unwrap_or_default()
+    }
+
     /// Confidence change for a buy-side verdict (Buy / BuyZone): ± `NUDGE` when it counts, else 0.
     pub fn nudge(&self) -> f64 {
+        if let Some(v) = &self.v3 {
+            return if v.counts { v.nudge } else { 0.0 };
+        }
         match (self.counts, self.action) {
             (true, Some(BotAction::Buy)) => NUDGE,
             (true, Some(BotAction::Sell)) => -NUDGE,

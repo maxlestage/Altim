@@ -2087,7 +2087,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
             " Bot Altim : {} point{} ({}, avantage hors échantillon sur ce côté).",
             if bot.nudge() > 0.0 { format!("+{}", fr(bot.nudge(), 0, 0)) } else { format!("−{}", fr(-bot.nudge(), 0, 0)) },
             if bot.nudge().abs() >= 2.0 { "s" } else { "" },
-            bot.action_label.as_deref().unwrap_or("")
+            bot.nudge_label()
         ));
     }
     // Cross-asset validation of the signal: may lower the confidence, never raise it.

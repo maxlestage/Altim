@@ -24,6 +24,7 @@
 		41185BC773C72F27D7F7DA14 /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81FAACDC3948E0195BEB6923 /* KeychainStore.swift */; };
 		42CF4F8D66DB6BA7BBC02BF7 /* AnomaliesCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1B18B396E44D756579DD732 /* AnomaliesCard.swift */; };
 		4865F409B38643CF85846CD9 /* PaperView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6CDDC16BA674D7EB6BA0D4B /* PaperView.swift */; };
+		4D8179D24D3B98B8E7B9522B /* BotV3Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C091B70F2CA69210E8ED865 /* BotV3Views.swift */; };
 		52898F93882B69E0861C2678 /* HistoryCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C74762741137D7303795E540 /* HistoryCard.swift */; };
 		54986B52D91A896DB37936D9 /* DecisionCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76647AA973CED5E69C075AAA /* DecisionCard.swift */; };
 		5B46D930CEBC015DE7E0821B /* LoginView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9978B040C3FC9EEBB7693F1A /* LoginView.swift */; };
@@ -127,6 +128,7 @@
 		5ACE528CE8AE74F497CFBCE7 /* Altim.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Altim.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5BB1D4A556F1AC5F423444BE /* SectorCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SectorCard.swift; sourceTree = "<group>"; };
 		6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BriefCard.swift; sourceTree = "<group>"; };
+		6C091B70F2CA69210E8ED865 /* BotV3Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BotV3Views.swift; sourceTree = "<group>"; };
 		6C83BF100932D1E6615DDDA4 /* DcaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DcaCard.swift; sourceTree = "<group>"; };
 		74F0A79E5171FB42E363BA0A /* LocalStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStore.swift; sourceTree = "<group>"; };
 		75CCF10D0398EC74D4889438 /* OpportunitiesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpportunitiesView.swift; sourceTree = "<group>"; };
@@ -206,6 +208,7 @@
 				C1B18B396E44D756579DD732 /* AnomaliesCard.swift */,
 				30AD0F58789516F9B8D20AF9 /* AssetDetailView.swift */,
 				34C959FBE2552374F2BF47E1 /* BotScreen.swift */,
+				6C091B70F2CA69210E8ED865 /* BotV3Views.swift */,
 				6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */,
 				A0E04A3E58A1A08F0E7619A0 /* Components.swift */,
 				6C83BF100932D1E6615DDDA4 /* DcaCard.swift */,
@@ -495,6 +498,7 @@
 				62CE1380D9B1B9F5A04E34B9 /* AppModel.swift in Sources */,
 				1D1B0B3AF732F2318106D225 /* AssetDetailView.swift in Sources */,
 				146ADCCA01462D34A3E9B2C8 /* BotScreen.swift in Sources */,
+				4D8179D24D3B98B8E7B9522B /* BotV3Views.swift in Sources */,
 				C014505067DAC5CD41EFF0C3 /* BriefCard.swift in Sources */,
 				13C8D6BAE6058019DD475358 /* BuyNotifications.swift in Sources */,
 				F19E003020BF89CC8AE930F2 /* Components.swift in Sources */,

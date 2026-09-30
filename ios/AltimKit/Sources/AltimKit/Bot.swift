@@ -561,6 +561,8 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
     public var outShare: Double?
     public var holdMaxDrawdown: Double?
     public var botMaxDrawdown: Double?
+    /// v3: today's actions of the 4 headline configurations (nil in a v1 / v2 answer).
+    public var v3: BotV3AssetNow?
     public var id: String { "\(kind.rawValue):\(symbol)" }
     public var asset: Asset { Asset(symbol: symbol, kind: kind, name: name.isEmpty ? symbol : name) }
 
@@ -589,6 +591,7 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
         outShare = c.num(k("outShare"))
         holdMaxDrawdown = c.num(k("holdMaxDrawdown"))
         botMaxDrawdown = c.num(k("botMaxDrawdown"))
+        v3 = c.opt(BotV3AssetNow.self, k("v3"))
     }
 }
 
@@ -681,6 +684,8 @@ public struct BotReport: Decodable, Sendable {
     public var extraFailures: [ValidationFailure]
     public var extraFixedOn: String?
     public var timing: BotTiming?
+    /// Since v3: the pre-registered v3; the v2-shaped fields then hold v2's selection at 20 days, at the corrected threshold.
+    public var v3: BotV3Report?
 
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
@@ -701,6 +706,7 @@ public struct BotReport: Decodable, Sendable {
         extraFailures = c.list(ValidationFailure.self, k("extraFailures"))
         extraFixedOn = c.opt(String.self, k("extraFixedOn"))
         timing = c.opt(BotTiming.self, k("timing"))
+        v3 = c.opt(BotV3Report.self, k("v3"))
     }
 }
 
@@ -708,11 +714,22 @@ public struct BotTiming: Decodable, Sendable {
     public var fetchMs: Double
     public var computeMs: Double
     public var threads: Int
+    /// Since v3: resident memory before the computation and its peak (MB; nil when not measured).
+    public var rssBeforeMb: Double?
+    public var peakRssMb: Double?
+
+    public init(fetchMs: Double, computeMs: Double, threads: Int, rssBeforeMb: Double? = nil, peakRssMb: Double? = nil) {
+        self.fetchMs = fetchMs
+        self.computeMs = computeMs
+        self.threads = threads
+        self.rssBeforeMb = rssBeforeMb
+        self.peakRssMb = peakRssMb
+    }
+
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
-        fetchMs = c.num(k("fetchMs")) ?? 0
-        computeMs = c.num(k("computeMs")) ?? 0
-        threads = c.int(k("threads"))
+        self.init(fetchMs: c.num(k("fetchMs")) ?? 0, computeMs: c.num(k("computeMs")) ?? 0, threads: c.int(k("threads")),
+                  rssBeforeMb: c.num(k("rssBeforeMb")), peakRssMb: c.num(k("peakRssMb")))
     }
 }
 
@@ -786,10 +803,12 @@ public struct BotView: Codable, Sendable, Equatable {
     /// v2: the candidate model behind today's view and its label ("Régression logistique 24 mesures").
     public var model: BotCandidate?
     public var modelLabel: String?
+    /// Since v3: the 4 headline configurations today; `counts` and `note` are then theirs.
+    public var v3: BotV3View?
 
     enum CodingKeys: String, CodingKey {
         case available, group, groupLabel, inBasket, action, actionLabel, up, down, thresholdUp, thresholdDown, baseUp, baseDown
-        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind, model, modelLabel
+        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind, model, modelLabel, v3
     }
 
     public init(from decoder: Decoder) throws {
@@ -819,6 +838,7 @@ public struct BotView: Codable, Sendable, Equatable {
         kind = c.opt(String.self, .kind).flatMap(Kind.init(rawValue:))
         model = c.opt(String.self, .model).flatMap(BotCandidate.init(rawValue:))
         modelLabel = c.opt(String.self, .modelLabel)
+        v3 = c.opt(BotV3View.self, .v3)
     }
 
     /// With an action: shown with its probabilities; without: only the text.
@@ -826,10 +846,10 @@ public struct BotView: Codable, Sendable, Equatable {
 
     /// Colour of the decision block's edge, as the web's `dec-proof` classes: not available, counts, does not count.
     public enum Tone: String, Sendable { case na, edge, unproven }
-    public var tone: Tone { !hasAction ? .na : counts ? .edge : .unproven }
+    public var tone: Tone { !hasAction ? .na : countsNow ? .edge : .unproven }
 
-    /// "compte" / "ne compte pas" (only with an action).
-    public var countsLabel: String { counts ? "compte" : "ne compte pas" }
+    /// "compte" / "ne compte pas" (only with an action; v3's `counts` when present).
+    public var countsLabel: String { countsNow ? "compte" : "ne compte pas" }
 }
 
 /// Answer of /api/bot/views.
@@ -1064,8 +1084,8 @@ public enum ModelBot {
 
     // Texts of the screen (same wording as Bot.tsx).
 
-    public static let intro = "Des modèles appris sur de longs historiques (jusqu'à 20 ans), qui disent ACHETER, ATTENDRE ou VENDRE à 20 jours. Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre."
-    public static let pendingText = "Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…"
+    public static let intro = "Des modèles appris sur de longs historiques (actions depuis 1990, cryptos depuis leur cotation), qui disent ACHETER, ATTENDRE ou VENDRE à 20 et 60 jours. Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance, avec un seuil corrigé des essais multiples. Altim ne passe aucun ordre."
+    public static let pendingText = "Téléchargement des historiques, entraînement et test en cours (plusieurs minutes la première fois)…"
     public static let changesTitle = "Ce qui change avec la v2"
     public static let resultsIntro = "Modèle choisi à chaque réentraînement sur une validation interne (jamais sur le test), testé sur les actifs du panier."
     public static let candidatesTitle = "Chaque modèle seul"
@@ -1167,10 +1187,11 @@ public enum ModelBot {
     /// " · entraîné le 29/09 à 13:36" after the link; nil without a report.
     public static func trainedText(_ v: BotView) -> String? { v.asOf.map { " · entraîné le \(DecisionGuidance.shortDateTime($0))" } }
 
-    /// "Panier fixé le 29/09/2026, univers élargi le 29/09/2026. Source : …. Calcul : 13 s de téléchargement, 35 s d'entraînement et de test.".
+    /// "Panier fixé le 29/09/2026, univers élargi le 29/09/2026. Source : …. Calcul : 13 s de téléchargement, 35 s d'entraînement et de test."
+    /// (the timing is in the v3 section when v3 is present).
     public static func footer(_ r: BotReport) -> String {
         let extra = (r.extraFixedOn ?? "").isEmpty ? "" : ", univers élargi le \(ModelValidation.basketDate(r.extraFixedOn ?? ""))"
-        let timing = r.timing.map {
+        let timing = r.v3 != nil ? "" : r.timing.map {
             " Calcul : \(Int(($0.fetchMs / 1000).rounded())) s de téléchargement, \(Int(($0.computeMs / 1000).rounded())) s d'entraînement et de test."
         } ?? ""
         return "Panier fixé le \(ModelValidation.basketDate(r.basketFixedOn))\(extra). Source : \(r.source).\(timing)"

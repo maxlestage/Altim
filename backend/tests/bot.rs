@@ -2,8 +2,8 @@
 //! (the asset's and its market's) on real saved histories, labels at the next open, the three fitted candidates
 //! (deterministic, training statistics only), the trend rule, the nested walk-forward's purges and choice, the
 //! out-of-sample evaluation and the clustered t by hand, the long-history parsers on real saved responses, today's
-//! view from the saved real reports (v2, and v1 still decoded), and the route. The live runs are ignored by default
-//! (`ALTIM_SAVE_SAMPLE=1` rewrites tests/samples/bot.json).
+//! view from the saved real reports (v2 in tests/samples/bot-v2.json, and v1 still decoded), and the route. The live
+//! history test is ignored by default; the whole live run (v3, which keeps v2's selection) is in `bot_v3.rs`.
 mod common;
 
 use std::time::Duration;
@@ -556,7 +556,7 @@ fn load(name: &str) -> BotReport {
 }
 
 pub fn sample() -> BotReport {
-    load("bot.json")
+    load("bot-v2.json")
 }
 
 /// Today's view from the saved real report: probabilities, the action of its thresholds (or of the trend rule),
@@ -754,43 +754,4 @@ async fn bot_history_live() {
     let (sol, src) = altim::bot_history::long_history("SOL", Kind::Crypto, now).await.unwrap();
     println!("SOL {} {} bougies", src, sol.len());
     assert!(sol.len() > 1500);
-}
-
-/// Real run on the whole universe; `ALTIM_SAVE_SAMPLE=1` rewrites tests/samples/bot.json with it.
-#[tokio::test]
-#[ignore]
-async fn bot_live() {
-    let r = altim::app::bot::compute().await.unwrap();
-    println!("{}", r.headline);
-    println!("{:?}", r.timing);
-    for g in &r.groups {
-        println!("{}", g.text);
-        println!("  univers {:?}", g.universe);
-        for c in &g.candidates {
-            println!(
-                "  {:?} choisi {}/{} : achats {} excès {:?} t {:?} ({:?}) ; ventes {} évité {:?} t {:?} ({:?}) ; Brier {:?}/{:?}",
-                c.id,
-                c.chosen_blocks,
-                c.trained_blocks,
-                c.stats.buy.signals,
-                c.stats.buy.excess,
-                c.stats.buy.t_stat,
-                c.stats.buy.verdict,
-                c.stats.sell.signals,
-                c.stats.sell.avoided,
-                c.stats.sell.t_stat,
-                c.stats.sell.verdict,
-                c.stats.brier_skill_up,
-                c.stats.brier_skill_down
-            );
-        }
-    }
-    for f in r.failures.iter().chain(&r.extra_failures) {
-        println!("  échec {} : {}", f.symbol, f.error);
-    }
-    if std::env::var("ALTIM_SAVE_SAMPLE").is_ok_and(|v| v == "1") {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot.json");
-        std::fs::write(path, serde_json::to_string_pretty(&altim::js::to_value(&r)).unwrap() + "\n").unwrap();
-    }
-    assert!(r.assets.len() >= BASKET.len() / 2);
 }

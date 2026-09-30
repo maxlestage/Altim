@@ -60,18 +60,22 @@ import com.maxlestage.altim.kit.BotGroupStat
 import com.maxlestage.altim.kit.BotReport
 import com.maxlestage.altim.kit.BotResult
 import com.maxlestage.altim.kit.BotStatsLike
+import com.maxlestage.altim.kit.BotV3
 import com.maxlestage.altim.kit.BotView
 import com.maxlestage.altim.kit.BotViews
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.ModelValidation
 import com.maxlestage.altim.kit.Tone
+import com.maxlestage.altim.kit.effectiveCounts
+import com.maxlestage.altim.kit.effectiveNote
 import kotlinx.coroutines.delay
 
-// « Bot Altim » v2 (web Bot.tsx): candidate models trained on long histories of the validation's basket and an extra
+// « Bot Altim » (web Bot.tsx): candidate models trained on long histories of the validation's basket and an extra
 // universe (/api/bot), chosen at each retraining on an inner validation and tested walk-forward on periods they had not
-// seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (/api/bot/views). Stacked cards, wrapping
-// chips, nothing wider than a 360 dp phone; the per-asset list keeps the basket's order; each candidate is shown alone
-// for information only. A v1 answer still renders (its v2 parts left out).
+// seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (/api/bot/views). v3 (BotV3Section.kt)
+// first when present, then v2's selection as the reference. Stacked cards, wrapping chips, nothing wider than a 360 dp
+// phone; the per-asset list keeps the basket's order; each candidate is shown alone for information only. v2 and v1
+// answers still render (their later parts left out).
 
 /** Opens « Bot Altim » above the current screen (null where it cannot be opened, e.g. in the tests). */
 val LocalOpenBot = staticCompositionLocalOf<(() -> Unit)?> { null }
@@ -157,19 +161,26 @@ fun BotAltimView(
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
             item {
                 Caption(
-                    "Des modèles appris sur de longs historiques (jusqu'à 20 ans), qui disent ACHETER, ATTENDRE ou VENDRE à 20 jours. Jugés seulement sur des périodes qu'ils " +
-                        "n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre.",
+                    "Des modèles appris sur de longs historiques (actions depuis 1990, cryptos depuis leur cotation), qui disent ACHETER, ATTENDRE ou VENDRE à 20 et 60 jours. " +
+                        "Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance, avec un seuil corrigé des essais multiples. Altim ne passe aucun ordre.",
                 )
             }
             error?.let { item { Notice("⚠ $it", Tone.WARN) } }
             if (report == null && error == null) {
-                item { Card { Caption(if (pending) "Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…" else "Chargement…"); Loading() } }
+                item { Card { Caption(if (pending) "Téléchargement des historiques, entraînement et test en cours (plusieurs minutes la première fois)…" else "Chargement…"); Loading() } }
             }
             if (report != null) {
                 val r = report
+                val v3 = r.v3
                 item { BotHeadCard(r) }
-                if (r.changes.isNotEmpty()) item { Card(title = "Ce qui change avec la v2") { Bulleted(r.changes) } }
+                // v3 first; v2's selection kept below as the reference.
+                if (v3 != null) botV3Items(v3, r.timing)
+                if (v3 == null && r.changes.isNotEmpty()) item { Card(title = "Ce qui change avec la v2") { Bulleted(r.changes) } }
                 if (watched) item { WatchedViewsCard(views, viewsError, open) }
+                if (v3 != null) {
+                    item { Label("Référence : sélection v2 à 20 jours") }
+                    item { Caption(BotV3.v2ReferenceNote(v3)) }
+                }
                 item {
                     Card(title = "Comment il apprend et comment il est jugé") {
                         Bulleted(r.method)
@@ -181,7 +192,7 @@ fun BotAltimView(
                         if (featuresOpen) Bulleted(r.features.map { "${it.label} — ${it.help}" })
                     }
                 }
-                item { Label("Résultats hors échantillon") }
+                item { Label(if (v3 != null) "Sélection v2 : résultats hors échantillon" else "Résultats hors échantillon") }
                 item { Caption("Modèle choisi à chaque réentraînement sur une validation interne (jamais sur le test), testé sur les actifs du panier.") }
                 items(r.groups, key = { "group-${it.id}" }) { BotGroupCard(it) }
                 val withCandidates = r.groups.filter { it.candidates.isNotEmpty() }
@@ -209,7 +220,8 @@ fun BotAltimView(
                 item {
                     Card(title = "Limites") {
                         Bulleted(r.limits)
-                        Caption(Bot.sourceText(r))
+                        // With v3 the computation (time and memory) is said in its own card.
+                        Caption(Bot.sourceText(if (v3 != null) r.copy(timing = null) else r))
                         LocalOpenValidation.current?.let { openValidation ->
                             Text(
                                 "Voir la validation du signal →",
@@ -416,6 +428,7 @@ fun BotAssetRowView(a: BotAssetRow, open: (Asset) -> Unit) {
             ActionChip(a.now.action)
         }
         Text(Bot.todayText(a), fontSize = 13.sp, color = Color.White)
+        V3AssetNowRow(a)
         Caption(Bot.assetTestText(a))
     }
 }
@@ -443,9 +456,10 @@ private fun ViewRow(v: BotView, open: (Asset) -> Unit) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             Text(v.symbol, fontWeight = FontWeight.Bold, color = AltimColors.cyan, fontSize = 15.sp)
             ActionChip(v.action)
-            Badge(if (v.counts) "compte" else "ne compte pas", if (v.counts) Tone.GOOD else Tone.NEUTRAL)
+            Badge(if (v.effectiveCounts) "compte" else "ne compte pas", if (v.effectiveCounts) Tone.GOOD else Tone.NEUTRAL)
         }
         Caption(Bot.viewText(v))
+        v.v3?.takeIf { it.available }?.let { V3SignalsRow(it.signals) }
     }
 }
 
@@ -475,12 +489,15 @@ fun BotLine(b: BotView) {
                 Text("Bot Altim", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.semantics { heading() })
                 if (shown) {
                     ActionChip(b.action)
-                    Badge(if (b.counts) "compte" else "ne compte pas", Tone.NEUTRAL)
+                    Badge(if (b.effectiveCounts) "compte" else "ne compte pas", Tone.NEUTRAL)
                 }
             }
             Text(if (shown) Bot.probabilitiesText(b) else b.text, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            // v3: today's action of the 4 headline configurations (they decide whether the bot counts).
+            b.v3?.takeIf { it.available }?.let { V3SignalsRow(it.signals) }
             if (b.contributions.isNotEmpty()) Caption(Bot.contributionsText(b))
-            if (b.note.isNotBlank()) Text(b.note, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            val note = b.effectiveNote
+            if (note.isNotBlank()) Text(note, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = AltimColors.cyan, fontWeight = FontWeight.SemiBold)) { append("Voir le bot et ses résultats →") }

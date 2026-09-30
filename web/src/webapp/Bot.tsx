@@ -1,13 +1,15 @@
 /**
- * « Bot Altim » v2: candidate models trained on long histories of the validation's basket and an extra universe
+ * « Bot Altim »: candidate models trained on long histories of the validation's basket and an extra universe
  * (/api/bot), chosen at each retraining on an inner validation and tested walk-forward on periods they had not seen,
- * saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (/api/bot/views). Stacked cards, mobile
- * first; the per-asset list keeps the basket's order; each candidate is shown alone for information only.
+ * saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (/api/bot/views). v3 (`BotV3Section`) first
+ * when present, then v2's selection as the reference. Stacked cards, mobile first; the per-asset list keeps the
+ * basket's order; each candidate is shown alone for information only.
  */
 import { useEffect, useState } from "react";
 import { api } from "./api";
 import { onLink } from "./router";
 import { useAppState } from "./store";
+import { BotV3Section } from "./BotV3";
 import { CLASS_SHORT, monthYear, plain, signedPct, verdictTone } from "./model-validation";
 import {
   ACTION_UI, CANDIDATE_SHORT, buyText, calibrationRows, clusteredText, dataText, exitText, pct0, points, selectionRuns, sellText, skillText, waitText,
@@ -48,15 +50,15 @@ export function Bot() {
         <div>
           <h1>Bot Altim</h1>
           <p className="muted small">
-            Des modèles appris sur de longs historiques (jusqu'à 20 ans), qui disent ACHETER, ATTENDRE ou VENDRE à 20 jours. Jugés seulement sur des périodes qu'ils
-            n'avaient pas vues, sur 34 actifs fixés d'avance. Altim ne passe aucun ordre.
+            Des modèles appris sur de longs historiques (actions depuis 1990, cryptos depuis leur cotation), qui disent ACHETER, ATTENDRE ou VENDRE à 20 et 60 jours.
+            Jugés seulement sur des périodes qu'ils n'avaient pas vues, sur 34 actifs fixés d'avance, avec un seuil corrigé des essais multiples. Altim ne passe aucun ordre.
           </p>
         </div>
       </div>
       {error && <p className="notice warn">⚠ {error}</p>}
       {!report && !error && (
         <div className="card">
-          <p className="muted">{pending ? "Téléchargement des historiques, entraînement et test en cours (une à deux minutes la première fois)…" : "Chargement…"}</p>
+          <p className="muted">{pending ? "Téléchargement des historiques, entraînement et test en cours (plusieurs minutes la première fois)…" : "Chargement…"}</p>
           <div className="skeleton" />
         </div>
       )}
@@ -85,6 +87,7 @@ export function BotReportView({ report: r }: { report: BotReport }) {
   const p = r.parameters;
   const extraFailures = r.extraFailures ?? [];
   const withCandidates = r.groups.filter((g) => g.candidates?.length);
+  const v3 = r.v3;
   return (
     <>
       <div className="card val-head">
@@ -111,7 +114,9 @@ export function BotReportView({ report: r }: { report: BotReport }) {
         )}
       </div>
 
-      {r.changes && r.changes.length > 0 && (
+      {v3 && <BotV3Section v3={v3} timing={r.timing} />}
+
+      {!v3 && r.changes && r.changes.length > 0 && (
         <div className="card">
           <h2 className="card-title">Ce qui change avec la v2</h2>
           <ul className="reasons">{r.changes.map((c) => <li key={c}>{c}</li>)}</ul>
@@ -119,6 +124,16 @@ export function BotReportView({ report: r }: { report: BotReport }) {
       )}
 
       <WatchedViews />
+
+      {v3 && (
+        <>
+          <h2 className="section-label">Référence : sélection v2 à 20 jours</h2>
+          <p className="muted small">
+            Le modèle de la v2 (choisi par log-loss) refait sur les nouvelles données, jugé au seuil corrigé (t ≥ {plain(v3.tRequired, 2)}). C'est lui qui donne les
+            probabilités de hausse et de baisse ci-dessous ; il ne compte dans aucune décision.
+          </p>
+        </>
+      )}
 
       <div className="card">
         <h2 className="card-title">Comment il apprend et comment il est jugé</h2>
@@ -129,7 +144,7 @@ export function BotReportView({ report: r }: { report: BotReport }) {
         </details>
       </div>
 
-      <h2 className="section-label">Résultats hors échantillon</h2>
+      <h2 className="section-label">{v3 ? "Sélection v2 : résultats hors échantillon" : "Résultats hors échantillon"}</h2>
       <p className="muted small">Modèle choisi à chaque réentraînement sur une validation interne (jamais sur le test), testé sur les actifs du panier.</p>
       <div className="val-grid">{r.groups.map((g) => <GroupCard key={g.id} g={g} />)}</div>
 
@@ -187,7 +202,7 @@ export function BotReportView({ report: r }: { report: BotReport }) {
         <ul className="reasons">{r.limits.map((l) => <li key={l}>{l}</li>)}</ul>
         <p className="muted small">
           Panier fixé le {frDate(r.basketFixedOn)}{r.extraFixedOn ? `, univers élargi le ${frDate(r.extraFixedOn)}` : ""}. Source : {r.source}.
-          {r.timing ? ` Calcul : ${Math.round(r.timing.fetchMs / 1000)} s de téléchargement, ${Math.round(r.timing.computeMs / 1000)} s d'entraînement et de test.` : ""}{" "}
+          {r.timing && !v3 ? ` Calcul : ${Math.round(r.timing.fetchMs / 1000)} s de téléchargement, ${Math.round(r.timing.computeMs / 1000)} s d'entraînement et de test.` : ""}{" "}
           <a href="/app/validation" onClick={onLink} className="link">Voir la validation du signal →</a>
         </p>
       </div>
@@ -333,6 +348,12 @@ export function AssetRow({ a }: { a: BotAssetRow }) {
       <p className="small">
         Aujourd'hui : hausse {pct0(a.now.up)}, baisse {pct0(a.now.down)}
       </p>
+      {a.v3 && (
+        <p className="small bot-v3-now">
+          <span className="muted">v3 :</span> hausse/baisse 20 j <ActionChip action={a.v3.absolute20} /> 60 j <ActionChip action={a.v3.absolute60} /> · entre pairs 20 j{" "}
+          <ActionChip action={a.v3.peers20} /> 60 j <ActionChip action={a.v3.peers60} />
+        </p>
+      )}
       <p className="muted small">
         Test : {a.buys} achat{a.buys > 1 ? "s" : ""}{a.buyExcess != null && ` (${points(a.buyExcess)} vs hasard)`} · {a.sells} vente{a.sells > 1 ? "s" : ""}
         {a.sellAvoided != null && ` (cours ensuite ${points(-a.sellAvoided)} vs hasard)`} · attente {pct0(a.waitShare)} · achats cumulés {signedPct(a.botReturn)}, détention{" "}
@@ -388,6 +409,16 @@ function ViewRow({ v }: { v: BotView & { symbol: string; kind: string } }) {
           ? `Hausse ${pct0(v.up)} (seuil ${pct0(v.thresholdUp)}), baisse ${pct0(v.down)} (seuil ${pct0(v.thresholdDown)})${v.modelLabel ? ` · ${v.modelLabel}` : ""}${v.inBasket ? "" : " · hors du panier testé"}`
           : v.text}
       </p>
+      {v.v3?.available && (
+        <p className="small bot-v3-now">
+          <span className="muted">v3 :</span>{" "}
+          {v.v3.signals.map((s) => (
+            <span key={`${s.family}-${s.horizon}`} className="bot-v3-sig">
+              {s.family === "peers" ? "entre pairs" : "hausse/baisse"} {s.horizon} j <ActionChip action={s.action} />
+            </span>
+          ))}
+        </p>
+      )}
     </li>
   );
 }
