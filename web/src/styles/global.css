@@ -186,6 +186,13 @@ main { position: relative; }
 .agree.ok { color: var(--buy); }
 .agree.weak { color: var(--warn); }
 .markets-loading { margin: 0; font-family: var(--mono); font-size: 13px; }
+.market-bot { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; text-decoration: none; min-width: 0; }
+.bot-chip { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; white-space: nowrap; }
+.bot-chip.buy { color: var(--buy); }
+.bot-chip.sell { color: var(--sell); }
+.bot-chip.wait { color: var(--cyan); }
+.market-bot small { font-size: 10.5px; }
+.markets-note { display: block; margin-top: 10px; font-size: 12px; line-height: 1.45; }
 
 /* ---------- Sections ---------- */
 .section { max-width: var(--max); margin: 0 auto; padding: 64px var(--gutter) 0; }

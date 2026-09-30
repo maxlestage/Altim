@@ -17,6 +17,10 @@ import { MobileCTA } from "./components/MobileCTA";
 import { LEGAL_PAGES, LegalPage } from "./components/Legal";
 import { useTicks } from "./hooks";
 import { WebApp } from "./webapp/WebApp";
+import { setMoneyDisplay } from "./money";
+import { startFx, useFx } from "./webapp/fx";
+import { useAppState } from "./webapp/store";
+import { useEffect } from "react";
 
 export function App() {
   const path = window.location.pathname.replace(/\/$/, "") || "/";
@@ -37,6 +41,11 @@ export function App() {
 
 function Home() {
   const ticks = useTicks();
+  // The presentation site shows amounts in the app's display currency (euros by default), at the verified rate.
+  const { currency } = useAppState();
+  const { fx } = useFx();
+  setMoneyDisplay(currency, fx);
+  useEffect(() => startFx(), []);
   return (
     <>
       <Background />
