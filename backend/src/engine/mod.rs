@@ -5,6 +5,7 @@ pub mod ask;
 pub mod backtest;
 pub mod bot;
 pub mod bot_trees;
+pub mod bot_v3;
 pub mod brief;
 pub mod decision;
 pub mod decision_types;

@@ -1258,7 +1258,7 @@ fn model_evidence_caps_only_weak_classes() {
 }
 
 fn bot_sample() -> altim::engine::bot::BotReport {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot.json");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot-v2.json");
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
 }
 

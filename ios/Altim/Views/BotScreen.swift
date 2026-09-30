@@ -1,10 +1,11 @@
 import SwiftUI
 import AltimKit
 
-/// « Bot Altim » v2: candidate models trained on long histories of the validation's basket and an extra universe
+/// « Bot Altim »: candidate models trained on long histories of the validation's basket and an extra universe
 /// (GET /api/bot), chosen at each retraining on an inner validation and tested walk-forward on periods they had not
 /// seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets (GET /api/bot/views). Same content and
-/// texts as the web (Bot.tsx); a v1 answer shows without the v2 parts. Stacked cards, chips that wrap, rows stacked:
+/// texts as the web (Bot.tsx): v3 (`BotV3Section`) first when present, then v2's selection kept below as the
+/// reference; a v1 / v2 answer shows without the v3 parts. Stacked cards, chips that wrap, rows stacked:
 /// nothing scrolls sideways. The per-asset list keeps the basket's order, never ranked by performance; each candidate
 /// is shown alone for information only.
 struct BotScreen: View {
@@ -74,11 +75,18 @@ private struct BotReportContent: View {
         VStack(alignment: .leading, spacing: 16) {
             headline(r)
 
-            if !r.changes.isEmpty {
+            if let v3 = r.v3 { BotV3Section(v3: v3, timing: r.timing) }
+
+            if r.v3 == nil && !r.changes.isEmpty {
                 Card(title: ModelBot.changesTitle) { bullets(r.changes) }
             }
 
             BotWatchedViews()
+
+            if let v3 = r.v3 {
+                BotSectionLabel(text: ModelBot.referenceTitle)
+                caption(ModelBot.referenceText(v3))
+            }
 
             Card(title: "Comment il apprend et comment il est jugé") {
                 bullets(r.method)
@@ -97,7 +105,7 @@ private struct BotReportContent: View {
                 .tint(Theme.cyan)
             }
 
-            BotSectionLabel(text: "Résultats hors échantillon")
+            BotSectionLabel(text: ModelBot.resultsTitle(r))
             caption(ModelBot.resultsIntro)
             ForEach(r.groups) { g in BotGroupCard(group: g) }
 
@@ -443,6 +451,7 @@ private struct BotAssetRowView: View {
                 BotActionChip(action: a.now.action)
             }
             Text(ModelBot.todayText(a)).font(.footnote).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
+            if let now = a.v3 { BotV3AssetNowView(now: now) }
             Text(ModelBot.assetTestText(a)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -504,16 +513,18 @@ private struct BotViewRow: View {
                     .buttonStyle(.plain)
                 }
                 BotActionChip(action: v.action)
-                TagChip(text: v.countsLabel, color: v.counts ? .white : Theme.textSecondary)
+                TagChip(text: v.countsLabel, color: v.countsNow ? .white : Theme.textSecondary)
             }
             Text(ModelBot.viewText(v)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let x = v.v3, x.available { BotV3SignalsView(view: x) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 /// « Bot Altim » in the decision card: the learned model's action, its probabilities and whether it counts in this
-/// decision, with the link to the bot's screen (same texts as the web's `BotLine`). Everything wraps: nothing scrolls
+/// decision (v3's `counts` and note when present: only its headline configurations can count), with the link to the
+/// bot's screen (same texts as the web's `BotLine`). Everything wraps: nothing scrolls
 /// sideways. The edge's colour repeats what the text says, never carries the meaning alone.
 struct BotBlockView: View {
     let bot: BotView
@@ -547,8 +558,8 @@ struct BotBlockView: View {
             if let c = ModelBot.contributionsText(b) {
                 Text(c).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
-            if !b.note.isEmpty {
-                Text(b.note).font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
+            if !b.noteNow.isEmpty {
+                Text(b.noteNow).font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             }
             NavigationLink {
                 BotScreen()

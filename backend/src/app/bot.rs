@@ -1,5 +1,6 @@
-//! `/api/bot`: the « Bot Altim » of `engine::bot` trained and tested (nested walk-forward) on the validation's basket
-//! plus the extra training universe, with the long daily histories of `bot_history` (a few at a time). Heavy:
+//! `/api/bot`: the « Bot Altim » v3 of `engine::bot_v3` (with v2's selection in the v2-shaped fields) trained and
+//! tested (nested walk-forward) on the validation's basket plus the extra training universe, with the long daily
+//! histories of `bot_history` (a few at a time). Heavy:
 //! computed in the background, kept 12 h fresh and served up to 24 h old while the next one is computed; 202 `{ "pending": true }` until the first one is ready (like
 //! `/api/validation`). `/api/bot/views?symbols=` gives today's view of the user's assets from the cached report only.
 use std::collections::HashMap;
@@ -17,14 +18,15 @@ use super::json_of;
 use super::validation::ready_or_pending;
 use crate::bot_history::long_history;
 use crate::cache::{cached, peek};
-use crate::engine::bot::{BotGroup, BotReport, EXTRA, History, MAX_THREADS, Timing, bot_view, run};
+use crate::engine::bot::{BotGroup, BotReport, EXTRA, History, Timing, bot_view};
+use crate::engine::bot_v3::{DEFAULT_THREADS, MAX_THREADS, run};
 use crate::engine::validation::{BASKET, BasketAsset, Failure};
 use crate::http::{Error, Result};
 use crate::js::now_ms;
 use crate::quotes::{ASSETS, make_asset};
 use crate::types::{Candle, Kind};
 
-pub const CACHE_KEY: &str = "bot:v2";
+pub const CACHE_KEY: &str = "bot:v3";
 /// Fresh for 12 h; served while recomputing up to 24 h.
 pub const FRESH_MS: i64 = 12 * 3_600_000;
 pub const KEEP_MS: i64 = 24 * 3_600_000;
@@ -38,7 +40,7 @@ fn entry(i: usize) -> (&'static BasketAsset, bool) {
     if i < BASKET.len() { (&BASKET[i], false) } else { (&EXTRA[i - BASKET.len()], true) }
 }
 
-/// One asset's long history: `bot_history` (up to 20 years / since listing); for the basket, Altim's usual long
+/// One asset's long history: `bot_history` (since 1990 / since listing); for the basket, Altim's usual long
 /// history when that fails (said in the source). An extra asset that fails is left out with its reason.
 async fn fetch(a: &'static BasketAsset, extra: bool, now: i64) -> std::result::Result<(Vec<Candle>, String), String> {
     match long_history(a.symbol, a.kind, now).await {
@@ -76,22 +78,30 @@ pub async fn compute() -> Result<BotReport> {
         return Err(Error(format!("aucun actif du panier n'a pu être chargé ({} échecs)", failures.len())));
     }
     let fetched_at = now_ms();
-    // `ALTIM_BOT_THREADS` caps the threads (1: one core; same result either way).
-    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let threads = std::env::var("ALTIM_BOT_THREADS").ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(cores).clamp(1, MAX_THREADS);
+    // One thread by default (memory); `ALTIM_BOT_THREADS=2` for two (same result either way).
+    let threads = std::env::var("ALTIM_BOT_THREADS").ok().and_then(|v| v.parse::<usize>().ok()).unwrap_or(DEFAULT_THREADS).clamp(1, MAX_THREADS);
+    let rss_before_mb = memory_mb("VmRSS:");
     let mut report = tokio::task::spawn_blocking(move || {
         run(
             histories,
             failures,
             fetched_at,
-            "Bougies journalières longues : Yahoo Finance (actions, jusqu'à 20 ans ; cryptos) et Bitstamp (cryptos, depuis la cotation) ; source retenue indiquée par actif",
+            "Bougies journalières longues : Yahoo Finance (actions depuis 1990 ; cryptos) et Bitstamp (cryptos, depuis la cotation) ; source retenue indiquée par actif",
             threads,
         )
     })
     .await
     .map_err(|e| Error(format!("calcul interrompu : {e}")))?;
-    report.timing = Some(Timing { fetch_ms: fetched_at - started, compute_ms: now_ms() - fetched_at, threads });
+    report.timing =
+        Some(Timing { fetch_ms: fetched_at - started, compute_ms: now_ms() - fetched_at, threads, rss_before_mb, peak_rss_mb: memory_mb("VmHWM:") });
     Ok(report)
+}
+
+/// A line of `/proc/self/status` in MB (`VmRSS:` now, `VmHWM:` the peak so far); None off Linux.
+pub fn memory_mb(key: &str) -> Option<f64> {
+    let s = std::fs::read_to_string("/proc/self/status").ok()?;
+    let kb: f64 = s.lines().find(|l| l.starts_with(key))?.split_whitespace().nth(1)?.parse().ok()?;
+    Some((kb / 1024.0 * 10.0).round() / 10.0)
 }
 
 /// The cached report, if any (a decision never starts the computation).

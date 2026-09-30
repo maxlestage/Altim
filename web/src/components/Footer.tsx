@@ -10,6 +10,7 @@ const COLUMNS = [
       ["/#features", "Fonctionnalités"],
       ["/#sources", "Sources de données"],
       ["/#how", "Le moteur"],
+      ["/#bot", "Bot Altim"],
       ["/#security", "Confidentialité"],
     ],
   },

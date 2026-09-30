@@ -173,6 +173,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
         PullToRefreshBox(isRefreshing = loading && rows.isNotEmpty(), onRefresh = { scope.launch { load() } }) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { BriefCard(model, open) }
+                item { BotRadarCard(model) }
                 macro?.takeIf { it.level != "calm" }?.let { m -> item { MacroBanner(m) } }
                 model.dangers?.takeIf { it.items.isNotEmpty() }?.let { d -> item { DangersNotice(d) } }
                 if (model.configChanges.transitions.isNotEmpty()) {

@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { analyze, ema, type Candle, type Signal } from "../engine/signal";
 import { technicalText } from "../webapp/ui";
-import { COINS, fetchCandles, formatPrice, type Interval, type SourceStatus } from "../market";
+import { COINS, fetchCandles, type Interval, type SourceStatus } from "../market";
 import { useReveal } from "../hooks";
+import { moneyPrice } from "../money";
 
 const INTERVALS: [Interval, string][] = [
   ["1h", "1 h"],
@@ -99,7 +100,7 @@ export function LiveSignal() {
                 <Gauge score={signal.score} />
                 <div className="signal-meta">
                   <span className={`badge big ${kind(signal)}`}>Technique : {technicalText(signal.action)}</span>
-                  <span className="mono">{formatPrice(signal.price)} $</span>
+                  <span className="mono">{moneyPrice(signal.price, " ")}</span>
                   <small className="muted">confiance {Math.round(signal.confidence)} %</small>
                 </div>
               </div>
@@ -126,15 +127,15 @@ export function LiveSignal() {
                 <div className="plan">
                   <div>
                     <small>STOP</small>
-                    <b className="sell">{formatPrice(signal.stopLoss)}</b>
+                    <b className="sell">{moneyPrice(signal.stopLoss, " ")}</b>
                   </div>
                   <div>
                     <small>ENTRÉE</small>
-                    <b>{formatPrice(signal.price)}</b>
+                    <b>{moneyPrice(signal.price, " ")}</b>
                   </div>
                   <div>
                     <small>OBJECTIF</small>
-                    <b className="buy">{formatPrice(signal.takeProfit)}</b>
+                    <b className="buy">{moneyPrice(signal.takeProfit, " ")}</b>
                   </div>
                 </div>
               )}
