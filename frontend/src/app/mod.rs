@@ -98,6 +98,7 @@ pub fn WebApp(p: &WebAppProps) -> Html {
         crate::hooks::set_title("Altim — Application web");
         crate::state::fx::start_fx();
         // Phase 2 (batch A): start the alert checks here (`startChecks` of notify.ts).
+        alerts::start_checks();
     });
     if !state.accepted_disclaimer {
         return html! { <Disclaimer /> };
