@@ -20,7 +20,7 @@
       "url": "emk/rust"
     },
     {
-      "url": "https://github.com/jakeg/heroku-buildpack-bun"
+      "url": "heroku/nodejs"
     }
   ]
 }

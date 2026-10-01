@@ -1,10 +1,11 @@
 #!/bin/sh
-# Heroku build of Altim, whatever buildpacks the app has (package.json "heroku-postbuild"):
-# - Rust buildpack then Bun buildpack (recommended, see DEPLOIEMENT.md): the Rust buildpack has compiled the server
-#   (backend/target/release/altim) and exported its toolchain; here the web front is built with it (Rust + Yew →
-#   WebAssembly, plus the React web app during the migration), its build cached next to the buildpack's.
+# Heroku build of Altim (package.json "heroku-postbuild", run by the Node.js buildpack; package.json has no JavaScript
+# dependency, it is only Heroku's entry point):
+# - Rust buildpack then Node.js buildpack (recommended, see DEPLOIEMENT.md): the Rust buildpack has compiled the
+#   server (backend/target/release/altim) and exported its toolchain; here the web front is built with it (Rust + Yew
+#   → WebAssembly), its build cached next to the buildpack's.
 # - Heroku's automatic detection (Node.js buildpack only): Rust is installed in /tmp (outside the slug) to build the
-#   web front and compile the server. Slower (no cache: ~6 min) but the deployment works.
+#   web front and compile the server. Slower (no cache) but the deployment works.
 set -eu
 
 # `cargo --version` rather than `command -v cargo`: a rustup proxy with no default toolchain is on PATH but unusable.
@@ -27,14 +28,6 @@ fi
 if [ -x backend/target/release/altim ]; then
   exit 0
 fi
-# Run by the Bun buildpack placed before the Rust one (former order): the Rust buildpack compiles the server next.
-case "${npm_config_user_agent:-}${npm_execpath:-}" in
-  *bun*)
-    echo "-----> Altim : le serveur sera compilé par le buildpack Rust"
-    exit 0
-    ;;
-esac
-
 echo "-----> Altim : aucun buildpack Rust, compilation du serveur"
 cargo build --release --locked --bin altim --manifest-path backend/Cargo.toml
 mkdir -p backend/target/release

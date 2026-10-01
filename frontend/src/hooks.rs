@@ -94,6 +94,21 @@ pub fn use_ticks() -> Rc<Vec<Tick>> {
     (*ticks).clone()
 }
 
+/// `document.visibilityState === "visible"`: the periodic refreshes skip a hidden tab.
+pub fn visible() -> bool {
+    gloo::utils::document().visibility_state() == web_sys::VisibilityState::Visible
+}
+
+/// Reloads every `ms` while the tab is visible (`setInterval(() => document.visibilityState === "visible" && load())`);
+/// the first load is the caller's. Dropping the returned timer stops it.
+pub fn every_visible(ms: u32, load: impl Fn() + 'static) -> gloo::timers::callback::Interval {
+    gloo::timers::callback::Interval::new(ms, move || {
+        if visible() {
+            load();
+        }
+    })
+}
+
 /// Sets the page title while the component is shown.
 pub fn set_title(t: &str) {
     gloo::utils::document().set_title(t);
