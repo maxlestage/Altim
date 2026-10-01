@@ -1,6 +1,8 @@
 # Envoi sur TestFlight sans Mac : lancez ce workflow depuis l'onglet Actions de GitHub (même sur iPhone).
-# Prérequis (voir DEPLOIEMENT.md) : compte Apple Developer, app créée dans App Store Connect,
-# secrets APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_P8 (contenu du fichier .p8).
+# Prérequis (voir DEPLOIEMENT.md) : compte Apple Developer, secrets APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID,
+# ASC_KEY_P8 (contenu du fichier .p8). Premier lancement : le workflow enregistre lui-même les identifiants de lot
+# (com.maxlestage.altim, .widgets, .watchkitapp) ; s'il n'y a pas encore d'app dans App Store Connect, il s'arrête en le
+# disant : créez alors l'app avec l'identifiant com.maxlestage.altim (il apparaît maintenant dans la liste) et relancez.
 name: TestFlight
 
 on:
@@ -28,6 +30,46 @@ jobs:
             echo "::error::Secrets Apple manquants (voir DEPLOIEMENT.md)."; exit 1
           fi
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
+      - name: Identifiants de lot et app dans App Store Connect
+        run: |
+          python3 -m pip install --quiet --break-system-packages 'pyjwt[crypto]' 2>/dev/null || python3 -m pip install --quiet 'pyjwt[crypto]'
+          python3 - <<'PY'
+          import json, os, sys, time, urllib.error, urllib.request
+          import jwt
+          key = open(os.path.join(os.environ["RUNNER_TEMP"], "AuthKey.p8")).read()
+          token = jwt.encode({"iss": os.environ["ISSUER"], "iat": int(time.time()), "exp": int(time.time()) + 1200,
+                              "aud": "appstoreconnect-v1"}, key, algorithm="ES256", headers={"kid": os.environ["KEY_ID"]})
+          def call(method, path, body=None):
+              req = urllib.request.Request("https://api.appstoreconnect.apple.com" + path, method=method,
+                                           data=json.dumps(body).encode() if body else None,
+                                           headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
+              try:
+                  with urllib.request.urlopen(req) as r:
+                      return r.status, json.load(r)
+              except urllib.error.HTTPError as e:
+                  return e.code, json.loads(e.read() or b"{}")
+          ids = {"com.maxlestage.altim": "Altim", "com.maxlestage.altim.widgets": "Altim Widgets",
+                 "com.maxlestage.altim.watchkitapp": "Altim Watch"}
+          for ident, name in ids.items():
+              status, body = call("GET", "/v1/bundleIds?filter[identifier]=" + ident)
+              if status != 200:
+                  print(f"::error::App Store Connect refuse la clé ({status}) : vérifiez ASC_KEY_ID, ASC_ISSUER_ID et ASC_KEY_P8.")
+                  print(json.dumps(body)[:500]); sys.exit(1)
+              if any(d["attributes"]["identifier"] == ident for d in body.get("data", [])):
+                  print(f"{ident} : déjà enregistré"); continue
+              status, body = call("POST", "/v1/bundleIds", {"data": {"type": "bundleIds", "attributes":
+                                   {"identifier": ident, "name": name, "platform": "IOS"}}})
+              print(f"{ident} : {'enregistré' if status == 201 else 'échec ' + str(status) + ' ' + json.dumps(body)[:300]}")
+              if status != 201: sys.exit(1)
+          status, body = call("GET", "/v1/apps?filter[bundleId]=com.maxlestage.altim")
+          if status != 200 or not body.get("data"):
+              msg = ("Identifiants enregistrés. Il reste à créer l'app (une seule fois) : App Store Connect → Apps → + → Nouvelle app, "
+                     "plateforme iOS, nom Altim, identifiant de lot com.maxlestage.altim, puis relancez ce workflow.")
+              print("::error::" + msg)
+              open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("### ⏸ " + msg + "\n")
+              sys.exit(1)
+          print("App trouvée dans App Store Connect.")
+          PY
       - name: Archive signée
         run: |
           cd ios && xcodegen generate
