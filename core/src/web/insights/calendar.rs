@@ -5,6 +5,7 @@ use chrono::{Datelike, Months, NaiveDate};
 use serde::{Deserialize, Serialize};
 
 pub use crate::calendar::{CalendarEvent, Category, EventKind, Importance};
+use crate::web::sorting::Sorting;
 
 /// A source of the agenda and the days (or IPO months) it could not read.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -144,7 +145,7 @@ pub fn filter_events<'a>(events: &'a [CalendarEvent], filter: AgendaFilter, mine
 /// Days in order, each with its events in the server's order.
 pub fn group_by_day<'a>(events: &[&'a CalendarEvent]) -> Vec<(String, Vec<&'a CalendarEvent>)> {
     let mut sorted: Vec<&CalendarEvent> = events.to_vec();
-    sorted.sort_by(|a, b| a.day.cmp(&b.day));
+    sorted.sort_by_dyn(|a, b| a.day.cmp(&b.day));
     let mut out: Vec<(String, Vec<&CalendarEvent>)> = Vec::new();
     for e in sorted {
         match out.iter_mut().find(|(d, _)| *d == e.day) {
@@ -394,7 +395,7 @@ mod tests {
                 days.push(e.day.clone());
             }
         }
-        days.sort();
+        days.sort_dyn();
         assert_eq!(groups.iter().map(|g| g.0.clone()).collect::<Vec<_>>(), days);
         assert_eq!(groups.iter().map(|g| g.1.len()).sum::<usize>(), r.events.len());
     }

@@ -19,6 +19,7 @@ use crate::engine::signal::atr;
 use crate::js::{fr as js_fr, number_to_string};
 use crate::types::{Candle, Kind};
 use crate::web::decision::doc::DecisionCore;
+use crate::web::sorting::Sorting;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -268,7 +269,7 @@ pub fn market_from_decision(d: Option<&DecisionCore>) -> JournalMarket {
 /// excluded). None when the history is too short.
 pub fn market_from_candles(candles: &[Candle], at: f64) -> (Option<f64>, Option<f64>) {
     let mut before: Vec<Candle> = candles.iter().filter(|c| c.time as f64 + DAY <= at && c.close > 0.0).copied().collect();
-    before.sort_by_key(|c| c.time);
+    before.sort_by_key_dyn(|c| c.time);
     let last = before.last();
     let a = if before.len() >= 15 { atr(&before, 14)[before.len() - 1] } else { None };
     // before.slice(-21, -1)
@@ -310,7 +311,7 @@ pub fn create_entry(n: &NewEntry) -> JournalEntry {
     let side = n.side.unwrap_or(JournalSide::Buy);
     let buy = side == JournalSide::Buy;
     let mut targets: Vec<f64> = if buy { n.targets.iter().filter_map(|t| ok(*t)).filter(|t| *t > n.price).collect() } else { vec![] };
-    targets.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    targets.sort_by_dyn(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     JournalEntry {
         id: n.id.clone(),
         created_at: n.now,
@@ -362,7 +363,7 @@ pub fn holding_change(before: (f64, f64), after: (f64, f64), live_price: Option<
 pub fn add_entry(s: &JournalState, e: JournalEntry) -> JournalState {
     let mut entries: Vec<JournalEntry> = s.entries.iter().filter(|x| x.id != e.id).cloned().collect();
     entries.push(e);
-    entries.sort_by(|a, b| a.created_at.partial_cmp(&b.created_at).unwrap_or(std::cmp::Ordering::Equal));
+    entries.sort_by_dyn(|a, b| a.created_at.partial_cmp(&b.created_at).unwrap_or(std::cmp::Ordering::Equal));
     let skip = entries.len().saturating_sub(MAX_ENTRIES);
     JournalState { version: 1, entries: entries.into_iter().skip(skip).collect() }
 }
@@ -797,7 +798,7 @@ pub fn review_entry(e: &JournalEntry, candles: &[Candle], now: f64, closed: Opti
     let covers = candles.iter().any(|c| c.time as f64 <= e.created_at);
     let mut after: Vec<Candle> =
         if covers { candles.iter().filter(|c| c.time as f64 > e.created_at && c.low > 0.0 && c.high >= c.low).copied().collect() } else { vec![] };
-    after.sort_by_key(|c| c.time);
+    after.sort_by_key_dyn(|c| c.time);
     let horizons: Vec<HorizonReview> = REVIEW_DAYS.iter().map(|d| horizon_review(e, *d, &after, now, &levels, risk)).collect();
     let latest = horizons.iter().rev().find(|h| h.status == ReviewStatus::Ready).cloned();
     let coherence = coherence_checks(e, &levels);
@@ -969,7 +970,7 @@ fn median(v: &[f64]) -> Option<f64> {
         return None;
     }
     let mut s = v.to_vec();
-    s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    s.sort_by_dyn(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let m = s.len() / 2;
     Some(round(if s.len() % 2 == 1 { s[m] } else { (s[m - 1] + s[m]) / 2.0 }, 3))
 }
@@ -1030,7 +1031,7 @@ pub fn journal_profile(reviews: &[EntryReview], horizon: u32) -> JournalProfile 
             }
         }
         let mut out: Vec<GroupStat> = m.iter().map(|(k, label, hs)| stat(k, label, hs)).collect();
-        out.sort_by(|a, b| order(&a.key).cmp(&order(&b.key)).then_with(|| locale_cmp(&a.key, &b.key)));
+        out.sort_by_dyn(|a, b| order(&a.key).cmp(&order(&b.key)).then_with(|| locale_cmp(&a.key, &b.key)));
         out
     };
     let all_rows: Vec<&HorizonReview> = rows.iter().map(|(_, h)| *h).collect();

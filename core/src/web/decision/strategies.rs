@@ -4,6 +4,7 @@ use crate::engine::strategies::{StrategiesReport, StrategyId, StrategyResult};
 use crate::js::fr;
 use crate::types::Kind;
 use crate::web::bot::encode_uri_component;
+use crate::web::sorting::Sorting;
 
 pub const NNBSP: &str = "\u{202f}";
 
@@ -168,7 +169,7 @@ pub fn geometry(series: &[&StrategyResult], bx: ChartBox) -> Option<Geometry> {
 /// Vertical positions of the end labels, pushed apart by `gap` and kept inside [top, bottom]; same order as `ys`.
 pub fn place_labels(ys: &[f64], gap: f64, top: f64, bottom: f64) -> Vec<f64> {
     let mut order: Vec<(f64, usize)> = ys.iter().copied().zip(0..).collect();
-    order.sort_by(|a, b| a.0.total_cmp(&b.0));
+    order.sort_by_dyn(|a, b| a.0.total_cmp(&b.0));
     let mut out: Vec<f64> = order.iter().map(|o| o.0.max(top).min(bottom)).collect();
     for k in 1..out.len() {
         out[k] = out[k].max(out[k - 1] + gap);
@@ -279,7 +280,7 @@ mod tests {
     fn labels_never_overlap() {
         let out = place_labels(&[50.0, 52.0, 51.0, 170.0, 171.0], 11.0, 14.0, 162.0);
         let mut sorted = out.clone();
-        sorted.sort_by(f64::total_cmp);
+        sorted.sort_by_dyn(f64::total_cmp);
         for k in 1..sorted.len() {
             assert!(sorted[k] - sorted[k - 1] >= 11.0 - 1e-9);
         }

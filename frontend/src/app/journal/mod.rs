@@ -19,6 +19,7 @@ use crate::app::common::{PortfolioTab, PortfolioTabs};
 use crate::route::use_on_link;
 use store::{delete_journal_entry, set_journal_note, use_journal};
 
+use altim_core::web::sorting::Sorting;
 pub use store::record_real_trade;
 
 fn fr(v: f64, d: usize) -> String {
@@ -135,7 +136,7 @@ pub fn Journal() -> Html {
     let candles = use_reducer(Candles::default);
     let horizon = use_state(|| 10u32);
     let mut keys: Vec<String> = entries.iter().map(|e| format!("{}:{}", e.kind.as_str(), e.symbol)).collect();
-    keys.sort();
+    keys.sort_dyn();
     keys.dedup();
     let assets_key = keys.join(",");
 
@@ -178,7 +179,7 @@ pub fn Journal() -> Html {
         .collect();
     let profile = journal_profile(&reviews, *horizon);
     let mut newest: Vec<&EntryReview> = reviews.iter().collect();
-    newest.sort_by(|a, b| b.entry.created_at.partial_cmp(&a.entry.created_at).unwrap_or(std::cmp::Ordering::Equal));
+    newest.sort_by_dyn(|a, b| b.entry.created_at.partial_cmp(&a.entry.created_at).unwrap_or(std::cmp::Ordering::Equal));
     let n = entries.len();
 
     html! {

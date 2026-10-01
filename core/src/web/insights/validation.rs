@@ -8,6 +8,7 @@ use crate::engine::validation::{AssetClass, AssetResult, GroupStat, Pooled, Regi
 use crate::js::fr;
 
 pub use crate::web::bot::{NNBSP, plain};
+use crate::web::sorting::Sorting;
 
 pub const VALIDATION_URL: &str = "/api/validation";
 
@@ -74,11 +75,11 @@ fn class_rank(c: Option<AssetClass>) -> i32 {
 pub fn sort_assets(assets: &[AssetResult], key: SortKey) -> Vec<&AssetResult> {
     let mut rows: Vec<&AssetResult> = assets.iter().collect();
     match key {
-        SortKey::Name => rows.sort_by(|a, b| locale_compare(&a.symbol, &b.symbol)),
+        SortKey::Name => rows.sort_by_dyn(|a, b| locale_compare(&a.symbol, &b.symbol)),
         SortKey::Gap => {
-            rows.sort_by(|a, b| (b.total_return - b.buy_and_hold).partial_cmp(&(a.total_return - a.buy_and_hold)).unwrap_or(Ordering::Equal))
+            rows.sort_by_dyn(|a, b| (b.total_return - b.buy_and_hold).partial_cmp(&(a.total_return - a.buy_and_hold)).unwrap_or(Ordering::Equal))
         }
-        SortKey::Class => rows.sort_by_key(|a| class_rank(a.class)),
+        SortKey::Class => rows.sort_by_key_dyn(|a| class_rank(a.class)),
     }
     rows
 }
@@ -187,7 +188,7 @@ pub fn utc_day(ms: Option<i64>) -> String {
 /// Regimes of a group, the "unknown" one (history too short to classify) last.
 pub fn regimes_of(g: &GroupStat) -> Vec<&RegimeGroup> {
     let mut v: Vec<&RegimeGroup> = g.regimes.iter().collect();
-    v.sort_by_key(|r| r.regime == Regime::Unknown);
+    v.sort_by_key_dyn(|r| r.regime == Regime::Unknown);
     v
 }
 
@@ -232,16 +233,16 @@ mod tests {
         assert_eq!(by_class, r.assets.iter().map(|a| a.symbol.as_str()).collect::<Vec<_>>());
         let by_gap: Vec<f64> = sort_assets(&r.assets, SortKey::Gap).iter().map(|a| a.total_return - a.buy_and_hold).collect();
         let mut sorted = by_gap.clone();
-        sorted.sort_by(|a, b| b.partial_cmp(a).unwrap());
+        sorted.sort_by_dyn(|a, b| b.partial_cmp(a).unwrap());
         assert_eq!(by_gap, sorted);
         let by_name: Vec<&str> = sort_assets(&r.assets, SortKey::Name).iter().map(|a| a.symbol.as_str()).collect();
         let mut names = by_name.clone();
-        names.sort_by(|a, b| locale_compare(a, b));
+        names.sort_by_dyn(|a, b| locale_compare(a, b));
         assert_eq!(by_name, names);
         assert_eq!(r.assets[0].symbol, r.basket[0].symbol);
         // localeCompare("fr") of tickers: punctuation, digits, letters.
         let mut t = vec!["BRK.B", "BRK-B", "B2", "BA", "ba"];
-        t.sort_by(|a, b| locale_compare(a, b));
+        t.sort_by_dyn(|a, b| locale_compare(a, b));
         assert_eq!(t, ["B2", "BA", "ba", "BRK-B", "BRK.B"]);
     }
 
