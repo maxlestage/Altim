@@ -1784,7 +1784,7 @@ impl LiveModel {
 }
 
 /// One candidate's own walk-forward result, for information only (never used to choose).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CandidateStat {
     pub id: Candidate,
@@ -1796,6 +1796,19 @@ pub struct CandidateStat {
     #[serde(flatten)]
     pub stats: BotStats,
 }
+
+/// `CandidateStat` without its flattened `stats`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct CandidateStatFields {
+    id: Candidate,
+    label: String,
+    description: String,
+    trained_blocks: usize,
+    chosen_blocks: usize,
+}
+
+crate::web::json::deserialize_flattened!(CandidateStat, stats, CandidateStatFields { id, label, description, trained_blocks, chosen_blocks });
 
 /// One retraining of the nested walk-forward: its test period, training rows, inner scores and choice.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1827,7 +1840,7 @@ pub struct Universe {
 }
 
 /// The last `HOLDOUT_DAYS` of the test, apart.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Default)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Holdout {
     pub from: Option<i64>,
@@ -1836,7 +1849,17 @@ pub struct Holdout {
     pub stats: BotStats,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// `Holdout` without its flattened `stats`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct HoldoutFields {
+    from: Option<i64>,
+    to: Option<i64>,
+}
+
+crate::web::json::deserialize_flattened!(Holdout, stats, HoldoutFields { from, to });
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BotGroupStat {
     pub id: BotGroup,
@@ -1870,6 +1893,58 @@ pub struct BotGroupStat {
     #[serde(default)]
     pub market: String,
 }
+
+/// `BotGroupStat` without its flattened `stats`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BotGroupStatFields {
+    id: BotGroup,
+    label: String,
+    assets: usize,
+    test_from: Option<i64>,
+    test_to: Option<i64>,
+    blocks: usize,
+    trained_blocks: usize,
+    model: Option<LiveModel>,
+    text: String,
+    #[serde(default)]
+    universe: Universe,
+    #[serde(default)]
+    data_years: Option<f64>,
+    #[serde(default)]
+    selection: Vec<BlockOut>,
+    #[serde(default)]
+    candidates: Vec<CandidateStat>,
+    #[serde(default)]
+    holdout: Option<Holdout>,
+    #[serde(default)]
+    extra: Option<BotStats>,
+    #[serde(default)]
+    market: String,
+}
+
+crate::web::json::deserialize_flattened!(
+    BotGroupStat,
+    stats,
+    BotGroupStatFields {
+        id,
+        label,
+        assets,
+        test_from,
+        test_to,
+        blocks,
+        trained_blocks,
+        model,
+        text,
+        universe,
+        data_years,
+        selection,
+        candidates,
+        holdout,
+        extra,
+        market
+    }
+);
 
 /// Today's view of one asset: action and probabilities (%), None without enough history or model.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use crate::js::fr;
 use crate::types::Kind;
 use crate::web::money::MoneyDisplay;
+use crate::web::sorting::Sorting;
 
 pub const OPPORTUNITIES_KEY: &str = "altim.opportunities.v1";
 
@@ -178,7 +179,7 @@ pub fn filter_items(items: &[OppItem], f: &OppFilters) -> Vec<OppItem> {
         .map(|i| OppItem { hits: i.hits.iter().filter(|h| f.categories.contains(&h.category)).cloned().collect(), ..i.clone() })
         .filter(|i| !i.hits.is_empty())
         .collect();
-    out.sort_by(|a, b| b.hits.len().cmp(&a.hits.len()).then_with(|| best(b).partial_cmp(&best(a)).unwrap_or(std::cmp::Ordering::Equal)));
+    out.sort_by_dyn(|a, b| b.hits.len().cmp(&a.hits.len()).then_with(|| best(b).partial_cmp(&best(a)).unwrap_or(std::cmp::Ordering::Equal)));
     out
 }
 

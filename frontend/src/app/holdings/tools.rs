@@ -21,6 +21,7 @@ use super::browser::input_value;
 use super::history::{attr, line_path};
 use crate::state::{local_get, local_set};
 use crate::ui::Segmented;
+use altim_core::web::sorting::Sorting;
 
 fn usd(v: f64) -> String {
     crate::money::money_with(v, 0, 0, NBSP)
@@ -71,7 +72,7 @@ pub fn CompareCard(p: &CompareCardProps) -> Html {
     let series = use_state(|| None::<Rc<HashMap<String, Vec<Close>>>>);
     let error = use_state(|| None::<String>);
     let mut sorted = (*picked).clone();
-    sorted.sort();
+    sorted.sort_dyn();
     let key = sorted.join(",");
 
     {

@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use super::holdings::positive;
 use crate::engine::history::Close;
 use crate::types::{DAY_MS, Kind};
+use crate::web::sorting::Sorting;
 
 fn day_of(t: i64) -> i64 {
     t.div_euclid(DAY_MS) * DAY_MS
@@ -76,7 +77,7 @@ pub fn compare_assets(series: &HashMap<String, Vec<Close>>, ids: &[String], days
     let mut missing = Vec::new();
     for id in ids {
         let mut c: Vec<Close> = series.get(id).map(|s| s.iter().filter(|(t, v)| *v > 0.0 && *t <= now).copied().collect()).unwrap_or_default();
-        c.sort_by_key(|x| x.0);
+        c.sort_by_key_dyn(|x| x.0);
         if c.len() < 2 {
             missing.push(id.clone());
         } else {

@@ -55,6 +55,7 @@ use crate::route::use_on_link;
 use crate::state::holdings::{set_holdings, use_holdings, use_stored_holdings};
 use crate::state::{local_set, now};
 use crate::ui::Change;
+use altim_core::web::sorting::Sorting;
 
 /// `money(v, 2, 2)`.
 fn usd(v: f64) -> String {
@@ -198,7 +199,7 @@ pub fn MyHoldings() -> Html {
     let file_input = use_node_ref();
     let holdings = usd_h.holdings.clone();
     let mut keys: Vec<String> = holdings.iter().map(|h| market_key(h.kind, &h.symbol)).collect();
-    keys.sort();
+    keys.sort_dyn();
     let symbols_key = keys.join(",");
 
     {

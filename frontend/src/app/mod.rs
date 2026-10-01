@@ -68,6 +68,7 @@ macro_rules! group {
 group!(RADAR, "radar", radar_page, radar_screens);
 group!(ACTIF, "actif", actif_page, actif_screens);
 group!(AVOIRS, "avoirs", avoirs_page, avoirs_screens);
+group!(SIMULATION, "simulation", simulation_page, simulation_screens);
 group!(SELECTION, "selection", selection_page, selection_screens);
 group!(ACTU, "actu", actu_page, actu_screens);
 group!(REGLAGES, "reglages", reglages_page, reglages_screens);
@@ -84,7 +85,8 @@ fn app_page(r: Route) -> Html {
 fn all_screens(r: &Route) -> Html {
     match r {
         Route::Asset { kind, symbol } if asset_of(kind, symbol).is_some() => actif_screens(r),
-        Route::Avoirs | Route::Simulation | Route::Journal => avoirs_screens(r),
+        Route::Avoirs => avoirs_screens(r),
+        Route::Simulation | Route::Journal => simulation_screens(r),
         Route::Selection | Route::Opportunites => selection_screens(r),
         Route::Actu => actu_screens(r),
         Route::Reglages | Route::Lexique => reglages_screens(r),
@@ -114,11 +116,15 @@ fn actif_screens(r: &Route) -> Html {
     }
 }
 
-fn avoirs_screens(r: &Route) -> Html {
+fn avoirs_screens(_: &Route) -> Html {
+    html! { <holdings::MyHoldings /> }
+}
+
+/// The paper simulation and the journal, next to the holdings (their own .wasm: Mes avoirs prefetches it).
+fn simulation_screens(r: &Route) -> Html {
     match r {
-        Route::Simulation => html! { <simulation::Simulation /> },
         Route::Journal => html! { <journal::Journal /> },
-        _ => html! { <holdings::MyHoldings /> },
+        _ => html! { <simulation::Simulation /> },
     }
 }
 

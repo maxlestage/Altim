@@ -13,6 +13,7 @@ use yew::prelude::*;
 
 use super::browser::utc_day;
 use crate::ui::Segmented;
+use altim_core::web::sorting::Sorting;
 
 // Categorical palette validated for the allocation (dark surface, colour-blind readers): same entity, same colour.
 pub(super) fn color(id: &str) -> &'static str {
@@ -51,7 +52,7 @@ pub fn HistoryCard(p: &HistoryCardProps) -> Html {
     let error = use_state(|| None::<String>);
     let hover = use_state(|| None::<usize>);
     let mut keys: Vec<String> = p.holdings.iter().map(|h| altim_core::web::store::asset_key(&h.symbol, h.kind)).collect();
-    keys.sort();
+    keys.sort_dyn();
     let key = keys.join(",");
 
     {

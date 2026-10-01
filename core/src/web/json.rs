@@ -8,6 +8,24 @@ use serde::de::{self, DeserializeOwned, DeserializeSeed, EnumAccess, MapAccess, 
 use serde::forward_to_deserialize_any;
 use serde_json::{Error, Map, Number, Value};
 
+/// `Deserialize` for a struct with one flattened field, through a `Value`, with the same JSON as serde's derived
+/// reading: the flattened type and `$mirror` (the struct's other fields, same attributes) both read the whole object.
+/// serde's own flattening buffers the content and reads it with a second deserializer, a second copy of these readers
+/// in the browser's .wasm.
+macro_rules! deserialize_flattened {
+    ($ty:ident, $flat:ident, $mirror:ident { $($f:ident),* $(,)? }) => {
+        impl<'de> serde::Deserialize<'de> for $ty {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                use serde::de::Error;
+                let v = serde_json::Value::deserialize(d)?;
+                let m: $mirror = $crate::web::json::from_value(&v).map_err(D::Error::custom)?;
+                Ok($ty { $flat: $crate::web::json::from_value(&v).map_err(D::Error::custom)?, $($f: m.$f),* })
+            }
+        }
+    };
+}
+pub(crate) use deserialize_flattened;
+
 /// `serde_json::from_value(v.clone())`, without the clone (see the module).
 pub fn from_value<T: DeserializeOwned>(v: &Value) -> Result<T, Error> {
     T::deserialize(De(v))
@@ -364,6 +382,42 @@ mod tests {
         same::<crate::engine::strategies::StrategiesReport>(&sample("strategies-btc.json"));
         same::<crate::engine::strategies::StrategiesReport>(&sample("strategies-aapl.json"));
         same::<crate::engine::validation::ValidationReport>(&sample("validation.json"));
+    }
+
+    /// Everything the answer says is read back (numbers as numbers): written back, the value holds every field of the
+    /// answer with the same value.
+    fn covers(out: &serde_json::Value, raw: &serde_json::Value, path: &str) {
+        use serde_json::Value::*;
+        match (out, raw) {
+            (Object(o), Object(r)) => r.iter().filter(|(_, v)| !v.is_null()).for_each(|(k, v)| match o.get(k) {
+                Some(x) => covers(x, v, &format!("{path}.{k}")),
+                None => panic!("{path}.{k} lost"),
+            }),
+            (Array(o), Array(r)) => {
+                assert_eq!(o.len(), r.len(), "{path}");
+                o.iter().zip(r).enumerate().for_each(|(i, (x, v))| covers(x, v, &format!("{path}[{i}]")));
+            }
+            (Number(a), Number(b)) => assert_eq!(a.as_f64(), b.as_f64(), "{path}"),
+            (a, b) => assert_eq!(a, b, "{path}"),
+        }
+    }
+
+    /// The structs with a flattened field read by hand (`deserialize_flattened!`): real answers are read whole.
+    #[test]
+    fn flattened_by_hand_read_whole_answers() {
+        let bot = sample("bot.json");
+        for (i, g) in bot["groups"].as_array().unwrap().iter().enumerate() {
+            let read: crate::engine::bot::BotGroupStat = from_value(g).unwrap();
+            covers(&serde_json::to_value(&read).unwrap(), g, &format!("groups[{i}]"));
+        }
+        let val = sample("validation.json");
+        covers(&serde_json::to_value(from_value::<crate::engine::validation::ValidationReport>(&val).unwrap()).unwrap(), &val, "validation");
+        let trade = json!({ "id": "t", "symbol": "BTC", "kind": "crypto", "name": "Bitcoin", "openedAt": 1, "entry": 2, "quantity": 3,
+            "invested": 4, "stop": 1.5, "closedAt": 5, "exit": 6, "reason": "manual", "proceeds": 7, "pnl": 8, "pnlPct": 9 });
+        let t: crate::web::trading::paper::PaperTrade = from_value(&trade).unwrap();
+        covers(&serde_json::to_value(&t).unwrap(), &trade, "trade");
+        assert_eq!((t.position.entry, t.closed_at, t.stop), (2.0, 5.0, Some(1.5)));
+        assert!(from_value::<crate::web::trading::paper::PaperTrade>(&json!({ "closedAt": 5 })).is_err());
     }
 
     /// Fundamentals (tagged) and Track (flattened details) are read by hand, through a Value: the same values as the

@@ -6,7 +6,8 @@
 # - each group of the web app (/app/*): web/dist/app/<group>.html (index.html for the Radar),
 #   altim-app-<group>-<hash>.js and altim-app-<group>-<hash>_bg.wasm;
 # - the whole app, altim-app-<hash>.js and altim-app-<hash>_bg.wasm, which each group's page fetches in the background
-#   and hands the page over to at the first move to another group (no reload; frontend/loader-app.js, altim_web::part);
+#   and hands the page over to at the first move to another group (no reload; frontend/loader-app.js, altim_web::part;
+#   before it is ready, the target group's own .wasm when prepared: on hover, or as a neighbour);
 # plus the shared styles (global-<hash>.css, app-<hash>.css). Icons and other static files stay in web/public.
 # The .wasm, .js and .css also get a brotli (.br) and a gzip (.gz) copy (scripts/precompress), sent as is by the server.
 # The parts are the entry points of frontend/bundles (Cargo examples of altim-bundles): one compilation of the library,
@@ -19,7 +20,9 @@ TOOLS=${ALTIM_TOOLS:-$ROOT/target/web-tools}
 TARGET_DIR=${CARGO_TARGET_DIR:-$ROOT/target}
 PATH="$TOOLS:$PATH"
 # The groups of app screens: APP_BUNDLES of core/src/web/bundle.rs, entry points frontend/bundles/src/<group>.rs.
-GROUPS="radar actif avoirs selection actu reglages bot"
+GROUPS="radar actif avoirs simulation selection actu reglages bot"
+# The groups a group's page prepares as soon as its screen is shown (their screens one tap away): "group:neighbours".
+NEIGHBOURS="avoirs:simulation simulation:avoirs"
 
 command -v wasm-bindgen >/dev/null 2>&1 || sh "$ROOT/scripts/web-tools.sh"
 # The only time zones the browser code uses (Paris, New York, UTC): the rest of the IANA database stays out of the .wasm.
@@ -63,14 +66,18 @@ finish() {
 # script-src 'self', no inline script).
 page() {
   read -r glue wasm < "$tmp/$1.names"
-  read -r full_glue full_wasm < "$tmp/app.names"
   gate_tag=""
   shell=""
   if [ "$1" = site ]; then
     printf 'import init from "/%s";\ninit({ module_or_path: "/%s" });\n' "$glue" "$wasm" > "$tmp/$1.main.js"
   else
-    sed -e "s#{{GLUE_JS}}#$glue#" -e "s#{{WASM}}#$wasm#" -e "s#{{FULL_GLUE}}#$full_glue#" -e "s#{{FULL_WASM}}#$full_wasm#" \
-      "$ROOT/frontend/loader-app.js" > "$tmp/$1.main.js"
+    group=${1#app-}
+    near=""
+    for n in $NEIGHBOURS; do
+      [ "${n%%:*}" = "$group" ] && near="$near,\"${n#*:}\""
+    done
+    sed -e "s#{{GLUE_JS}}#$glue#" -e "s#{{WASM}}#$wasm#" -e "s#{{GROUP}}#$group#" -e "s#{{PARTS}}#$parts_json#" \
+      -e "s#{{NEIGHBOURS}}#[${near#,}]#" "$ROOT/frontend/loader-app.js" > "$tmp/$1.main.js"
     # The app's frame (header and tabs, the group's tab lit, as the app draws it), shown before the .wasm draws the
     # screen; frontend/gate.js hides it when the disclaimer is still to be accepted.
     gate_tag="<script src=\"/$gate\"></script>"
@@ -104,6 +111,15 @@ for p in $PARTS; do
   [ -f "$tmp/$p.names" ] || { echo "Partie $p non construite" >&2; exit 1; }
 done
 
+# Every app part's glue and .wasm, for the loaders: {"radar":["/glue.js","/x_bg.wasm"],…,"app":[…]}.
+parts_json=""
+for p in app $GROUPS; do
+  [ "$p" = app ] && f=app || f="app-$p"
+  read -r glue wasm < "$tmp/$f.names"
+  parts_json="$parts_json,\"$p\":[\"/$glue\",\"/$wasm\"]"
+done
+parts_json="{${parts_json#,}}"
+
 page site "$OUT/index.html"
 for g in $GROUPS; do
   name=$g
@@ -112,6 +128,7 @@ for g in $GROUPS; do
   case $g in
     actif) tab=radar ;;
     bot) tab=reglages ;;
+    simulation) tab=avoirs ;;
     *) tab=$g ;;
   esac
   page "app-$g" "$OUT/app/$name.html" "$tab"
