@@ -16,7 +16,7 @@ use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 use yew_router::history::{BrowserHistory, History};
 
-use super::store::{alerts_state, buy_alerts, my_assets, news, quotes, set_alerts};
+use super::store::{alerts_state, buy_alerts, my_assets, news_items, quotes, set_alerts};
 
 fn notification_ctor() -> Option<js_sys::Function> {
     js_sys::Reflect::get(&js_sys::global(), &"Notification".into()).ok().and_then(|f| f.dyn_into::<js_sys::Function>().ok())
@@ -122,7 +122,7 @@ async fn check(now: f64) -> Result<(), String> {
     }
     if s.notify.news {
         // A feed that fails does not stop the buy and price alerts.
-        if let Ok(report) = news(&mine).await {
+        if let Ok(report) = news_items(&mine).await {
             let owned: HashSet<String> = mine.iter().map(|(s, k)| asset_key(s, *k)).collect();
             let (seen, fresh) = new_news(&s.news_seen, &report.items, &owned, now);
             news_seen = seen;
