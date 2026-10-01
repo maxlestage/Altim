@@ -724,4 +724,8 @@ pub struct Decision {
     /// « Bot Altim »: the learned model's view (ACHETER / ATTENDRE / VENDRE) and whether it counts.
     #[serde(default)]
     pub bot: super::bot::BotView,
+    /// Short reason shown under the compact chip of the Radar (web, iOS, Android) when the chip alone says little
+    /// (ATTENDRE, AUCUNE POSITION): « zone d'achat 67 653,51 € (−10,1 %) », « veto : … ». None otherwise.
+    #[serde(default)]
+    pub chip_note: Option<String>,
 }

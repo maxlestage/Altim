@@ -216,6 +216,11 @@ data class Decision(
     val bot: BotView? = null,
     /** Rate the server wrote its French texts with (additive, absent from older answers). */
     val fx: FxInfo? = null,
+    /**
+     * Short reason under the Radar's chip when it reads ATTENDRE or AUCUNE POSITION (« zone d'achat 67 653,51 € (−10,1 %) »,
+     * « veto : … »), the same text as the web and iOS; null otherwise or from an older server.
+     */
+    val chipNote: String? = null,
 ) {
     /** The rating's words when the server gives it, else the verdict's. */
     val headlineLabel: String get() = rating?.let { r -> ratingLabel.ifBlank { r.label } } ?: verdictLabel

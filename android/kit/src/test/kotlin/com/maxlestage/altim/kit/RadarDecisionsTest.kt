@@ -87,4 +87,21 @@ class RadarDecisionsTest {
         val round = ConfigChanges.parse(ConfigChanges.encode(ConfigChanges.apply(ConfigState(), d, false, 1.0).state))
         assertEquals(64.0, round.last[key(btc)]?.confidence)
     }
+
+    /** The line under the chip: the decision's `chipNote` (web DecisionNote, iOS DecisionNoteLine), kept across a restart. */
+    @Test fun theChipNoteIsKeptAndShown() {
+        val note = "zone d'achat 67 653,51 € (−10,1 %)"
+        val json = """{"symbol":"BTC","kind":"crypto","verdict":"wait","label":"ATTENDRE","rating":"hold","ratingLabel":"ATTENDRE","chipNote":"$note"}"""
+        val d = AltimJson.decodeFromString(Decision.serializer(), json)
+        assertEquals(note, d.chipNote)
+        val s = ConfigChanges.snapshotOf(d, 1.0)
+        assertEquals("ATTENDRE", RadarDecisions.label(s))
+        assertEquals(note, RadarDecisions.note(s))
+        val round = ConfigChanges.parse(ConfigChanges.encode(ConfigChanges.apply(ConfigState(), d, false, 1.0).state))
+        assertEquals(note, round.last[key(btc)]?.let(RadarDecisions::note))
+        // Older server, older entry, blank: no line.
+        assertNull(RadarDecisions.note(ConfigChanges.snapshotOf(Decision(symbol = "BTC", kind = Kind.CRYPTO), 1.0)))
+        assertNull(RadarDecisions.note(snap(Verdict.WAIT, 1.0, Rating.HOLD)))
+        assertNull(RadarDecisions.note(snap(Verdict.WAIT, 1.0, Rating.HOLD).copy(chipNote = " ")))
+    }
 }

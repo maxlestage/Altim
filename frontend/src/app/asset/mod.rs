@@ -29,7 +29,7 @@ use altim_core::web::decision::reports::{GuardReport, Quote, Sentiment, Snapshot
 use altim_core::web::portfolio::advice::{Advice, AdviceInput, AdviceTone, GuardContext, ZoneContext, advise_asset};
 use altim_core::web::portfolio::holdings::{MarketInput, analyze_portfolio};
 use altim_core::web::store::{WatchItem, asset_key};
-pub use decision_card::{DecisionBadge, DecisionCard, DecisionView};
+pub use decision_card::{DecisionBadge, DecisionCard, DecisionNote, DecisionView};
 use yew::prelude::*;
 
 use crate::api::INTERVAL_LABEL;
