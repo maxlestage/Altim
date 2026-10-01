@@ -9,11 +9,20 @@ fn main() {
         eprintln!("usage: altim-precompress FILE...");
         std::process::exit(2);
     }
-    for f in &files {
-        if let Err(e) = compress(f) {
-            eprintln!("{f}: {e}");
-            std::process::exit(1);
-        }
+    // One thread per file: brotli at its strongest level is slow, and the machine has several cores.
+    let failed = std::thread::scope(|s| {
+        let jobs: Vec<_> = files.iter().map(|f| (f, s.spawn(move || compress(f)))).collect();
+        jobs.into_iter().fold(false, |failed, (f, job)| match job.join() {
+            Ok(Ok(())) => failed,
+            Ok(Err(e)) => {
+                eprintln!("{f}: {e}");
+                true
+            }
+            Err(_) => true,
+        })
+    });
+    if failed {
+        std::process::exit(1);
     }
 }
 

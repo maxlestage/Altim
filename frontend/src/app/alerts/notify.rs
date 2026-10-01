@@ -147,6 +147,10 @@ pub fn start_checks() {
         return;
     }
     let tick = || {
+        // This .wasm handed the page over to the whole app, which runs its own checks.
+        if crate::part::stopped() {
+            return;
+        }
         let s = alerts_state();
         if s.notify.buy || s.notify.news || s.targets.iter().any(|t| t.triggered.is_none()) {
             wasm_bindgen_futures::spawn_local(async {

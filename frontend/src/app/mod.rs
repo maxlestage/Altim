@@ -21,6 +21,7 @@ pub mod simulation;
 
 use yew::prelude::*;
 
+use crate::part::Part;
 use crate::route::{Route, use_on_link};
 use crate::state::app::{set_app_state, use_app_state};
 
@@ -32,6 +33,7 @@ const TABS: [(&str, &str, &str); 5] = [
     ("/app/reglages", "Réglages", "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4"),
 ];
 
+use altim_core::web::bundle::APP_BUNDLES;
 pub use altim_core::web::bundle::asset_of;
 
 /// The tab lit for a screen (the simulation and the journal sit next to the holdings, the opportunities next to the
@@ -46,53 +48,103 @@ fn active_tab(r: &Route) -> &'static str {
     }
 }
 
-/// The screen of a route. Each arm is compiled only into its group's .wasm (`app-<group>` features, see
-/// altim_core::web::bundle); `route::switch` sends any other group's address to the server first.
-fn screen(r: &Route) -> Html {
+/// The page of an app address: the shell and the screen `screen` gives (any other /app/… address shows the Radar).
+fn page(r: Route, screen: fn(&Route) -> Html) -> Html {
+    let route = if r == Route::NotFound { Route::Radar } else { r };
+    html! { <WebApp {route} {screen} /> }
+}
+
+/// One .wasm per group of screens (altim_core::web::bundle, entry points in frontend/bundles): each names only its
+/// screens.
+macro_rules! group {
+    ($part:ident, $name:literal, $page:ident, $screens:ident) => {
+        fn $page(r: Route) -> Html {
+            page(r, $screens)
+        }
+        pub static $part: Part = Part { bundles: &[$name], app: $page, site: crate::part::none };
+    };
+}
+
+group!(RADAR, "radar", radar_page, radar_screens);
+group!(ACTIF, "actif", actif_page, actif_screens);
+group!(AVOIRS, "avoirs", avoirs_page, avoirs_screens);
+group!(SELECTION, "selection", selection_page, selection_screens);
+group!(ACTU, "actu", actu_page, actu_screens);
+group!(REGLAGES, "reglages", reglages_page, reglages_screens);
+group!(BOT, "bot", bot_page, bot_screens);
+
+/// The whole app (every group), fetched in the background by each group's page and handed the page over at the first
+/// move to another group (altim_web::part).
+pub static APP: Part = Part { bundles: &APP_BUNDLES, app: app_page, site: crate::part::none };
+
+fn app_page(r: Route) -> Html {
+    page(r, all_screens)
+}
+
+fn all_screens(r: &Route) -> Html {
     match r {
-        #[cfg(feature = "app-actif")]
+        Route::Asset { kind, symbol } if asset_of(kind, symbol).is_some() => actif_screens(r),
+        Route::Avoirs | Route::Simulation | Route::Journal => avoirs_screens(r),
+        Route::Selection | Route::Opportunites => selection_screens(r),
+        Route::Actu => actu_screens(r),
+        Route::Reglages | Route::Lexique => reglages_screens(r),
+        Route::Bot | Route::Validation => bot_screens(r),
+        _ => radar_screens(r),
+    }
+}
+
+/// Radar, alerts, and any other /app/… address.
+fn radar_screens(r: &Route) -> Html {
+    match r {
+        Route::Alertes => html! { <alerts::Alerts /> },
+        _ => html! { <radar::Radar /> },
+    }
+}
+
+fn actif_screens(r: &Route) -> Html {
+    match r {
         Route::Asset { kind, symbol } => match asset_of(kind, symbol) {
             Some((kind, symbol)) => {
                 let key = format!("{}/{symbol}", kind.as_str());
                 html! { <asset::AssetScreen {key} {kind} {symbol} /> }
             }
-            None => radar(),
+            None => Html::default(),
         },
-        #[cfg(feature = "app-avoirs")]
-        Route::Avoirs => html! { <holdings::MyHoldings /> },
-        #[cfg(feature = "app-selection")]
-        Route::Selection => html! { <selection::Selection /> },
-        #[cfg(feature = "app-selection")]
-        Route::Opportunites => html! { <opportunities::Opportunities /> },
-        #[cfg(feature = "app-reglages")]
-        Route::Reglages => html! { <settings::Settings /> },
-        #[cfg(feature = "app-actu")]
-        Route::Actu => html! { <news::News /> },
-        #[cfg(feature = "app-reglages")]
-        Route::Lexique => html! { <glossary::Glossary /> },
-        #[cfg(feature = "app-avoirs")]
-        Route::Simulation => html! { <simulation::Simulation /> },
-        #[cfg(feature = "app-avoirs")]
-        Route::Journal => html! { <journal::Journal /> },
-        #[cfg(feature = "app-bot")]
-        Route::Validation => html! { <validation::Validation /> },
-        #[cfg(feature = "app-bot")]
-        Route::Bot => html! { <bot::Bot /> },
-        #[cfg(feature = "app-radar")]
-        Route::Alertes => html! { <alerts::Alerts /> },
-        _ => radar(),
+        _ => Html::default(),
     }
 }
 
-/// Any other /app/… address shows the Radar (WebApp.tsx); only the Radar's group gets such an address.
-#[cfg(feature = "app-radar")]
-fn radar() -> Html {
-    html! { <radar::Radar /> }
+fn avoirs_screens(r: &Route) -> Html {
+    match r {
+        Route::Simulation => html! { <simulation::Simulation /> },
+        Route::Journal => html! { <journal::Journal /> },
+        _ => html! { <holdings::MyHoldings /> },
+    }
 }
 
-#[cfg(not(feature = "app-radar"))]
-fn radar() -> Html {
-    html! {}
+fn selection_screens(r: &Route) -> Html {
+    match r {
+        Route::Opportunites => html! { <opportunities::Opportunities /> },
+        _ => html! { <selection::Selection /> },
+    }
+}
+
+fn actu_screens(_: &Route) -> Html {
+    html! { <news::News /> }
+}
+
+fn reglages_screens(r: &Route) -> Html {
+    match r {
+        Route::Lexique => html! { <glossary::Glossary /> },
+        _ => html! { <settings::Settings /> },
+    }
+}
+
+fn bot_screens(r: &Route) -> Html {
+    match r {
+        Route::Validation => html! { <validation::Validation /> },
+        _ => html! { <bot::Bot /> },
+    }
 }
 
 fn icon(d: &'static str) -> Html {
@@ -103,35 +155,17 @@ fn icon(d: &'static str) -> Html {
     }
 }
 
-/// Delay before `prefetch_groups`: the first screen and its data come first.
-const PREFETCH_AFTER_MS: u32 = 5_000;
-
-/// The page names other groups' files (`<meta name="altim-prefetch">`, scripts/build-web.sh: the Radar's and the asset
-/// screen's, the most common moves): the browser fetches them in the background at its lowest priority, so going
-/// there later loads from its cache. Not when the browser asks to save data.
-fn prefetch_groups() {
-    let save_data = js_sys::Reflect::get(&js_sys::global(), &"navigator".into())
-        .and_then(|n| js_sys::Reflect::get(&n, &"connection".into()))
-        .and_then(|c| js_sys::Reflect::get(&c, &"saveData".into()))
-        .is_ok_and(|s| s.as_bool() == Some(true));
-    let doc = gloo::utils::document();
-    let (false, Some(meta), Some(head)) =
-        (save_data, doc.query_selector("meta[name=altim-prefetch]").ok().flatten(), doc.query_selector("head").ok().flatten())
-    else {
-        return;
-    };
-    for url in meta.get_attribute("content").unwrap_or_default().split_whitespace() {
-        if let Ok(link) = doc.create_element("link") {
-            let _ = link.set_attribute("rel", "prefetch");
-            let _ = link.set_attribute("href", url);
-            let _ = head.append_child(&link);
-        }
-    }
-}
-
-#[derive(Properties, PartialEq)]
+#[derive(Properties)]
 pub struct WebAppProps {
     pub route: Route,
+    /// The screens of this .wasm's group (the same for its whole life).
+    pub screen: fn(&Route) -> Html,
+}
+
+impl PartialEq for WebAppProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.route == other.route
+    }
 }
 
 #[component]
@@ -144,7 +178,6 @@ pub fn WebApp(p: &WebAppProps) -> Html {
         crate::state::fx::start_fx();
         // The alert checks of this browser (`startChecks` of notify.ts).
         alerts::start_checks();
-        gloo::timers::callback::Timeout::new(PREFETCH_AFTER_MS, prefetch_groups).forget();
     });
     if !state.accepted_disclaimer {
         return html! { <Disclaimer /> };
@@ -178,7 +211,7 @@ pub fn WebApp(p: &WebAppProps) -> Html {
                 <nav class="app-tabs-top" aria-label="Sections">{ tabs(false) }</nav>
                 <a href="/" class="app-site">{ "Site" }</a>
             </header>
-            <main class="app-main">{ screen(&p.route) }</main>
+            <main class="app-main">{ (p.screen)(&p.route) }</main>
             <nav class="app-tabs" aria-label="Sections">{ tabs(true) }</nav>
         </div>
     }

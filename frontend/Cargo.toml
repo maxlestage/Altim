@@ -6,26 +6,10 @@ rust-version.workspace = true
 publish = false
 description = "Altim : site de présentation et application web en Rust + Yew (WebAssembly)."
 
+# The library (every screen), compiled once; one .wasm per part of the front comes from the entry points of
+# frontend/bundles (package altim-bundles, see altim_web::part).
 [lib]
-crate-type = ["cdylib", "rlib"]
-
-# The presentation site (/, legal pages) and the web app (/app/*), the app in groups of screens (`app-<group>`, see
-# altim_core::web::bundle). scripts/build-web.sh builds one .wasm for the site and one per group, so that a first visit
-# downloads only its group's screens; `app` is every group (one .wasm for the whole app), and the default (checks,
-# tests) one .wasm for every page.
-[features]
-default = ["site", "app"]
-site = []
-app = ["app-radar", "app-actif", "app-avoirs", "app-selection", "app-actu", "app-reglages", "app-bot"]
-# The app's shell (header, tabs, disclaimer, alert checks), in every group.
-app-shell = []
-app-radar = ["app-shell"]
-app-actif = ["app-shell"]
-app-avoirs = ["app-shell"]
-app-selection = ["app-shell"]
-app-actu = ["app-shell"]
-app-reglages = ["app-shell"]
-app-bot = ["app-shell"]
+crate-type = ["rlib"]
 
 [dependencies]
 altim-core = { path = "../core" }

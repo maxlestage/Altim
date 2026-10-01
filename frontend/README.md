@@ -11,28 +11,34 @@ sh scripts/build-web.sh          # → web/dist (outils : scripts/web-tools.sh, 
 ALTIM_DEV_OPEN=1 PORT=3000 ALTIM_WEB_ROOT=$PWD/web cargo run --bin altim
 ```
 
-Le script compile le crate une fois pour le site et une fois par groupe d'écrans de l'app (profil `wasm-release` :
-opt-level z, LTO complète, 1 unité de code, panic abort), une par fonctionnalité Cargo, pour qu'une première visite ne
-télécharge que les écrans de sa page (`altim_core::web::bundle`, la même fonction côté serveur et côté navigateur) :
+Le front est fait de parties, un `.wasm` chacune (`altim_web::part`) : le site, chaque groupe d'écrans de l'app
+(`altim_core::web::bundle`, la même fonction côté serveur et côté navigateur) et l'app entière. Leurs points d'entrée
+sont les exemples Cargo du paquet `altim-bundles` (`frontend/bundles/src/<partie>.rs`, quelques lignes chacun) : la
+bibliothèque `altim-web` est compilée une seule fois, puis chaque `.wasm` est lié en parallèle (profil `wasm-release` :
+opt-level z, LTO complète avec `-C linker-plugin-lto`, 1 unité de code, panic abort) ; chaque point d'entrée ne nomme
+que ses écrans, l'optimisation à l'édition de liens laisse les autres de côté.
 
-| Page | Servie pour | Fonctionnalité |
+| Page | Servie pour | Point d'entrée |
 | --- | --- | --- |
 | `web/dist/index.html` | `/`, pages légales, toute adresse hors `/app` | `site` |
-| `web/dist/app/index.html` | `/app` (Radar), `/app/alertes`, toute autre adresse `/app/…` | `app-radar` |
-| `web/dist/app/actif.html` | `/app/actif/<crypto\|stock>/<symbole>` | `app-actif` |
-| `web/dist/app/avoirs.html` | `/app/avoirs`, `/app/simulation`, `/app/journal` | `app-avoirs` |
-| `web/dist/app/selection.html` | `/app/selection`, `/app/opportunites` | `app-selection` |
-| `web/dist/app/actu.html` | `/app/actu` | `app-actu` |
-| `web/dist/app/reglages.html` | `/app/reglages`, `/app/lexique` | `app-reglages` |
-| `web/dist/app/bot.html` | `/app/bot`, `/app/validation` | `app-bot` |
+| `web/dist/app/index.html` | `/app` (Radar), `/app/alertes`, toute autre adresse `/app/…` | `radar` |
+| `web/dist/app/actif.html` | `/app/actif/<crypto\|stock>/<symbole>` | `actif` |
+| `web/dist/app/avoirs.html` | `/app/avoirs`, `/app/simulation`, `/app/journal` | `avoirs` |
+| `web/dist/app/selection.html` | `/app/selection`, `/app/opportunites` | `selection` |
+| `web/dist/app/actu.html` | `/app/actu` | `actu` |
+| `web/dist/app/reglages.html` | `/app/reglages`, `/app/lexique` | `reglages` |
+| `web/dist/app/bot.html` | `/app/bot`, `/app/validation` | `bot` |
+| (aucune page) | l'app entière, chargée en arrière-plan | `app` |
 
-Chaque partie a ses fichiers `main-<partie>-<hash>.js`, `altim-<partie>-<hash>.js` et `altim-<partie>-<hash>_bg.wasm`
-(le `.wasm` est préchargé par la page), plus les styles partagés (`global-<hash>.css`, `app-<hash>.css`) ; les icônes
-et le logo restent dans `web/public`, servis tels quels. Les liens entre parties sont des chargements de page complets
-(`route::serves`, `route::other_bundle`) ; à l'intérieur d'un groupe, `use_on_link()` navigue sans recharger. Cinq
-secondes après l'affichage, chaque page de l'app fait précharger en arrière-plan les fichiers du Radar et de l'écran
-d'actif (`<meta name="altim-prefetch">`). La fonctionnalité `app` réunit tous les groupes ; sans fonctionnalité choisie
-(vérifications, tests), un seul `.wasm` sert tout.
+Chaque partie a ses fichiers `altim-<partie>-<hash>.js` et `altim-<partie>-<hash>_bg.wasm` (le `.wasm` est préchargé
+par la page), un chargeur `main-<partie>-<hash>.js` par page, plus les styles partagés (`global-<hash>.css`,
+`app-<hash>.css`) ; les icônes et le logo restent dans `web/public`, servis tels quels. Une première visite ne
+télécharge que le groupe de sa page. Dans l'app, `use_on_link()` navigue sans recharger : à l'intérieur du groupe, et
+vers les autres groupes dès que l'app entière est prête. Le chargeur d'une page de l'app (`frontend/loader-app.js`)
+la télécharge et la compile en arrière-plan deux secondes après le chargement (sauf « économie de données ») ; au
+premier passage vers un autre groupe, le `.wasm` du groupe s'arrête (`part::stop`) et l'app entière reprend la page à
+la nouvelle adresse (`part::hand_over`), sans rechargement. Avant cela, ou vers le site, c'est un chargement de page
+(`route::other_bundle`).
 
 Les `.wasm`, `.js` et `.css` ont une copie brotli (qualité 11, `.br`) et gzip (`.gz`) écrite par `scripts/precompress`,
 que le serveur envoie telle quelle (`Content-Encoding`, `Vary: Accept-Encoding`) au lieu de compresser à la volée.
@@ -54,7 +60,9 @@ core/  (altim-core)        logique pure, compilée pour le serveur ET pour wasm3
 frontend/ (altim-web)
   index.html               gabarit (build-web.sh y met les noms hachés) ; aucun script inline (CSP)
   styles/global.css, app.css
-  src/lib.rs               point d'entrée wasm (#[wasm_bindgen(start)]) ; fonctionnalités `site` et `app`
+  src/lib.rs, part.rs      bibliothèque de tout le front ; une partie = un .wasm (part::run, hand_over, stop)
+  loader-app.js            chargeur des pages de l'app (groupe, puis app entière en arrière-plan)
+  bundles/                 paquet altim-bundles : un point d'entrée par partie (exemples Cargo)
   src/route.rs             enum Route, Root, use_on_link()
   src/state/               stores localStorage : app (altim.webapp.v1), holdings (altim.holdings.v1), fx (altim.fx.v1)
   src/money.rs             devise d'affichage : money(), price(), compact(), use_money(), cur_param(), fx_line()
@@ -71,8 +79,8 @@ frontend/ (altim-web)
 
 1. Composant fonctionnel : `#[component] pub fn Nom(p: &NomProps) -> Html`, props `#[derive(Properties, PartialEq)]`.
    Attributs SVG en kebab-case (`stroke-width`), `class={classes!(...)}`, `if let … { }` dans `html!`.
-2. Nouvelle route : une variante dans `route.rs` + un bras dans `app::screen` (avec le `#[cfg(feature = "app-<groupe>")]`
-   de son groupe) + son adresse dans `altim_core::web::bundle::bundle_of`.
+2. Nouvelle route : une variante dans `route.rs`, un bras dans les écrans de son groupe (`app::<groupe>_screens`) et
+   dans `app::all_screens`, son adresse dans `altim_core::web::bundle::bundle_of`.
 3. Liens internes : `let on_link = use_on_link();` puis `<a href="/app/bot" onclick={on_link.clone()}>`. Liens vers le
    site (`/`, `/risques`) : `<a href>` simple.
 4. Réglages : `use_app_state()` / `set_app_state(|s| …)`. Avoirs : `use_stored_holdings()` (tels que saisis),
@@ -90,7 +98,7 @@ frontend/ (altim-web)
 - Logique pure dans `core/src/web/…` ou `core/src/engine/…`, `#[cfg(test)]`, `cargo test -p altim-core` ; fichiers
   d'exemple réels dans `backend/tests/samples`. Les vues restent minces et sont vérifiées dans un navigateur.
 - Avant de livrer : `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
-  `cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown -- -D warnings` (et avec
-  `--no-default-features --features site`, puis `app`, puis chaque `app-<groupe>`), `cargo test --workspace`,
+  `cargo clippy -p altim-core -p altim-web -p altim-bundles --target wasm32-unknown-unknown --lib --examples -- -D warnings`,
+  `cargo test --workspace`,
   `sh scripts/build-web.sh`, captures à
   320 px et 1 100 px, aucun défilement horizontal, aucune erreur dans la console.

@@ -561,7 +561,7 @@ Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence profes
 ```bash
 cargo test --workspace                                                   # serveur (parité avec les moteurs TS, routes, sources, accès privé) et logique du front (core)
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
-cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown -- -D warnings   # le front tel que compilé pour le navigateur
+cargo clippy -p altim-core -p altim-web -p altim-bundles --target wasm32-unknown-unknown --lib --examples -- -D warnings   # le front tel que compilé pour le navigateur
 sh scripts/build-web.sh                                                  # front construit dans web/dist (site + groupes d'écrans de l'app)
 cd backend && cargo test --test sources_live -- --ignored               # toutes les sources × unités de temps + flux temps réel, en réel
 ALTIM_DEV_OPEN=1 cargo run --release --bin altim                         # accès sans connexion, limité à 127.0.0.1 ; puis :
