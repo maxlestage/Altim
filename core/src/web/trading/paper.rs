@@ -70,7 +70,7 @@ pub struct PaperPosition {
     pub decision: Option<PaperDecision>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaperTrade {
     #[serde(flatten)]
@@ -84,6 +84,20 @@ pub struct PaperTrade {
     pub pnl: f64,
     pub pnl_pct: f64,
 }
+
+/// `PaperTrade` without its flattened `position`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperTradeFields {
+    closed_at: f64,
+    exit: f64,
+    reason: PaperReason,
+    proceeds: f64,
+    pnl: f64,
+    pnl_pct: f64,
+}
+
+crate::web::json::deserialize_flattened!(PaperTrade, position, PaperTradeFields { closed_at, exit, reason, proceeds, pnl, pnl_pct });
 
 impl Deref for PaperTrade {
     type Target = PaperPosition;

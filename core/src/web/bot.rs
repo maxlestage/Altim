@@ -469,13 +469,22 @@ pub mod screen {
     }
 
     /// A view of /api/bot/views: the decision's `bot` with the asset it is for.
-    #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+    #[derive(Debug, Clone, PartialEq, Serialize)]
     pub struct AssetView {
         pub symbol: String,
         pub kind: Kind,
         #[serde(flatten)]
         pub view: BotView,
     }
+
+    /// `AssetView` without its flattened `view`, read from the same JSON object (see `deserialize_flattened!`).
+    #[derive(Deserialize)]
+    struct AssetViewFields {
+        symbol: String,
+        kind: Kind,
+    }
+
+    crate::web::json::deserialize_flattened!(AssetView, view, AssetViewFields { symbol, kind });
 
     /// /api/bot/views with the whole views (the Bot screen's « Vos actifs aujourd'hui »).
     #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
