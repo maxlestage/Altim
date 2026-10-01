@@ -80,6 +80,8 @@
 .asset-price b { font-size: 14px; white-space: nowrap; }
 .asset-meta { grid-area: meta; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
 .asset-meta .badge { margin: 0; }
+/* The decision's short reason (chipNote): its own line under the chip. */
+.dec-note { flex-basis: 100%; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
 .skeleton-line { display: inline-block; width: 90px; height: 18px; border-radius: 9px; background: linear-gradient(90deg, rgba(255,255,255,.04), rgba(0,240,255,.1), rgba(255,255,255,.04)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
 
 .rel-badge { font-family: var(--mono); font-size: 11px; font-weight: 600; }
@@ -254,6 +256,7 @@
   .asset-card { grid-template-columns: minmax(0, 1.2fr) 110px minmax(120px, auto) minmax(0, 1.4fr); grid-template-areas: "id spark price meta"; }
   .spark { width: 110px; }
   .asset-meta { justify-content: flex-end; }
+  .dec-note { text-align: right; }
   .sheet-backdrop { align-items: center; justify-content: center; }
   .sheet { max-width: 520px; border-radius: 24px; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
 }

@@ -51,6 +51,9 @@ object RadarDecisions {
     /** The badge's words: the rating's label, else the verdict's. */
     fun label(s: ConfigSnapshot): String = s.rating?.label ?: s.label.ifBlank { s.verdict.label }
 
+    /** The line under the badge (why it says ATTENDRE or AUCUNE POSITION), when the decision gave one (web DecisionNote). */
+    fun note(s: ConfigSnapshot): String? = s.chipNote?.takeIf { it.isNotBlank() }
+
     /** The freshest decision seen for this asset (personal or informational), when less than 12 h old; null otherwise. */
     fun cached(state: ConfigState, asset: Asset, now: Double): ConfigSnapshot? =
         listOf(true, false)

@@ -32,8 +32,11 @@ public struct DecisionDigest: Codable, Sendable, Equatable {
     public var personal: Bool
     /// ms: when the decision was computed (never later than when it was received).
     public var at: Double
+    /// The decision's `chipNote`: the short reason under the chip (ATTENDRE, AUCUNE POSITION); nil from an older server
+    /// or an older digest.
+    public var note: String?
 
-    public init(verdict: Decision.Verdict, rating: Decision.Rating?, label: String, level: Decision.Level, confidence: Double, personal: Bool, at: Double) {
+    public init(verdict: Decision.Verdict, rating: Decision.Rating?, label: String, level: Decision.Level, confidence: Double, personal: Bool, at: Double, note: String? = nil) {
         self.verdict = verdict
         self.rating = rating
         self.label = label
@@ -41,12 +44,13 @@ public struct DecisionDigest: Codable, Sendable, Equatable {
         self.confidence = confidence
         self.personal = personal
         self.at = at
+        self.note = note
     }
 
     /// `now` in ms; an answer served from the offline cache keeps its own (older) time.
     public init(_ d: Decision, personal: Bool, now: Double) {
         let at = d.asOf.isFinite && d.asOf > 0 ? min(now, d.asOf) : now
-        self.init(verdict: d.verdict, rating: d.rating, label: d.label, level: d.level, confidence: d.confidence, personal: personal, at: at)
+        self.init(verdict: d.verdict, rating: d.rating, label: d.label, level: d.level, confidence: d.confidence, personal: personal, at: at, note: d.chipNote)
     }
 
     /// The rating when known, else nil (an unknown server value counts as none).
@@ -54,6 +58,8 @@ public struct DecisionDigest: Codable, Sendable, Equatable {
 
     /// Badge text: the rating's label (web RATING_UI), else the decision's label.
     public var badgeLabel: String { knownRating?.label ?? label }
+    /// The line under the chip, when there is one (web DecisionNote).
+    public var noteLine: String? { note.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
     public var tone: Tone { DecisionDigests.ratingTone(rating, verdict: verdict) }
     /// ACHETER or ZONE D'ACHAT.
     public var isBuy: Bool { verdict == .buy || verdict == .buyZone }

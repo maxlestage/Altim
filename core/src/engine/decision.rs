@@ -2157,6 +2157,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
     });
     let texts = Texts { inp, m: &m, p: p.as_ref(), fams: &fams, vetoes: &vetoes, sc: &sc, pos: pos.as_ref(), verdict };
     let headline = texts.headline();
+    let chip_note = texts.chip_note(rating);
     let why_wait = if verdict == Verdict::Buy { vec![] } else { texts.why_wait() };
     let (to_buy, to_sell) = (texts.to_buy(), texts.to_sell());
     let mut scenarios = texts.scenarios();
@@ -2281,6 +2282,7 @@ pub fn decide(inp: &DecisionInput) -> Decision {
         snapshot,
         model_evidence: evidence,
         bot,
+        chip_note,
     }
 }
 
@@ -2498,6 +2500,44 @@ impl Texts<'_> {
                 )
             }
         }
+    }
+
+    /// The one reason under the Radar's chip when the chip alone says little (ATTENDRE, AUCUNE POSITION), the main one
+    /// first: what keeps the asset out (a blocking veto), the long-term trend, the distance to the buy zone, a degraded
+    /// signal, a veto, the first missing step. None for the other ratings, and for a held position (« à conserver »).
+    fn chip_note(&self, rating: Rating) -> Option<String> {
+        if rating != Rating::Hold && self.verdict != Verdict::NoPosition {
+            return None;
+        }
+        if self.verdict == Verdict::Wait && self.pos.is_some() {
+            return Some("position à conserver".into());
+        }
+        let active = self.active();
+        let veto = |v: &Veto| format!("veto : {}", v.label.to_lowercase());
+        if self.verdict == Verdict::NoPosition {
+            if let Some(v) = active.iter().find(|v| is_blocking(&v.code)) {
+                return Some(veto(v));
+            }
+        }
+        let long_term_ok = self.sc.setup.steps.first().is_none_or(|s| s.state != StepState::No);
+        if let Some(s) = self.m.sma200.filter(|s| !long_term_ok && self.m.price < *s) {
+            return Some(format!("sous la moyenne 200 jours ({})", usd(s)));
+        }
+        match self.p {
+            Some(p) if self.m.price > p.zone_to => {
+                return Some(format!("zone d'achat {} ({})", usd(p.zone_to), signed(-(1.0 - p.zone_to / self.m.price) * 100.0)));
+            }
+            None => return Some("pas de zone d'achat tracée".into()),
+            _ => {}
+        }
+        if matches!(self.verdict, Verdict::Buy | Verdict::BuyZone) {
+            // Only a degraded signal turns a buy into ATTENDRE.
+            return Some("zone atteinte, signal dégradé".into());
+        }
+        if let Some(v) = active.first() {
+            return Some(veto(v));
+        }
+        self.missing_steps().first().map(|s| format!("attendre : {}", s.label.split(" (").next().unwrap_or(&s.label).to_lowercase()))
     }
 
     fn why_wait(&self) -> Vec<String> {

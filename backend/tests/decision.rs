@@ -149,6 +149,14 @@ fn assert_coherent(d: &Decision, what: &str) {
         Verdict::Sell => assert!(matches!(d.rating, Rating::Sell | Rating::StrongSell), "{what}"),
         Verdict::NoPosition => assert!(matches!(d.rating, Rating::Sell | Rating::Hold), "{what}"),
     }
+    // The Radar's chip: a short reason whenever it reads ATTENDRE or AUCUNE POSITION, nothing on the other ratings.
+    match &d.chip_note {
+        Some(n) => {
+            assert!(d.rating == Rating::Hold || d.verdict == Verdict::NoPosition, "{what}: note {n} on {:?}", d.rating);
+            assert!(!n.is_empty() && n.chars().count() <= 60, "{what}: note {n}");
+        }
+        None => assert!(d.rating != Rating::Hold, "{what}: ATTENDRE without a note"),
+    }
     assert_eq!(d.score.factors.len(), 6, "{what}");
     if let Some(v) = d.score.value {
         assert!((-100.0..=100.0).contains(&v), "{what}: score {v}");
@@ -533,6 +541,10 @@ fn wait_above_the_zone_with_a_poor_risk_reward() {
     assert!(p.acceptable && (p.risk_reward - 2.0).abs() < 0.01, "{p:?}");
     assert!(d.to_buy.iter().any(|c| c.level.is_some_and(|l| (l - p.entry).abs() < 1e-6)), "{:?}", d.to_buy);
     assert!(d.why_wait.iter().any(|w| w.contains("au-dessus de la zone")));
+    // The Radar's chip says how far the zone is: « zone d'achat 123,45 $ (−6,2 %) ».
+    let note = d.chip_note.as_deref().unwrap();
+    let gap = (1.0 - p.zone_to / d.price.unwrap()) * 100.0;
+    assert_eq!(note, format!("zone d'achat {} (−{} %)", altim_core::fx::money(p.zone_to), altim_core::js::fr(gap, 0, 1)));
     assert!(d.to_buy.iter().any(|c| c.text.starts_with("Repli dans la zone")));
     assert_eq!(d.setup.steps[1].state, StepState::No, "no correction yet");
     assert!(d.why_not.invalidation.iter().any(|x| x.contains("Cassure")));
@@ -562,6 +574,9 @@ fn no_position_in_a_downtrend() {
     assert_eq!(d.verdict, Verdict::NoPosition, "{}", d.headline);
     assert_eq!(d.level, Level::Exit);
     assert!(veto(&d, "downtrend").active);
+    let blocking =
+        d.vetoes.iter().find(|v| v.active && !matches!(v.code.as_str(), "riskReward" | "earnings" | "divergence" | "announcement")).unwrap();
+    assert_eq!(d.chip_note.as_deref(), Some(format!("veto : {}", blocking.label.to_lowercase()).as_str()));
     assert!(d.to_buy.iter().any(|c| c.text.contains("200 jours")));
     assert!(d.why_not.invalidation.iter().any(|x| x.contains("200 jours")));
 }

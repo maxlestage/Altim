@@ -17,7 +17,7 @@ use altim_core::web::decision::reports::{BuyAlertRow, FearGreed, MacroInfo, Rada
 use altim_core::web::store::WatchItem;
 use yew::prelude::*;
 
-use crate::app::asset::{DecisionBadge, api, interval_chooser, interval_label, store};
+use crate::app::asset::{DecisionBadge, DecisionNote, api, interval_chooser, interval_label, store};
 use crate::app::bot::{BotRadarCard, BriefCard};
 use crate::app::holdings::CompareCard;
 use crate::live::{LiveBadge, LivePrice, use_live};
@@ -59,7 +59,7 @@ fn asset_href(kind: Kind, symbol: &str) -> String {
 pub fn Radar() -> Html {
     let on_link = use_on_link();
     let app = crate::state::app::use_app_state();
-    let _m = crate::money::use_money();
+    let money = crate::money::use_money();
     let _seen = store::use_decisions_seen();
     let transitions_state = store::use_transitions();
     let watchlist = app.watchlist.clone();
@@ -209,8 +209,11 @@ pub fn Radar() -> Html {
     }
 
     // Decisions of the watched assets (market data only), re-read every 15 minutes: each one goes through the
-    // configuration diff. A fresher personal decision seen on the asset page stays in the cache.
-    use_effect_with(watchlist.clone(), move |watchlist| {
+    // configuration diff. A fresher personal decision seen on the asset page stays in the cache. One whose texts are
+    // in another currency than the display (read before the rate was known, or before a change in Réglages) is
+    // re-read at once, so the line under its chip shows the same currency as the prices.
+    let usd = money.currency() == altim_core::web::money::Currency::Usd;
+    use_effect_with((watchlist.clone(), usd), move |(watchlist, _)| {
         let alive = Rc::new(Cell::new(true));
         let list: Rc<RefCell<Vec<WatchItem>>> = Rc::new(RefCell::new(watchlist.iter().take(20).cloned().collect()));
         let load = {
@@ -222,7 +225,11 @@ pub fn Radar() -> Html {
                     let due: Vec<WatchItem> = list
                         .borrow()
                         .iter()
-                        .filter(|w| store::cached(w.kind, &w.symbol).is_none_or(|c| now - c.at >= DECISION_EVERY))
+                        .filter(|w| {
+                            store::cached(w.kind, &w.symbol).is_none_or(|c| {
+                                now - c.at >= DECISION_EVERY || c.decision.texts_in_usd().is_some_and(|u| u != crate::money::currency_is_usd())
+                            })
+                        })
                         .cloned()
                         .collect();
                     // Two at a time: the server fetches fundamentals and order books for each one.
@@ -475,6 +482,7 @@ pub fn Radar() -> Html {
                                         (None, Some(s)) if !s.is_empty() => html! { <small class="muted">{ format!("prix {s} sources") }</small> },
                                         _ => html! {},
                                     } }
+                                    <DecisionNote kind={w.kind} symbol={w.symbol.clone()} />
                                 </div>
                             </a>
                         </li>
