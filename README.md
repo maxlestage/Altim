@@ -10,7 +10,7 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 
 | Dossier | Rôle |
 |---|---|
-| `frontend` | Front web **Rust + Yew** (WebAssembly), mobile first : site vitrine et application web `/app` (`sh scripts/build-web.sh` → `web/dist`, un `.wasm` pour le site, un pour l'app ; voir `frontend/README.md`) |
+| `frontend` | Front web **Rust + Yew** (WebAssembly), mobile first : site vitrine et application web `/app` (`sh scripts/build-web.sh` → `web/dist`, un `.wasm` pour le site, un par groupe d'écrans de l'app, copies brotli/gzip précompressées ; voir `frontend/README.md`) |
 | `core` | Logique pure partagée serveur / navigateur : moteurs, formats, contrats JSON (testée par `cargo test`) |
 | `web` | Ce que le serveur sert : `web/public` (icônes, logo) et `web/dist` (front construit, non versionné) |
 | `backend` | Serveur **Rust + Axum** : API **multi-source**, prix en direct, accès privé, **API garde-fou pour bots**, sert le site |
@@ -561,8 +561,8 @@ Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence profes
 ```bash
 cargo test --workspace                                                   # serveur (parité avec les moteurs TS, routes, sources, accès privé) et logique du front (core)
 cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
-cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown -- -D warnings   # le front tel que compilé pour le navigateur
-sh scripts/build-web.sh                                                  # front construit dans web/dist (site + app)
+cargo clippy -p altim-core -p altim-web -p altim-bundles --target wasm32-unknown-unknown --lib --examples -- -D warnings   # le front tel que compilé pour le navigateur
+sh scripts/build-web.sh                                                  # front construit dans web/dist (site + groupes d'écrans de l'app)
 cd backend && cargo test --test sources_live -- --ignored               # toutes les sources × unités de temps + flux temps réel, en réel
 ALTIM_DEV_OPEN=1 cargo run --release --bin altim                         # accès sans connexion, limité à 127.0.0.1 ; puis :
 cargo run --release --bin altim-audit                                    # audit des données contre des références indépendantes

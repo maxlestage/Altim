@@ -439,14 +439,14 @@ pub fn parse_state(raw: Option<&str>) -> ConfigState {
             if v.get("metrics").is_some_and(|m| !is_metrics(m)) {
                 v.as_object_mut()?.remove("metrics");
             }
-            serde_json::from_value::<ConfigSnapshot>(v).ok().map(|s| (k.clone(), s))
+            crate::web::json::from_value::<ConfigSnapshot>(&v).ok().map(|s| (k.clone(), s))
         })
         .collect();
     let transitions = transitions
         .iter()
         .filter(|t| is_transition(t))
         .take(MAX_TRANSITIONS)
-        .filter_map(|t| serde_json::from_value::<ConfigTransition>(t.clone()).ok())
+        .filter_map(|t| crate::web::json::from_value::<ConfigTransition>(t).ok())
         .collect();
     ConfigState { last, transitions }
 }

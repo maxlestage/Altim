@@ -19,9 +19,9 @@ pub mod selection;
 pub mod settings;
 pub mod simulation;
 
-use altim_core::types::Kind;
 use yew::prelude::*;
 
+use crate::part::Part;
 use crate::route::{Route, use_on_link};
 use crate::state::app::{set_app_state, use_app_state};
 
@@ -33,12 +33,8 @@ const TABS: [(&str, &str, &str); 5] = [
     ("/app/reglages", "Réglages", "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4"),
 ];
 
-/// `^(crypto|stock)/[A-Za-z0-9.-]{1,10}$` of WebApp.tsx: the asset of /app/actif/…, symbol in upper case.
-pub fn asset_of(kind: &str, symbol: &str) -> Option<(Kind, String)> {
-    let kind = Kind::parse(kind)?;
-    let ok = (1..=10).contains(&symbol.len()) && symbol.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
-    ok.then(|| (kind, symbol.to_ascii_uppercase()))
-}
+use altim_core::web::bundle::APP_BUNDLES;
+pub use altim_core::web::bundle::asset_of;
 
 /// The tab lit for a screen (the simulation and the journal sit next to the holdings, the opportunities next to the
 /// selection, the validation and the bot next to the settings, an asset and the alerts under the Radar).
@@ -52,27 +48,102 @@ fn active_tab(r: &Route) -> &'static str {
     }
 }
 
-fn screen(r: &Route) -> Html {
+/// The page of an app address: the shell and the screen `screen` gives (any other /app/… address shows the Radar).
+fn page(r: Route, screen: fn(&Route) -> Html) -> Html {
+    let route = if r == Route::NotFound { Route::Radar } else { r };
+    html! { <WebApp {route} {screen} /> }
+}
+
+/// One .wasm per group of screens (altim_core::web::bundle, entry points in frontend/bundles): each names only its
+/// screens.
+macro_rules! group {
+    ($part:ident, $name:literal, $page:ident, $screens:ident) => {
+        fn $page(r: Route) -> Html {
+            page(r, $screens)
+        }
+        pub static $part: Part = Part { bundles: &[$name], app: $page, site: crate::part::none };
+    };
+}
+
+group!(RADAR, "radar", radar_page, radar_screens);
+group!(ACTIF, "actif", actif_page, actif_screens);
+group!(AVOIRS, "avoirs", avoirs_page, avoirs_screens);
+group!(SELECTION, "selection", selection_page, selection_screens);
+group!(ACTU, "actu", actu_page, actu_screens);
+group!(REGLAGES, "reglages", reglages_page, reglages_screens);
+group!(BOT, "bot", bot_page, bot_screens);
+
+/// The whole app (every group), fetched in the background by each group's page and handed the page over at the first
+/// move to another group (altim_web::part).
+pub static APP: Part = Part { bundles: &APP_BUNDLES, app: app_page, site: crate::part::none };
+
+fn app_page(r: Route) -> Html {
+    page(r, all_screens)
+}
+
+fn all_screens(r: &Route) -> Html {
+    match r {
+        Route::Asset { kind, symbol } if asset_of(kind, symbol).is_some() => actif_screens(r),
+        Route::Avoirs | Route::Simulation | Route::Journal => avoirs_screens(r),
+        Route::Selection | Route::Opportunites => selection_screens(r),
+        Route::Actu => actu_screens(r),
+        Route::Reglages | Route::Lexique => reglages_screens(r),
+        Route::Bot | Route::Validation => bot_screens(r),
+        _ => radar_screens(r),
+    }
+}
+
+/// Radar, alerts, and any other /app/… address.
+fn radar_screens(r: &Route) -> Html {
+    match r {
+        Route::Alertes => html! { <alerts::Alerts /> },
+        _ => html! { <radar::Radar /> },
+    }
+}
+
+fn actif_screens(r: &Route) -> Html {
     match r {
         Route::Asset { kind, symbol } => match asset_of(kind, symbol) {
             Some((kind, symbol)) => {
                 let key = format!("{}/{symbol}", kind.as_str());
                 html! { <asset::AssetScreen {key} {kind} {symbol} /> }
             }
-            None => html! { <radar::Radar /> },
+            None => Html::default(),
         },
-        Route::Avoirs => html! { <holdings::MyHoldings /> },
-        Route::Selection => html! { <selection::Selection /> },
-        Route::Opportunites => html! { <opportunities::Opportunities /> },
-        Route::Reglages => html! { <settings::Settings /> },
-        Route::Actu => html! { <news::News /> },
-        Route::Lexique => html! { <glossary::Glossary /> },
+        _ => Html::default(),
+    }
+}
+
+fn avoirs_screens(r: &Route) -> Html {
+    match r {
         Route::Simulation => html! { <simulation::Simulation /> },
         Route::Journal => html! { <journal::Journal /> },
+        _ => html! { <holdings::MyHoldings /> },
+    }
+}
+
+fn selection_screens(r: &Route) -> Html {
+    match r {
+        Route::Opportunites => html! { <opportunities::Opportunities /> },
+        _ => html! { <selection::Selection /> },
+    }
+}
+
+fn actu_screens(_: &Route) -> Html {
+    html! { <news::News /> }
+}
+
+fn reglages_screens(r: &Route) -> Html {
+    match r {
+        Route::Lexique => html! { <glossary::Glossary /> },
+        _ => html! { <settings::Settings /> },
+    }
+}
+
+fn bot_screens(r: &Route) -> Html {
+    match r {
         Route::Validation => html! { <validation::Validation /> },
-        Route::Bot => html! { <bot::Bot /> },
-        Route::Alertes => html! { <alerts::Alerts /> },
-        _ => html! { <radar::Radar /> },
+        _ => html! { <bot::Bot /> },
     }
 }
 
@@ -84,9 +155,17 @@ fn icon(d: &'static str) -> Html {
     }
 }
 
-#[derive(Properties, PartialEq)]
+#[derive(Properties)]
 pub struct WebAppProps {
     pub route: Route,
+    /// The screens of this .wasm's group (the same for its whole life).
+    pub screen: fn(&Route) -> Html,
+}
+
+impl PartialEq for WebAppProps {
+    fn eq(&self, other: &Self) -> bool {
+        self.route == other.route
+    }
 }
 
 #[component]
@@ -125,14 +204,14 @@ pub fn WebApp(p: &WebAppProps) -> Html {
         <div class="webapp">
             <header class="app-bar">
                 <a href="/app" onclick={on_link.clone()} class="brand" aria-label="Altim, radar">
-                    <img src="/logo.svg" alt="" width="30" height="30" />
+                    <img src="/logo.svg" alt="" width="30" height="30" decoding="sync" />
                     <span>{ "ALTIM" }</span>
                 </a>
                 <span class="app-env">{ "CONSEIL" }</span>
                 <nav class="app-tabs-top" aria-label="Sections">{ tabs(false) }</nav>
                 <a href="/" class="app-site">{ "Site" }</a>
             </header>
-            <main class="app-main">{ screen(&p.route) }</main>
+            <main class="app-main">{ (p.screen)(&p.route) }</main>
             <nav class="app-tabs" aria-label="Sections">{ tabs(true) }</nav>
         </div>
     }
@@ -164,19 +243,5 @@ fn Disclaimer() -> Html {
             <button class="btn" disabled={!*ok} onclick={enter}>{ "Entrer dans l'app" }</button>
             <a href="/" class="muted back-site">{ "← Retour au site" }</a>
         </main>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn asset_paths() {
-        assert_eq!(asset_of("crypto", "btc"), Some((Kind::Crypto, "BTC".into())));
-        assert_eq!(asset_of("stock", "BRK.B"), Some((Kind::Stock, "BRK.B".into())));
-        assert_eq!(asset_of("fx", "EUR"), None);
-        assert_eq!(asset_of("stock", "TOOLONGSYMBOL"), None);
-        assert_eq!(asset_of("stock", "A B"), None);
     }
 }

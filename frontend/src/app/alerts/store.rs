@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use altim_core::types::Kind;
 use altim_core::web::insights::alerts::{ALERTS_KEY, AlertsState, BuyAlert};
-use altim_core::web::insights::news::{NewsReport, Quote};
+use altim_core::web::insights::news::{NewsItems, NewsReport, Quote};
 use yew::prelude::*;
 
 use crate::api::ApiError;
@@ -53,7 +53,16 @@ pub async fn buy_alerts(items: &[(String, Kind)]) -> Result<Vec<BuyAlert>, ApiEr
 
 /// The news of these assets (`/api/news`, 20 assets at most).
 pub async fn news(items: &[(String, Kind)]) -> Result<NewsReport, ApiError> {
+    crate::api::get(&news_url(items)).await
+}
+
+/// `news` read for its items only (the alert checks, in every page of the app).
+pub async fn news_items(items: &[(String, Kind)]) -> Result<NewsItems, ApiError> {
+    crate::api::get(&news_url(items)).await
+}
+
+fn news_url(items: &[(String, Kind)]) -> String {
     let items = &items[..items.len().min(20)];
     let q = if items.is_empty() { String::new() } else { format!("?symbols={}", crate::api::list(items)) };
-    crate::api::get(&format!("/api/news{q}")).await
+    format!("/api/news{q}")
 }

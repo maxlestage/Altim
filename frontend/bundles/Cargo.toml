@@ -1,0 +1,60 @@
+[package]
+name = "altim-bundles"
+version = "1.0.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Altim : points d'entrée des .wasm du front (site, groupes d'écrans de l'app)."
+
+# One .wasm per part of the front (the presentation site, each group of app screens of altim_core::web::bundle), all
+# linking the altim-web library compiled once: scripts/build-web.sh builds them together (`--examples`), the links in
+# parallel. They are a package apart so that altim-web can be compiled lighter before the link-time optimisation
+# (profile wasm-release in the workspace's Cargo.toml).
+[[example]]
+name = "site"
+path = "src/site.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "radar"
+path = "src/radar.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "actif"
+path = "src/actif.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "avoirs"
+path = "src/avoirs.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "selection"
+path = "src/selection.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "actu"
+path = "src/actu.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "reglages"
+path = "src/reglages.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "bot"
+path = "src/bot.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "app"
+path = "src/app.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+altim-web = { path = ".." }
+wasm-bindgen = "0.2.129"

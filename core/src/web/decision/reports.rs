@@ -102,7 +102,7 @@ pub struct Sentiment {
 
 /// `/api/macro` and the `macro` of the guard and zones reports: the report, what its stress announced on this asset,
 /// and the market regime.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct MacroInfo {
     #[serde(flatten)]
     pub report: MacroReport,
@@ -110,6 +110,29 @@ pub struct MacroInfo {
     pub evidence: Option<Evidence>,
     #[serde(default)]
     pub regime: Option<MarketRegime>,
+}
+
+// The structs with flattened fields below are read by hand, through a `Value`, with the same JSON as serde's derived
+// reading: serde's flattening buffers the content and reads it with a second deserializer, a second copy of these
+// readers in the .wasm.
+
+/// An optional field (`#[serde(default)] Option<T>`): absent or null is None.
+fn opt<T: serde::de::DeserializeOwned, E: serde::de::Error>(v: &Value, key: &str) -> Result<Option<T>, E> {
+    match v.get(key) {
+        None | Some(Value::Null) => Ok(None),
+        Some(x) => crate::web::json::from_value(x).map(Some).map_err(E::custom),
+    }
+}
+
+fn read<T: serde::de::DeserializeOwned, E: serde::de::Error>(v: &Value) -> Result<T, E> {
+    crate::web::json::from_value(v).map_err(E::custom)
+}
+
+impl<'de> Deserialize<'de> for MacroInfo {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = Value::deserialize(d)?;
+        Ok(MacroInfo { report: read(&v)?, evidence: opt(&v, "evidence")?, regime: opt(&v, "regime")? })
+    }
 }
 
 /// `/api/candles?symbol=&kind=&interval=`: candles validated by multi-source consensus.
@@ -146,7 +169,7 @@ pub struct GuardInputs {
 }
 
 /// `/api/guard?symbol=&kind=`: the market guard and the inputs shown.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GuardReport {
     #[serde(flatten)]
@@ -163,13 +186,52 @@ pub struct GuardReport {
     pub macro_info: Option<MacroInfo>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// `GuardReport` without its flattened result, read from the same JSON object.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GuardFields {
+    symbol: String,
+    kind: Kind,
+    #[serde(default)]
+    as_of: f64,
+    #[serde(default)]
+    price: Option<f64>,
+    #[serde(default)]
+    inputs: GuardInputs,
+    #[serde(default, rename = "macro")]
+    macro_info: Option<MacroInfo>,
+}
+
+impl<'de> Deserialize<'de> for GuardReport {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = Value::deserialize(d)?;
+        let f: GuardFields = read(&v)?;
+        Ok(GuardReport {
+            result: read(&v)?,
+            symbol: f.symbol,
+            kind: f.kind,
+            as_of: f.as_of,
+            price: f.price,
+            inputs: f.inputs,
+            macro_info: f.macro_info,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HorizonZone {
     #[serde(flatten)]
     pub zone: FibZone,
     #[serde(default)]
     pub macro_note: Option<String>,
+}
+
+impl<'de> Deserialize<'de> for HorizonZone {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let v = Value::deserialize(d)?;
+        Ok(HorizonZone { zone: read(&v)?, macro_note: opt(&v, "macroNote")? })
+    }
 }
 
 /// `/api/zones?symbol=&kind=`: buy zones by horizon (Fibonacci) and the macro context.
@@ -475,5 +537,72 @@ mod tests {
         assert!(!ok::<WhyReport>(&read("why-AAPL.json")).factors.is_empty());
         assert!(!ok::<Snapshot>(&read("candles-BTC.json")).candles.is_empty());
         assert_eq!(ok::<crate::engine::strategies::StrategiesReport>(&read("strategies-AAPL.json")).strategies.len(), 8);
+    }
+
+    /// The reports with flattened fields, read by hand (see `MacroInfo`), give what serde's derived reading gives, on
+    /// real answers of the server (backend/tests/samples/web-reports).
+    #[test]
+    fn flattened_reports_read_by_hand() {
+        #[derive(Deserialize, Serialize)]
+        struct MacroDerived {
+            #[serde(flatten)]
+            report: MacroReport,
+            #[serde(default)]
+            evidence: Option<Evidence>,
+            #[serde(default)]
+            regime: Option<MarketRegime>,
+        }
+        #[derive(Deserialize, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct GuardDerived {
+            #[serde(flatten)]
+            result: GuardResult,
+            symbol: String,
+            kind: Kind,
+            #[serde(default)]
+            as_of: f64,
+            #[serde(default)]
+            price: Option<f64>,
+            #[serde(default)]
+            inputs: GuardInputs,
+            #[serde(default, rename = "macro")]
+            macro_info: Option<MacroDerived>,
+        }
+        #[derive(Deserialize, Serialize)]
+        #[serde(rename_all = "camelCase")]
+        struct ZoneDerived {
+            #[serde(flatten)]
+            zone: FibZone,
+            #[serde(default)]
+            macro_note: Option<String>,
+        }
+        let sample = |f: &str| -> Value {
+            serde_json::from_str(
+                &std::fs::read_to_string(format!("{}/../backend/tests/samples/web-reports/{f}", env!("CARGO_MANIFEST_DIR"))).unwrap(),
+            )
+            .unwrap()
+        };
+        fn same<A: serde::de::DeserializeOwned + Serialize, B: serde::de::DeserializeOwned + Serialize>(v: &Value) {
+            let a = serde_json::to_value(serde_json::from_value::<A>(v.clone()).unwrap()).unwrap();
+            assert_eq!(a, serde_json::to_value(serde_json::from_value::<B>(v.clone()).unwrap()).unwrap());
+            assert_eq!(a, serde_json::to_value(crate::web::json::from_value::<A>(v).unwrap()).unwrap());
+        }
+        let m = sample("macro.json");
+        same::<MacroInfo, MacroDerived>(&m);
+        let mut bare = m.clone();
+        bare.as_object_mut().unwrap().retain(|k, _| k != "evidence" && k != "regime");
+        same::<MacroInfo, MacroDerived>(&bare);
+        let g = sample("guard-BTC.json");
+        same::<GuardReport, GuardDerived>(&g);
+        let mut g2 = g.clone();
+        g2.as_object_mut().unwrap().retain(|k, _| !matches!(k.as_str(), "asOf" | "price" | "inputs" | "macro"));
+        same::<GuardReport, GuardDerived>(&g2);
+        let z = sample("zones-BTC.json");
+        for zone in z["zones"].as_array().unwrap() {
+            same::<HorizonZone, ZoneDerived>(zone);
+        }
+        let zones: ZonesReport = serde_json::from_value(z).unwrap();
+        assert_eq!(zones.zones.len(), 3);
+        assert!(serde_json::from_value::<GuardReport>(serde_json::json!({ "symbol": "BTC" })).is_err());
     }
 }

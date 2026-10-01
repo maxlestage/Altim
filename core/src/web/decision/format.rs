@@ -413,7 +413,7 @@ mod tests {
     #[test]
     fn decision_texts() {
         let d = aapl();
-        let e = &d.d.position.as_ref().unwrap().exits[0];
+        let e = &d.full().unwrap().position.as_ref().unwrap().exits[0];
         assert_eq!(exit_text(e.share, &e.trigger), format!("Vendre 20{N}% si objectif 1 atteint (338 $)"));
         assert_eq!(risk_reward_text(btc().d.plan.as_ref().unwrap()), "1,2 (minimum 2)");
     }
