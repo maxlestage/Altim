@@ -366,6 +366,35 @@ mod tests {
         same::<crate::engine::validation::ValidationReport>(&sample("validation.json"));
     }
 
+    /// Fundamentals (tagged) and Track (flattened details) are read by hand, through a Value: the same values as the
+    /// JSON says, written back to the same JSON.
+    #[test]
+    fn tagged_and_flattened_by_hand() {
+        use crate::engine::decision_types::{Decision, Fundamentals};
+        for (f, kind) in [("decision-btc.json", "crypto"), ("decision-aapl.json", "stock")] {
+            let v = sample(f);
+            let d: Decision = from_value(&v).unwrap();
+            let back: Decision = serde_json::from_value(serde_json::to_value(&d).unwrap()).unwrap();
+            assert_eq!(d, back, "{f}");
+            match (&d.fundamentals, kind) {
+                (Some(Fundamentals::Crypto(_)), "crypto") | (Some(Fundamentals::Stock(_)), "stock") => {}
+                (x, _) => panic!("{f}: {x:?}"),
+            }
+            let t = d.track.as_ref().unwrap();
+            let raw = &v["track"];
+            assert_eq!(t.trades as u64, raw["trades"].as_u64().unwrap());
+            assert_eq!(t.details.regimes.len(), raw["regimes"].as_array().map_or(0, Vec::len), "{f}");
+            assert_eq!(t.details.spread_pct, raw["spreadPct"].as_f64().unwrap_or(0.0), "{f}");
+        }
+        let t = json!({ "period": "p", "trades": 1, "winRate": 50, "maxDrawdown": 1, "totalReturn": 2, "buyAndHold": 3,
+            "feesPct": 0.1, "slippagePct": 0.05, "losingStreak": 0, "note": "" });
+        let track: crate::engine::decision_types::Track = from_value(&t).unwrap();
+        assert_eq!((track.avg_win, track.details.regimes.len(), track.details.expectancy), (None, 0, None));
+        assert!(from_value::<crate::engine::decision_types::Track>(&json!({ "period": "p" })).is_err());
+        assert!(from_value::<Fundamentals>(&json!({ "kind": "bond" })).is_err());
+        assert!(from_value::<Fundamentals>(&json!({})).is_err());
+    }
+
     #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
     #[serde(rename_all = "camelCase")]
     enum Kind {
