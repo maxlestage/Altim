@@ -1,6 +1,7 @@
 //! URLs of the site and the web app (the same as the React front: App.tsx, WebApp.tsx, router.ts). The site's links
 //! are plain page loads; inside /app, `use_on_link()` gives the `onclick` of an internal link (history navigation
 //! without reloading, like `onLink` of router.ts). A new screen = a variant here + its arm in `app::screen`.
+use altim_core::web::bundle::bundle_of;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -77,11 +78,30 @@ pub fn Root() -> Html {
     }
 }
 
+/// Whether this .wasm has the screens of a part of the front (altim_core::web::bundle): the site, or a group of the app.
+pub fn serves(bundle: &str) -> bool {
+    let parts = [
+        ("site", cfg!(feature = "site")),
+        ("radar", cfg!(feature = "app-radar")),
+        ("actif", cfg!(feature = "app-actif")),
+        ("avoirs", cfg!(feature = "app-avoirs")),
+        ("selection", cfg!(feature = "app-selection")),
+        ("actu", cfg!(feature = "app-actu")),
+        ("reglages", cfg!(feature = "app-reglages")),
+        ("bot", cfg!(feature = "app-bot")),
+    ];
+    parts.iter().any(|&(b, built)| built && b == bundle)
+}
+
 fn switch(r: Route) -> Html {
+    if !serves(bundle_of(&pathname())) {
+        return other_bundle();
+    }
+    reloaded();
     if r.is_app() || (r == Route::NotFound && pathname().starts_with("/app/")) { app_screen(r) } else { site_screen(r) }
 }
 
-#[cfg(feature = "app")]
+#[cfg(feature = "app-shell")]
 fn app_screen(r: Route) -> Html {
     // Any other /app/… address shows the Radar (WebApp.tsx).
     let route = if r == Route::NotFound { Route::Radar } else { r };
@@ -97,34 +117,43 @@ fn site_screen(r: Route) -> Html {
     }
 }
 
-#[cfg(not(feature = "app"))]
+#[cfg(not(feature = "app-shell"))]
 fn app_screen(_: Route) -> Html {
-    other_half()
+    other_bundle()
 }
 
 #[cfg(not(feature = "site"))]
 fn site_screen(_: Route) -> Html {
-    other_half()
+    other_bundle()
 }
 
-/// This page belongs to the other .wasm (the site and the app are built apart; links between them are full page
-/// loads): load it from the server, once per address so a misrouted page can never loop.
-#[cfg(not(all(feature = "site", feature = "app")))]
-fn other_half() -> Html {
-    const KEY: &str = "altim.front.reload";
+/// The address `other_bundle` last reloaded (session storage).
+const RELOAD_KEY: &str = "altim.front.reload";
+
+/// This address belongs to another .wasm (the site and each group of app screens are built apart; links between
+/// them are full page loads): load it from the server, once per address so a misrouted page can never loop.
+fn other_bundle() -> Html {
     if let Some(w) = web_sys::window() {
         let path = pathname();
         let store = w.session_storage().ok().flatten();
-        if store.as_ref().and_then(|s| s.get_item(KEY).ok().flatten()).as_deref() != Some(path.as_str()) {
+        if store.as_ref().and_then(|s| s.get_item(RELOAD_KEY).ok().flatten()).as_deref() != Some(path.as_str()) {
             if let Some(s) = &store {
-                let _ = s.set_item(KEY, &path);
+                let _ = s.set_item(RELOAD_KEY, &path);
             }
             let _ = w.location().reload();
         } else if let Some(s) = &store {
-            let _ = s.remove_item(KEY);
+            let _ = s.remove_item(RELOAD_KEY);
         }
     }
     html! {}
+}
+
+/// A screen of this .wasm is shown: a later move to another group's address may reload again.
+fn reloaded() {
+    let store = web_sys::window().and_then(|w| w.session_storage().ok().flatten());
+    if let Some(s) = store.filter(|s| s.get_item(RELOAD_KEY).ok().flatten().is_some()) {
+        let _ = s.remove_item(RELOAD_KEY);
+    }
 }
 
 /// `onclick` of an internal /app link: navigation without reloading (Ctrl/⌘/Shift-click and middle click keep the
@@ -138,8 +167,11 @@ pub fn use_on_link() -> Callback<MouseEvent> {
         }
         let Some(a) = e.current_target().and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(t).ok()) else { return };
         let Some(href) = a.get_attribute("href") else { return };
-        // Only /app screens navigate in place; the site's pages are full page loads (another .wasm).
-        let (Some(nav), Some(route)) = (nav.as_ref(), Route::recognize(&href).filter(Route::is_app)) else { return };
+        // Only the screens of this .wasm navigate in place; the site's pages and the other groups of app screens are
+        // full page loads (another .wasm).
+        let (Some(nav), Some(route)) = (nav.as_ref(), Route::recognize(&href).filter(|r| r.is_app() && serves(bundle_of(&href)))) else {
+            return;
+        };
         e.prevent_default();
         if pathname() != href {
             nav.push(&route);

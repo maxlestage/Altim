@@ -25,6 +25,7 @@
     <!-- Rust + Yew (WebAssembly), built by scripts/build-web.sh: fetched in parallel with the styles. -->
     <link rel="modulepreload" href="/{{GLUE_JS}}" />
     <link rel="preload" href="/{{WASM}}" as="fetch" type="application/wasm" crossorigin />
+    {{PREFETCH}}
   </head>
   <body>
     <div id="root"></div>

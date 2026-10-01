@@ -19,7 +19,6 @@ pub mod selection;
 pub mod settings;
 pub mod simulation;
 
-use altim_core::types::Kind;
 use yew::prelude::*;
 
 use crate::route::{Route, use_on_link};
@@ -33,12 +32,7 @@ const TABS: [(&str, &str, &str); 5] = [
     ("/app/reglages", "Réglages", "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0M14 4v4M8 10v4M16 16v4"),
 ];
 
-/// `^(crypto|stock)/[A-Za-z0-9.-]{1,10}$` of WebApp.tsx: the asset of /app/actif/…, symbol in upper case.
-pub fn asset_of(kind: &str, symbol: &str) -> Option<(Kind, String)> {
-    let kind = Kind::parse(kind)?;
-    let ok = (1..=10).contains(&symbol.len()) && symbol.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-');
-    ok.then(|| (kind, symbol.to_ascii_uppercase()))
-}
+pub use altim_core::web::bundle::asset_of;
 
 /// The tab lit for a screen (the simulation and the journal sit next to the holdings, the opportunities next to the
 /// selection, the validation and the bot next to the settings, an asset and the alerts under the Radar).
@@ -52,28 +46,53 @@ fn active_tab(r: &Route) -> &'static str {
     }
 }
 
+/// The screen of a route. Each arm is compiled only into its group's .wasm (`app-<group>` features, see
+/// altim_core::web::bundle); `route::switch` sends any other group's address to the server first.
 fn screen(r: &Route) -> Html {
     match r {
+        #[cfg(feature = "app-actif")]
         Route::Asset { kind, symbol } => match asset_of(kind, symbol) {
             Some((kind, symbol)) => {
                 let key = format!("{}/{symbol}", kind.as_str());
                 html! { <asset::AssetScreen {key} {kind} {symbol} /> }
             }
-            None => html! { <radar::Radar /> },
+            None => radar(),
         },
+        #[cfg(feature = "app-avoirs")]
         Route::Avoirs => html! { <holdings::MyHoldings /> },
+        #[cfg(feature = "app-selection")]
         Route::Selection => html! { <selection::Selection /> },
+        #[cfg(feature = "app-selection")]
         Route::Opportunites => html! { <opportunities::Opportunities /> },
+        #[cfg(feature = "app-reglages")]
         Route::Reglages => html! { <settings::Settings /> },
+        #[cfg(feature = "app-actu")]
         Route::Actu => html! { <news::News /> },
+        #[cfg(feature = "app-reglages")]
         Route::Lexique => html! { <glossary::Glossary /> },
+        #[cfg(feature = "app-avoirs")]
         Route::Simulation => html! { <simulation::Simulation /> },
+        #[cfg(feature = "app-avoirs")]
         Route::Journal => html! { <journal::Journal /> },
+        #[cfg(feature = "app-bot")]
         Route::Validation => html! { <validation::Validation /> },
+        #[cfg(feature = "app-bot")]
         Route::Bot => html! { <bot::Bot /> },
+        #[cfg(feature = "app-radar")]
         Route::Alertes => html! { <alerts::Alerts /> },
-        _ => html! { <radar::Radar /> },
+        _ => radar(),
     }
+}
+
+/// Any other /app/… address shows the Radar (WebApp.tsx); only the Radar's group gets such an address.
+#[cfg(feature = "app-radar")]
+fn radar() -> Html {
+    html! { <radar::Radar /> }
+}
+
+#[cfg(not(feature = "app-radar"))]
+fn radar() -> Html {
+    html! {}
 }
 
 fn icon(d: &'static str) -> Html {
@@ -81,6 +100,32 @@ fn icon(d: &'static str) -> Html {
         <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d={d} />
         </svg>
+    }
+}
+
+/// Delay before `prefetch_groups`: the first screen and its data come first.
+const PREFETCH_AFTER_MS: u32 = 5_000;
+
+/// The page names other groups' files (`<meta name="altim-prefetch">`, scripts/build-web.sh: the Radar's and the asset
+/// screen's, the most common moves): the browser fetches them in the background at its lowest priority, so going
+/// there later loads from its cache. Not when the browser asks to save data.
+fn prefetch_groups() {
+    let save_data = js_sys::Reflect::get(&js_sys::global(), &"navigator".into())
+        .and_then(|n| js_sys::Reflect::get(&n, &"connection".into()))
+        .and_then(|c| js_sys::Reflect::get(&c, &"saveData".into()))
+        .is_ok_and(|s| s.as_bool() == Some(true));
+    let doc = gloo::utils::document();
+    let (false, Some(meta), Some(head)) =
+        (save_data, doc.query_selector("meta[name=altim-prefetch]").ok().flatten(), doc.query_selector("head").ok().flatten())
+    else {
+        return;
+    };
+    for url in meta.get_attribute("content").unwrap_or_default().split_whitespace() {
+        if let Ok(link) = doc.create_element("link") {
+            let _ = link.set_attribute("rel", "prefetch");
+            let _ = link.set_attribute("href", url);
+            let _ = head.append_child(&link);
+        }
     }
 }
 
@@ -99,6 +144,7 @@ pub fn WebApp(p: &WebAppProps) -> Html {
         crate::state::fx::start_fx();
         // The alert checks of this browser (`startChecks` of notify.ts).
         alerts::start_checks();
+        gloo::timers::callback::Timeout::new(PREFETCH_AFTER_MS, prefetch_groups).forget();
     });
     if !state.accepted_disclaimer {
         return html! { <Disclaimer /> };
@@ -164,19 +210,5 @@ fn Disclaimer() -> Html {
             <button class="btn" disabled={!*ok} onclick={enter}>{ "Entrer dans l'app" }</button>
             <a href="/" class="muted back-site">{ "← Retour au site" }</a>
         </main>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn asset_paths() {
-        assert_eq!(asset_of("crypto", "btc"), Some((Kind::Crypto, "BTC".into())));
-        assert_eq!(asset_of("stock", "BRK.B"), Some((Kind::Stock, "BRK.B".into())));
-        assert_eq!(asset_of("fx", "EUR"), None);
-        assert_eq!(asset_of("stock", "TOOLONGSYMBOL"), None);
-        assert_eq!(asset_of("stock", "A B"), None);
     }
 }

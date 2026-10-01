@@ -11,19 +11,33 @@ sh scripts/build-web.sh          # → web/dist (outils : scripts/web-tools.sh, 
 ALTIM_DEV_OPEN=1 PORT=3000 ALTIM_WEB_ROOT=$PWD/web cargo run --bin altim
 ```
 
-Le script compile le crate deux fois (profil `wasm-release` : opt-level z, LTO complète, 1 unité de code, panic abort),
-une par fonctionnalité Cargo, pour que chaque page ne télécharge que sa moitié :
+Le script compile le crate une fois pour le site et une fois par groupe d'écrans de l'app (profil `wasm-release` :
+opt-level z, LTO complète, 1 unité de code, panic abort), une par fonctionnalité Cargo, pour qu'une première visite ne
+télécharge que les écrans de sa page (`altim_core::web::bundle`, la même fonction côté serveur et côté navigateur) :
 
-| Page | Servie pour | Fichiers |
+| Page | Servie pour | Fonctionnalité |
 | --- | --- | --- |
-| `web/dist/index.html` | `/`, pages légales, toute adresse hors `/app` | `main-site-<hash>.js`, `altim-site-<hash>.js`, `altim-site-<hash>_bg.wasm` |
-| `web/dist/app/index.html` | `/app`, `/app/*` | `main-app-<hash>.js`, `altim-app-<hash>.js`, `altim-app-<hash>_bg.wasm` |
+| `web/dist/index.html` | `/`, pages légales, toute adresse hors `/app` | `site` |
+| `web/dist/app/index.html` | `/app` (Radar), `/app/alertes`, toute autre adresse `/app/…` | `app-radar` |
+| `web/dist/app/actif.html` | `/app/actif/<crypto\|stock>/<symbole>` | `app-actif` |
+| `web/dist/app/avoirs.html` | `/app/avoirs`, `/app/simulation`, `/app/journal` | `app-avoirs` |
+| `web/dist/app/selection.html` | `/app/selection`, `/app/opportunites` | `app-selection` |
+| `web/dist/app/actu.html` | `/app/actu` | `app-actu` |
+| `web/dist/app/reglages.html` | `/app/reglages`, `/app/lexique` | `app-reglages` |
+| `web/dist/app/bot.html` | `/app/bot`, `/app/validation` | `app-bot` |
 
-Plus les styles partagés (`global-<hash>.css`, `app-<hash>.css`) ; les icônes et le logo restent dans `web/public`, servis
-tels quels. Les liens entre le site et l'app sont des chargements de page complets ; à l'intérieur de `/app`,
-`use_on_link()` navigue sans recharger. Sans fonctionnalité choisie (vérifications, tests), un seul `.wasm` sert tout.
-`wasm-opt -O1` (et non `-Oz`) : les niveaux plus forts réduisent le fichier brut mais il se compresse moins bien, et le
-réseau transporte le fichier compressé. Seuls les fuseaux Paris, New York et UTC entrent dans le `.wasm`
+Chaque partie a ses fichiers `main-<partie>-<hash>.js`, `altim-<partie>-<hash>.js` et `altim-<partie>-<hash>_bg.wasm`
+(le `.wasm` est préchargé par la page), plus les styles partagés (`global-<hash>.css`, `app-<hash>.css`) ; les icônes
+et le logo restent dans `web/public`, servis tels quels. Les liens entre parties sont des chargements de page complets
+(`route::serves`, `route::other_bundle`) ; à l'intérieur d'un groupe, `use_on_link()` navigue sans recharger. Cinq
+secondes après l'affichage, chaque page de l'app fait précharger en arrière-plan les fichiers du Radar et de l'écran
+d'actif (`<meta name="altim-prefetch">`). La fonctionnalité `app` réunit tous les groupes ; sans fonctionnalité choisie
+(vérifications, tests), un seul `.wasm` sert tout.
+
+Les `.wasm`, `.js` et `.css` ont une copie brotli (qualité 11, `.br`) et gzip (`.gz`) écrite par `scripts/precompress`,
+que le serveur envoie telle quelle (`Content-Encoding`, `Vary: Accept-Encoding`) au lieu de compresser à la volée.
+`wasm-opt -O2` sans sa passe d'inlining (et non `-Oz`) : l'inlining réduit le fichier brut mais il se compresse moins
+bien (+12 % en brotli), et le réseau transporte le fichier compressé. Seuls les fuseaux Paris, New York et UTC entrent dans le `.wasm`
 (`CHRONO_TZ_TIMEZONE_FILTER`), et les traces internes de Yew sont compilées hors du binaire.
 
 ## Organisation
@@ -57,7 +71,8 @@ frontend/ (altim-web)
 
 1. Composant fonctionnel : `#[component] pub fn Nom(p: &NomProps) -> Html`, props `#[derive(Properties, PartialEq)]`.
    Attributs SVG en kebab-case (`stroke-width`), `class={classes!(...)}`, `if let … { }` dans `html!`.
-2. Nouvelle route : une variante dans `route.rs` + un bras dans `app::screen`.
+2. Nouvelle route : une variante dans `route.rs` + un bras dans `app::screen` (avec le `#[cfg(feature = "app-<groupe>")]`
+   de son groupe) + son adresse dans `altim_core::web::bundle::bundle_of`.
 3. Liens internes : `let on_link = use_on_link();` puis `<a href="/app/bot" onclick={on_link.clone()}>`. Liens vers le
    site (`/`, `/risques`) : `<a href>` simple.
 4. Réglages : `use_app_state()` / `set_app_state(|s| …)`. Avoirs : `use_stored_holdings()` (tels que saisis),
@@ -76,5 +91,6 @@ frontend/ (altim-web)
   d'exemple réels dans `backend/tests/samples`. Les vues restent minces et sont vérifiées dans un navigateur.
 - Avant de livrer : `cargo fmt --all`, `cargo clippy --workspace --all-targets -- -D warnings`,
   `cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown -- -D warnings` (et avec
-  `--no-default-features --features site`, puis `app`), `cargo test --workspace`, `sh scripts/build-web.sh`, captures à
+  `--no-default-features --features site`, puis `app`, puis chaque `app-<groupe>`), `cargo test --workspace`,
+  `sh scripts/build-web.sh`, captures à
   320 px et 1 100 px, aucun défilement horizontal, aucune erreur dans la console.
