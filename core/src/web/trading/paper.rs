@@ -425,7 +425,7 @@ pub fn parse_paper_state(v: &Value) -> Option<PaperState> {
     if !is_paper_state(v) {
         return None;
     }
-    serde_json::from_value(v.clone()).ok()
+    crate::web::json::from_value(v).ok()
 }
 
 /// `JSON.stringify(state)`: integral numbers without ".0", the TypeScript key order.

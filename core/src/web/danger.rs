@@ -44,7 +44,7 @@ pub fn parse_dangers(raw: Option<&str>) -> Option<DangerState> {
         return None;
     }
     let at = p.get("at").and_then(Value::as_f64).filter(|a| a.is_finite())?;
-    let items = p.get("items")?.as_array()?.iter().filter_map(|i| serde_json::from_value(i.clone()).ok()).collect();
+    let items = p.get("items")?.as_array()?.iter().filter_map(|i| crate::web::json::from_value(i).ok()).collect();
     Some(DangerState { at, items })
 }
 

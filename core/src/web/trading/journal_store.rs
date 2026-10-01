@@ -12,8 +12,8 @@ use super::journal::{
     market_from_decision, parse_journal_state, snapshot_decision,
 };
 use super::positive;
-use crate::engine::decision_types::Decision;
 use crate::types::{Candle, Kind};
+use crate::web::decision::doc::DecisionCore;
 
 pub const JOURNAL_KEY: &str = "altim.journal.v1";
 pub const JOURNAL_INVALID_KEY: &str = "altim.journal.v1.invalid";
@@ -66,7 +66,7 @@ pub struct RealTrade {
 
 /// The entry a real trade writes (None: no positive price or quantity, nothing is written). `decision`: the recent
 /// decision cached on the device for this asset (`is_recent_decision`), if any.
-pub fn real_trade_entry(t: &RealTrade, id: String, now: f64, decision: Option<&Decision>) -> Option<JournalEntry> {
+pub fn real_trade_entry(t: &RealTrade, id: String, now: f64, decision: Option<&DecisionCore>) -> Option<JournalEntry> {
     if !positive(t.price) || !positive(t.quantity) {
         return None;
     }
@@ -113,7 +113,7 @@ pub fn enrich_patch(
     at: f64,
     macro_: Option<&MacroLite>,
     candles: Option<&[Candle]>,
-    decision: Option<&Decision>,
+    decision: Option<&DecisionCore>,
 ) -> EntryPatch {
     let mut m = MarketPatch::default();
     if let Some(x) = macro_ {

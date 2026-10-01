@@ -39,6 +39,20 @@ pub struct NewsReport {
     pub summary: Option<Vec<StorySummary>>,
 }
 
+/// `GET /api/news` read for its items only (the alert checks, in every page of the app): the same required fields
+/// as `NewsReport`, without reading the digest and the summaries, whose readers then stay out of the pages that do
+/// not show them.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NewsItems {
+    #[allow(dead_code)]
+    as_of: serde::de::IgnoredAny,
+    #[allow(dead_code)]
+    digest: serde::de::IgnoredAny,
+    #[serde(default)]
+    pub items: Vec<NewsItem>,
+}
+
 impl NewsReport {
     /// "À la une": the top stories found among the items.
     pub fn top_items(&self) -> Vec<&NewsItem> {
@@ -165,5 +179,36 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(b.moves().iter().map(|m| m.symbol.as_str()).collect::<Vec<_>>(), ["ETH"]);
+    }
+
+    /// The alert checks' reading of /api/news: the same items as the full report, the same required fields.
+    #[test]
+    fn news_items_only() {
+        let item = NewsItem {
+            id: "a".into(),
+            title: "Bitcoin".into(),
+            link: "https://example.org/a".into(),
+            time: 5,
+            source: "Reuters".into(),
+            summary: None,
+            lang: crate::engine::news::Lang::Fr,
+            category: NewsCategory::Crypto,
+            themes: vec![],
+            tone: crate::engine::news::NewsTone::Neutral,
+            assets: vec!["crypto:BTC".into()],
+            also_in: vec![],
+            alert: true,
+        };
+        let body = serde_json::json!({
+            "asOf": 1, "items": [item], "top": ["a"], "digest": { "total": 1, "themes": [], "tone": { "negative": 0, "positive": 0, "neutral": 1 } },
+            "sources": [{ "name": "Reuters", "ok": true, "count": 1 }]
+        })
+        .to_string();
+        let full: NewsReport = serde_json::from_str(&body).unwrap();
+        let light: NewsItems = serde_json::from_str(&body).unwrap();
+        assert_eq!(light.items, full.items);
+        assert_eq!(light.items[0].assets, ["crypto:BTC"]);
+        assert!(serde_json::from_str::<NewsItems>(r#"{"asOf":1,"items":[]}"#).is_err());
+        assert!(serde_json::from_str::<NewsItems>(r#"{"asOf":1,"digest":{}}"#).unwrap().items.is_empty());
     }
 }

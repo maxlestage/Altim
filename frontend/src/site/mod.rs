@@ -72,3 +72,16 @@ pub fn Section(p: &SectionProps) -> Html {
         </section>
     }
 }
+
+/// The page of a site address.
+pub fn page(r: crate::route::Route) -> Html {
+    use crate::route::Route;
+    match r {
+        Route::MentionsLegales | Route::Confidentialite | Route::Risques => html! { <legal::LegalScreen route={r} /> },
+        // Anything else: the home page (App.tsx).
+        _ => html! { <Home /> },
+    }
+}
+
+/// The presentation site's .wasm (frontend/bundles/site.rs).
+pub static SITE: crate::part::Part = crate::part::Part { bundles: &["site"], app: crate::part::none, site: page };

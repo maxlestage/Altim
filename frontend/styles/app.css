@@ -920,3 +920,7 @@
 .bot-radar { display: grid; gap: 6px; min-width: 0; }
 .bot-radar > * { margin: 0; overflow-wrap: anywhere; }
 .bot-radar .card-title { margin-bottom: 4px; }
+
+/* The app frame drawn in an app page before its .wasm (frontend/shell.html): hidden until the disclaimer is accepted
+   on this browser (frontend/gate.js). */
+.no-shell .webapp[data-static] { display: none; }

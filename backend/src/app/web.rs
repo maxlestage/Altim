@@ -104,18 +104,60 @@ fn http_date(t: std::time::SystemTime) -> String {
     chrono::DateTime::<chrono::Utc>::from(t).format("%a, %d %b %Y %H:%M:%S GMT").to_string()
 }
 
+/// The content coding to send for this `Accept-Encoding`, among the precompressed copies there are (`FILE.br`,
+/// `FILE.gz`, written by scripts/build-web.sh): brotli first, then gzip; None for the file itself. A coding with
+/// `q=0` is refused.
+pub fn pick_encoding(accept: &str, has_br: bool, has_gz: bool) -> Option<&'static str> {
+    let accepts = |coding: &str| {
+        accept.split(',').any(|item| {
+            let mut parts = item.split(';').map(str::trim);
+            parts.next().is_some_and(|c| c.eq_ignore_ascii_case(coding))
+                && parts.all(|p| p.strip_prefix("q=").is_none_or(|q| q.parse::<f32>().is_ok_and(|q| q > 0.0)))
+        })
+    };
+    if has_br && accepts("br") {
+        Some("br")
+    } else if has_gz && accepts("gzip") {
+        Some("gzip")
+    } else {
+        None
+    }
+}
+
+/// `FILE.br` / `FILE.gz` next to a file.
+fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
+    let mut s = path.as_os_str().to_owned();
+    s.push(suffix);
+    PathBuf::from(s)
+}
+
 async fn send_file(path: &Path, cache: &str, req_headers: &HeaderMap, head: bool) -> Response {
+    // A precompressed copy when there is one the browser accepts (the CompressionLayer leaves a response that already
+    // has a Content-Encoding as is); the response then varies with Accept-Encoding.
+    let (br, gz) = (with_suffix(path, ".br"), with_suffix(path, ".gz"));
+    let (has_br, has_gz) = (br.is_file(), gz.is_file());
+    let accept = req_headers.get(header::ACCEPT_ENCODING).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let coding = pick_encoding(accept, has_br, has_gz);
+    let content_type = mime(path);
+    let path = match coding {
+        Some("br") => br.as_path(),
+        Some(_) => gz.as_path(),
+        None => path,
+    };
     let Ok(meta) = tokio::fs::metadata(path).await else { return not_found() };
     let modified = meta.modified().ok();
     let etag = modified.map(|m| {
         let ms = m.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
-        format!("W/\"{:x}-{:x}\"", meta.len(), ms)
+        format!("W/\"{:x}-{:x}{}\"", meta.len(), ms, coding.map(|c| format!("-{c}")).unwrap_or_default())
     });
     if let (Some(tag), Some(inm)) = (&etag, req_headers.get(header::IF_NONE_MATCH)) {
         if inm.to_str().is_ok_and(|v| v.split(',').any(|x| x.trim() == tag)) {
             let mut r = StatusCode::NOT_MODIFIED.into_response();
             r.headers_mut().insert(header::ETAG, HeaderValue::from_str(tag).unwrap());
             r.headers_mut().insert(header::CACHE_CONTROL, HeaderValue::from_str(cache).unwrap());
+            if has_br || has_gz {
+                r.headers_mut().insert(header::VARY, HeaderValue::from_static("accept-encoding"));
+            }
             return r;
         }
     }
@@ -129,7 +171,13 @@ async fn send_file(path: &Path, cache: &str, req_headers: &HeaderMap, head: bool
     };
     let mut r = Response::new(body);
     let h = r.headers_mut();
-    h.insert(header::CONTENT_TYPE, HeaderValue::from_static(mime(path)));
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_static(content_type));
+    if let Some(c) = coding {
+        h.insert(header::CONTENT_ENCODING, HeaderValue::from_static(c));
+    }
+    if has_br || has_gz {
+        h.insert(header::VARY, HeaderValue::from_static("accept-encoding"));
+    }
     h.insert(header::CONTENT_LENGTH, HeaderValue::from(meta.len()));
     h.insert(header::CACHE_CONTROL, HeaderValue::from_str(cache).unwrap());
     if let Some(tag) = etag {
@@ -145,15 +193,20 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], "Introuvable").into_response()
 }
 
-/// Built files, then public files, then the pages: /app and /app/* get the web app's page (dist/app/index.html), any
-/// other address the site's (dist/index.html, which also serves /app when built as one page). A missing file (with
-/// an extension) is a real 404, never the HTML page.
+/// Built files, then public files, then the pages: an /app address gets the page of its group of screens
+/// (dist/app/<group>.html, see altim_core::web::bundle; dist/app/index.html for the Radar, and for any /app address
+/// when the app is built as one page), any other address the site's (dist/index.html, which also serves /app when
+/// the front is built as one page). A missing file (with an extension) is a real 404, never the HTML page.
 pub async fn site(req: Request) -> Response {
+    serve(&web_root(), req).await
+}
+
+/// `site` for the web folder `root`.
+pub async fn serve(root: &Path, req: Request) -> Response {
     let head = req.method() == Method::HEAD;
     if req.method() != Method::GET && !head {
         return not_found();
     }
-    let root = web_root();
     let path = req.uri().path();
     for dir in [root.join("dist"), root.join("public")] {
         if let Some(f) = file_in(&dir, path) {
@@ -163,8 +216,12 @@ pub async fn site(req: Request) -> Response {
     if EXTENSION.is_match(path) {
         return not_found();
     }
-    let app_page = root.join("dist/app/index.html");
-    let index = if (path == "/app" || path.starts_with("/app/")) && app_page.is_file() { app_page } else { root.join("dist/index.html") };
+    let bundle = altim_core::web::bundle::bundle_of(path);
+    let index = [format!("dist/app/{}.html", altim_core::web::bundle::page(bundle)), "dist/app/index.html".into()]
+        .into_iter()
+        .map(|p| root.join(p))
+        .find(|p| bundle != "site" && p.is_file())
+        .unwrap_or_else(|| root.join("dist/index.html"));
     if !index.is_file() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

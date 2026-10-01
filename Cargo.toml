@@ -2,7 +2,7 @@
 # web front in Rust + Yew (frontend/, built for wasm32 by scripts/build-web.sh).
 [workspace]
 resolver = "3"
-members = ["backend", "core", "frontend"]
+members = ["backend", "core", "frontend", "frontend/bundles"]
 default-members = ["backend", "core"]
 
 [workspace.package]

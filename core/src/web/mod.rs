@@ -2,8 +2,10 @@
 //! by any client: money display (money.ts), the saved state formats (store.ts, fx.ts) and the JSON contracts and
 //! helpers the screens read. Nothing here touches the browser: the frontend passes the clock, the rate and storage.
 pub mod bot;
+pub mod bundle;
 pub mod danger;
 pub mod fx;
+pub mod json;
 pub mod market;
 pub mod money;
 pub mod store;
