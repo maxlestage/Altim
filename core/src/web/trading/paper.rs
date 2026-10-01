@@ -19,6 +19,7 @@ use serde_json::Value;
 
 use super::{js_min, locale_cmp, positive, round_to};
 use crate::types::Kind;
+use crate::web::sorting::Sorting;
 
 pub const FEE_RATE: f64 = 0.001;
 pub const SLIPPAGE: f64 = 0.0005;
@@ -70,7 +71,7 @@ pub struct PaperPosition {
     pub decision: Option<PaperDecision>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PaperTrade {
     #[serde(flatten)]
@@ -84,6 +85,20 @@ pub struct PaperTrade {
     pub pnl: f64,
     pub pnl_pct: f64,
 }
+
+/// `PaperTrade` without its flattened `position`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaperTradeFields {
+    closed_at: f64,
+    exit: f64,
+    reason: PaperReason,
+    proceeds: f64,
+    pnl: f64,
+    pnl_pct: f64,
+}
+
+crate::web::json::deserialize_flattened!(PaperTrade, position, PaperTradeFields { closed_at, exit, reason, proceeds, pnl, pnl_pct });
 
 impl Deref for PaperTrade {
     type Target = PaperPosition;
@@ -208,7 +223,7 @@ pub fn check_exits(s: &PaperState, candles: &HashMap<String, Vec<DailyCandle>>) 
             .get(&key)
             .map(|v| v.iter().filter(|c| c.time > p.opened_at && c.low > 0.0 && c.high >= c.low).copied().collect())
             .unwrap_or_default();
-        list.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
+        list.sort_by_dyn(|a, b| a.time.partial_cmp(&b.time).unwrap_or(std::cmp::Ordering::Equal));
         for c in &list {
             let hit = match (p.stop, p.target) {
                 (Some(stop), _) if c.low <= stop => Some((js_min(stop, c.open) * (1.0 - SLIPPAGE), PaperReason::Stop)),
@@ -341,7 +356,7 @@ fn mean(v: &[f64]) -> Option<f64> {
 
 pub fn paper_stats(s: &PaperState) -> PaperStats {
     let mut t: Vec<&PaperTrade> = s.trades.iter().collect();
-    t.sort_by(|a, b| a.closed_at.partial_cmp(&b.closed_at).unwrap_or(std::cmp::Ordering::Equal));
+    t.sort_by_dyn(|a, b| a.closed_at.partial_cmp(&b.closed_at).unwrap_or(std::cmp::Ordering::Equal));
     let wins: Vec<&PaperTrade> = t.iter().copied().filter(|x| x.pnl > 0.0).collect();
     let losses: Vec<&PaperTrade> = t.iter().copied().filter(|x| x.pnl <= 0.0).collect();
     let gains = wins.iter().fold(0.0, |a, x| a + x.pnl);
@@ -377,9 +392,9 @@ pub fn paper_stats(s: &PaperState) -> PaperStats {
             }
         })
         .collect();
-    by_verdict.sort_by(|a, b| b.trades.cmp(&a.trades).then_with(|| locale_cmp(&a.verdict, &b.verdict)));
+    by_verdict.sort_by_dyn(|a, b| b.trades.cmp(&a.trades).then_with(|| locale_cmp(&a.verdict, &b.verdict)));
     let mut by_pct = t.clone();
-    by_pct.sort_by(|a, b| b.pnl_pct.partial_cmp(&a.pnl_pct).unwrap_or(std::cmp::Ordering::Equal));
+    by_pct.sort_by_dyn(|a, b| b.pnl_pct.partial_cmp(&a.pnl_pct).unwrap_or(std::cmp::Ordering::Equal));
     let count = |r: PaperReason| t.iter().filter(|x| x.reason == r).count();
     PaperStats {
         trades: t.len(),

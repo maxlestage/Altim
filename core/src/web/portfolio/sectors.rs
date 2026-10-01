@@ -14,6 +14,7 @@ use super::holdings::{Insight, InsightLevel, pc};
 use crate::engine::decision_types::Sector;
 use crate::js::fr;
 use crate::types::Kind;
+use crate::web::sorting::Sorting;
 
 /// "nasdaq": sector of the Nasdaq screener; "sec": SIC division filed at the SEC; "etf": fund spanning several sectors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -276,7 +277,7 @@ pub fn sector_exposure(lines: &[ExposureLine], cash: f64, sectors: Option<&HashM
             symbols: b.symbols,
         })
         .collect();
-    out.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(Ordering::Equal).then_with(|| fr_compare(&a.label, &b.label)));
+    out.sort_by_dyn(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(Ordering::Equal).then_with(|| fr_compare(&a.label, &b.label)));
 
     let sector_blocks: Vec<&ExposureBlock> = out.iter().filter(|b| b.kind == BlockKind::Sector).collect();
     let classified: f64 = sector_blocks.iter().map(|b| b.value).sum();

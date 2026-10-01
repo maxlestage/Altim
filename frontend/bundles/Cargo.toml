@@ -31,6 +31,11 @@ path = "src/avoirs.rs"
 crate-type = ["cdylib"]
 
 [[example]]
+name = "simulation"
+path = "src/simulation.rs"
+crate-type = ["cdylib"]
+
+[[example]]
 name = "selection"
 path = "src/selection.rs"
 crate-type = ["cdylib"]

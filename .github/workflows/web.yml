@@ -43,7 +43,8 @@ jobs:
           curl -fsS localhost:3000/app/inconnu | grep -q '<script type="module" src="/main-app-radar-'
           curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q '<script type="module" src="/main-app-actif-'
           curl -fsS localhost:3000/app/reglages | grep -q '<script type="module" src="/main-app-reglages-'
-          curl -fsS localhost:3000/app/journal | grep -q '<script type="module" src="/main-app-avoirs-'
+          curl -fsS localhost:3000/app/journal | grep -q '<script type="module" src="/main-app-simulation-'
+          curl -fsS localhost:3000/app/avoirs | grep -q '<script type="module" src="/main-app-avoirs-'
           curl -fsS localhost:3000/app/bot | grep -q '<script type="module" src="/main-app-bot-'
           # Each app page holds the app's frame (its tab lit) and the script that hides it before the disclaimer; the
           # site's page neither.

@@ -7,6 +7,7 @@ use super::cache::CachedDecision;
 use super::format::rating_rank;
 use super::reports::RadarRow;
 use crate::engine::decision_types::Verdict;
+use crate::web::sorting::Sorting;
 use crate::web::store::WatchItem;
 
 pub const SORT_KEY: &str = "altim.radar.sort";
@@ -51,7 +52,7 @@ pub fn sorted<'a>(
         RadarSort::Change => {
             let key = |w: &WatchItem| change(w).unwrap_or(-1.0).abs();
             let keys: HashMap<String, f64> = watchlist.iter().map(|w| (w.key(), key(w))).collect();
-            out.sort_by(|a, b| keys[&b.key()].total_cmp(&keys[&a.key()]));
+            out.sort_by_dyn(|a, b| keys[&b.key()].total_cmp(&keys[&a.key()]));
         }
         RadarSort::Signal => {
             // The full decision's rating (buy side first), then its confidence.
@@ -60,7 +61,7 @@ pub fn sorted<'a>(
                 (rating_rank(d.and_then(|c| c.decision.rating())), d.map(|c| c.decision.d.confidence).unwrap_or(0.0))
             };
             let keys: HashMap<String, (u8, f64)> = watchlist.iter().map(|w| (w.key(), key(w))).collect();
-            out.sort_by(|a, b| {
+            out.sort_by_dyn(|a, b| {
                 let (ra, ca) = keys[&a.key()];
                 let (rb, cb) = keys[&b.key()];
                 ra.cmp(&rb).then(cb.total_cmp(&ca))
@@ -95,7 +96,7 @@ pub fn opportunities<'a>(
         .filter_map(|w| decision(w).map(|d| (w, d)))
         .filter(|(_, d)| matches!(d.decision.d.verdict, Verdict::Buy | Verdict::BuyZone))
         .collect();
-    out.sort_by(|a, b| b.1.decision.d.confidence.total_cmp(&a.1.decision.d.confidence));
+    out.sort_by_dyn(|a, b| b.1.decision.d.confidence.total_cmp(&a.1.decision.d.confidence));
     out.truncate(3);
     out
 }

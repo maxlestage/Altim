@@ -9,6 +9,7 @@ use super::{js_min, locale_cmp};
 use crate::js::{fr, to_fixed};
 use crate::types::{Candle, Kind};
 use crate::web::money::MoneyDisplay;
+use crate::web::sorting::Sorting;
 
 pub const PAPER_KEY: &str = "altim.paper.v1";
 /// Where unreadable saved data is kept aside the first time a new simulation overwrites it.
@@ -167,7 +168,7 @@ pub fn to_daily(candles: &[Candle]) -> Vec<DailyCandle> {
 /// Journal order: most recent exit first.
 pub fn journal(trades: &[PaperTrade]) -> Vec<PaperTrade> {
     let mut v = trades.to_vec();
-    v.sort_by(|a, b| {
+    v.sort_by_dyn(|a, b| {
         let by = |x: f64, y: f64| y.partial_cmp(&x).unwrap_or(std::cmp::Ordering::Equal);
         by(a.closed_at, b.closed_at).then_with(|| by(a.opened_at, b.opened_at))
     });
@@ -182,7 +183,7 @@ pub fn verdict_rows(rows: &[VerdictStats]) -> Vec<VerdictStats> {
         if v == "none" { 99 } else { VERDICT_ORDER.iter().position(|x| *x == v).unwrap_or(50) }
     };
     let mut v = rows.to_vec();
-    v.sort_by(|a, b| rank(&a.verdict).cmp(&rank(&b.verdict)).then_with(|| locale_cmp(&a.verdict, &b.verdict)));
+    v.sort_by_dyn(|a, b| rank(&a.verdict).cmp(&rank(&b.verdict)).then_with(|| locale_cmp(&a.verdict, &b.verdict)));
     v
 }
 

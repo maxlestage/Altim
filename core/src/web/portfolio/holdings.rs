@@ -10,6 +10,7 @@ use crate::engine::reliability::ReliabilityLevel;
 use crate::engine::signal::{Action, Candle, atr, is_buy, is_sell};
 use crate::js::{fr, iso_date, number_to_string, to_fixed};
 use crate::types::Kind;
+use crate::web::sorting::Sorting;
 pub use crate::web::store::Holding;
 
 /// Signal of one timeframe as the radar gives it (`{ action, score }`).
@@ -184,7 +185,7 @@ fn is_sell_opt(a: Option<Action>) -> bool {
 /// Daily closes indexed by UTC date (crypto and stocks aligned by calendar day); the last close of a day wins.
 fn closes_by_day(c: &[Candle]) -> HashMap<String, f64> {
     let mut sorted = c.to_vec();
-    sorted.sort_by_key(|x| x.time);
+    sorted.sort_by_key_dyn(|x| x.time);
     let mut m = HashMap::new();
     for x in sorted {
         m.insert(iso_date(x.time), x.close);
@@ -205,7 +206,7 @@ pub fn aligned_returns(series: &[&[Candle]], days: usize) -> Vec<Vec<f64>> {
     maps.iter()
         .map(|m| {
             let mut keys: Vec<&String> = m.keys().collect();
-            keys.sort();
+            keys.sort_dyn();
             let mut last = f64::NAN;
             for k in keys {
                 if *k <= dates[0] {
@@ -264,7 +265,7 @@ pub fn correlation(a: &[f64], b: &[f64]) -> Option<f64> {
 /// Percentile with linear interpolation (`p` = 0.05 for the 5th).
 pub fn percentile(v: &[f64], p: f64) -> f64 {
     let mut s = v.to_vec();
-    s.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    s.sort_by_dyn(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     if s.is_empty() {
         return 0.0;
     }
@@ -461,7 +462,7 @@ pub fn analyze_portfolio(holdings: &[Holding], cash: f64, market: &HashMap<Strin
             add(InsightLevel::Warning, "unknown", &[("symbols", symbols(&unknown))]);
         }
     }
-    insights.sort_by_key(|i| i.level.rank());
+    insights.sort_by_key_dyn(|i| i.level.rank());
 
     PortfolioAnalysis {
         total,

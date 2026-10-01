@@ -8,6 +8,7 @@ pub mod fx;
 pub mod json;
 pub mod market;
 pub mod money;
+pub mod sorting;
 pub mod store;
 // One folder per group of screens: Radar and asset screen, bot / validation / alerts / news, holdings, trading.
 pub mod decision;

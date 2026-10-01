@@ -25,6 +25,7 @@ use crate::engine::structure::SrLevel;
 use crate::js::{number_to_string, round};
 use crate::types::Kind;
 use crate::web::bot::encode_uri_component;
+use crate::web::sorting::Sorting;
 use crate::web::store::ScoreWeights;
 
 /// The fields of the decision that the Radar, the configuration changes, the journal and the simulation read, with
@@ -330,7 +331,7 @@ pub fn portfolio_weights(holdings: &[WeightInput], price: impl Fn(&str) -> Optio
         .map(|(symbol, kind, value)| Weight { symbol, kind, weight: round(value / total * 1000.0) / 10.0 })
         .filter(|w| w.weight > 0.0)
         .collect();
-    w.sort_by(|a, b| b.weight.total_cmp(&a.weight).then_with(|| a.symbol.cmp(&b.symbol)));
+    w.sort_by_dyn(|a, b| b.weight.total_cmp(&a.weight).then_with(|| a.symbol.cmp(&b.symbol)));
     w.truncate(max);
     w
 }

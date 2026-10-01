@@ -16,6 +16,7 @@ use crate::engine::decision_types::{Level, Rating, StepState, Verdict};
 use crate::js::fr;
 use crate::types::Kind;
 use crate::web::money::{MoneyDisplay, NBSP};
+use crate::web::sorting::Sorting;
 
 pub const CONFIG_KEY: &str = "altim.configChanges.v1";
 /// Transitions kept (newest first).
@@ -233,7 +234,7 @@ pub fn explain_change(prev: &SignalMetrics, next: &SignalMetrics, m: &MoneyDispl
             (None, None) => {}
         }
     }
-    moves.sort_by(|a, b| b.0.total_cmp(&a.0));
+    moves.sort_by_dyn(|a, b| b.0.total_cmp(&a.0));
     out.extend(moves.into_iter().take(4).map(|m| m.1));
     if let (Some(a), Some(b)) = (prev.rel_volume, next.rel_volume) {
         if (b - a).abs() >= CHANGE_LIMITS.volume {

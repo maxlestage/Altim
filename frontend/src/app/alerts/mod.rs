@@ -23,6 +23,7 @@ pub use store::{alerts_state, set_alerts, use_alerts};
 use crate::live::use_live;
 use crate::route::use_on_link;
 use crate::ui::Change;
+use altim_core::web::sorting::Sorting;
 
 /// "30 sept., 14:05" (`toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })`).
 fn fr_time(ms: f64) -> String {
@@ -76,7 +77,7 @@ pub fn Alerts() -> Html {
                     match r {
                         Ok(list) => {
                             let mut list: Vec<BuyAlert> = list.into_iter().filter(|x| x.buy).collect();
-                            list.sort_by_key(|x| !x.strong);
+                            list.sort_by_key_dyn(|x| !x.strong);
                             buyable.set(Some(Rc::new(list)));
                             error.set(None);
                         }

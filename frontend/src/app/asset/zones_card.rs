@@ -5,6 +5,7 @@ use altim_core::engine::guard::{FactorStatus, weigh};
 use altim_core::engine::macro_ctx::MacroLevel;
 use altim_core::js::{number_to_string, round, to_fixed};
 use altim_core::web::decision::reports::{HorizonZone, MacroInfo, ZonesReport};
+use altim_core::web::sorting::Sorting;
 use altim_core::web::store::HorizonPref;
 use yew::prelude::*;
 
@@ -189,7 +190,7 @@ pub fn ZonesCard(p: &ZonesCardProps) -> Html {
             z
         })
         .collect();
-    zones.sort_by_key(|z| z.zone.horizon != mine);
+    zones.sort_by_key_dyn(|z| z.zone.horizon != mine);
     html! {
         <div class="card zones">
             <h2 class="card-title">{ "Zones d'achat par horizon" }</h2>

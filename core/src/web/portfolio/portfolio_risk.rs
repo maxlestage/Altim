@@ -12,6 +12,7 @@ use crate::engine::signal::{Candle, atr};
 use crate::js::{fr, iso_date, to_fixed};
 use crate::types::Kind;
 use crate::web::danger::{Danger, DangerCode, DangerReason};
+use crate::web::sorting::Sorting;
 use crate::web::store::RiskSettings;
 
 // ---------- Beta ----------
@@ -221,7 +222,7 @@ pub fn correlated_clusters(series: &[ClusterInput], days: usize) -> Vec<Cluster>
             days: returns.iter().map(Vec::len).min().unwrap_or(0),
         });
     }
-    clusters.sort_by(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(std::cmp::Ordering::Equal));
+    clusters.sort_by_dyn(|a, b| b.weight.partial_cmp(&a.weight).unwrap_or(std::cmp::Ordering::Equal));
     clusters
 }
 
@@ -231,7 +232,7 @@ pub fn correlated_clusters(series: &[ClusterInput], days: usize) -> Vec<Cluster>
 /// session). None without candles.
 pub fn previous_close(daily: &[Candle], now: i64) -> Option<f64> {
     let mut sorted = daily.to_vec();
-    sorted.sort_by_key(|c| c.time);
+    sorted.sort_by_key_dyn(|c| c.time);
     let last = sorted.last()?;
     if iso_date(last.time) == iso_date(now) {
         return (sorted.len() > 1).then(|| sorted[sorted.len() - 2].close);
@@ -566,7 +567,7 @@ pub fn factor_beta(asset: &[Candle], factor: &[Candle], days: usize) -> FactorBe
         by_day.insert(iso_date(c.time), c.close);
     }
     let mut shared: Vec<(String, f64)> = by_day.into_iter().filter(|(d, _)| fa.contains_key(d)).collect();
-    shared.sort_by(|a, b| a.0.cmp(&b.0));
+    shared.sort_by_dyn(|a, b| a.0.cmp(&b.0));
     let shared = &shared[shared.len().saturating_sub(days + 1)..];
     let (mut x, mut y) = (Vec::new(), Vec::new());
     for i in 1..shared.len() {
@@ -676,7 +677,7 @@ pub fn what_if(a: &PortfolioAnalysis, factor: FactorKey, shock: f64, betas: &Has
         })
         .collect();
     // (y.loss ?? −∞) − (x.loss ?? −∞) || y.value − x.value
-    lines.sort_by(|x, y| {
+    lines.sort_by_dyn(|x, y| {
         let d = y.loss.unwrap_or(f64::NEG_INFINITY) - x.loss.unwrap_or(f64::NEG_INFINITY);
         let d = if d.is_nan() || d == 0.0 { y.value - x.value } else { d };
         d.partial_cmp(&0.0).unwrap_or(std::cmp::Ordering::Equal)
@@ -835,7 +836,7 @@ mod tests {
             );
             assert_eq!(c.len(), 1);
             let mut s = c[0].symbols.clone();
-            s.sort();
+            s.sort_dyn();
             assert_eq!(s, vec!["ETH", "SOL"]);
             assert_eq!(c[0].weight, 55.0);
             assert!(c[0].average_correlation > 0.7);

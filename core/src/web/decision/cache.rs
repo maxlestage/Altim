@@ -7,6 +7,7 @@ use serde_json::{Map, Value, json};
 use super::doc::{DecisionDoc, parse_decision};
 use crate::engine::decision_types::{Level, Verdict};
 use crate::types::Kind;
+use crate::web::sorting::Sorting;
 
 pub const CACHE_KEY: &str = "altim.decision.v1";
 pub const CACHE_MAX: usize = 40;
@@ -53,7 +54,7 @@ pub fn cache_text(raw: Option<&str>, d: &DecisionDoc, personal: bool, now: f64) 
     all.insert(d.key(), json!({ "at": now, "personal": personal, "decision": d.raw }));
     let at = |v: &Value| v.get("at").and_then(Value::as_f64).filter(|a| !a.is_nan()).unwrap_or(f64::NEG_INFINITY);
     let mut keep: Vec<(String, Value)> = all.into_iter().collect();
-    keep.sort_by(|a, b| at(&b.1).total_cmp(&at(&a.1)));
+    keep.sort_by_dyn(|a, b| at(&b.1).total_cmp(&at(&a.1)));
     keep.truncate(CACHE_MAX);
     crate::js::to_value(&Value::Object(keep.into_iter().collect())).to_string()
 }

@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use super::holdings::positive;
 use crate::engine::history::Close;
 use crate::types::DAY_MS;
+use crate::web::sorting::Sorting;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct LumpSum {
@@ -50,7 +51,7 @@ pub fn simulate_dca(closes: &[Close], amount: f64, every_days: i64, days: i64, n
         return None;
     }
     let mut sorted: Vec<Close> = closes.iter().filter(|(t, c)| *c > 0.0 && *t <= now).copied().collect();
-    sorted.sort_by_key(|c| c.0);
+    sorted.sort_by_key_dyn(|c| c.0);
     if sorted.len() < 2 {
         return None;
     }

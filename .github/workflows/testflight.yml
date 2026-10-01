@@ -22,6 +22,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
+      # App Store Connect only accepts apps built with the iOS 26 SDK or later (Xcode 26+): pick the newest Xcode
+      # of the runner image, and stop with a clear message when there is none.
+      - name: Xcode 26 ou plus récent
+        run: |
+          XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -E 'Xcode_(2[6-9]|[3-9][0-9])' | grep -v -i beta | sort -V | tail -1)
+          [ -z "$XC" ] && XC=$(ls -d /Applications/Xcode_*.app 2>/dev/null | grep -E 'Xcode_(2[6-9]|[3-9][0-9])' | sort -V | tail -1)
+          if [ -z "$XC" ]; then echo "::error::Aucun Xcode 26 sur ce runner ($(ls -d /Applications/Xcode_*.app | xargs -n1 basename | tr '\n' ' '))."; exit 1; fi
+          sudo xcode-select -s "$XC/Contents/Developer"
+          xcodebuild -version
       - name: Clé App Store Connect
         env:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
