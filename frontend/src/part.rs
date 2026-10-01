@@ -4,9 +4,10 @@
 //! link this one library, compiled once; each entry point names only its own screens, so the link-time optimisation
 //! leaves the others out of its .wasm.
 //!
-//! Once a group's screen is shown, the page's loader fetches and compiles the whole app in the background
-//! (`altimFull`); a move to another group's address then hands the page over to it (`hand_over`, `stop`) without
-//! reloading, and from then on every app screen navigates in place.
+//! Once a group's screen is shown, the page's loader fetches and compiles the whole app in the background, and a
+//! group's own .wasm when a link to it is about to be followed or when it is a neighbour (`altimFull`); a move to
+//! another group's address then hands the page over to it (`hand_over`, `stop`) without reloading, and once the whole
+//! app has it, every app screen navigates in place.
 use std::cell::{Cell, RefCell};
 use std::sync::OnceLock;
 
@@ -61,21 +62,41 @@ pub fn stopped() -> bool {
     STOPPED.with(Cell::get)
 }
 
-/// Shows an app address of another group in place, with the whole app, when the loader has it ready (fetched and
-/// compiled in the background): `href` is pushed to the history first (None: the address is already the current one).
-/// False when it is not ready: the caller loads the page.
+/// Shows an app address of another group in place, with the whole app or that group's .wasm, when the loader has one
+/// of them compiled: `href` is pushed to the history first (None: the address is already the current one). False
+/// when neither is ready: the caller loads the page.
 pub fn hand_over(href: Option<&str>) -> bool {
     let Some(w) = web_sys::window() else { return false };
     let Some(full) = js_sys::Reflect::get(&w, &"altimFull".into()).ok().and_then(|f| f.dyn_into::<js_sys::Function>().ok()) else {
         return false;
     };
+    // The loader takes the page over with the whole app, or the target group's .wasm when it is compiled (hover,
+    // neighbour); false when neither is ready.
+    let group = altim_core::web::bundle::bundle_of(href.map(String::from).unwrap_or_else(crate::route::pathname).as_str());
+    let ready = js_sys::Reflect::get(&full, &"ready".into())
+        .ok()
+        .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
+        .and_then(|f| f.call1(&JsValue::NULL, &group.into()).ok())
+        .is_some_and(|r| r.as_bool() == Some(true));
+    if !ready {
+        return false;
+    }
     if let Some(href) = href {
         let Ok(h) = w.history() else { return false };
         if h.push_state_with_url(&JsValue::NULL, "", Some(href)).is_err() {
             return false;
         }
     }
-    full.call0(&JsValue::NULL).is_ok()
+    full.call1(&JsValue::NULL, &group.into()).is_ok()
+}
+
+/// The part ("site" or an app group) of a same-site address, for the loader's prefetch on hover; "" otherwise.
+#[wasm_bindgen(js_name = altimGroupOf)]
+pub fn group_of(href: &str) -> String {
+    if !href.starts_with('/') || href.starts_with("//") {
+        return String::new();
+    }
+    altim_core::web::bundle::bundle_of(href).to_string()
 }
 
 /// Whether this .wasm has the screens of a part of the front ("site" or an app group). Before `run` (tests): all.
