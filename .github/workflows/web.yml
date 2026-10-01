@@ -24,19 +24,13 @@ jobs:
         with:
           workspaces: ". -> target"
       - run: cargo fmt --all --check
-      - run: cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown --locked -- -D warnings
-      # Each part of the front alone (the release build makes one .wasm for the site and one per group of app screens).
-      - run: cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features site -- -D warnings
-      - run: cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features app -- -D warnings
-      - run: |
-          for g in radar actif avoirs selection actu reglages bot; do
-            cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features "app-$g" -- -D warnings
-          done
-      - run: cargo clippy -p altim-core -p altim-web --all-targets --locked -- -D warnings
+      # The library and the entry point of each part of the front (frontend/bundles: site, groups of app screens, whole app).
+      - run: cargo clippy -p altim-core -p altim-web -p altim-bundles --target wasm32-unknown-unknown --lib --examples --locked -- -D warnings
+      - run: cargo clippy -p altim-core -p altim-web -p altim-bundles --all-targets --locked -- -D warnings
       - run: cargo test -p altim-core -p altim-web --locked
       - run: sh scripts/web-tools.sh
-      # web/dist: the site's page and .wasm, one page (web/dist/app) and .wasm per group of app screens, their brotli and
-      # gzip copies; sizes in the log.
+      # web/dist: the site's page and .wasm, one page (web/dist/app) and .wasm per group of app screens, the whole app's
+      # .wasm, their brotli and gzip copies; sizes in the log.
       - run: sh scripts/build-web.sh
       - name: Pages servies, types et CSP
         run: |
@@ -51,7 +45,9 @@ jobs:
           curl -fsS localhost:3000/app/reglages | grep -q '<script type="module" src="/main-app-reglages-'
           curl -fsS localhost:3000/app/journal | grep -q '<script type="module" src="/main-app-avoirs-'
           curl -fsS localhost:3000/app/bot | grep -q '<script type="module" src="/main-app-bot-'
-          curl -fsS localhost:3000/app | grep -q '<meta name="altim-prefetch" content="/altim-app-actif-'
+          # Each app page's loader prepares the whole app (in-place moves to the other groups' screens).
+          main=$(curl -fsS localhost:3000/app/reglages | grep -o 'src="/main-app-reglages-[0-9a-f]*\.js"' | cut -d'"' -f2)
+          curl -fsS "localhost:3000$main" | grep -Eq '"/altim-app-[0-9a-f]{16}_bg\.wasm"'
           # Each .wasm: its type, and its precompressed brotli copy (gzip for a browser without brotli).
           for f in $(cd web/dist && ls altim-*_bg.wasm); do
             curl -fsSI "localhost:3000/$f" | grep -qi "content-type: application/wasm"
