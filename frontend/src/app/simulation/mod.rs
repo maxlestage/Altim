@@ -24,6 +24,7 @@ use yew::prelude::*;
 use crate::app::common::{FxNote, PortfolioTab, PortfolioTabs};
 use crate::live::{LiveBadge, use_live};
 use crate::route::use_on_link;
+use altim_core::web::sorting::Sorting;
 pub use order::SimulateBuy;
 use store::{get_paper, reset_paper, set_paper, use_paper};
 
@@ -128,7 +129,7 @@ pub fn Simulation() -> Html {
         }
     }
     let mut keys: Vec<String> = assets.iter().map(|(s, k)| format!("{}:{s}", k.as_str())).collect();
-    keys.sort();
+    keys.sort_dyn();
     let assets_key = keys.join(",");
 
     // Live prices (same stream as the rest of the app) + consensus quotes as a fallback.

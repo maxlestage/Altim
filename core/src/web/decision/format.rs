@@ -9,6 +9,7 @@ use crate::engine::structure::Bias;
 use crate::engine::synthesis::RegimeKind;
 use crate::js::{fr, round};
 use crate::web::money::MoneyDisplay;
+use crate::web::sorting::Sorting;
 
 /// Narrow no-break space (fr-FR before "%" and the currency symbol of the card).
 pub const NNBSP: &str = "\u{202f}";
@@ -319,7 +320,7 @@ pub fn sort_vetoes(v: &[Veto]) -> Vec<&Veto> {
         }
     };
     let mut out: Vec<&Veto> = v.iter().collect();
-    out.sort_by_key(|x| rank(x));
+    out.sort_by_key_dyn(|x| rank(x));
     out
 }
 

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use altim_core::types::Kind;
+use altim_core::web::sorting::Sorting;
 use serde::Deserialize;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::prelude::*;
@@ -74,7 +75,7 @@ pub fn use_live(items: Vec<(String, Kind)>) -> Live {
     let status = use_state(|| LiveStatus::Connecting);
     let last = use_state(|| None::<f64>);
     let mut keys: Vec<String> = items.iter().map(|(s, k)| altim_core::web::store::asset_key(s, *k)).collect();
-    keys.sort();
+    keys.sort_dyn();
     keys.dedup();
     let list = keys.join(",");
     // The latest ticks, read by the event handlers (the state handle holds the value of its render).

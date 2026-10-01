@@ -361,7 +361,7 @@ pub fn median(values: &[f64]) -> Option<f64> {
 }
 
 /// Pooled trades of one regime, and the regime-days comparison with buy-and-hold across the group's assets.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RegimeGroup {
     pub regime: Regime,
@@ -383,6 +383,29 @@ pub struct RegimeGroup {
     pub verdict_label: String,
 }
 
+/// `RegimeGroup` without its flattened `pooled`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RegimeGroupFields {
+    regime: Regime,
+    label: String,
+    days: usize,
+    assets: usize,
+    beat_hold: usize,
+    beat_share: Option<f64>,
+    median_signal: Option<f64>,
+    median_hold: Option<f64>,
+    low_sample: bool,
+    verdict: Verdict,
+    verdict_label: String,
+}
+
+crate::web::json::deserialize_flattened!(
+    RegimeGroup,
+    pooled,
+    RegimeGroupFields { regime, label, days, assets, beat_hold, beat_share, median_signal, median_hold, low_sample, verdict, verdict_label }
+);
+
 /// One asset named with a value (the worst of a group).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -393,7 +416,7 @@ pub struct Named {
 
 /// A group of assets (one class, or all): pooled trade statistics, dispersion of the per-asset results, comparison
 /// with buy-and-hold and the same by market regime. Percentages in %.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupStat {
     /// "all" or the asset class.
@@ -428,6 +451,61 @@ pub struct GroupStat {
     pub verdict_label: String,
     pub regimes: Vec<RegimeGroup>,
 }
+
+/// `GroupStat` without its flattened `pooled`, read from the same JSON object (see `deserialize_flattened!`).
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupStatFields {
+    id: String,
+    label: String,
+    assets: usize,
+    years: Option<f64>,
+    median_return: Option<f64>,
+    worst_return: Option<Named>,
+    median_hold: Option<f64>,
+    median_drawdown: Option<f64>,
+    worst_drawdown: Option<Named>,
+    median_hold_drawdown: Option<f64>,
+    median_sharpe: Option<f64>,
+    median_sortino: Option<f64>,
+    median_exposure: Option<f64>,
+    beat_hold: usize,
+    beat_share: Option<f64>,
+    median_after_tax: Option<f64>,
+    median_hold_after_tax: Option<f64>,
+    low_sample: bool,
+    verdict: Verdict,
+    verdict_label: String,
+    regimes: Vec<RegimeGroup>,
+}
+
+crate::web::json::deserialize_flattened!(
+    GroupStat,
+    pooled,
+    GroupStatFields {
+        id,
+        label,
+        assets,
+        years,
+        median_return,
+        worst_return,
+        median_hold,
+        median_drawdown,
+        worst_drawdown,
+        median_hold_drawdown,
+        median_sharpe,
+        median_sortino,
+        median_exposure,
+        beat_hold,
+        beat_share,
+        median_after_tax,
+        median_hold_after_tax,
+        low_sample,
+        verdict,
+        verdict_label,
+        regimes
+    }
+);
 
 fn span_years(a: &AssetResult) -> f64 {
     (a.to - a.from) as f64 / (365.25 * 86_400_000.0)

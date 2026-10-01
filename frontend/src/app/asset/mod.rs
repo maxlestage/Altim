@@ -40,6 +40,7 @@ use crate::route::use_on_link;
 use crate::state::app::{set_app_state, use_app_state};
 use crate::state::holdings::use_holdings;
 use crate::ui::{Change, Gauge, PriceChart, ReliabilityBadge, Segmented, technical_text};
+use altim_core::web::sorting::Sorting;
 
 #[derive(Properties, PartialEq)]
 pub struct AssetScreenProps {
@@ -83,7 +84,7 @@ pub fn AssetScreen(p: &AssetScreenProps) -> Html {
     // false while the prices of the held lines load: the personal decision waits for its weights.
     let prices_ready = use_state(|| false);
     let mut keys: Vec<String> = holdings.holdings.iter().map(|h| asset_key(&h.symbol, h.kind)).collect();
-    keys.sort();
+    keys.sort_dyn();
     let holdings_key = keys.join(",");
 
     // Current value of every line (same valuation as "Mes avoirs").

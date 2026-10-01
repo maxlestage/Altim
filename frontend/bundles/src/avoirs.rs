@@ -1,4 +1,4 @@
-//! Entry point of the .wasm of the holdings group (/app/avoirs, /app/simulation, /app/journal): see altim_web::part.
+//! Entry point of the .wasm of the holdings screen (/app/avoirs): see altim_web::part.
 use wasm_bindgen::prelude::*;
 
 /// Called by the wasm-bindgen loader of the page.

@@ -13,6 +13,7 @@ use crate::engine::news::NewsItem;
 use crate::js::fr;
 use crate::types::Kind;
 use crate::web::money::{Currency, MoneyDisplay, symbol};
+use crate::web::sorting::Sorting;
 
 pub const ALERTS_KEY: &str = "altim.alerts.v1";
 
@@ -276,7 +277,7 @@ pub fn new_buy_alerts(tracker: &Tracker, items: &[BuyAlert], only_strong: bool, 
                     all.push(r);
                 }
             }
-            all.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
+            all.sort_by_dyn(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
             notified.insert(k, all.join("+"));
         } else if !it.buy && notified.contains_key(&k) {
             let since = lost.get(&k).copied().unwrap_or(now);
@@ -343,7 +344,7 @@ pub fn new_news(seen: &[NewsSeen], items: &[NewsItem], owned: &HashSet<String>, 
         if kept.iter().any(|s| s.id == item.id || similar(&s.words.iter().map(String::as_str).collect(), &ws)) {
             continue;
         }
-        w.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
+        w.sort_by_dyn(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
         kept.push(NewsSeen { id: item.id.clone(), words: w, time: now });
         fresh.push(item.clone());
     }
@@ -356,7 +357,7 @@ pub const JOURNAL_LIMIT: usize = 200;
 
 pub fn add_to_journal(entries: &[AlertEntry], journal: &[AlertEntry]) -> Vec<AlertEntry> {
     let mut all: Vec<AlertEntry> = entries.iter().chain(journal).cloned().collect();
-    all.sort_by(|a, b| b.date.partial_cmp(&a.date).unwrap_or(std::cmp::Ordering::Equal));
+    all.sort_by_dyn(|a, b| b.date.partial_cmp(&a.date).unwrap_or(std::cmp::Ordering::Equal));
     all.truncate(JOURNAL_LIMIT);
     all
 }

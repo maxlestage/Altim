@@ -5,7 +5,7 @@
 use crate::types::Kind;
 
 /// The groups of app screens, each with its .wasm and its page `web/dist/app/<page>.html` (`index` for the Radar).
-pub const APP_BUNDLES: [&str; 7] = ["radar", "actif", "avoirs", "selection", "actu", "reglages", "bot"];
+pub const APP_BUNDLES: [&str; 8] = ["radar", "actif", "avoirs", "simulation", "selection", "actu", "reglages", "bot"];
 
 /// `^(crypto|stock)/[A-Za-z0-9.-]{1,10}$` of WebApp.tsx: the asset of /app/actif/…, symbol in upper case.
 pub fn asset_of(kind: &str, symbol: &str) -> Option<(Kind, String)> {
@@ -23,7 +23,8 @@ pub fn bundle_of(path: &str) -> &'static str {
         return "site";
     }
     match p {
-        "/app/avoirs" | "/app/simulation" | "/app/journal" => "avoirs",
+        "/app/avoirs" => "avoirs",
+        "/app/simulation" | "/app/journal" => "simulation",
         "/app/selection" | "/app/opportunites" => "selection",
         "/app/actu" => "actu",
         "/app/reglages" | "/app/lexique" => "reglages",
@@ -61,8 +62,8 @@ mod tests {
             ("/app/actif/stock/A%20B", "radar"),
             ("/app/actif/crypto/BTC/x", "radar"),
             ("/app/avoirs", "avoirs"),
-            ("/app/journal?x=1", "avoirs"),
-            ("/app/simulation#top", "avoirs"),
+            ("/app/journal?x=1", "simulation"),
+            ("/app/simulation#top", "simulation"),
             ("/app/opportunites", "selection"),
             ("/app/actu", "actu"),
             ("/app/reglages", "reglages"),

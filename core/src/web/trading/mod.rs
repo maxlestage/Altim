@@ -88,11 +88,12 @@ pub fn enum_str<T: serde::Serialize>(v: &T) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::web::sorting::Sorting;
 
     #[test]
     fn locale_order() {
         let mut v = vec!["wait", "noPosition", "none", "buyZone", "buy", "Buy"];
-        v.sort_by(|a, b| locale_cmp(a, b));
+        v.sort_by_dyn(|a, b| locale_cmp(a, b));
         assert_eq!(v, ["buy", "Buy", "buyZone", "none", "noPosition", "wait"]);
     }
 

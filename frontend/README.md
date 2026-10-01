@@ -23,7 +23,8 @@ que ses écrans, l'optimisation à l'édition de liens laisse les autres de côt
 | `web/dist/index.html` | `/`, pages légales, toute adresse hors `/app` | `site` |
 | `web/dist/app/index.html` | `/app` (Radar), `/app/alertes`, toute autre adresse `/app/…` | `radar` |
 | `web/dist/app/actif.html` | `/app/actif/<crypto\|stock>/<symbole>` | `actif` |
-| `web/dist/app/avoirs.html` | `/app/avoirs`, `/app/simulation`, `/app/journal` | `avoirs` |
+| `web/dist/app/avoirs.html` | `/app/avoirs` | `avoirs` |
+| `web/dist/app/simulation.html` | `/app/simulation`, `/app/journal` | `simulation` |
 | `web/dist/app/selection.html` | `/app/selection`, `/app/opportunites` | `selection` |
 | `web/dist/app/actu.html` | `/app/actu` | `actu` |
 | `web/dist/app/reglages.html` | `/app/reglages`, `/app/lexique` | `reglages` |
@@ -37,8 +38,10 @@ télécharge que le groupe de sa page. Dans l'app, `use_on_link()` navigue sans 
 vers les autres groupes dès que l'app entière est prête. Le chargeur d'une page de l'app (`frontend/loader-app.js`)
 la télécharge et la compile en arrière-plan deux secondes après le chargement (sauf « économie de données ») ; au
 premier passage vers un autre groupe, le `.wasm` du groupe s'arrête (`part::stop`) et l'app entière reprend la page à
-la nouvelle adresse (`part::hand_over`), sans rechargement. Avant cela, ou vers le site, c'est un chargement de page
-(`route::other_bundle`).
+la nouvelle adresse (`part::hand_over`), sans rechargement. Avant qu'elle soit prête, c'est le `.wasm` du groupe visé
+s'il est déjà compilé : le chargeur le prépare dès qu'un lien vers lui va être suivi (survol, doigt posé, focus
+clavier) et, pour les groupes voisins (Mes avoirs ⇄ Simulation, `NEIGHBOURS` de build-web.sh), dès l'affichage.
+Sinon, ou vers le site, c'est un chargement de page (`route::other_bundle`).
 
 Chaque page de l'app contient déjà le cadre de l'app (`frontend/shell.html` : en-tête et onglets, celui du groupe
 allumé, le même balisage que `WebApp`), affiché dès l'arrivée du HTML ; le `.wasm` le remplace par son rendu
