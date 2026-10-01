@@ -58,7 +58,7 @@ pub async fn get_value(url: &str) -> Result<(u16, serde_json::Value), ApiError> 
 /// GET → typed JSON.
 pub async fn get<T: DeserializeOwned>(url: &str) -> Result<T, ApiError> {
     let (_, body) = get_value(url).await?;
-    serde_json::from_value(body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
+    altim_core::web::json::from_value(&body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
 }
 
 /// GET of a heavy report: `Pending::Pending` while the server computes it.
@@ -67,7 +67,7 @@ pub async fn get_pending<T: DeserializeOwned>(url: &str) -> Result<Pending<T>, A
     if status == 202 || body.get("pending").and_then(|p| p.as_bool()) == Some(true) {
         return Ok(Pending::Pending);
     }
-    serde_json::from_value(body).map(Pending::Ready).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
+    altim_core::web::json::from_value(&body).map(Pending::Ready).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
 }
 
 /// Public API outside the server (the site's fallbacks: Binance, CoinGecko), no session handling.

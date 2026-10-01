@@ -92,7 +92,7 @@ pub async fn ask(symbol: &str, kind: Kind, question: &str) -> Result<AskAnswer, 
     if !(200..300).contains(&status) {
         return Err(ApiError(body.get("error").and_then(|e| e.as_str()).map(String::from).unwrap_or_else(|| format!("Erreur {status}"))));
     }
-    serde_json::from_value(body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
+    altim_core::web::json::from_value(&body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
 }
 
 /// `navigator.onLine === false`.

@@ -466,7 +466,7 @@ pub fn parse_journal_state(v: &Value) -> Option<JournalState> {
     if !is_journal_state(v) {
         return None;
     }
-    serde_json::from_value(v.clone()).ok()
+    crate::web::json::from_value(v).ok()
 }
 
 /// `JSON.stringify(state)` (integral numbers without ".0").

@@ -134,7 +134,7 @@ pub fn parse_decision(raw: Value) -> Result<DecisionDoc, String> {
     if let Some(m) = v.as_object_mut() {
         m.retain(|k, x| !(x.is_null() && DEFAULTED.contains(&k.as_str())));
     }
-    let d: Decision = serde_json::from_value(v).map_err(|e| bad(&e.to_string()))?;
+    let d: Decision = crate::web::json::from_value(&v).map_err(|e| bad(&e.to_string()))?;
     Ok(DecisionDoc { d, raw })
 }
 
