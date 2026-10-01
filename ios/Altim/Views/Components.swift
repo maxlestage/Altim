@@ -55,6 +55,23 @@ struct DecisionBadge: View {
     }
 }
 
+/// The decision's short reason under the Radar's chip (« zone d'achat 67 653,51 € (−10,1 %) », « veto : … »), when the
+/// chip reads ATTENDRE or AUCUNE POSITION; nothing otherwise (web DecisionNote).
+struct DecisionNoteLine: View {
+    @Environment(AppModel.self) private var model
+    var asset: Asset
+
+    var body: some View {
+        if let n = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000)?.noteLine {
+            Text(n)
+                .font(.caption2)
+                .foregroundStyle(Theme.textSecondary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 /// The technical signal as a small direction line, never a verdict: "technique 4 h : haussier" (web `technicalText`).
 struct TechnicalLine: View {
     var action: Action

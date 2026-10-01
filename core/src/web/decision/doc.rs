@@ -73,6 +73,9 @@ pub struct DecisionCore {
     pub events: Option<Vec<Value>>,
     #[serde(default)]
     pub snapshot: DecisionSnapshot,
+    /// The short reason under the Radar's chip (ATTENDRE, AUCUNE POSITION); absent from older answers.
+    #[serde(default)]
+    pub chip_note: Option<String>,
 }
 
 /// The nearest levels of the decision's `structure`.
@@ -229,6 +232,12 @@ impl DecisionDoc {
     /// `parse_decision_full` refuses).
     pub fn full(&self) -> Option<&Decision> {
         self.whole.get_or_init(|| crate::web::json::from_value(&cleaned(&self.raw)).ok().map(Box::new)).as_deref()
+    }
+
+    /// Whether the server wrote this answer's French texts in dollars (`fx.currency`, "USD" when the request asked for
+    /// dollars or no rate was known); None when the answer does not say (older server, older cache).
+    pub fn texts_in_usd(&self) -> Option<bool> {
+        self.raw.get("fx").and_then(|f| f.get("currency")).and_then(Value::as_str).map(|c| c == "USD")
     }
 
     /// Key sent and not null (`d.x != null`).
@@ -442,6 +451,26 @@ pub(crate) mod tests {
         let doc = parse_decision(raw.clone()).unwrap();
         assert!(doc.full().is_none() && doc.bot().is_none());
         assert!(parse_decision_full(raw).unwrap_err().starts_with("Réponse de décision invalide ("));
+    }
+
+    /// The Radar's chip note: read when sent, absent from older answers (and from older cached decisions).
+    #[test]
+    fn chip_note_is_read_when_sent() {
+        assert_eq!(btc().d.chip_note, None);
+        let d = with(&btc(), serde_json::json!({ "chipNote": "zone d'achat 67 653,51 € (−10,1 %)" }));
+        assert_eq!(d.d.chip_note.as_deref(), Some("zone d'achat 67 653,51 € (−10,1 %)"));
+        assert_eq!(d.full().unwrap().chip_note, d.d.chip_note);
+        assert_eq!(with(&btc(), serde_json::json!({ "chipNote": null })).d.chip_note, None);
+    }
+
+    /// The currency of the server's texts, so a decision written in dollars before the rate was known is re-read.
+    #[test]
+    fn texts_currency() {
+        assert_eq!(with(&btc(), serde_json::json!({ "fx": { "currency": "EUR", "rate": 0.88 } })).texts_in_usd(), Some(false));
+        assert_eq!(with(&btc(), serde_json::json!({ "fx": { "currency": "USD", "rate": null } })).texts_in_usd(), Some(true));
+        let mut raw = sample("decision-btc.json");
+        raw.as_object_mut().unwrap().remove("fx");
+        assert_eq!(parse_decision(raw).unwrap().texts_in_usd(), None);
     }
 
     // decision.test.ts "contract samples decode through the card's own types"

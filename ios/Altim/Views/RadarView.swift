@@ -252,6 +252,8 @@ struct RadarRowView: View {
                 Spacer(minLength: 0)
                 if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
             }
+            // Why the chip says ATTENDRE: the decision's short reason, on its own line (web DecisionNote).
+            DecisionNoteLine(asset: asset)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)

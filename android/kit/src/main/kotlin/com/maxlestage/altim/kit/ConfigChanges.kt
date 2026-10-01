@@ -58,6 +58,8 @@ data class ConfigSnapshot(
     val metrics: SignalMetrics? = null,
     /** The decision's confidence (0–100), for the Radar's order and its opportunities; absent from older entries. */
     val confidence: Double? = null,
+    /** The decision's `chipNote` (the line under the Radar's chip); absent from older entries and older servers. */
+    val chipNote: String? = null,
 )
 
 @Serializable
@@ -232,6 +234,7 @@ object ConfigChanges {
         ratingLabel = d.rating?.let { r -> d.ratingLabel.ifBlank { r.label } },
         metrics = metricsOf(d),
         confidence = fin(d.confidence),
+        chipNote = d.chipNote?.takeIf { it.isNotBlank() },
     )
 
     fun snapshotKey(kind: Kind, symbol: String, personal: Boolean) = "${kind.raw}:$symbol:${if (personal) "p" else "i"}"
