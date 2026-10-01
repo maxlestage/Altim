@@ -154,6 +154,12 @@ pub fn symbol(c: Currency) -> &'static str {
     }
 }
 
+/// The rate line under amounts (`fxLine`): "1 $ = 0,881 € · Yahoo Finance, 14:05". The caller gives the time as the
+/// viewer's clock shows it ("14:05", or "29 sept. 14:05" when not today).
+pub fn fx_line(r: &FxRate, when: &str) -> String {
+    format!("1 $ = {} € · {}, {when}", fr(r.rate, 3, 4), r.source)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -190,6 +196,13 @@ mod tests {
         let d = MoneyDisplay::new(Currency::Usd, Some(fx()));
         assert_eq!(d.money(100.0, 2, 2, NBSP), "100,00\u{a0}$");
         assert_eq!(d.from_display(100.0), 100.0);
+    }
+
+    // money.test.ts "fxLine"
+    #[test]
+    fn rate_line() {
+        assert_eq!(fx_line(&fx(), "14:05"), "1 $ = 0,880 € · Yahoo Finance, 14:05");
+        assert_eq!(fx_line(&FxRate { rate: 0.88123, ..fx() }, "29 sept. 14:05"), "1 $ = 0,8812 € · Yahoo Finance, 29 sept. 14:05");
     }
 
     #[test]

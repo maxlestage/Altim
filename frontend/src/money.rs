@@ -88,11 +88,11 @@ pub fn cur_param() -> &'static str {
     if currency() == Currency::Usd { "&cur=USD" } else { "" }
 }
 
-/// "1 $ = 0,881 € · Yahoo Finance, 14:05" (or the date when not today).
+/// "1 $ = 0,881 € · Yahoo Finance, 14:05" (or the date when not today, in the viewer's time zone).
 pub fn fx_line(r: &FxRate, now: f64) -> String {
     let d = js_sys::Date::new(&r.time.into());
     let today = js_sys::Date::new(&now.into());
     let time = crate::ui::fr_time(r.time);
     let when = if today.to_date_string() == d.to_date_string() { time } else { format!("{} {time}", crate::ui::fr_day_month(r.time)) };
-    format!("1 $ = {} € · {}, {when}", altim_core::js::fr(r.rate, 3, 4), r.source)
+    altim_core::web::money::fx_line(r, &when)
 }

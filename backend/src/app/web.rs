@@ -145,10 +145,9 @@ fn not_found() -> Response {
     (StatusCode::NOT_FOUND, [(header::CONTENT_TYPE, "text/plain; charset=utf-8")], "Introuvable").into_response()
 }
 
-/// Built files, then public files, then the SPA: site, legal pages and /app/* are served by index.html. A missing
-/// file (with an extension) is a real 404, never the HTML page. During the move of the front to Rust + Yew, /app/*
-/// is served by the React build in dist/app when it is there (scripts/build-web.sh builds both); without it, the
-/// Yew front (dist/index.html) serves every page.
+/// Built files, then public files, then the pages: /app and /app/* get the web app's page (dist/app/index.html), any
+/// other address the site's (dist/index.html, which also serves /app when built as one page). A missing file (with
+/// an extension) is a real 404, never the HTML page.
 pub async fn site(req: Request) -> Response {
     let head = req.method() == Method::HEAD;
     if req.method() != Method::GET && !head {
@@ -164,8 +163,8 @@ pub async fn site(req: Request) -> Response {
     if EXTENSION.is_match(path) {
         return not_found();
     }
-    let react_app = root.join("dist/app/index.html");
-    let index = if (path == "/app" || path.starts_with("/app/")) && react_app.is_file() { react_app } else { root.join("dist/index.html") };
+    let app_page = root.join("dist/app/index.html");
+    let index = if (path == "/app" || path.starts_with("/app/")) && app_page.is_file() { app_page } else { root.join("dist/index.html") };
     if !index.is_file() {
         return (
             StatusCode::INTERNAL_SERVER_ERROR,

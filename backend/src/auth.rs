@@ -3,7 +3,7 @@
 //!
 //! Secrets live only in the environment (Heroku config vars), never in the code:
 //! - `ALTIM_USER`            login name
-//! - `ALTIM_PASSWORD_HASH`   argon2id hash of the password (PHC string of `Bun.password.hash`)
+//! - `ALTIM_PASSWORD_HASH`   argon2id hash of the password (PHC string, `cargo run --bin altim-secrets`)
 //! - `ALTIM_TOTP_SECRET`     base32 secret of the 6-digit code from an authenticator app (optional second factor)
 //! - `ALTIM_SESSION_SECRET`  key that signs the session cookie (changing it logs every device out)
 //! - `ALTIM_API_TOKEN`       token for trading bots: `Authorization: Bearer <token>` on /api/*
@@ -108,7 +108,7 @@ pub fn auth_config(env: impl Fn(&str) -> Option<String>) -> Result<Option<AuthCo
         return Err(ConfigError("ALTIM_USER, ALTIM_PASSWORD_HASH et ALTIM_SESSION_SECRET sont tous nécessaires".into()));
     };
     if !hash.starts_with("$argon2id$") {
-        return Err(ConfigError("ALTIM_PASSWORD_HASH doit être un hachage argon2id (bun run secrets)".into()));
+        return Err(ConfigError("ALTIM_PASSWORD_HASH doit être un hachage argon2id (cargo run --release --bin altim-secrets)".into()));
     }
     if js_len(&session) < 64 {
         return Err(ConfigError("ALTIM_SESSION_SECRET trop court (64 caractères minimum)".into()));
@@ -597,7 +597,7 @@ fn slice_utf16(s: &str, max: usize) -> String {
     out
 }
 
-/// `Bun.password.verify` (argon2 PHC string; errors and an empty password give false).
+/// Checks a password against its argon2 PHC string (errors and an empty password give false).
 pub fn verify_password(password: &str, hash: &str) -> bool {
     !password.is_empty() && <Argon2 as PasswordVerifier<str>>::verify_password(&Argon2::default(), password.as_bytes(), hash).is_ok()
 }

@@ -2,9 +2,9 @@ name: Serveur (Rust)
 
 on:
   push:
-    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
   pull_request:
-    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "bun.lock", ".bun-version", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
+    paths: ["backend/**", "core/**", "frontend/**", "Cargo.toml", "Cargo.lock", "rustfmt.toml", "web/**", "Procfile", "RustConfig", "app.json", "package.json", "scripts/**", "Dockerfile", "heroku.yml", ".dockerignore", ".github/workflows/backend.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -27,22 +27,32 @@ jobs:
       - run: cargo test --workspace --locked
 
   heroku:
-    name: Build façon Heroku (buildpacks Rust puis Bun) et démarrage
-    # heroku-24 is Ubuntu 24.04: the same buildpack scripts, in the same order, on the same system.
+    name: "Build façon Heroku (buildpacks Rust puis ${{ matrix.second }}) et démarrage"
+    # heroku-24 is Ubuntu 24.04: the same buildpack scripts, in the same order, on the same system. Node.js is the
+    # documented second buildpack (it only runs heroku-postbuild: no JavaScript dependency); Bun is the former one,
+    # still set on older apps.
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        second: [nodejs, bun]
     steps:
       - uses: actions/checkout@v4
       - name: Buildpacks (scripts officiels, comme sur Heroku)
         run: |
           set -euo pipefail
-          W="$RUNNER_TEMP/heroku"; mkdir -p "$W"/{build,cache-bun,cache-rust,env,home}
-          git clone -q --depth 1 https://github.com/jakeg/heroku-buildpack-bun "$W/bp-bun"
+          W="$RUNNER_TEMP/heroku"; mkdir -p "$W"/{build,cache,env,home}
+          case "${{ matrix.second }}" in
+            nodejs) git clone -q --depth 1 https://github.com/heroku/heroku-buildpack-nodejs "$W/bp-2" ;;
+            bun) git clone -q --depth 1 https://github.com/jakeg/heroku-buildpack-bun "$W/bp-2" ;;
+          esac
           git clone -q --depth 1 https://github.com/emk/heroku-buildpack-rust "$W/bp-rust"
           git archive HEAD | tar -x -C "$W/build"
-          # Heroku runs the Rust buildpack first (server), then sources its `export` (toolchain) for the Bun buildpack,
-          # whose heroku-postbuild builds the web front (Rust + Yew → WebAssembly) with that toolchain.
-          env -u CARGO_HOME -u RUSTUP_HOME bash "$W/bp-rust/bin/compile" "$W/build" "$W/cache-rust" "$W/env"
-          (env -u CARGO_HOME -u RUSTUP_HOME -u CARGO_TARGET_DIR bash -c ". '$W/bp-rust/export' && HOME='$W/home' bash '$W/bp-bun/bin/compile' '$W/build' '$W/cache-bun' '$W/env'")
+          # Heroku runs the Rust buildpack first (server), then sources its `export` (toolchain) for the second one,
+          # whose heroku-postbuild builds the web front (Rust + Yew → WebAssembly) with that toolchain. One cache
+          # directory for both, like on Heroku.
+          env -u CARGO_HOME -u RUSTUP_HOME bash "$W/bp-rust/bin/compile" "$W/build" "$W/cache" "$W/env"
+          (env -u CARGO_HOME -u RUSTUP_HOME -u CARGO_TARGET_DIR bash -c ". '$W/bp-rust/export' && HOME='$W/home' STACK=heroku-24 bash '$W/bp-2/bin/compile' '$W/build' '$W/cache' '$W/env'")
           echo "BUILD=$W/build" >> "$GITHUB_ENV"
       - name: Phase de publication (release) du Procfile
         run: |
@@ -56,9 +66,9 @@ jobs:
           for i in $(seq 1 30); do curl -fsS localhost:3000/health && curl -fsS localhost:3001/health && break; sleep 1; done
           curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
           curl -fsS localhost:3000/mentions-legales | grep -q "<div id=\"root\">"
-          # Yew site at /, the React web app at /app/* during the migration.
-          curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-'
-          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q 'src="/app/index-'
+          # The site's .wasm at /, the app's at /app/*.
+          curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-site-'
+          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q '<script type="module" src="/main-app-'
           test "$(curl -sS localhost:3000/app/index-inexistant.js -o /dev/null -w '%{http_code}')" = "404"
           test "$(curl -sS 'localhost:3000/api/candles?base=../x&interval=1h' -o /dev/null -w '%{http_code}')" = "400"
           curl -fsSI localhost:3000/ | grep -qi "content-security-policy"
@@ -92,7 +102,8 @@ jobs:
           CMD=$(sed -n 's/^web: //p' Procfile | sed "s#/app/web#$BUILD/web#")
           ALTIM_DEV_OPEN=1 PORT=3000 bash -c "$CMD" > run.log 2>&1 &
           for i in $(seq 1 30); do curl -fsS localhost:3000/health && break; sleep 1; done
-          curl -fsS localhost:3000/ | grep -q "<div id=\"root\">"
+          curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-site-'
+          curl -fsS localhost:3000/app | grep -q '<script type="module" src="/main-app-'
       - if: failure()
         run: cat "$BUILD"/run.log || true
 
