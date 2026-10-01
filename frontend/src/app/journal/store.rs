@@ -7,8 +7,8 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
-use altim_core::engine::decision_types::Decision;
 use altim_core::types::{Candle, Kind};
+use altim_core::web::decision::doc::DecisionCore;
 use altim_core::web::market::CandlesReply;
 use altim_core::web::trading::journal::{
     EntryPatch, JournalEntry, JournalState, NewEntry, add_entry, create_entry, journal_json, patch_entry, remove_entry,
@@ -85,7 +85,7 @@ pub async fn daily_candles(symbol: &str, kind: Kind) -> Result<Vec<Candle>, crat
 async fn enrich(id: String, symbol: String, kind: Kind, at: f64, has_decision: bool) {
     let decision_url = format!("/api/decision?symbol={}&kind={}{}", enc(&symbol), kind.as_str(), crate::money::cur_param());
     let (macro_, candles, decision) = futures::join!(get::<MacroLite>("/api/macro"), daily_candles(&symbol, kind), async {
-        if has_decision { None } else { get::<Decision>(&decision_url).await.ok() }
+        if has_decision { None } else { get::<DecisionCore>(&decision_url).await.ok() }
     });
     let (macro_, candles) = (macro_.ok(), candles.ok());
     let entry = current().state.entries.iter().find(|e| e.id == id).cloned();

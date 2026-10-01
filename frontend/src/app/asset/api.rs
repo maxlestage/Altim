@@ -3,7 +3,7 @@
 //! own `engine` types.
 use altim_core::engine::strategies::StrategiesReport;
 use altim_core::types::{Interval, Kind};
-use altim_core::web::decision::doc::{DecisionDoc, PersonalInput, decision_url, parse_decision};
+use altim_core::web::decision::doc::{DecisionDoc, PersonalInput, decision_url, parse_decision, parse_decision_full};
 use altim_core::web::decision::reports::*;
 use altim_core::web::store::ScoreWeights;
 use wasm_bindgen::{JsCast, JsValue};
@@ -63,6 +63,18 @@ pub async fn decision(symbol: &str, kind: Kind, personal: Option<&PersonalInput>
     let url = format!("{}{}", decision_url(symbol, kind, personal, weights), cur_param());
     let (_, body) = get_value(&url).await?;
     parse_decision(body).map_err(ApiError)
+}
+
+/// `decision` for the Décision card: the whole decision decoded too (an answer it does not decode is an error).
+pub async fn decision_full(
+    symbol: &str,
+    kind: Kind,
+    personal: Option<&PersonalInput>,
+    weights: Option<&ScoreWeights>,
+) -> Result<DecisionDoc, ApiError> {
+    let url = format!("{}{}", decision_url(symbol, kind, personal, weights), cur_param());
+    let (_, body) = get_value(&url).await?;
+    parse_decision_full(body).map_err(ApiError)
 }
 
 /// `POST /api/ask`: a question on the observations of « Pourquoi ça bouge ? ».

@@ -6,23 +6,95 @@
 //! The answer is kept as received next to the typed decision: the cache stores exactly that JSON, and the fields an
 //! older server (or an older cached decision) did not send stay "absent" as in the TypeScript (`d.rating`,
 //! `d.noTrade`, `d.events !== undefined`…), where the Rust type would otherwise fill in its defaults.
+//!
+//! The Radar, the configuration changes, the journal and the simulation read the `DecisionCore` (`d`): the server's
+//! own types without its heaviest parts. Only the asset screen reads the whole `Decision` (`full`, decoded once, on
+//! demand), so the others' .wasm leave its reader out.
+use std::cell::OnceCell;
+
+use serde::Deserialize;
 use serde_json::Value;
 
 use crate::calendar::CalendarEvent;
 use crate::engine::bot::BotView;
 use crate::engine::decision_types::{
-    CompositeScore, CounterArgument, Decision, DecisionSnapshot, Degraded, DevActivity, Fundamentals, ModelEvidence, NoTrade, Rating,
+    CompositeScore, Condition, CounterArgument, Decision, DecisionSnapshot, Degraded, DevActivity, Family, Fundamentals, HorizonClass, Level,
+    Liquidity, MarketRegime, ModelEvidence, NoTrade, Plan, Rating, Setup, Verdict, Veto,
 };
+use crate::engine::structure::SrLevel;
 use crate::js::{number_to_string, round};
 use crate::types::Kind;
 use crate::web::bot::encode_uri_component;
 use crate::web::store::ScoreWeights;
 
-#[derive(Debug, Clone, PartialEq)]
+/// The fields of the decision that the Radar, the configuration changes, the journal and the simulation read, with
+/// the server's own types and attributes: everything but its fundamentals, track record, structure details, model
+/// evidence, bot, calendar, scenarios, exposure, position, zones, sources…, which only the asset screen reads.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DecisionCore {
+    pub symbol: String,
+    pub kind: Kind,
+    pub name: String,
+    pub as_of: i64,
+    pub price: Option<f64>,
+    pub mode: String,
+    pub verdict: Verdict,
+    pub label: String,
+    pub level: Level,
+    pub level_label: String,
+    pub confidence: f64,
+    pub headline: String,
+    pub families: Vec<Family>,
+    pub vetoes: Vec<Veto>,
+    pub setup: Setup,
+    pub plan: Option<Plan>,
+    pub to_buy: Vec<Condition>,
+    pub pros: Vec<String>,
+    pub cons: Vec<String>,
+    pub liquidity: Option<Liquidity>,
+    #[serde(default)]
+    pub rating: Rating,
+    #[serde(default)]
+    pub rating_label: String,
+    #[serde(default)]
+    pub score: CompositeScore,
+    #[serde(default)]
+    pub degraded: Degraded,
+    #[serde(default)]
+    pub market_regime: Option<MarketRegime>,
+    #[serde(default)]
+    pub horizon: Option<HorizonClass>,
+    #[serde(default)]
+    pub structure: Option<StructureLevels>,
+    /// The next 7 days' events, unread (the journal counts them).
+    #[serde(default)]
+    pub events: Option<Vec<Value>>,
+    #[serde(default)]
+    pub snapshot: DecisionSnapshot,
+}
+
+/// The nearest levels of the decision's `structure`.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StructureLevels {
+    pub nearest_support: Option<SrLevel>,
+    pub nearest_resistance: Option<SrLevel>,
+}
+
+#[derive(Debug, Clone)]
 pub struct DecisionDoc {
-    pub d: Decision,
+    pub d: DecisionCore,
     /// The answer as received (what the offline cache keeps).
     pub raw: Value,
+    /// The whole decision, decoded on demand (`full`).
+    whole: OnceCell<Option<Box<Decision>>>,
+}
+
+impl PartialEq for DecisionDoc {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw == other.raw && self.d == other.d
+    }
 }
 
 const VERDICTS: [&str; 6] = ["buy", "buyZone", "wait", "noPosition", "trim", "sell"];
@@ -40,8 +112,25 @@ fn set(v: Option<&Value>) -> Option<&Value> {
     v.filter(|x| !x.is_null())
 }
 
+/// The answer without the added fields sent as null (read as not sent, like the TypeScript).
+fn cleaned(raw: &Value) -> Value {
+    let mut v = raw.clone();
+    if let Some(m) = v.as_object_mut() {
+        m.retain(|k, x| !(x.is_null() && DEFAULTED.contains(&k.as_str())));
+    }
+    v
+}
+
+/// `parseDecision` for the asset screen: `parse_decision`, then the whole server's type (`full` is then set).
+pub fn parse_decision_full(raw: Value) -> Result<DecisionDoc, String> {
+    let doc = parse_decision(raw)?;
+    let d: Decision = crate::web::json::from_value(&cleaned(&doc.raw)).map_err(|e| format!("Réponse de décision invalide ({e})"))?;
+    let _ = doc.whole.set(Some(Box::new(d)));
+    Ok(doc)
+}
+
 /// `parseDecision`: checks the fields the card relies on (the French message names the first bad field), then
-/// decodes the server's type.
+/// decodes the fields of `DecisionCore` (the whole decision with `parse_decision_full`, or on demand: `full`).
 pub fn parse_decision(raw: Value) -> Result<DecisionDoc, String> {
     let bad = |f: &str| format!("Réponse de décision invalide ({f})");
     let o = raw.as_object().ok_or_else(|| bad("corps"))?;
@@ -130,15 +219,17 @@ pub fn parse_decision(raw: Value) -> Result<DecisionDoc, String> {
     }) {
         return Err(bad("bot"));
     }
-    let mut v = raw.clone();
-    if let Some(m) = v.as_object_mut() {
-        m.retain(|k, x| !(x.is_null() && DEFAULTED.contains(&k.as_str())));
-    }
-    let d: Decision = crate::web::json::from_value(&v).map_err(|e| bad(&e.to_string()))?;
-    Ok(DecisionDoc { d, raw })
+    let d: DecisionCore = crate::web::json::from_value(&cleaned(&raw)).map_err(|e| bad(&e.to_string()))?;
+    Ok(DecisionDoc { d, raw, whole: OnceCell::new() })
 }
 
 impl DecisionDoc {
+    /// The whole server's decision (the asset screen), decoded once; None when it does not decode (an answer that
+    /// `parse_decision_full` refuses).
+    pub fn full(&self) -> Option<&Decision> {
+        self.whole.get_or_init(|| crate::web::json::from_value(&cleaned(&self.raw)).ok().map(Box::new)).as_deref()
+    }
+
     /// Key sent and not null (`d.x != null`).
     pub fn has(&self, key: &str) -> bool {
         set(self.raw.get(key)).is_some()
@@ -155,25 +246,25 @@ impl DecisionDoc {
         self.has("degraded").then_some(&self.d.degraded)
     }
     pub fn no_trade(&self) -> Option<&NoTrade> {
-        self.has("noTrade").then_some(&self.d.no_trade)
+        self.has("noTrade").then(|| self.full().map(|f| &f.no_trade)).flatten()
     }
     pub fn counter_argument(&self) -> Option<&CounterArgument> {
-        self.has("counterArgument").then_some(&self.d.counter_argument)
+        self.has("counterArgument").then(|| self.full().map(|f| &f.counter_argument)).flatten()
     }
     pub fn snapshot(&self) -> Option<&DecisionSnapshot> {
         self.has("snapshot").then_some(&self.d.snapshot)
     }
     pub fn model_evidence(&self) -> Option<&ModelEvidence> {
-        self.has("modelEvidence").then_some(&self.d.model_evidence)
+        self.has("modelEvidence").then(|| self.full().map(|f| &f.model_evidence)).flatten()
     }
     pub fn bot(&self) -> Option<&BotView> {
-        self.has("bot").then_some(&self.d.bot)
+        self.has("bot").then(|| self.full().map(|f| &f.bot)).flatten()
     }
 
     /// The next 7 days' events: None when not sent (older answers: no section), `Some(None)` when the calendar could
     /// not be loaded ("non vérifié").
     pub fn events(&self) -> Option<Option<&[CalendarEvent]>> {
-        self.raw.get("events").map(|_| self.d.events.as_deref())
+        self.raw.get("events").map(|_| self.full().and_then(|f| f.events.as_deref()))
     }
 
     /// The track record's added details were sent (`t.regimes !== undefined || t.expectancy !== undefined`).
@@ -188,7 +279,7 @@ impl DecisionDoc {
 
     /// Crypto developer activity: None when not sent (no block), `Some(None)` when sent as null ("non disponible").
     pub fn dev_activity(&self) -> Option<Option<&DevActivity>> {
-        let Some(Fundamentals::Crypto(f)) = &self.d.fundamentals else { return None };
+        let Some(Fundamentals::Crypto(f)) = &self.full()?.fundamentals else { return None };
         self.raw.get("fundamentals").and_then(|x| x.get("devActivity")).map(|_| f.dev_activity.as_ref())
     }
 
@@ -318,19 +409,53 @@ pub(crate) mod tests {
         parse_decision(raw).unwrap_err()
     }
 
+    /// The core fields read the same values as the whole decision, on real answers.
+    #[test]
+    fn core_reads_as_the_whole_decision() {
+        for f in ["decision-btc.json", "decision-aapl.json", "decision-guidance.json"] {
+            let doc = parse_decision(sample(f)).unwrap();
+            let (c, d) = (&doc.d, doc.full().unwrap());
+            assert_eq!((&c.symbol, c.kind, &c.name, c.as_of, c.price, &c.mode), (&d.symbol, d.kind, &d.name, d.as_of, d.price, &d.mode), "{f}");
+            assert_eq!(
+                (c.verdict, &c.label, c.level, &c.level_label, c.confidence, &c.headline),
+                (d.verdict, &d.label, d.level, &d.level_label, d.confidence, &d.headline)
+            );
+            assert_eq!((&c.families, &c.vetoes, &c.setup, &c.plan, &c.to_buy), (&d.families, &d.vetoes, &d.setup, &d.plan, &d.to_buy));
+            assert_eq!((&c.pros, &c.cons, &c.liquidity, c.rating, &c.rating_label), (&d.pros, &d.cons, &d.liquidity, d.rating, &d.rating_label));
+            assert_eq!(
+                (&c.score, &c.degraded, &c.market_regime, &c.horizon, &c.snapshot),
+                (&d.score, &d.degraded, &d.market_regime, &d.horizon, &d.snapshot)
+            );
+            let s = d.structure.as_ref();
+            assert_eq!(
+                c.structure.as_ref().map(|x| (&x.nearest_support, &x.nearest_resistance)),
+                s.map(|x| (&x.nearest_support, &x.nearest_resistance))
+            );
+            assert_eq!(c.events.as_ref().map(Vec::len), d.events.as_ref().map(Vec::len));
+            // The asset screen's decoding gives the same whole decision.
+            assert_eq!(parse_decision_full(sample(f)).unwrap().full(), Some(d));
+        }
+        // An answer the whole type refuses: the core still reads it, the Décision card refuses it.
+        let mut raw = sample("decision-btc.json");
+        raw["track"] = serde_json::json!({ "period": 1 });
+        let doc = parse_decision(raw.clone()).unwrap();
+        assert!(doc.full().is_none() && doc.bot().is_none());
+        assert!(parse_decision_full(raw).unwrap_err().starts_with("Réponse de décision invalide ("));
+    }
+
     // decision.test.ts "contract samples decode through the card's own types"
     #[test]
     fn samples_decode() {
         let d = btc();
         assert_eq!((d.d.verdict, d.d.level, d.d.mode.as_str()), (Verdict::Wait, Level::Waiting, "informational"));
-        assert!(d.d.position.is_none());
-        assert!(matches!(d.d.fundamentals, Some(Fundamentals::Crypto(_))));
+        assert!(d.full().unwrap().position.is_none());
+        assert!(matches!(d.full().unwrap().fundamentals, Some(Fundamentals::Crypto(_))));
         assert!(!d.d.plan.as_ref().unwrap().acceptable);
         let a = aapl();
         assert_eq!((a.d.verdict, a.d.mode.as_str()), (Verdict::Trim, "personal"));
-        assert_eq!(a.d.position.as_ref().unwrap().exits.iter().filter(|e| e.now).count(), 1);
-        assert!(a.d.exposure.as_ref().unwrap().warning.as_ref().unwrap().contains("62"));
-        let Some(Fundamentals::Stock(f)) = &a.d.fundamentals else { panic!("stock fundamentals expected") };
+        assert_eq!(a.full().unwrap().position.as_ref().unwrap().exits.iter().filter(|e| e.now).count(), 1);
+        assert!(a.full().unwrap().exposure.as_ref().unwrap().warning.as_ref().unwrap().contains("62"));
+        let Some(Fundamentals::Stock(f)) = &a.full().unwrap().fundamentals else { panic!("stock fundamentals expected") };
         assert!(f.next_earnings.as_ref().unwrap().estimated);
     }
 
@@ -357,12 +482,12 @@ pub(crate) mod tests {
         let d = guidance();
         let nt = d.no_trade().unwrap();
         assert!(!nt.active && !nt.unchecked.is_empty());
-        let z = d.d.action_zones.as_ref().unwrap();
+        let z = d.full().unwrap().action_zones.as_ref().unwrap();
         assert_eq!(z.zones.iter().map(|z| z.kind.as_str()).collect::<Vec<_>>(), ["exit", "invalidation", "buy", "wait", "profit"]);
         assert_eq!(z.here.as_deref(), Some("wait"));
-        assert_eq!(d.d.scenarios.iter().map(|s| s.conditions.len()).collect::<Vec<_>>(), [3, 2, 3]);
-        let unfolding: Vec<_> = d.d.scenarios.iter().filter(|s| s.unfolding).map(|s| s.kind).collect();
-        assert_eq!(unfolding, [d.d.unfolding.as_ref().unwrap().kind]);
+        assert_eq!(d.full().unwrap().scenarios.iter().map(|s| s.conditions.len()).collect::<Vec<_>>(), [3, 2, 3]);
+        let unfolding: Vec<_> = d.full().unwrap().scenarios.iter().filter(|s| s.unfolding).map(|s| s.kind).collect();
+        assert_eq!(unfolding, [d.full().unwrap().unfolding.as_ref().unwrap().kind]);
         let t = &d.counter_argument().unwrap().text;
         assert!(t.starts_with("🟢 Raisons favorables : ") && t.contains(" / 🔴 Raisons défavorables : "), "{t}");
         assert_eq!(d.snapshot().unwrap().families.len(), d.d.families.len());
@@ -376,7 +501,7 @@ pub(crate) mod tests {
         assert!(bad("counterArgument", serde_json::json!({})).contains("counterArgument"));
         assert!(bad("snapshot", serde_json::json!({})).contains("snapshot"));
         let old = btc();
-        assert!(old.no_trade().is_none() && old.counter_argument().is_none() && old.d.action_zones.is_none());
+        assert!(old.no_trade().is_none() && old.counter_argument().is_none() && old.full().unwrap().action_zones.is_none());
         assert_eq!(old.events(), None);
     }
 
@@ -386,7 +511,7 @@ pub(crate) mod tests {
         let raw = sample("decision-guidance.json");
         let d = parse_decision(raw.clone()).unwrap();
         let mut diffs = Vec::new();
-        let mut out = crate::js::to_value(&d.d);
+        let mut out = crate::js::to_value(d.full().unwrap());
         // Fields this sample predates are the type's defaults (the card reads them as absent).
         out.as_object_mut().unwrap().retain(|k, _| raw.get(k).is_some());
         diff(&out, &crate::js::to_value(&raw), String::new(), &mut diffs);
@@ -401,7 +526,7 @@ pub(crate) mod tests {
                 let mut raw = raw;
                 // The exchange rate of the server's texts, outside the decision itself.
                 raw.as_object_mut().unwrap().remove("fx");
-                diff(&crate::js::to_value(&d.d), &crate::js::to_value(&raw), String::new(), &mut diffs);
+                diff(&crate::js::to_value(d.full().unwrap()), &crate::js::to_value(&raw), String::new(), &mut diffs);
                 assert!(diffs.is_empty(), "{:?}: {diffs:?}", e.path());
                 assert!(d.model_evidence().is_some() && d.bot().is_some() && d.rating().is_some());
             }
