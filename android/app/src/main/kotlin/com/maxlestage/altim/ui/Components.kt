@@ -122,6 +122,13 @@ fun DecisionBadge(snapshot: ConfigSnapshot?, modifier: Modifier = Modifier) {
     else Badge(RadarDecisions.label(snapshot), RadarDecisions.tone(snapshot), modifier)
 }
 
+/** The decision's short reason under the Radar's chip (« zone d'achat 67 653,51 € (−10,1 %) », « veto : … »); nothing otherwise. */
+@Composable
+fun DecisionNote(snapshot: ConfigSnapshot?, modifier: Modifier = Modifier) {
+    val note = snapshot?.let(RadarDecisions::note) ?: return
+    Text(note, color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier)
+}
+
 /** « technique 4 h : haussier »: the technical signal as a small direction, one input of the decision. */
 @Composable
 fun TechnicalText(action: Action, interval: String = "4 h", modifier: Modifier = Modifier) =

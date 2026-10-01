@@ -109,5 +109,28 @@ final class DecisionDigestTests: XCTestCase {
     func testCodableRoundTrip() throws {
         let x = digest(.buyZone, .buy, confidence: 61, at: 5)
         XCTAssertEqual(try JSONDecoder().decode(DecisionDigest.self, from: JSONEncoder().encode(x)), x)
+        var y = digest(.wait, .hold)
+        y.note = "zone d'achat 67 653,51 € (−10,1 %)"
+        XCTAssertEqual(try JSONDecoder().decode(DecisionDigest.self, from: JSONEncoder().encode(y)), y)
+    }
+
+    /// The short reason under the chip (the decision's `chipNote`, web DecisionNote): kept in the digest, absent from
+    /// an older server or an older digest.
+    func testChipNote() throws {
+        var d = try btc()
+        XCTAssertNil(d.chipNote)
+        XCTAssertNil(DecisionDigest(d, personal: false, now: d.asOf).noteLine)
+        d.chipNote = "zone d'achat 67 653,51 € (−10,1 %)"
+        let got = DecisionDigest(d, personal: false, now: d.asOf)
+        XCTAssertEqual(got.badgeLabel, "ATTENDRE")
+        XCTAssertEqual(got.noteLine, "zone d'achat 67 653,51 € (−10,1 %)")
+        XCTAssertNil(digest(.wait, .hold).noteLine)
+        var blank = digest(.wait, .hold)
+        blank.note = " "
+        XCTAssertNil(blank.noteLine)
+        let older = #"{"verdict":"wait","rating":"hold","label":"ATTENDRE","level":"waiting","confidence":55,"personal":false,"at":1}"#
+        XCTAssertNil(try JSONDecoder().decode(DecisionDigest.self, from: Data(older.utf8)).note)
+        let sent = try JSONEncoder().encode(d)
+        XCTAssertEqual(try JSONDecoder().decode(Decision.self, from: sent).chipNote, d.chipNote)
     }
 }

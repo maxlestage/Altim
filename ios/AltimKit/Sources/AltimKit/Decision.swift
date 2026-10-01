@@ -558,6 +558,9 @@ public struct Decision: Codable, Sendable {
     /// « Bot Altim » (added later, absent from older answers): the learned model's ACHETER / ATTENDRE / VENDRE and whether
     /// it counts (only on a side with an out-of-sample edge).
     public var bot: BotView?
+    /// Short reason under the Radar's chip when it reads ATTENDRE or AUCUNE POSITION (« zone d'achat 67 653,51 €
+    /// (−10,1 %) », « veto : … »), the same text as the web and Android; nil otherwise or from an older server.
+    public var chipNote: String?
 
     /// A server that knows the rating also sends `events` (null when the calendar could not be verified): an answer
     /// without a rating comes from an older server, whose missing events mean nothing.

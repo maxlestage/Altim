@@ -46,6 +46,11 @@ pub fn currency() -> Currency {
     display().currency()
 }
 
+/// Whether amounts are shown in dollars now (the server is then asked for dollars).
+pub fn currency_is_usd() -> bool {
+    currency() == Currency::Usd
+}
+
 pub fn symbol() -> &'static str {
     display().symbol()
 }

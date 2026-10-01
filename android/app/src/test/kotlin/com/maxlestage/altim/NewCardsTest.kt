@@ -319,14 +319,15 @@ class NewCardsTest {
 
     /**
      * Radar row: the chip is the full decision (ATTENDRE), the 4 h technical signal only a small direction next to it, so
-     * « ACHAT » never sits beside « ATTENDRE »; an asset without a recent decision reads "Décision…".
+     * « ACHAT » never sits beside « ATTENDRE », with the decision's short reason below; an asset without a recent decision
+     * reads "Décision…".
      */
     @Test fun radarRowShowsTheFullDecision() {
         val app = ApplicationProvider.getApplicationContext<android.app.Application>()
         app.getSharedPreferences("altim", Context.MODE_PRIVATE).edit().clear().commit()
         val model = AppModel(app, NewCardsMemory())
         val now = System.currentTimeMillis().toDouble()
-        model.recordDecision(decision("decision-btc.json").copy(verdict = Verdict.WAIT, label = "ATTENDRE", rating = Rating.HOLD, ratingLabel = "ATTENDRE"), personal = false, now = now)
+        model.recordDecision(decision("decision-btc.json").copy(verdict = Verdict.WAIT, label = "ATTENDRE", rating = Rating.HOLD, ratingLabel = "ATTENDRE", chipNote = fr("zone d'achat 67 653,51 € (−10,1 %)")), personal = false, now = now)
         val btc = Asset("BTC", Kind.CRYPTO, "Bitcoin")
         val eth = Asset("ETH", Kind.CRYPTO, "Ethereum")
         screen {
@@ -335,7 +336,7 @@ class NewCardsTest {
                 RadarRowView(model, eth, RadarRow("ETH", Kind.CRYPTO, price = 3_100.0, change = -0.4, signal = SignalSummary(Action.STRONG_SELL, -60.0, 70.0)))
             }
         }
-        expect("ATTENDRE", "technique 4 h : haussier", "Décision…", "technique 4 h : nettement baissier")
+        expect("ATTENDRE", "technique 4 h : haussier", "zone d'achat 67 653,51 € (−10,1 %)", "Décision…", "technique 4 h : nettement baissier")
         assertTrue(!has("ACHAT") && !has("VENTE"))
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/new-radar-decision.png")

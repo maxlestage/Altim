@@ -680,3 +680,14 @@ pub fn DecisionBadge(p: &DecisionBadgeProps) -> Html {
         </span>
     }
 }
+
+/// The short reason under the Radar's chip when it reads ATTENDRE or AUCUNE POSITION (the decision's `chipNote`,
+/// the same French text on iOS and Android): « zone d'achat 67 653,51 € (−10,1 %) », « veto : … ». Nothing otherwise.
+#[component]
+pub fn DecisionNote(p: &DecisionBadgeProps) -> Html {
+    let _seen = store::use_decisions_seen();
+    match store::fresh(p.kind, &p.symbol).and_then(|c| c.decision.d.chip_note.clone()) {
+        Some(n) => html! { <small class="dec-note">{ n }</small> },
+        None => html! {},
+    }
+}

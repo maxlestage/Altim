@@ -320,6 +320,8 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifi
         val s = row?.signal
         if (s != null) TechnicalText(s.action)
         else if (row?.error != null) Text("signal technique indisponible", color = AltimColors.textSecondary, fontSize = 11.sp)
+        // Why the chip says ATTENDRE: the decision's short reason (web DecisionNote).
+        DecisionNote(decision)
     }
 }
 
