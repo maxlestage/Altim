@@ -3,7 +3,7 @@
 //! own `engine` types.
 use altim_core::engine::strategies::StrategiesReport;
 use altim_core::types::{Interval, Kind};
-use altim_core::web::decision::doc::{DecisionDoc, PersonalInput, decision_url, parse_decision};
+use altim_core::web::decision::doc::{DecisionDoc, PersonalInput, decision_url, parse_decision, parse_decision_full};
 use altim_core::web::decision::reports::*;
 use altim_core::web::store::ScoreWeights;
 use wasm_bindgen::{JsCast, JsValue};
@@ -65,6 +65,18 @@ pub async fn decision(symbol: &str, kind: Kind, personal: Option<&PersonalInput>
     parse_decision(body).map_err(ApiError)
 }
 
+/// `decision` for the Décision card: the whole decision decoded too (an answer it does not decode is an error).
+pub async fn decision_full(
+    symbol: &str,
+    kind: Kind,
+    personal: Option<&PersonalInput>,
+    weights: Option<&ScoreWeights>,
+) -> Result<DecisionDoc, ApiError> {
+    let url = format!("{}{}", decision_url(symbol, kind, personal, weights), cur_param());
+    let (_, body) = get_value(&url).await?;
+    parse_decision_full(body).map_err(ApiError)
+}
+
 /// `POST /api/ask`: a question on the observations of « Pourquoi ça bouge ? ».
 pub async fn ask(symbol: &str, kind: Kind, question: &str) -> Result<AskAnswer, ApiError> {
     let w = web_sys::window().ok_or_else(|| ApiError("fenêtre indisponible".into()))?;
@@ -92,7 +104,7 @@ pub async fn ask(symbol: &str, kind: Kind, question: &str) -> Result<AskAnswer, 
     if !(200..300).contains(&status) {
         return Err(ApiError(body.get("error").and_then(|e| e.as_str()).map(String::from).unwrap_or_else(|| format!("Erreur {status}"))));
     }
-    serde_json::from_value(body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
+    altim_core::web::json::from_value(&body).map_err(|e| ApiError(format!("Réponse inattendue du serveur ({e})")))
 }
 
 /// `navigator.onLine === false`.

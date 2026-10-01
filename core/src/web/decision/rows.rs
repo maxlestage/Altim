@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn action_ladder() {
         let d = super::super::doc::tests::guidance();
-        let z = d.d.action_zones.clone().unwrap();
+        let z = d.full().unwrap().action_zones.clone().unwrap();
         let kinds = |items: &[LadderItem]| -> Vec<String> {
             items
                 .iter()
@@ -471,10 +471,10 @@ mod tests {
     fn figures() {
         let m = MoneyDisplay::usd();
         let a = super::super::doc::tests::aapl();
-        let Some(crate::engine::decision_types::Fundamentals::Stock(f)) = &a.d.fundamentals else { panic!() };
+        let Some(crate::engine::decision_types::Fundamentals::Stock(f)) = &a.full().unwrap().fundamentals else { panic!() };
         let rows = stock_rows(f, &m);
         assert!(rows.iter().any(|r| r.0 == "PEG") && rows.iter().any(|r| r.0 == "EV/EBITDA"));
-        let t = super::super::doc::tests::btc().d.track.unwrap();
+        let t = super::super::doc::tests::btc().full().unwrap().track.clone().unwrap();
         assert_eq!(track_rows(&t)[4].0, "Profit factor");
         // config-changes.test.ts "track details": older answers show nothing more; 20 % × (1 − 30 %) after tax.
         let old = super::super::doc::tests::btc();

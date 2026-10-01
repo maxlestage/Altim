@@ -215,7 +215,7 @@ impl AppState {
                 None => default_watchlist(),
             },
             risk: RiskSettings::merged(p.get("risk")),
-            horizon: p.get("horizon").and_then(|h| serde_json::from_value(h.clone()).ok()).unwrap_or_default(),
+            horizon: p.get("horizon").and_then(|h| crate::web::json::from_value(h).ok()).unwrap_or_default(),
             score_weights: ScoreWeights::sanitize(p.get("scoreWeights")),
             currency: if p.get("currency").and_then(Value::as_str) == Some("USD") { Currency::Usd } else { Currency::Eur },
         }

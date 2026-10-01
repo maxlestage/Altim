@@ -467,13 +467,30 @@ pub struct CryptoFundamentals {
     pub not_covered: String,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 // One value per decision: the size difference between the variants does not matter.
 #[allow(clippy::large_enum_variant)]
 pub enum Fundamentals {
     Stock(StockFundamentals),
     Crypto(CryptoFundamentals),
+}
+
+/// The same JSON as serde's internally tagged reading (`"kind": "stock" | "crypto"` next to the fields), read through
+/// a `Value`: serde's own tagged reading buffers the content and reads it with a second deserializer, a second copy of
+/// both variants' readers in the browser's .wasm.
+impl<'de> Deserialize<'de> for Fundamentals {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let v = serde_json::Value::deserialize(d)?;
+        match v.get("kind").map(|k| k.as_str()) {
+            Some(Some("stock")) => crate::web::json::from_value(&v).map(Fundamentals::Stock).map_err(D::Error::custom),
+            Some(Some("crypto")) => crate::web::json::from_value(&v).map(Fundamentals::Crypto).map_err(D::Error::custom),
+            Some(Some(other)) => Err(D::Error::unknown_variant(other, &["stock", "crypto"])),
+            Some(None) => Err(D::Error::custom("invalid type for tag `kind`, expected a string")),
+            None => Err(D::Error::missing_field("kind")),
+        }
+    }
 }
 
 /// Liquidity at the time of the decision (top of the order book, traded value).
@@ -490,7 +507,7 @@ pub struct Liquidity {
 
 /// Past behaviour of the signal on this asset (daily candles, walk-forward: each decision only sees the candles
 /// before it), fees and slippage included.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub period: String,
@@ -510,8 +527,59 @@ pub struct Track {
     pub losing_streak: usize,
     pub note: String,
     /// Spread cost, expectancy, R multiples, results by market regime (fields at this level in the JSON).
-    #[serde(flatten, default)]
+    #[serde(flatten)]
     pub details: super::metrics::TrackDetails,
+}
+
+/// `Track` without its flattened details, read from the same JSON object.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TrackFields {
+    period: String,
+    trades: usize,
+    win_rate: f64,
+    avg_win: Option<f64>,
+    avg_loss: Option<f64>,
+    profit_factor: Option<f64>,
+    sharpe: Option<f64>,
+    sortino: Option<f64>,
+    max_drawdown: f64,
+    total_return: f64,
+    buy_and_hold: f64,
+    fees_pct: f64,
+    slippage_pct: f64,
+    losing_streak: usize,
+    note: String,
+}
+
+/// The same JSON as serde's reading of the flattened details (the details' fields next to the track's, defaults when
+/// absent), read through a `Value`: serde's flattening buffers the content and reads it with a second deserializer,
+/// a second copy of these readers in the browser's .wasm.
+impl<'de> Deserialize<'de> for Track {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error;
+        let v = serde_json::Value::deserialize(d)?;
+        let f: TrackFields = crate::web::json::from_value(&v).map_err(D::Error::custom)?;
+        let details = crate::web::json::from_value(&v).map_err(D::Error::custom)?;
+        Ok(Track {
+            period: f.period,
+            trades: f.trades,
+            win_rate: f.win_rate,
+            avg_win: f.avg_win,
+            avg_loss: f.avg_loss,
+            profit_factor: f.profit_factor,
+            sharpe: f.sharpe,
+            sortino: f.sortino,
+            max_drawdown: f.max_drawdown,
+            total_return: f.total_return,
+            buy_and_hold: f.buy_and_hold,
+            fees_pct: f.fees_pct,
+            slippage_pct: f.slippage_pct,
+            losing_streak: f.losing_streak,
+            note: f.note,
+            details,
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

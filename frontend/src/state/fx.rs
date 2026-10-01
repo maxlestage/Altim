@@ -60,7 +60,13 @@ pub fn start_fx() {
         return;
     }
     wasm_bindgen_futures::spawn_local(refresh_fx());
-    gloo::timers::callback::Interval::new(FX_REFRESH_MS, || wasm_bindgen_futures::spawn_local(refresh_fx())).forget();
+    gloo::timers::callback::Interval::new(FX_REFRESH_MS, || {
+        // Not after handing the page over to the whole app (which refreshes it itself).
+        if !crate::part::stopped() {
+            wasm_bindgen_futures::spawn_local(refresh_fx());
+        }
+    })
+    .forget();
 }
 
 #[hook]

@@ -72,7 +72,8 @@ pub fn DecisionView(p: &DecisionViewProps) -> Html {
     let m = crate::money::use_money();
     let m = &*m;
     let doc = &*p.d;
-    let d = &doc.d;
+    // DecisionCard shows only decisions whose whole type decodes (parse_decision_full, `cached_full`).
+    let Some(d) = doc.full() else { return Html::default() };
     let (lv_icon, lv_label) = level_ui(d.level);
     let vetoes = sort_vetoes(&d.vetoes);
     let active = vetoes.iter().filter(|v| v.active).count();
@@ -534,7 +535,8 @@ pub struct DecisionCardProps {
 
 /// The cached decision of the same mode, if any (`initial`).
 fn initial(kind: Kind, symbol: &str, personal: bool) -> Option<Rc<altim_core::web::decision::CachedDecision>> {
-    store::cached(kind, symbol).filter(|c| c.personal == Some(personal))
+    // Only a decision whose whole type decodes (as `api::decision_full` requires).
+    store::cached(kind, symbol).filter(|c| c.personal == Some(personal) && c.decision.full().is_some())
 }
 
 #[component]
@@ -583,7 +585,7 @@ pub fn DecisionCard(p: &DecisionCardProps) -> Html {
                             (d.clone(), status.clone(), error.clone(), alive.clone(), symbol.clone(), personal.clone());
                         wasm_bindgen_futures::spawn_local(async move {
                             let weights = crate::state::app::app_state().score_weights;
-                            let r = super::api::decision(&symbol, kind, personal.as_ref(), Some(&weights)).await;
+                            let r = super::api::decision_full(&symbol, kind, personal.as_ref(), Some(&weights)).await;
                             if !alive.get() {
                                 return;
                             }

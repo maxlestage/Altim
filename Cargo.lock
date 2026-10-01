@@ -69,6 +69,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "altim-bundles"
+version = "1.0.0"
+dependencies = [
+ "altim-web",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "altim-core"
 version = "1.0.0"
 dependencies = [

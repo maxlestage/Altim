@@ -438,7 +438,7 @@ fn entry_of(e: &Value) -> Option<AlertEntry> {
         symbol: o.get("symbol")?.as_str()?.to_string(),
         kind: kind_of(o.get("kind"))?,
         name: text(o.get("name")),
-        source: o.get("source").and_then(|s| serde_json::from_value(s.clone()).ok()).unwrap_or_default(),
+        source: o.get("source").and_then(|s| crate::web::json::from_value(s).ok()).unwrap_or_default(),
         title: text(o.get("title")),
         price: o.get("price")?.as_f64()?,
         date: o.get("date")?.as_f64()?,

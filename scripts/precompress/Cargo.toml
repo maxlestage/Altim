@@ -1,0 +1,14 @@
+# Build tool of scripts/build-web.sh (not part of the Altim workspace): writes `<file>.br` and `<file>.gz` next to the
+# built web files, which the server sends to the browsers that accept them.
+[package]
+name = "altim-precompress"
+version = "1.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+brotli = { version = "8.0.4", default-features = false, features = ["std"] }
+flate2 = "1.1.10"
+
+# Its own (empty) workspace: built by scripts/build-web.sh alone, never by the server's or the front's builds.
+[workspace]

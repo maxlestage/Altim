@@ -192,3 +192,76 @@ fn decision_samples_follow_the_contract() {
         assert!(!d.families.is_empty() && !d.vetoes.is_empty(), "{f}");
     }
 }
+
+#[test]
+fn precompressed_coding_choice() {
+    use altim::app::web::pick_encoding;
+    let chrome = "gzip, deflate, br, zstd";
+    assert_eq!(pick_encoding(chrome, true, true), Some("br"));
+    assert_eq!(pick_encoding(chrome, false, true), Some("gzip"));
+    assert_eq!(pick_encoding(chrome, false, false), None);
+    assert_eq!(pick_encoding("gzip", true, true), Some("gzip"));
+    assert_eq!(pick_encoding("br;q=0, gzip;q=0.5", true, true), Some("gzip"));
+    assert_eq!(pick_encoding("BR", true, false), Some("br"));
+    assert_eq!(pick_encoding("", true, true), None);
+    assert_eq!(pick_encoding("identity", true, true), None);
+    assert_eq!(pick_encoding("brotli", true, false), None);
+}
+
+/// A temporary web folder: dist/ with the pages of the site and of two app groups, one precompressed .wasm.
+fn web_folder() -> std::path::PathBuf {
+    let root = std::env::temp_dir().join(format!("altim-web-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    std::fs::create_dir_all(root.join("dist/app")).unwrap();
+    std::fs::write(root.join("dist/index.html"), "site").unwrap();
+    std::fs::write(root.join("dist/app/index.html"), "radar").unwrap();
+    std::fs::write(root.join("dist/app/reglages.html"), "reglages").unwrap();
+    std::fs::write(root.join("dist/altim-app-0123456789abcdef_bg.wasm"), "wasm").unwrap();
+    std::fs::write(root.join("dist/altim-app-0123456789abcdef_bg.wasm.br"), "br").unwrap();
+    std::fs::write(root.join("dist/altim-app-0123456789abcdef_bg.wasm.gz"), "gz!").unwrap();
+    root
+}
+
+async fn serve(root: &std::path::Path, path: &str, accept: &str) -> (StatusCode, axum::http::HeaderMap, String) {
+    let req = Request::get(path).header("accept-encoding", accept).body(Body::empty()).unwrap();
+    let r = altim::app::web::serve(root, req).await;
+    let (status, h) = (r.status(), r.headers().clone());
+    (status, h, String::from_utf8_lossy(&to_bytes(r.into_body(), 1 << 20).await.unwrap()).to_string())
+}
+
+#[tokio::test]
+async fn precompressed_files_and_group_pages() {
+    let root = web_folder();
+    let wasm = "/altim-app-0123456789abcdef_bg.wasm";
+    let (s, h, b) = serve(&root, wasm, "gzip, deflate, br, zstd").await;
+    assert_eq!((s, b.as_str()), (StatusCode::OK, "br"));
+    assert_eq!(h["content-encoding"], "br");
+    assert_eq!(h["content-type"], "application/wasm");
+    assert_eq!(h["vary"], "accept-encoding");
+    assert_eq!(h["cache-control"], "private, max-age=31536000, immutable");
+    assert_eq!(h["content-length"], "2");
+    let (_, h, b) = serve(&root, wasm, "gzip").await;
+    assert_eq!((h["content-encoding"].to_str().unwrap(), b.as_str()), ("gzip", "gz!"));
+    let (_, h, b) = serve(&root, wasm, "").await;
+    assert!(h.get("content-encoding").is_none());
+    assert_eq!((h["vary"].to_str().unwrap(), b.as_str()), ("accept-encoding", "wasm"));
+    // Each address gets the page of its group; a group without its own page falls back to the app's page.
+    for (path, page) in [
+        ("/", "site"),
+        ("/risques", "site"),
+        ("/app", "radar"),
+        ("/app/alertes", "radar"),
+        ("/app/reglages", "reglages"),
+        ("/app/reglages/", "reglages"),
+        ("/app/lexique", "reglages"),
+        ("/app/actif/crypto/BTC", "radar"),
+    ] {
+        let (s, h, b) = serve(&root, path, "br").await;
+        assert_eq!((s, b.as_str()), (StatusCode::OK, page), "{path}");
+        assert_eq!(h["cache-control"], "no-cache");
+    }
+    std::fs::write(root.join("dist/app/actif.html"), "actif").unwrap();
+    assert_eq!(serve(&root, "/app/actif/crypto/BTC", "").await.2, "actif");
+    assert_eq!(serve(&root, "/app/actif/fx/EUR", "").await.2, "radar");
+    let _ = std::fs::remove_dir_all(&root);
+}

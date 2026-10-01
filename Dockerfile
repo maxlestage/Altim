@@ -23,6 +23,8 @@ COPY Cargo.toml Cargo.lock ./
 COPY backend/Cargo.toml backend/
 COPY core/Cargo.toml core/
 COPY frontend/Cargo.toml frontend/
+# The entry points of the front's .wasm (a workspace member: its few small files, for the manifest's targets).
+COPY frontend/bundles frontend/bundles
 RUN mkdir -p backend/src core/src frontend/src && echo 'fn main() {}' > backend/src/main.rs && touch backend/src/lib.rs core/src/lib.rs frontend/src/lib.rs \
   && cargo build --release --locked -p altim --bin altim && rm -rf backend/src core/src
 COPY core/src core/src

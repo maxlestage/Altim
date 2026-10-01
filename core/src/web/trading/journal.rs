@@ -15,10 +15,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use super::{enum_str, js_max, js_min, locale_cmp, round_to, slice_utf16};
-use crate::engine::decision_types::Decision;
 use crate::engine::signal::atr;
 use crate::js::{fr as js_fr, number_to_string};
 use crate::types::{Candle, Kind};
+use crate::web::decision::doc::DecisionCore;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -201,7 +201,7 @@ pub fn empty_journal() -> JournalState {
 
 /// Snapshot of the decision (only what the journal shows and checks). An older server without the rating gives
 /// no rating (its label is empty).
-pub fn snapshot_decision(d: &Decision) -> JournalDecision {
+pub fn snapshot_decision(d: &DecisionCore) -> JournalDecision {
     let has_rating = !d.rating_label.is_empty();
     JournalDecision {
         as_of: d.as_of as f64,
@@ -253,7 +253,7 @@ pub fn signal_text(d: Option<&JournalDecision>) -> String {
 }
 
 /// Market conditions the decision already carries (regime, relative volume, events).
-pub fn market_from_decision(d: Option<&Decision>) -> JournalMarket {
+pub fn market_from_decision(d: Option<&DecisionCore>) -> JournalMarket {
     let Some(d) = d else { return JournalMarket::default() };
     JournalMarket {
         regime: d.market_regime.as_ref().map(|r| enum_str(&r.kind)),
@@ -297,7 +297,7 @@ pub struct NewEntry<'a> {
     pub targets: Vec<Option<f64>>,
     pub note: String,
     pub ref_id: Option<String>,
-    pub decision: Option<&'a Decision>,
+    pub decision: Option<&'a DecisionCore>,
 }
 
 fn ok(v: Option<f64>) -> Option<f64> {
@@ -466,7 +466,7 @@ pub fn parse_journal_state(v: &Value) -> Option<JournalState> {
     if !is_journal_state(v) {
         return None;
     }
-    serde_json::from_value(v.clone()).ok()
+    crate::web::json::from_value(v).ok()
 }
 
 /// `JSON.stringify(state)` (integral numbers without ".0").
@@ -1103,7 +1103,7 @@ pub(crate) mod tests {
     }"#;
 
     /// A decision with what the journal reads (journal.test.ts), `over` replaces fields.
-    pub fn decision(over: Value) -> Decision {
+    pub fn decision(over: Value) -> DecisionCore {
         let mut d: Value = serde_json::from_str(DECISION).unwrap();
         d["asOf"] = json!((at() - 3_600_000.0) as i64);
         if let (Some(o), Some(over)) = (d.as_object_mut(), over.as_object()) {
@@ -1118,7 +1118,7 @@ pub(crate) mod tests {
         serde_json::from_value(d).expect("decision")
     }
 
-    pub fn new_entry(d: Option<&Decision>) -> NewEntry<'_> {
+    pub fn new_entry(d: Option<&DecisionCore>) -> NewEntry<'_> {
         NewEntry {
             id: "e1".into(),
             now: at(),
@@ -1200,7 +1200,7 @@ pub(crate) mod tests {
     /// A real decision saved from the server (older, without the rating and the added fields) gives an entry.
     #[test]
     fn real_decision_sample() {
-        let d: Decision = serde_json::from_str(include_str!("../../../../backend/tests/samples/decision-btc.json")).unwrap();
+        let d: DecisionCore = serde_json::from_str(include_str!("../../../../backend/tests/samples/decision-btc.json")).unwrap();
         let s = snapshot_decision(&d);
         assert_eq!(s.rating, None);
         assert!(s.pros.len() <= 3);
@@ -1259,7 +1259,7 @@ pub(crate) mod tests {
         assert_eq!(holding_change((2.0, 100.0), (2.0, 90.0), Some(90.0)), None);
     }
 
-    fn entry_with(d: Option<&Decision>, f: impl FnOnce(NewEntry) -> NewEntry) -> JournalEntry {
+    fn entry_with(d: Option<&DecisionCore>, f: impl FnOnce(NewEntry) -> NewEntry) -> JournalEntry {
         create_entry(&f(new_entry(d)))
     }
 
