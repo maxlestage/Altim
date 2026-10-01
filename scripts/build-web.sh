@@ -34,6 +34,8 @@ gcss="global-$(hash "$ROOT/frontend/styles/global.css").css"
 acss="app-$(hash "$ROOT/frontend/styles/app.css").css"
 cp "$ROOT/frontend/styles/global.css" "$OUT/$gcss"
 cp "$ROOT/frontend/styles/app.css" "$OUT/$acss"
+gate="gate-$(hash "$ROOT/frontend/gate.js").js"
+cp "$ROOT/frontend/gate.js" "$OUT/$gate"
 
 # The .wasm of one part ($1 = site | app-<group> | app, from the entry point frontend/bundles/src/<site | group | app>.rs)
 # through wasm-bindgen and wasm-opt: its .wasm and glue in web/dist, their names in $tmp/<part>.names (glue, wasm).
@@ -57,20 +59,28 @@ finish() {
 }
 
 # The HTML page ($2) of a part ($1) and its loader: the site's starts its .wasm; an app group's also prepares the whole
-# app (frontend/loader-app.js). The loader is a file (CSP: script-src 'self', no inline script).
+# app (frontend/loader-app.js), and its page holds the app's frame with the tab $3 lit. The loader is a file (CSP:
+# script-src 'self', no inline script).
 page() {
   read -r glue wasm < "$tmp/$1.names"
   read -r full_glue full_wasm < "$tmp/app.names"
+  gate_tag=""
+  shell=""
   if [ "$1" = site ]; then
     printf 'import init from "/%s";\ninit({ module_or_path: "/%s" });\n' "$glue" "$wasm" > "$tmp/$1.main.js"
   else
     sed -e "s#{{GLUE_JS}}#$glue#" -e "s#{{WASM}}#$wasm#" -e "s#{{FULL_GLUE}}#$full_glue#" -e "s#{{FULL_WASM}}#$full_wasm#" \
       "$ROOT/frontend/loader-app.js" > "$tmp/$1.main.js"
+    # The app's frame (header and tabs, the group's tab lit, as the app draws it), shown before the .wasm draws the
+    # screen; frontend/gate.js hides it when the disclaimer is still to be accepted.
+    gate_tag="<script src=\"/$gate\"></script>"
+    tab=$3
+    shell=$(sed -e "s#{{$tab}}# aria-current=\"page\" class=\"on\"#g" -e "s#{{[a-z]*}}##g" "$ROOT/frontend/shell.html")
   fi
   main="main-$1-$(hash "$tmp/$1.main.js").js"
   cp "$tmp/$1.main.js" "$OUT/$main"
   sed -e "s#{{GLOBAL_CSS}}#$gcss#" -e "s#{{APP_CSS}}#$acss#" -e "s#{{GLUE_JS}}#$glue#" -e "s#{{WASM}}#$wasm#" -e "s#{{MAIN_JS}}#$main#" \
-    "$ROOT/frontend/index.html" > "$2"
+    -e "s#{{GATE}}#$gate_tag#" -e "s#{{SHELL}}#$shell#" "$ROOT/frontend/index.html" > "$2"
 }
 
 # One build: the library once, then the link of every entry point (the link-time optimisation of each .wasm), in
@@ -98,7 +108,13 @@ page site "$OUT/index.html"
 for g in $GROUPS; do
   name=$g
   [ "$g" = radar ] && name=index
-  page "app-$g" "$OUT/app/$name.html"
+  # The tab lit for the group (app::active_tab): the asset screen sits under the Radar, the bot under the settings.
+  case $g in
+    actif) tab=radar ;;
+    bot) tab=reglages ;;
+    *) tab=$g ;;
+  esac
+  page "app-$g" "$OUT/app/$name.html" "$tab"
 done
 
 # Brotli (strongest level) and gzip copies of the hashed files, sent as is by the server: ~20 % less over the network

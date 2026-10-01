@@ -204,7 +204,7 @@ pub fn WebApp(p: &WebAppProps) -> Html {
         <div class="webapp">
             <header class="app-bar">
                 <a href="/app" onclick={on_link.clone()} class="brand" aria-label="Altim, radar">
-                    <img src="/logo.svg" alt="" width="30" height="30" />
+                    <img src="/logo.svg" alt="" width="30" height="30" decoding="sync" />
                     <span>{ "ALTIM" }</span>
                 </a>
                 <span class="app-env">{ "CONSEIL" }</span>

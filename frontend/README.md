@@ -40,6 +40,12 @@ premier passage vers un autre groupe, le `.wasm` du groupe s'arrête (`part::sto
 la nouvelle adresse (`part::hand_over`), sans rechargement. Avant cela, ou vers le site, c'est un chargement de page
 (`route::other_bundle`).
 
+Chaque page de l'app contient déjà le cadre de l'app (`frontend/shell.html` : en-tête et onglets, celui du groupe
+allumé, le même balisage que `WebApp`), affiché dès l'arrivée du HTML ; le `.wasm` le remplace par son rendu
+(`part::run`). Tant que l'avertissement n'a pas été accepté sur ce navigateur, `frontend/gate.js` (script synchrone,
+avant le cadre) le masque : l'app affiche alors l'avertissement. Un changement de l'en-tête ou des onglets dans
+`app::WebApp` se reporte dans `shell.html`.
+
 Les `.wasm`, `.js` et `.css` ont une copie brotli (qualité 11, `.br`) et gzip (`.gz`) écrite par `scripts/precompress`,
 que le serveur envoie telle quelle (`Content-Encoding`, `Vary: Accept-Encoding`) au lieu de compresser à la volée.
 `wasm-opt -O2` sans sa passe d'inlining (et non `-Oz`) : l'inlining réduit le fichier brut mais il se compresse moins
@@ -62,6 +68,7 @@ frontend/ (altim-web)
   styles/global.css, app.css
   src/lib.rs, part.rs      bibliothèque de tout le front ; une partie = un .wasm (part::run, hand_over, stop)
   loader-app.js            chargeur des pages de l'app (groupe, puis app entière en arrière-plan)
+  shell.html, gate.js      cadre de l'app dans la page avant le .wasm, masqué avant l'avertissement
   bundles/                 paquet altim-bundles : un point d'entrée par partie (exemples Cargo)
   src/route.rs             enum Route, Root, use_on_link()
   src/state/               stores localStorage : app (altim.webapp.v1), holdings (altim.holdings.v1), fx (altim.fx.v1)
