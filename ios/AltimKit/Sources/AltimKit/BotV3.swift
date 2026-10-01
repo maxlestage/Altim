@@ -869,10 +869,12 @@ extension ModelBot {
 
 extension BotView {
     /// Whether the bot counts in this decision: v3's when present (then only its headline configurations can count).
-    public var countsNow: Bool { v3.map(\.counts) ?? counts }
+    /// With v4, the server's `counts` (v3 and the selective bots together).
+    public var countsNow: Bool { v4 != nil ? counts : (v3.map(\.counts) ?? counts) }
 
-    /// Whether and how it counts: v3's note when present.
+    /// Whether and how it counts: v3's note when present (with v4, the server's note, which includes them).
     public var noteNow: String {
+        if v4 != nil, !note.isEmpty { return note }
         if let v = v3, !v.note.isEmpty { return v.note }
         return note
     }

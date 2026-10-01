@@ -120,6 +120,7 @@ use super::bot::{
     group_rows, mean, points, r2, round_to, round_trip_cost, select_h, share, signed, stats_t, t_text, timeline, trend_action,
 };
 use super::bot_trees::{self, Forest, Stop};
+use super::bot_v4;
 use super::signal::sanitize;
 use super::validation::{BASKET, Failure, MIN_TRADES, T_EDGE, Verdict, median};
 use crate::js::fr;
@@ -670,6 +671,8 @@ pub struct AFit {
     pub scores: Vec<EconScore>,
     pub chosen: Option<V3Candidate>,
     pub rounds: (Option<usize>, Option<usize>),
+    /// v4's gates (rise, fall) of the block.
+    pub v4: [bot_v4::Gate; 2],
 }
 
 pub fn a_fit(rows: &[Row], dates: &[i64], ci: usize, h: usize) -> AFit {
@@ -701,6 +704,17 @@ pub fn a_fit(rows: &[Row], dates: &[i64], ci: usize, h: usize) -> AFit {
         }
         let _ = v0;
     }
+    // v4: the selective bots' thresholds from W0 (logistic and long trees, inner and full fits).
+    let v4 = match w0 {
+        Some((v0, _)) => bot_v4::a_gates(
+            rows,
+            dates[v0],
+            cutoff,
+            [v2.inner.get(Candidate::Logit.index()).and_then(|p| p.as_ref()), long_inner.as_ref()],
+            [v2.pairs[Candidate::Logit.index()].as_ref(), long_full.as_ref()],
+        ),
+        None => [bot_v4::Gate::default(); 2],
+    };
     let mut pairs: Vec<Option<Pair>> = v2.pairs.clone();
     pairs.push(long_full);
     let scores: Vec<EconScore> = match w0 {
@@ -724,7 +738,7 @@ pub fn a_fit(rows: &[Row], dates: &[i64], ci: usize, h: usize) -> AFit {
         None => A_CANDS.iter().map(|c| EconScore { id: *c, score: None, signals: 0 }).collect(),
     };
     let chosen = choose(&scores, |c| pairs[c.a_slot().unwrap()].is_some(), V3Candidate::Trend);
-    AFit { v2, pairs, scores, chosen, rounds }
+    AFit { v2, pairs, scores, chosen, rounds, v4 }
 }
 
 /// v3's choice at one family-A block.
@@ -733,6 +747,7 @@ pub struct AChoice {
     pub chosen: Option<V3Candidate>,
     pub scores: Vec<EconScore>,
     pub rounds: (Option<usize>, Option<usize>),
+    pub v4: [bot_v4::Gate; 2],
 }
 
 /// Family A's walk-forward at horizon `h`: per block, v2's block (its choice and log-loss scores), v3's choice and
@@ -818,7 +833,7 @@ pub fn a_walk(rows: &[Row], h: usize, threads: usize) -> AWalk {
             chosen: fit.v2.chosen,
             scores: fit.v2.scores,
         };
-        (block, AChoice { chosen: fit.chosen, scores: fit.scores, rounds: fit.rounds }, fit.pairs)
+        (block, AChoice { chosen: fit.chosen, scores: fit.scores, rounds: fit.rounds, v4: fit.v4 }, fit.pairs)
     });
     let mut out = AWalk::default();
     for (block, choice, pairs) in results {
@@ -839,6 +854,8 @@ pub struct BFit {
     pub chosen: Option<V3Candidate>,
     pub rounds: Option<usize>,
     pub train_rows: usize,
+    /// v4's gates (top, bottom) of the block.
+    pub v4: [bot_v4::Gate; 2],
 }
 
 /// Scores of rows by a model, ranked by day into actions.
@@ -892,7 +909,13 @@ pub fn b_fit(rows: &[Row], xs: &[XsRow], dates: &[i64], ci: usize, h: usize) -> 
         None => B_CANDS.iter().map(|c| EconScore { id: *c, score: None, signals: 0 }).collect(),
     };
     let chosen = choose(&scores, |c| models[c.b_slot().unwrap()].is_some(), V3Candidate::XsMomentum);
-    BFit { models, scores, chosen, rounds, train_rows: full.len() }
+    let v4 = match w0 {
+        Some((v0, _)) => {
+            bot_v4::b_gates(rows, xs, dates[v0], cutoff, [inner[1].as_ref(), inner[2].as_ref()], [models[1].as_ref(), models[2].as_ref()])
+        }
+        None => [bot_v4::Gate::default(); 2],
+    };
+    BFit { models, scores, chosen, rounds, train_rows: full.len(), v4 }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -901,6 +924,7 @@ pub struct BChoice {
     pub scores: Vec<EconScore>,
     pub rounds: Option<usize>,
     pub train_rows: usize,
+    pub v4: [bot_v4::Gate; 2],
 }
 
 /// Family B's walk-forward: per block (same blocks as family A) the choice and the peers models fitted on the whole
@@ -955,7 +979,7 @@ pub fn b_walk(rows: &[Row], xs: &[XsRow], h: usize, threads: usize) -> BWalk {
         let fit = b_fit(rows, xs, &dates, s - h, h);
         release_memory();
         let end = dates.get(s + RETRAIN_EVERY).copied().unwrap_or(i64::MAX);
-        (dates[s], end, BChoice { chosen: fit.chosen, scores: fit.scores, rounds: fit.rounds, train_rows: fit.train_rows }, fit.models)
+        (dates[s], end, BChoice { chosen: fit.chosen, scores: fit.scores, rounds: fit.rounds, train_rows: fit.train_rows, v4: fit.v4 }, fit.models)
     });
     let mut out = BWalk::default();
     for (start, end, choice, models) in results {
@@ -2075,6 +2099,12 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
     let mut compute = Compute { row_bytes: std::mem::size_of::<Row>(), ..Compute::default() };
     let mut nows: HashMap<String, V3AssetNow> = HashMap::new();
     let trace = Trace::new();
+    // v4 (selective bots): same rows, blocks and fitted models; its own corrected threshold and forward test.
+    let k4 = bot_v4::k_count();
+    let t_req4 = bot_v4::t_required(k4.total);
+    let mut bots4: BTreeMap<(usize, usize, bot_v4::Side), bot_v4::SelectiveBot> = BTreeMap::new();
+    let mut live4 = bot_v4::V4Live::default();
+    let mut nows4: HashMap<String, bot_v4::V4AssetNow> = HashMap::new();
     for g in GROUPS {
         // The rows once (features at each close, labels at the first horizon), then everything the candles give;
         // the candles are dropped (memory) and the labels of the other horizon come from the prices kept.
@@ -2093,6 +2123,11 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
         let is_extra = d.is_extra.clone();
         let mut vg = V3Group { id: g, label: g.label().into(), vol_managed: vol, ..V3Group::default() };
         let mut lg = V3LiveGroup { group: g, horizons: Vec::new() };
+        let mut lg4 = bot_v4::V4LiveGroup { group: g, horizons: Vec::new() };
+        let gi = GROUPS.iter().position(|x| *x == g).unwrap_or(0);
+        let main4 = |r: &Row| !is_extra[r.asset] && r.time < bot_v4::FORWARD_FROM;
+        let extra4 = |r: &Row| is_extra[r.asset] && r.time < bot_v4::FORWARD_FROM;
+        let fwd4 = |r: &Row| !is_extra[r.asset] && r.time >= bot_v4::FORWARD_FROM;
         let cost = |_: usize| round_trip_cost(if g == BotGroup::Crypto { Kind::Crypto } else { Kind::Stock });
         // Family A, horizon by horizon, on the raw features.
         let mut a_parts: Vec<(Vec<(bot::Block, AChoice)>, Vec<V3Config>)> = Vec::new();
@@ -2140,13 +2175,34 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
                     true,
                 ),
             ];
+            let (mut p_logit, mut p_long) = (Vec::new(), Vec::new());
             for c in A_CANDS {
                 let preds = aw.slot(&d.rows, threads, c.a_slot().unwrap());
                 let mut x =
                     config(head(c.id(), Family::Absolute, Some(c), false, c.label().into()), &d.rows, &preds, &is_extra, t_req, &eval_a, None, true);
                 x.chosen_blocks = aw.choices.iter().filter(|b| b.chosen == Some(c)).count();
                 configs.push(x);
+                match c {
+                    V3Candidate::Logit => p_logit = preds,
+                    V3Candidate::TreesLong => p_long = preds,
+                    _ => {}
+                }
             }
+            // v4, family A: the rise and fall bots, from the logistic and long trees' predictions.
+            let gates: Vec<[bot_v4::Gate; 2]> = aw.choices.iter().map(|c| c.v4).collect();
+            for side in [bot_v4::Side::Rise, bot_v4::Side::Fall] {
+                let ev = |keep: &dyn Fn(&Row) -> bool| {
+                    bot_v4::PrecisionStats::of(&bot_v4::evaluate_a(&d.rows, [&p_logit, &p_long], &gates, side, keep), t_req4)
+                };
+                let b = bot_v4::SelectiveBot::new(g, h, side, &gates).with_stats(ev(&main4), ev(&extra4), ev(&fwd4));
+                bots4.insert((gi, h, side), b);
+            }
+            drop((p_logit, p_long));
+            let a4 = match (&la.pairs[V3Candidate::Logit.a_slot().unwrap()], &la.pairs[V3Candidate::TreesLong.a_slot().unwrap()]) {
+                (Some(p0), Some(p1)) => Some([p0.clone(), p1.clone()]),
+                _ => None,
+            };
+            let lh4 = bot_v4::V4LiveH { horizon: h, a: a4, a_gates: la.v4, ..bot_v4::V4LiveH::default() };
             // Today: family A's models and actions.
             let absolute = la.chosen.and_then(|c| Some((c, la.pairs[c.a_slot()?].clone()?)));
             for (k, (a0, a1)) in &d.spans {
@@ -2157,8 +2213,29 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
                 let n = nows.entry(histories[*k].asset.symbol.to_string()).or_default();
                 n.time = Some(r.time);
                 let act = absolute.as_ref().map(|(_, p)| p.predict(&r.x, r.trend).action);
-                if h == 20 { n.absolute20 = act } else { n.absolute60 = act }
+                if h == 20 {
+                    n.absolute20 = act
+                } else {
+                    n.absolute60 = act
+                }
+                let n4 = nows4.entry(histories[*k].asset.symbol.to_string()).or_default();
+                n4.time = Some(r.time);
+                for side in [bot_v4::Side::Rise, bot_v4::Side::Fall] {
+                    if lh4.avis(side, &r.x, r.trend, None).is_some_and(|a| a.0) {
+                        n4.bots.push(bot_v4::bot_id(g, h, side));
+                        if let Some(b) = bots4.get_mut(&(gi, h, side)) {
+                            b.today.push(histories[*k].asset.symbol.to_string());
+                        }
+                    }
+                }
             }
+            for side in [bot_v4::Side::Rise, bot_v4::Side::Fall] {
+                if let Some(b) = bots4.get_mut(&(gi, h, side)) {
+                    b.today_level = lh4.a_gates[side.slot()].level.map(|q| round_to(q * 100.0, 1));
+                    b.today_time = d.rows.iter().filter(|r| !is_extra[r.asset]).map(|r| r.time).max();
+                }
+            }
+            lg4.horizons.push(lh4);
             lg.horizons.push(V3LiveH { horizon: h, absolute, ..V3LiveH::default() });
             a_parts.push((aw.blocks.iter().cloned().zip(aw.choices.iter().cloned()).collect(), configs));
             trace.at(&format!("{g:?} {h} j : famille A (évaluations)"));
@@ -2197,6 +2274,7 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
                     false,
                 ),
             );
+            let (mut p_xlogit, mut p_xtrees) = (Vec::new(), Vec::new());
             for c in B_CANDS {
                 let preds = bw.slot(&d.rows, &xs, threads, c.b_slot().unwrap());
                 let mut x = config(
@@ -2211,9 +2289,49 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
                 );
                 x.chosen_blocks = bw.choices.iter().filter(|b| b.chosen == Some(c)).count();
                 configs.push(x);
+                match c {
+                    V3Candidate::XsLogit => p_xlogit = preds,
+                    V3Candidate::XsTrees => p_xtrees = preds,
+                    _ => {}
+                }
             }
+            // v4, family B: the top and bottom bots.
+            let gates: Vec<[bot_v4::Gate; 2]> = bw.choices.iter().map(|c| c.v4).collect();
+            for side in [bot_v4::Side::Top, bot_v4::Side::Bottom] {
+                let ev = |keep: &dyn Fn(&Row) -> bool| {
+                    bot_v4::PrecisionStats::of(&bot_v4::evaluate_b(&d.rows, &xs, [&p_xlogit, &p_xtrees], &gates, side, keep), t_req4)
+                };
+                let b = bot_v4::SelectiveBot::new(g, h, side, &gates).with_stats(ev(&main4), ev(&extra4), ev(&fwd4));
+                bots4.insert((gi, h, side), b);
+            }
+            drop((p_xlogit, p_xtrees));
             // Today: family B's model, the day's cut-offs and the basket's actions.
             let lb = b_fit(&d.rows, &xs, &dates, dates.len(), h);
+            // v4 today: the peers bots on the basket's last day.
+            if let Some(lh4) = lg4.horizons.iter_mut().find(|x| x.horizon == h) {
+                lh4.b_gates = lb.v4;
+                lh4.b = match (&lb.models[1], &lb.models[2]) {
+                    (Some(m0), Some(m1)) => Some([m0.clone(), m1.clone()]),
+                    _ => None,
+                };
+                for side in [bot_v4::Side::Top, bot_v4::Side::Bottom] {
+                    let speaking: Vec<usize> = last_rows
+                        .iter()
+                        .copied()
+                        .filter(|i| xs[*i].ranked && !d.is_extra[d.rows[*i].asset])
+                        .filter(|i| lh4.avis(side, &d.rows[*i].x, d.rows[*i].trend, Some(&d.rows[*i].x)).is_some_and(|a| a.0))
+                        .collect();
+                    if let Some(b) = bots4.get_mut(&(gi, h, side)) {
+                        b.today_level = lb.v4[side.slot()].level.map(|q| round_to(q * 100.0, 1));
+                        b.today_time = last_day.map(|d| d * DAY_MS);
+                        b.today = speaking.iter().map(|i| symbol(&d.rows[*i]).to_string()).collect();
+                    }
+                    for i in speaking {
+                        let n4 = nows4.entry(symbol(&d.rows[i]).to_string()).or_default();
+                        n4.bots.push(bot_v4::bot_id(g, h, side));
+                    }
+                }
+            }
             let peers = lb.chosen.and_then(|c| Some((c, lb.models[c.b_slot()?].clone()?)));
             let (mut cut_top, mut cut_bottom) = (None, None);
             if let Some((_, m)) = &peers {
@@ -2272,10 +2390,37 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
         vg.text = group_text(g, &vg.horizons, t_req);
         v3_groups.push(vg);
         live.groups.push(lg);
+        live4.groups.push(lg4);
     }
     for a in assets.iter_mut() {
         a.v3 = nows.remove(&a.symbol);
+        a.v4 = nows4.remove(&a.symbol).map(|mut n| {
+            n.bots.sort_by_key(|id| bots4.values().position(|b| b.id == *id));
+            n
+        });
     }
+    let bots4: Vec<bot_v4::SelectiveBot> = bots4.into_values().collect();
+    let v4 = bot_v4::V4Report {
+        version: bot_v4::VERSION,
+        prereg_date: bot_v4::PREREG_DATE.into(),
+        forward_from: bot_v4::FORWARD_FROM,
+        after_prereg: bot_v4::AFTER_PREREG.iter().map(|s| s.to_string()).collect(),
+        k: k4,
+        alpha: bot_v4::ALPHA,
+        t_required: round_to(t_req4, 4),
+        headline: bot_v4::headline(&bots4, t_req4, k4.total),
+        forward_headline: bot_v4::forward_headline(&bots4),
+        method: bot_v4::method(t_req4, &k4),
+        limits: bot_v4::limits(),
+        parameters: bot_v4::V4Parameters {
+            levels: bot_v4::LEVELS.iter().map(|q| round_to(q * 100.0, 1)).collect(),
+            min_val_signals: bot_v4::MIN_VAL_SIGNALS,
+            wilson_z: bot_v4::WILSON_Z,
+            min_signals: MIN_TRADES,
+            nudge: bot_v4::NUDGE,
+        },
+        bots: bots4,
+    };
     let mut report = bot::report_of(groups, overall, assets, failures, extra_failures, now, source);
     let v3 = V3Report {
         version: VERSION,
@@ -2318,5 +2463,7 @@ pub fn run(histories: Vec<History>, failures: Vec<Failure>, now: i64, source: &s
     report.parameters.stock_years = ((now / 1000 - STOCK_FROM_S) as f64 / (365.25 * 86_400.0)).floor() as i64;
     report.v3 = Some(v3);
     report.v3_live = Some(Arc::new(live));
+    report.v4 = Some(v4);
+    report.v4_live = Some(Arc::new(live4));
     report
 }

@@ -563,6 +563,8 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
     public var botMaxDrawdown: Double?
     /// v3: today's actions of the 4 headline configurations (nil in a v1 / v2 answer).
     public var v3: BotV3AssetNow?
+    /// v4: the selective bots speaking today on it (nil before v4).
+    public var v4: BotV4AssetNow?
     public var id: String { "\(kind.rawValue):\(symbol)" }
     public var asset: Asset { Asset(symbol: symbol, kind: kind, name: name.isEmpty ? symbol : name) }
 
@@ -592,6 +594,7 @@ public struct BotAssetRow: Decodable, Sendable, Identifiable {
         holdMaxDrawdown = c.num(k("holdMaxDrawdown"))
         botMaxDrawdown = c.num(k("botMaxDrawdown"))
         v3 = c.opt(BotV3AssetNow.self, k("v3"))
+        v4 = c.opt(BotV4AssetNow.self, k("v4"))
     }
 }
 
@@ -686,6 +689,8 @@ public struct BotReport: Decodable, Sendable {
     public var timing: BotTiming?
     /// Since v3: the pre-registered v3; the v2-shaped fields then hold v2's selection at 20 days, at the corrected threshold.
     public var v3: BotV3Report?
+    /// Since v4: the pre-registered selective bots (precision first, forward test from 02/10/2026).
+    public var v4: BotV4Report?
 
     public init(from decoder: Decoder) throws {
         let c = try box(decoder)
@@ -707,6 +712,7 @@ public struct BotReport: Decodable, Sendable {
         extraFixedOn = c.opt(String.self, k("extraFixedOn"))
         timing = c.opt(BotTiming.self, k("timing"))
         v3 = c.opt(BotV3Report.self, k("v3"))
+        v4 = c.opt(BotV4Report.self, k("v4"))
     }
 }
 
@@ -805,10 +811,12 @@ public struct BotView: Codable, Sendable, Equatable {
     public var modelLabel: String?
     /// Since v3: the 4 headline configurations today; `counts` and `note` are then theirs.
     public var v3: BotV3View?
+    /// Since v4: the group's selective bots today; the server's `counts` and `note` then include them.
+    public var v4: BotV4View?
 
     enum CodingKeys: String, CodingKey {
         case available, group, groupLabel, inBasket, action, actionLabel, up, down, thresholdUp, thresholdDown, baseUp, baseDown
-        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind, model, modelLabel, v3
+        case buyVerdict, sellVerdict, counts, time, contributions, text, note, asOf, link, symbol, kind, model, modelLabel, v3, v4
     }
 
     public init(from decoder: Decoder) throws {
@@ -839,6 +847,7 @@ public struct BotView: Codable, Sendable, Equatable {
         model = c.opt(String.self, .model).flatMap(BotCandidate.init(rawValue:))
         modelLabel = c.opt(String.self, .modelLabel)
         v3 = c.opt(BotV3View.self, .v3)
+        v4 = c.opt(BotV4View.self, .v4)
     }
 
     /// With an action: shown with its probabilities; without: only the text.

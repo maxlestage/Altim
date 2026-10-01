@@ -509,6 +509,9 @@ pub fn BotLine(p: &BotProps) -> Html {
                 <p class="small muted">{ b.contributions.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join(" · ") }</p>
             }
             <p class="small">{ b.note.clone() }</p>
+            if let Some(v4) = b.v4.as_ref().filter(|_| b.available) {
+                <crate::app::bot::V4Avis v={v4.clone()} />
+            }
             <p class="small">
                 <a href={link} onclick={on_link} class="link">{ "Voir le bot et ses résultats →" }</a>
                 if let Some(t) = b.as_of {

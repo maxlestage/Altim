@@ -728,8 +728,8 @@ fn saved_reports_decode() {
     assert!(v1.v3.is_none());
 }
 
-/// Real run on the whole universe (v3 and v2's selection); `ALTIM_SAVE_SAMPLE=1` rewrites tests/samples/bot.json with
-/// it. `ALTIM_BOT_THREADS=1` measures one core.
+/// Real run on the whole universe (v3, v4 and v2's selection); `ALTIM_SAVE_SAMPLE=1` rewrites tests/samples/bot-v4.json
+/// with it. `ALTIM_BOT_THREADS=1` measures one core.
 #[tokio::test]
 #[ignore]
 async fn bot_live() {
@@ -776,8 +776,45 @@ async fn bot_live() {
     for f in r.failures.iter().chain(&r.extra_failures) {
         println!("  échec {} : {}", f.symbol, f.error);
     }
+    if let Some(v4) = &r.v4 {
+        println!("== v4 : {}", v4.headline);
+        println!("   K = {:?}, t requis {:.3} ; {}", v4.k, v4.t_required, v4.forward_headline);
+        for b in &v4.bots {
+            let s = &b.main;
+            println!(
+                "  {:<16} blocs {}/{} {:?} | {} sig ({}/an, couv {:?} %) préc {:?} [{:?}-{:?}] base {:?} hasard {:?} | t {:?} (actif {:?}) | écart {:?} (t {:?}) méd {:?} | proba {:?} | {:?}/{:?} {:?} | extra {} sig préc {:?} réf {:?} | aujourd'hui {:?} {:?}",
+                b.id,
+                b.open_blocks,
+                b.blocks,
+                b.levels.iter().map(|l| (l.level, l.blocks)).collect::<Vec<_>>(),
+                s.signals,
+                s.per_year.unwrap_or(0.0),
+                s.coverage,
+                s.precision,
+                s.wilson_low,
+                s.wilson_high,
+                s.base_rate,
+                s.random_rate,
+                s.t,
+                s.t_by_asset,
+                s.excess,
+                s.excess_t,
+                s.excess_median,
+                s.mean_prob,
+                s.verdict,
+                s.raw_verdict,
+                b.status,
+                b.extra.signals,
+                b.extra.precision,
+                b.extra.reference,
+                b.today_level,
+                b.today
+            );
+        }
+    }
     if std::env::var("ALTIM_SAVE_SAMPLE").is_ok_and(|v| v == "1") {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot.json");
+        // Since v4: the whole report (v3 recomputed, v4) goes to bot-v4.json; bot.json stays v3's real run of 30/09/2026.
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/samples/bot-v4.json");
         std::fs::write(path, serde_json::to_string_pretty(&altim::js::to_value(&r)).unwrap() + "\n").unwrap();
     }
     assert!(r.assets.len() >= BASKET.len() / 2);

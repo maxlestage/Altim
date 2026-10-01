@@ -1995,6 +1995,9 @@ pub struct BotAssetRow {
     /// Since v3: today's actions of the v3 headline configurations (absent from a v1 / v2 report).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub v3: Option<super::bot_v3::V3AssetNow>,
+    /// Since v4: the selective bots speaking today on it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub v4: Option<super::bot_v4::V4AssetNow>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -2096,6 +2099,11 @@ pub struct BotReport {
     /// v3's live models (memory only: the views are computed by the server).
     #[serde(skip)]
     pub v3_live: Option<std::sync::Arc<super::bot_v3::V3Live>>,
+    /// Since v4 (additive): the pre-registered selective bots (precision first, forward test from 2026-10-02).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub v4: Option<super::bot_v4::V4Report>,
+    #[serde(skip)]
+    pub v4_live: Option<std::sync::Arc<super::bot_v4::V4Live>>,
 }
 
 impl BotReport {
@@ -2447,6 +2455,7 @@ pub fn assemble(
             hold_max_drawdown: e.exit.map(|x| round_to(x.hold_max_drawdown, 2)),
             bot_max_drawdown: e.exit.map(|x| round_to(x.bot_max_drawdown, 2)),
             v3: None,
+            v4: None,
         });
     }
     let st = stats_t(&samples, t_edge);
@@ -2622,6 +2631,8 @@ pub fn report_of(
         timing: None,
         v3: None,
         v3_live: None,
+        v4: None,
+        v4_live: None,
     }
 }
 
@@ -2683,6 +2694,10 @@ pub struct BotView {
     /// Since v3: the four headline configurations today and whether one counts (then `counts` is theirs).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub v3: Option<super::bot_v3::V3View>,
+    /// Since v4: the group's selective bots today (« pas d'avis » unless a score is extreme); one proven and
+    /// confirmed on the forward test counts with v3 (± 3 together at most).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub v4: Option<super::bot_v4::V4View>,
 }
 
 impl Default for BotView {
@@ -2712,6 +2727,7 @@ impl Default for BotView {
             model: None,
             model_label: None,
             v3: None,
+            v4: None,
         }
     }
 }
@@ -2873,8 +2889,20 @@ pub fn bot_view(report: Option<&BotReport>, symbol: &str, kind: Kind, daily: &[C
         Some(v) => (v.counts, v.note.clone()),
         None => (counts, note),
     };
+    // v4: its bots count only when proven and confirmed on the forward test; v3's note stays first when it counts.
+    let v4 = super::bot_v4::view(report, group, symbol, &x, trend);
+    let (n3, n4) =
+        (v3.as_ref().map_or(0.0, |v| if v.counts { v.nudge } else { 0.0 }), v4.as_ref().map_or(0.0, |w| if w.counts { w.nudge } else { 0.0 }));
+    let (counts, note) = match &v4 {
+        Some(_) if n3 != 0.0 && n4 != 0.0 && super::bot_v4::combined_nudge(n3, n4) == 0.0 => {
+            (false, "Bot v3 et bot sélectif prouvés mais en désaccord aujourd'hui : ils ne comptent pas.".to_string())
+        }
+        Some(w) if w.counts && !counts => (true, w.note.clone()),
+        _ => (counts, note),
+    };
     BotView {
         v3,
+        v4,
         action: Some(p.action),
         action_label: Some(p.action.label().into()),
         up: Some(round_to(up * 100.0, 1)),
@@ -2895,8 +2923,13 @@ pub fn bot_view(report: Option<&BotReport>, symbol: &str, kind: Kind, daily: &[C
 impl BotView {
     /// The pro or con line of a decision, when it counts: (is_pro, text). `held`: the user holds the asset.
     pub fn line(&self, held: bool) -> Option<(bool, String)> {
-        if let Some(v) = &self.v3 {
-            return if v.counts { v.line(held) } else { None };
+        if self.v3.is_some() || self.v4.is_some() {
+            // Counting signals of v3 and v4 that disagree cancel out (no line, no nudge).
+            if self.nudge() == 0.0 {
+                return None;
+            }
+            let v3 = self.v3.as_ref().filter(|v| v.counts).and_then(|v| v.line(held));
+            return v3.or_else(|| self.v4.as_ref().and_then(|v| v.line(held)));
         }
         if !self.counts {
             return None;
@@ -2936,13 +2969,19 @@ impl BotView {
         if let Some(s) = self.v3.as_ref().and_then(|v| v.signals.iter().find(|s| s.counts)) {
             return s.text.clone();
         }
+        if let Some(s) = self.v4.as_ref().and_then(|v| v.signals.iter().find(|s| s.counts)) {
+            return s.text.clone();
+        }
         self.action_label.clone().unwrap_or_default()
     }
 
     /// Confidence change for a buy-side verdict (Buy / BuyZone): ± `NUDGE` when it counts, else 0.
     pub fn nudge(&self) -> f64 {
-        if let Some(v) = &self.v3 {
-            return if v.counts { v.nudge } else { 0.0 };
+        if self.v3.is_some() || self.v4.is_some() {
+            let of = |c: bool, n: f64| if c { n } else { 0.0 };
+            let v3 = self.v3.as_ref().map_or(0.0, |v| of(v.counts, v.nudge));
+            let v4 = self.v4.as_ref().map_or(0.0, |v| of(v.counts, v.nudge));
+            return super::bot_v4::combined_nudge(v3, v4);
         }
         match (self.counts, self.action) {
             (true, Some(BotAction::Buy)) => NUDGE,

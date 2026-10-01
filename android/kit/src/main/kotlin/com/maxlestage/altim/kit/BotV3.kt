@@ -454,7 +454,7 @@ object BotV3 {
 }
 
 /** Whether the bot counts in this decision: v3's rule when present (the server copies it too), else v1/v2's. */
-val BotView.effectiveCounts: Boolean get() = v3?.counts ?: counts
+val BotView.effectiveCounts: Boolean get() = if (v4 != null) counts else v3?.counts ?: counts
 
 /** The decision's note: v3's when present and non-empty, else the view's. */
-val BotView.effectiveNote: String get() = v3?.note?.takeIf { it.isNotBlank() } ?: note
+val BotView.effectiveNote: String get() = if (v4 != null && note.isNotBlank()) note else v3?.note?.takeIf { it.isNotBlank() } ?: note
