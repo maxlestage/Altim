@@ -1,13 +1,15 @@
 //! « Bot Altim » (Bot.tsx): candidate models trained on long histories of the validation's basket and an extra
 //! universe (/api/bot, the server's `BotReport`), chosen at each retraining on an inner validation and tested
 //! walk-forward on periods they had not seen, saying ACHETER / ATTENDRE / VENDRE; today's view of the watched assets
-//! (/api/bot/views). v3 (`v3::BotV3Section`) first when present, then v2's selection as the reference. Also the
+//! (/api/bot/views). v3 (`v3::BotV3Section`) first when present, then v4's selective bots (`v4::BotV4Section`), then v2's
+//! selection as the reference. Also the
 //! Radar's cards: `BotRadarCard` and `BriefCard` (« Point du jour »). Texts in
 //! `altim_core::web::bot::screen`.
 mod brief;
 mod radar_card;
 mod report;
 mod v3;
+mod v4;
 
 use altim_core::engine::bot::BotReport;
 use altim_core::web::bot::screen::BOT_URL;
@@ -16,6 +18,7 @@ use yew::prelude::*;
 pub use brief::BriefCard;
 pub use radar_card::{BotRadarCard, BotRadarView, RadarState};
 pub use report::{ActionChip, BotReportView};
+pub use v4::V4Avis;
 
 use crate::app::validation::{Load, use_heavy_report};
 

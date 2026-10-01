@@ -76,6 +76,7 @@ private struct BotReportContent: View {
             headline(r)
 
             if let v3 = r.v3 { BotV3Section(v3: v3, timing: r.timing) }
+            if let v4 = r.v4 { BotV4Section(v4: v4) }
 
             if r.v3 == nil && !r.changes.isEmpty {
                 Card(title: ModelBot.changesTitle) { bullets(r.changes) }
@@ -452,6 +453,7 @@ private struct BotAssetRowView: View {
             }
             Text(ModelBot.todayText(a)).font(.footnote).foregroundStyle(.white).fixedSize(horizontal: false, vertical: true)
             if let now = a.v3 { BotV3AssetNowView(now: now) }
+            if let now = a.v4 { BotV4AssetNowView(now: now) }
             Text(ModelBot.assetTestText(a)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -517,6 +519,7 @@ private struct BotViewRow: View {
             }
             Text(ModelBot.viewText(v)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             if let x = v.v3, x.available { BotV3SignalsView(view: x) }
+            if let x = v.v4 { BotV4AvisView(view: x) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -561,6 +564,7 @@ struct BotBlockView: View {
             if !b.noteNow.isEmpty {
                 Text(b.noteNow).font(.caption).foregroundStyle(.white.opacity(0.9)).fixedSize(horizontal: false, vertical: true)
             }
+            if b.available, let v4 = b.v4 { BotV4AvisView(view: v4) }
             NavigationLink {
                 BotScreen()
             } label: {

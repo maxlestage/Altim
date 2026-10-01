@@ -30,6 +30,8 @@ import com.maxlestage.altim.kit.BotContribution
 import com.maxlestage.altim.kit.BotReport
 import com.maxlestage.altim.kit.BotV3Signal
 import com.maxlestage.altim.kit.BotV3View
+import com.maxlestage.altim.kit.BotV4Signal
+import com.maxlestage.altim.kit.BotV4View
 import com.maxlestage.altim.kit.BotView
 import com.maxlestage.altim.kit.BotViews
 import com.maxlestage.altim.kit.Decision
@@ -394,5 +396,29 @@ class BotScreenTest {
         assertTrue(!has("ne compte pas"))
         assertTrue(!has("Probabilités à 20 jours"))
         fitsWidth()
+    }
+
+    /** « Bots sélectifs » (v4) from the real answer of 01/10/2026 (reduced fixture), and its line in a watched asset's view. */
+    @Test fun v4SectionFromTheSample() {
+        val report = AltimJson.decodeFromString(BotReport.serializer(), fixture("bot-v4.json"))
+        val v4 = report.v4!!
+        val speaking = BotV4Signal(
+            id = "stock-60-fall", label = "Baisse à 60 jours (actions)", horizon = 60, side = "fall", action = "sell", probability = 44.0,
+            precision = 67.0, wilsonLow = 57.9, wilsonHigh = 74.9, reference = 55.4, perYear = 4.1, status = "pending",
+        )
+        val quiet = BotV4Signal(id = "stock-20-rise", label = "Hausse à 20 jours (actions)")
+        val views = BotViews(
+            asOf = report.asOf,
+            views = listOf(view.copy(symbol = "AAPL", kind = Kind.STOCK, v4 = BotV4View(available = true, signals = listOf(speaking, quiet), note = "Bot sélectif en attente."))),
+        )
+        compose.setContent { AltimTheme { AppBackground { BotAltimView(report, null, false, Modifier.fillMaxSize(), watched = true, views = views) } } }
+        compose.waitForIdle()
+        expect("Bots sélectifs : 1 avis sur 2 bots", "Baisse à 60 jours (actions)", "en attente", "précision mesurée 67", "Bot sélectif en attente.")
+        fitsWidth()
+        reach("Bots sélectifs · pré-enregistrés le 01/10/2026", "Tests comptés (v1 à v4)", "130", "Bots précis sur le passé", "Actions et ETF américains · 60 jours")
+        assertTrue(has(v4.headline))
+        compose.onRoot().captureRoboImage("build/screens/bot-v4.png")
+        reach("Précision mesurée", "Avis du jour : ", "Cryptos (bitcoin, ether, altcoins) · 60 jours", "aucun signal", "Comment les bots sélectifs sont jugés")
+        v4.method.forEach { assertTrue("méthode absente : $it", has(it)) }
     }
 }
