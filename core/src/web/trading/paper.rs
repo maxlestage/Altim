@@ -564,7 +564,7 @@ mod tests {
     /// valuations and statistics as the TypeScript (and the iPhone and Android ports).
     #[test]
     fn reference_scenario() {
-        let fixture: Value = serde_json::from_str(include_str!("../../../../web/test/paper-fixture.json")).unwrap();
+        let fixture: Value = serde_json::from_str(include_str!("../../../../backend/tests/samples/paper-fixture.json")).unwrap();
         let mut s = new_paper(10_000.0, t0());
         for (i, row) in fixture.as_array().unwrap().iter().enumerate() {
             let step = &row["step"];

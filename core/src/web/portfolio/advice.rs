@@ -363,7 +363,7 @@ mod tests {
     use crate::web::store::DEFAULT_RISK;
 
     fn base() -> Signal {
-        let v: serde_json::Value = serde_json::from_str(include_str!("../../../../web/test/swift-fixture.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../../../backend/tests/samples/swift-fixture.json")).unwrap();
         let candles: Vec<Candle> = v[0]["candles"]
             .as_array()
             .unwrap()

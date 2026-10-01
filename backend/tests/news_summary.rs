@@ -10,7 +10,7 @@ const HOUR: i64 = 3_600_000;
 const NOW: i64 = 1_790_578_800_000;
 
 fn sample(name: &str) -> Vec<RawNews> {
-    let xml = std::fs::read_to_string(format!("{}/../web/test/news-samples/{name}.xml", env!("CARGO_MANIFEST_DIR"))).unwrap();
+    let xml = std::fs::read_to_string(format!("{}/tests/samples/news-samples/{name}.xml", env!("CARGO_MANIFEST_DIR"))).unwrap();
     let source = match name {
         "bfm" => "BFM Économie",
         "cointelegraph" => "Cointelegraph",

@@ -2,7 +2,7 @@
 
 > **Logiciel propriétaire, tous droits réservés** (voir `LICENSE`). Ce dépôt n'est pas open source : aucune copie, réutilisation ni déploiement n'est autorisé.
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation en **Rust + Yew** (WebAssembly, `frontend/`), application (`/app`) en React + TypeScript en cours de portage vers Yew (`frontend/PORTING.md`), serveur **Rust + Axum** et moteurs partagés (`core/`), déployés sur Heroku (buildpacks Rust et Bun), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application web (`/app`) en **Rust + Yew** (WebAssembly, `frontend/`), serveur **Rust + Axum** et moteurs partagés (`core/`) : tout en Rust, déployé sur Heroku (buildpacks Rust puis Node.js, ce dernier sans aucune dépendance JavaScript, ou image Docker), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -10,9 +10,9 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 
 | Dossier | Rôle |
 |---|---|
-| `frontend` | Front **Rust + Yew** (WebAssembly) : site vitrine, puis l'app web écran par écran (`sh scripts/build-web.sh`) |
-| `core` | Logique pure partagée serveur / navigateur : moteurs, formats, contrats JSON |
-| `web` | **Application web `/app`** (React + TS), servie jusqu'à la fin du portage, mobile first |
+| `frontend` | Front web **Rust + Yew** (WebAssembly), mobile first : site vitrine et application web `/app` (`sh scripts/build-web.sh` → `web/dist`, un `.wasm` pour le site, un pour l'app ; voir `frontend/README.md`) |
+| `core` | Logique pure partagée serveur / navigateur : moteurs, formats, contrats JSON (testée par `cargo test`) |
+| `web` | Ce que le serveur sert : `web/public` (icônes, logo) et `web/dist` (front construit, non versionné) |
 | `backend` | Serveur **Rust + Axum** : API **multi-source**, prix en direct, accès privé, **API garde-fou pour bots**, sert le site |
 | `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
 | `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |
@@ -78,7 +78,7 @@ Même application que sur iPhone, écran par écran : connexion privée, Radar e
 
 Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien serveur Express sur Bun, route pour route : mêmes adresses, mêmes réponses JSON, mêmes textes, mêmes en-têtes de sécurité, mêmes sessions (les connexions ouvertes et les apps déjà connectées restent valides). Il consomme environ 16 Mo de mémoire au lieu de 180 Mo.
 
-- **Moteurs** (signal, fiabilité, Fibonacci, garde-fou, macro, sélection, actualités, alertes, point du jour…) portés ligne à ligne depuis `web/src/engine` (que l'application web continue d'utiliser) : **plus de 4 000 cas de parité** calculés par les moteurs TypeScript sur de vraies bougies (BTC, ETH, SOL, DOGE, AAPL, NVDA, SPY, toutes unités de temps) et comparés champ par champ, textes français compris (`bun parity/golden.ts`, puis `cargo test`).
+- **Moteurs** (signal, fiabilité, Fibonacci, garde-fou, macro, sélection, actualités, alertes, point du jour…) portés ligne à ligne depuis les anciens moteurs TypeScript, aujourd'hui dans `core/` et partagés avec le front Yew : **plus de 4 000 cas de parité** calculés par les moteurs TypeScript sur de vraies bougies (BTC, ETH, SOL, DOGE, AAPL, NVDA, SPY, toutes unités de temps), figés dans `backend/tests/golden` et comparés champ par champ par `cargo test`, textes français compris.
 - **Vérifié de bout en bout** : réponses comparées au serveur TypeScript route par route, audit des données contre des références indépendantes, vrais écrans Android (Robolectric) et noyau iPhone connectés au serveur Rust.
 - **Corrigé au passage** : l'ancien serveur rangeait les titres du garde-fou et la page Actu sous la même clé de cache (`news:crypto:BTC`), d'où une erreur 502 sur `/api/guard` selon l'ordre des visites ; le cache Rust inclut le type dans la clé.
 
@@ -171,11 +171,11 @@ Avant l'argent réel : **Mes avoirs → Simulation** (web, iPhone, Android), un 
 - **Coûts réels** : 0,1 % de frais et 0,05 % de glissement à chaque achat et chaque vente.
 - **Sorties automatiques** au stop ou à l'objectif, vérifiées sur les bougies journalières après le jour d'achat (la bougie du jour d'achat n'est pas utilisée : son plus bas peut être antérieur à l'achat). Si une même bougie touche les deux, c'est le stop (le pire cas) ; un écart d'ouverture sous le stop est vendu à l'ouverture.
 - **Signal → exécution → résultat** : les ventes sont regroupées par décision affichée à l'achat (ACHETER, ZONE D'ACHAT, ATTENDRE…), pour voir quels verdicts marchent vraiment ; sous une vingtaine de trades, l'écran rappelle que les chiffres veulent dire peu.
-- Tout reste sur l'appareil. Même moteur sur les trois plateformes, vérifié sur le même scénario de référence (`web/test/paper-fixture.json`), au centime près.
+- Tout reste sur l'appareil. Même moteur sur les trois plateformes, vérifié sur le même scénario de référence (`backend/tests/samples/paper-fixture.json`), au centime près.
 
 ## Journal automatique, « Et si… ? » et « Pourquoi ça bouge ? » (web)
 
-- **Journal** (Mes avoirs → Journal, `/app/journal`, `web/src/engine/journal.ts`) : chaque achat simulé et chaque achat ou vente réel enregistré dans Mes avoirs est noté avec la décision affichée à ce moment-là (note, titre, 3 arguments pour et contre, confiance, score composite, étapes de la configuration, interdictions actives, plan), le prix, le stop, les objectifs, le signal utilisé, le contexte (régime de marché, stress macro, ATR, volume relatif, annonces à 7 jours) et une note facultative « Pourquoi je suis entré ». À l'ouverture, revue automatique à 3, 10 et 30 jours sur les bougies journalières **après** l'entrée : plus haut et plus bas atteints, stop ou objectif touché en premier (le stop si une bougie touche les deux), résultat en R (multiples du risque pris), faits « ce qui a fonctionné / pas fonctionné », et cohérence avec les données du moment (interdictions actives, signal dégradé, gain/risque < 2, hors zone d'achat, contre le régime). Profil par note à l'entrée, plan respecté ou non et régime de marché, en R et en pire recul (prendre plus de risque n'est pas récompensé), « échantillon trop faible » sous 5. Le premier ajout d'avoirs (souvent des achats passés) n'est inscrit que si on le coche. Tout reste dans le navigateur (`altim.journal.v1`).
+- **Journal** (Mes avoirs → Journal, `/app/journal`, `core/src/web/trading/journal.rs`) : chaque achat simulé et chaque achat ou vente réel enregistré dans Mes avoirs est noté avec la décision affichée à ce moment-là (note, titre, 3 arguments pour et contre, confiance, score composite, étapes de la configuration, interdictions actives, plan), le prix, le stop, les objectifs, le signal utilisé, le contexte (régime de marché, stress macro, ATR, volume relatif, annonces à 7 jours) et une note facultative « Pourquoi je suis entré ». À l'ouverture, revue automatique à 3, 10 et 30 jours sur les bougies journalières **après** l'entrée : plus haut et plus bas atteints, stop ou objectif touché en premier (le stop si une bougie touche les deux), résultat en R (multiples du risque pris), faits « ce qui a fonctionné / pas fonctionné », et cohérence avec les données du moment (interdictions actives, signal dégradé, gain/risque < 2, hors zone d'achat, contre le régime). Profil par note à l'entrée, plan respecté ou non et régime de marché, en R et en pire recul (prendre plus de risque n'est pas récompensé), « échantillon trop faible » sous 5. Le premier ajout d'avoirs (souvent des achats passés) n'est inscrit que si on le coche. Tout reste dans le navigateur (`altim.journal.v1`).
 - **Et si… ?** (Mes avoirs) : perte de chaque ligne et du total si le Nasdaq-100 (QQQ), le S&P 500 (SPY) ou le Bitcoin baisse de 5 à 50 % (ou d'un pourcentage libre), éventuellement sur un montant réparti selon les poids actuels. Bêta mesuré sur les jours où l'actif et le marché ont tous deux une clôture (90 jours au plus, 30 au moins) ; une ligne sans bêta mesurable est « non couverte », jamais estimée. Hypothèse affichée : choc instantané, relation stable — rarement vrai en crise.
 - **Pourquoi ça bouge ?** (fiche d'un actif, `GET /api/why?symbol=&kind=`) : variation depuis la dernière clôture journalière, volume de la dernière séance close face aux 20 précédentes, marché de référence, financement et ratio acheteurs/vendeurs des perpétuels, Fear & Greed, titres d'actualité et leur ton, stress macro et régime, annonces du jour, lecture de la dernière décision calculée — uniquement des sources déjà en cache. Chaque facteur a un sens, une ampleur, une source et un niveau d'incertitude (« observé », « corrélation possible », « non vérifiable ») ; résumé français déterministe. Ce sont des observations simultanées, pas des causes prouvées.
 - **Question libre (facultative)** : uniquement si la variable d'environnement `ANTHROPIC_API_KEY` est définie sur le serveur, `POST /api/ask {symbol, kind, question}` envoie la question et **seulement** les données de `/api/why` (et la dernière décision calculée, jamais vos avoirs) à l'API Anthropic (modèle `claude-sonnet-5-5`, 600 jetons de sortie au plus, repli automatique si le modèle refuse), qui répond en français, uniquement à partir de ces données, en citant les champs utilisés et sans jamais donner d'ordre. **Coût** : chaque question est facturée par Anthropic sur le compte de la clé (quelques milliers de jetons en entrée, 600 au plus en sortie, au tarif de 2 $ / 10 $ par million de jetons : un à deux centimes de dollar) ; 4 questions par minute et par adresse au plus. Sans clé, la route répond 503 et la zone de question n'apparaît pas (`askEnabled` de `/api/why`). La clé n'est jamais journalisée ni envoyée au navigateur.
@@ -281,7 +281,7 @@ Les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avo
 - **Montants** : la zone d'entrée, la valeur du patrimoine, les gains et les quantités suggérées suivent le prix en direct. Les signaux, eux, ne changent qu'à la clôture d'une bougie, pour ne jamais être décidés sur une bougie inachevée.
 - **Web** : Server-Sent Events non compressés, avec un battement toutes les 15 s pour traverser le routeur Heroku. Le flux se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
 
-Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `web/test/live-samples.json`, et les tests les rejouent.
+Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `backend/tests/samples/live-samples.json`, et les tests les rejouent.
 
 ## Quelles actions acheter (onglet « Sélection »)
 
@@ -447,7 +447,7 @@ Le site, l'application et l'API sont réservés à leur propriétaire (`backend/
 | `ALTIM_API_TOKEN` | jeton des bots : `Authorization: Bearer …` sur `/api/*` uniquement |
 | `ANTHROPIC_API_KEY` | *facultatif* : active la question libre de « Pourquoi ça bouge ? » (`POST /api/ask`), facturée par Anthropic à chaque question |
 
-Les valeurs se génèrent avec `cd web && bun run secrets` : mot de passe aléatoire de 24 caractères (≈ 139 bits), secret 2FA de 160 bits, clé de session de 512 bits, jeton API de 256 bits.
+Les valeurs se génèrent avec `cargo run --release --bin altim-secrets` : mot de passe aléatoire de 24 caractères (≈ 139 bits), secret 2FA de 160 bits, clé de session de 512 bits, jeton API de 256 bits.
 
 Protections en place :
 - **Session** : cookie signé HMAC-SHA256, `HttpOnly`, `Secure`, `SameSite=Strict`, valable 7 jours.
@@ -559,11 +559,16 @@ Les données Bloomberg (Terminal, B-PIPE, API BLPAPI) exigent une licence profes
 ## Tests
 
 ```bash
-cd web && bun test && bun run typecheck                                  # moteurs et écrans de l'application web
-cd backend && cargo test                                                 # serveur : parité avec les moteurs TS, routes, sources, accès privé
+cargo test --workspace                                                   # serveur (parité avec les moteurs TS, routes, sources, accès privé) et logique du front (core)
+cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
+cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown -- -D warnings   # le front tel que compilé pour le navigateur
+sh scripts/build-web.sh                                                  # front construit dans web/dist (site + app)
 cd backend && cargo test --test sources_live -- --ignored               # toutes les sources × unités de temps + flux temps réel, en réel
-ALTIM_DEV_OPEN=1 cargo run --release --manifest-path backend/Cargo.toml   # accès sans connexion, limité à 127.0.0.1 ; puis, dans web : bun scripts/audit.ts   # audit des données contre des références indépendantes
+ALTIM_DEV_OPEN=1 cargo run --release --bin altim                         # accès sans connexion, limité à 127.0.0.1 ; puis :
+cargo run --release --bin altim-audit                                    # audit des données contre des références indépendantes
 ```
+
+Les écrans eux-mêmes (rendu Yew) sont vérifiés dans un navigateur à 320 et 1 100 px : aucun défilement horizontal, aucune erreur dans la console.
 
 Références vérifiées : RSI de Wilder (exemple StockCharts), parseurs construits à partir de réponses réelles de chaque source.
 

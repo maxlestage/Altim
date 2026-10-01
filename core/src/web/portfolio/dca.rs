@@ -108,7 +108,7 @@ mod tests {
     }
 
     fn btc() -> Vec<Close> {
-        let v: serde_json::Value = serde_json::from_str(include_str!("../../../../web/test/history-sample.json")).unwrap();
+        let v: serde_json::Value = serde_json::from_str(include_str!("../../../../backend/tests/samples/history-sample.json")).unwrap();
         let s = v["series"].as_array().unwrap().iter().find(|s| s["symbol"] == "BTC").unwrap();
         s["closes"].as_array().unwrap().iter().map(|c| (c[0].as_i64().unwrap(), c[1].as_f64().unwrap())).collect()
     }

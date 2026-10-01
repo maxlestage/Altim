@@ -556,7 +556,7 @@ pub(crate) mod tests {
     const T0: i64 = 1_735_689_600_000;
 
     fn fixture() -> Value {
-        serde_json::from_str(include_str!("../../../../web/test/swift-fixture.json")).unwrap()
+        serde_json::from_str(include_str!("../../../../backend/tests/samples/swift-fixture.json")).unwrap()
     }
 
     /// Fixture series re-timed as daily candles (crypto: every day; stocks: skip weekends).

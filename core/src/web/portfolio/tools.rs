@@ -387,7 +387,7 @@ mod tests {
     const SEP1: i64 = 1_788_220_800_000;
 
     pub(crate) fn sample() -> (i64, HashMap<String, Vec<Close>>) {
-        let v: Value = serde_json::from_str(include_str!("../../../../web/test/history-sample.json")).unwrap();
+        let v: Value = serde_json::from_str(include_str!("../../../../backend/tests/samples/history-sample.json")).unwrap();
         let series = v["series"]
             .as_array()
             .unwrap()
