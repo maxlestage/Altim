@@ -2,9 +2,9 @@ name: Web
 
 on:
   push:
-    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "backend/src/app/web.rs", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "backend/src/app/web.rs", ".github/workflows/web.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -25,13 +25,18 @@ jobs:
           workspaces: ". -> target"
       - run: cargo fmt --all --check
       - run: cargo clippy -p altim-core -p altim-web --target wasm32-unknown-unknown --locked -- -D warnings
-      # Each half of the front alone (the release build makes one .wasm for the site, one for the app).
+      # Each part of the front alone (the release build makes one .wasm for the site and one per group of app screens).
       - run: cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features site -- -D warnings
       - run: cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features app -- -D warnings
+      - run: |
+          for g in radar actif avoirs selection actu reglages bot; do
+            cargo clippy -p altim-web --target wasm32-unknown-unknown --locked --no-default-features --features "app-$g" -- -D warnings
+          done
       - run: cargo clippy -p altim-core -p altim-web --all-targets --locked -- -D warnings
       - run: cargo test -p altim-core -p altim-web --locked
       - run: sh scripts/web-tools.sh
-      # web/dist: the site's page and .wasm, the app's page (web/dist/app) and .wasm; sizes in the log.
+      # web/dist: the site's page and .wasm, one page (web/dist/app) and .wasm per group of app screens, their brotli and
+      # gzip copies; sizes in the log.
       - run: sh scripts/build-web.sh
       - name: Pages servies, types et CSP
         run: |
@@ -40,9 +45,22 @@ jobs:
           for i in $(seq 1 30); do curl -fsS localhost:3000/health && break; sleep 1; done
           curl -fsS localhost:3000/ | grep -q '<script type="module" src="/main-site-'
           curl -fsS localhost:3000/risques | grep -q '<script type="module" src="/main-site-'
-          curl -fsS localhost:3000/app | grep -q '<script type="module" src="/main-app-'
-          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q '<script type="module" src="/main-app-'
-          for f in $(cd web/dist && ls altim-*_bg.wasm); do curl -fsSI "localhost:3000/$f" | grep -qi "content-type: application/wasm"; done
+          curl -fsS localhost:3000/app | grep -q '<script type="module" src="/main-app-radar-'
+          curl -fsS localhost:3000/app/inconnu | grep -q '<script type="module" src="/main-app-radar-'
+          curl -fsS localhost:3000/app/actif/crypto/BTC | grep -q '<script type="module" src="/main-app-actif-'
+          curl -fsS localhost:3000/app/reglages | grep -q '<script type="module" src="/main-app-reglages-'
+          curl -fsS localhost:3000/app/journal | grep -q '<script type="module" src="/main-app-avoirs-'
+          curl -fsS localhost:3000/app/bot | grep -q '<script type="module" src="/main-app-bot-'
+          curl -fsS localhost:3000/app | grep -q '<meta name="altim-prefetch" content="/altim-app-actif-'
+          # Each .wasm: its type, and its precompressed brotli copy (gzip for a browser without brotli).
+          for f in $(cd web/dist && ls altim-*_bg.wasm); do
+            curl -fsSI "localhost:3000/$f" | grep -qi "content-type: application/wasm"
+            curl -fsSI -H "Accept-Encoding: gzip, deflate, br, zstd" "localhost:3000/$f" > h.txt
+            grep -qi "content-encoding: br" h.txt && grep -qi "content-type: application/wasm" h.txt && grep -qi "vary: accept-encoding" h.txt
+            grep -qi "cache-control: private, max-age=31536000, immutable" h.txt
+            test "$(curl -fsS -H "Accept-Encoding: br" "localhost:3000/$f" | wc -c)" = "$(wc -c < "web/dist/$f.br")"
+            curl -fsSI -H "Accept-Encoding: gzip" "localhost:3000/$f" | grep -qi "content-encoding: gzip"
+          done
           curl -fsSI localhost:3000/logo.svg | grep -qi "content-type: image/svg+xml"
           curl -fsSI localhost:3000/apple-touch-icon.png | grep -qi "content-type: image/png"
           curl -fsSI localhost:3000/ | grep -qi "script-src 'self' 'wasm-unsafe-eval'"
