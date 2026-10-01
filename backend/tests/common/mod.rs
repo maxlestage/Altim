@@ -1,4 +1,5 @@
-//! Helpers for the parity tests: golden files written by `parity/golden.ts` from the TypeScript engines.
+//! Helpers for the parity tests: golden files written by the TypeScript engines (`parity/golden.ts`, removed with the
+//! React front in phase 3: the files are now frozen references, see the git history for the generators).
 #![allow(dead_code)]
 use std::sync::LazyLock;
 
@@ -35,7 +36,7 @@ pub struct Case {
 
 pub fn golden(name: &str) -> Vec<Case> {
     let path = format!("{}/tests/golden/{name}.json", env!("CARGO_MANIFEST_DIR"));
-    serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{path} absent : bun parity/golden.ts"))).unwrap()
+    serde_json::from_str(&std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{path} absent (fichier de référence figé)"))).unwrap()
 }
 
 /// Deep comparison: same keys, same strings, numbers within 1e-9 (relative). `undefined` fields (absent in

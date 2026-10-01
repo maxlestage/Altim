@@ -6,13 +6,13 @@ Tout se fait dans Safari (ou l'app GitHub) : aucun ordinateur n'est nécessaire.
 
 Sans ces variables, le site déployé reste fermé : toutes les pages mènent à la connexion.
 
-1. Générez vos valeurs (dans un terminal, ou demandez-les à Claude) : `cd web && bun run secrets -- --user VOTRE_IDENTIFIANT`.
+1. Générez vos valeurs (dans un terminal avec Rust, ou demandez-les à Claude) : `cargo run --release --bin altim-secrets -- --user VOTRE_IDENTIFIANT`.
 2. Heroku → votre app → **Settings** → **Config Vars** → ajoutez `ALTIM_USER`, `ALTIM_PASSWORD_HASH`, `ALTIM_TOTP_SECRET`, `ALTIM_SESSION_SECRET`, `ALTIM_API_TOKEN`.
 3. Dans votre application d'authentification (Google Authenticator, 1Password, Authy…) : **ajouter un compte** → saisir la clé `ALTIM_TOTP_SECRET` (type « basé sur l'heure »).
 4. Rangez le **mot de passe** dans un gestionnaire de mots de passe. Il n'est écrit nulle part ailleurs : Heroku ne garde que son hachage.
 5. Ouvrez le site : identifiant, mot de passe, puis le code à 6 chiffres.
 
-En cas de doute (appareil perdu, fuite), relancez `bun run secrets` et remplacez toutes les valeurs : l'ancienne session, l'ancien mot de passe et l'ancien jeton cessent de fonctionner.
+En cas de doute (appareil perdu, fuite), relancez `cargo run --release --bin altim-secrets` et remplacez toutes les valeurs : l'ancienne session, l'ancien mot de passe et l'ancien jeton cessent de fonctionner.
 
 ## 1. Site web sur Heroku
 
@@ -33,22 +33,22 @@ Ensuite, chaque fusion sur `master` qui touche au site redéploie automatiquemen
 
 Heroku → **New** → **Create new app** → onglet **Deploy** → **GitHub** → sélectionnez le dépôt → branche `master` → **Enable Automatic Deploys** → **Deploy Branch**.
 
-Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent) : **Rust** (`emk/rust`) compile le serveur de `backend/` (voir `RustConfig`, version de Rust dans le même fichier) et laisse sa chaîne d'outils aux suivants, puis **Bun** (`https://github.com/jakeg/heroku-buildpack-bun`) lance `scripts/heroku-build.sh`, qui construit le site dans `web/dist` avec `scripts/build-web.sh` : front Rust + Yew (WebAssembly) et, pendant la migration, l'app React servie sous `/app`. Le `Procfile` lance `backend/target/release/altim` ; sa phase `release` refuse le déploiement si le site n'a pas été construit. Première compilation ≈ 5 à 10 min, les suivantes réutilisent le cache.
+Tout est en Rust : le serveur (`backend/`) et le site (`frontend/`, Rust + Yew compilé en WebAssembly). Deux buildpacks, dans cet ordre (le workflow et le bouton Heroku les configurent) : **Rust** (`emk/rust`) compile le serveur de `backend/` (voir `RustConfig`, version de Rust dans le même fichier) et laisse sa chaîne d'outils au suivant, puis **Node.js** (`heroku/nodejs`) lance le script `heroku-postbuild` de `package.json` (`scripts/heroku-build.sh`, aucune dépendance JavaScript : `package.json` n'est que le point d'entrée de Heroku), qui construit le site dans `web/dist` avec `scripts/build-web.sh` : un `.wasm` pour le site de présentation, un autre pour l'app (`/app`). Le `Procfile` lance `backend/target/release/altim` ; sa phase `release` refuse le déploiement si le site n'a pas été construit. Première compilation ≈ 5 à 10 min, les suivantes réutilisent le cache.
 
 **Le dépôt se déploie quelle que soit la configuration de l'app** :
-- buildpacks Rust puis Bun (recommandé, le plus rapide grâce au cache ; l'ancien ordre Bun puis Rust marche aussi, en installant Rust une seconde fois) ;
-- aucun buildpack réglé : Heroku détecte Node.js, le script `heroku-postbuild` (`scripts/heroku-build.sh`) installe alors Rust, construit le site (Yew, et React avec Bun obtenu par npm) et compile le serveur (≈ 6 min à chaque déploiement, sans cache) ;
-- app restée sur la pile « container » : `heroku.yml` construit le `Dockerfile`.
+- buildpacks Rust puis Node.js (recommandé, le plus rapide grâce au cache) ; une app réglée avec l'ancien couple Rust puis Bun se déploie aussi, sans changement ;
+- aucun buildpack réglé : Heroku détecte Node.js grâce à `package.json`, le script `heroku-postbuild` (`scripts/heroku-build.sh`) installe alors Rust hors du slug, construit le site et compile le serveur (≈ 8 min à chaque déploiement, sans cache) ;
+- app restée sur la pile « container » : `heroku.yml` construit le `Dockerfile` (Rust seul).
 
 La phase `release` refuse le déploiement si le site ou le serveur manque, avec un message clair.
 
-Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option B), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`emk/rust`, puis `https://github.com/jakeg/heroku-buildpack-bun`, dans cet ordre), ou dans un terminal :
+Pour des déploiements plus rapides avec l'intégration GitHub de Heroku (option B), réglez les buildpacks une fois : Heroku → votre app → **Settings** → **Buildpacks** → **Add buildpack** (`emk/rust`, puis `heroku/nodejs`, dans cet ordre), ou dans un terminal :
 
 ```bash
 heroku stack:set heroku-24 -a VOTRE-APP
 heroku buildpacks:clear -a VOTRE-APP
 heroku buildpacks:add emk/rust -a VOTRE-APP
-heroku buildpacks:add https://github.com/jakeg/heroku-buildpack-bun -a VOTRE-APP
+heroku buildpacks:add heroku/nodejs -a VOTRE-APP
 ```
 
 ### Source WSJ / MarketWatch (facultatif)

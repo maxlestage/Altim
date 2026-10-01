@@ -102,7 +102,7 @@ pub async fn batched<T: DeserializeOwned>(items: &[(String, Kind)], url: impl Fn
     Ok(out)
 }
 
-// ---------- Routes of phase 1 (the site); screens add theirs in their own module ----------
+// ---------- Routes of the site and the shell; screens add theirs in their own module ----------
 
 /// Consolidated prices (`/api/tickers`, server consensus), falling back to Binance and CoinGecko directly.
 pub async fn tickers() -> Vec<altim_core::web::market::Tick> {

@@ -78,14 +78,53 @@ pub fn Root() -> Html {
 }
 
 fn switch(r: Route) -> Html {
+    if r.is_app() || (r == Route::NotFound && pathname().starts_with("/app/")) { app_screen(r) } else { site_screen(r) }
+}
+
+#[cfg(feature = "app")]
+fn app_screen(r: Route) -> Html {
+    // Any other /app/… address shows the Radar (WebApp.tsx).
+    let route = if r == Route::NotFound { Route::Radar } else { r };
+    html! { <crate::app::WebApp {route} /> }
+}
+
+#[cfg(feature = "site")]
+fn site_screen(r: Route) -> Html {
     match r {
-        Route::Home => html! { <crate::site::Home /> },
         Route::MentionsLegales | Route::Confidentialite | Route::Risques => html! { <crate::site::legal::LegalScreen route={r} /> },
-        // Any other /app/… address shows the Radar (WebApp.tsx); anything else the home page (App.tsx).
-        Route::NotFound if pathname().starts_with("/app/") => html! { <crate::app::WebApp route={Route::Radar} /> },
-        Route::NotFound => html! { <crate::site::Home /> },
-        r => html! { <crate::app::WebApp route={r} /> },
+        // Anything else: the home page (App.tsx).
+        _ => html! { <crate::site::Home /> },
     }
+}
+
+#[cfg(not(feature = "app"))]
+fn app_screen(_: Route) -> Html {
+    other_half()
+}
+
+#[cfg(not(feature = "site"))]
+fn site_screen(_: Route) -> Html {
+    other_half()
+}
+
+/// This page belongs to the other .wasm (the site and the app are built apart; links between them are full page
+/// loads): load it from the server, once per address so a misrouted page can never loop.
+#[cfg(not(all(feature = "site", feature = "app")))]
+fn other_half() -> Html {
+    const KEY: &str = "altim.front.reload";
+    if let Some(w) = web_sys::window() {
+        let path = pathname();
+        let store = w.session_storage().ok().flatten();
+        if store.as_ref().and_then(|s| s.get_item(KEY).ok().flatten()).as_deref() != Some(path.as_str()) {
+            if let Some(s) = &store {
+                let _ = s.set_item(KEY, &path);
+            }
+            let _ = w.location().reload();
+        } else if let Some(s) = &store {
+            let _ = s.remove_item(KEY);
+        }
+    }
+    html! {}
 }
 
 /// `onclick` of an internal /app link: navigation without reloading (Ctrl/⌘/Shift-click and middle click keep the
@@ -99,7 +138,8 @@ pub fn use_on_link() -> Callback<MouseEvent> {
         }
         let Some(a) = e.current_target().and_then(|t| wasm_bindgen::JsCast::dyn_into::<web_sys::Element>(t).ok()) else { return };
         let Some(href) = a.get_attribute("href") else { return };
-        let (Some(nav), Some(route)) = (nav.as_ref(), Route::recognize(&href)) else { return };
+        // Only /app screens navigate in place; the site's pages are full page loads (another .wasm).
+        let (Some(nav), Some(route)) = (nav.as_ref(), Route::recognize(&href).filter(Route::is_app)) else { return };
         e.prevent_default();
         if pathname() != href {
             nav.push(&route);

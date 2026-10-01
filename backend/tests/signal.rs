@@ -19,7 +19,7 @@ fn close(a: f64, b: f64, digits: i32) {
 
 #[test]
 fn seventeen_reference_cases() {
-    let fixture: Value = serde_json::from_str(include_str!("../../web/test/swift-fixture.json")).unwrap();
+    let fixture: Value = serde_json::from_str(include_str!("samples/swift-fixture.json")).unwrap();
     let cases = fixture.as_array().unwrap();
     assert_eq!(cases.len(), 17);
     for c in cases {

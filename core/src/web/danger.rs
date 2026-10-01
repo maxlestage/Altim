@@ -1,6 +1,6 @@
 //! Last "positions devenues dangereuses" computed on Mes avoirs ("altim.dangers.v1", danger-store.ts), kept in the
 //! browser so the Radar can show them with the time they were measured. `Danger` is the type of
-//! engine/portfolio-risk.ts `dangerousPositions` (batch C ports the engine and returns this type).
+//! `portfolio::portfolio_risk::dangerous_positions`.
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 

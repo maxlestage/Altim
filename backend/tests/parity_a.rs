@@ -90,7 +90,7 @@ fn fixture_candles(rows: &Value) -> Vec<altim::types::Candle> {
 /// `web/test/signal.test.ts`: "backtest i identique trade par trade" (fixture shared with Swift and Kotlin).
 #[test]
 fn backtest_reference_fixture() {
-    let fixture: Value = serde_json::from_str(include_str!("../../web/test/swift-fixture.json")).unwrap();
+    let fixture: Value = serde_json::from_str(include_str!("samples/swift-fixture.json")).unwrap();
     let mut n = 0;
     for c in fixture.as_array().unwrap().iter().filter(|c| c.get("backtest").is_some()) {
         let r: BacktestResult = backtest_default(&fixture_candles(&c["candles"]));
@@ -167,7 +167,7 @@ struct SampleSeries {
 }
 
 fn history_sample() -> (i64, HashMap<String, Vec<Close>>) {
-    let s: HistorySample = serde_json::from_str(include_str!("../../web/test/history-sample.json")).unwrap();
+    let s: HistorySample = serde_json::from_str(include_str!("samples/history-sample.json")).unwrap();
     (s.as_of, s.series.into_iter().map(|x| (format!("{}:{}", x.kind, x.symbol), x.closes)).collect())
 }
 
@@ -321,7 +321,7 @@ fn brief_unit() {
 // ---------- news ----------
 
 fn sample(name: &str) -> String {
-    std::fs::read_to_string(format!("{}/../web/test/news-samples/{name}.xml", env!("CARGO_MANIFEST_DIR"))).unwrap()
+    std::fs::read_to_string(format!("{}/tests/samples/news-samples/{name}.xml", env!("CARGO_MANIFEST_DIR"))).unwrap()
 }
 
 fn attempt<T: serde::Serialize>(r: altim::http::Result<T>) -> Value {
