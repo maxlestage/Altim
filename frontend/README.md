@@ -97,7 +97,10 @@ frontend/ (altim-web)
    `money::cur_param()`.
 6. Réponses du serveur : réutilisez les types d'`altim_core::engine` (ils dérivent `Deserialize`), sinon définissez-les
    dans `core/src/web/…` avec `#[serde(default)]` sur ce qui est optionnel. Données locales : lecture tolérante champ par
-   champ, `state::local_get/local_set` (jamais de panique si le stockage est refusé).
+   champ, `state::local_get/local_set` (jamais de panique si le stockage est refusé). Lecture d'un `Value` :
+   `altim_core::web::json::from_value` (pas `serde_json::from_value`, qui ajoute au `.wasm` un second lecteur par
+   structure) ; pas de `#[serde(flatten)]` ni d'énumération étiquetée dans ce qui se lit (lecture à la main à travers
+   un `Value`, voir `GuardReport`). Décision : `doc.d` (`DecisionCore`) partout, `doc.full()` sur l'écran d'actif seul.
 7. Prix en direct : `let live = use_live(items);` puis `<LivePrice tick={live.get(&sym, kind).cloned()} …/>`.
 
 ## Tests et vérifications
