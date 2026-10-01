@@ -175,6 +175,7 @@ fun BotAltimView(
                 item { BotHeadCard(r) }
                 // v3 first; v2's selection kept below as the reference.
                 if (v3 != null) botV3Items(v3, r.timing)
+                r.v4?.let { botV4Items(it) }
                 if (v3 == null && r.changes.isNotEmpty()) item { Card(title = "Ce qui change avec la v2") { Bulleted(r.changes) } }
                 if (watched) item { WatchedViewsCard(views, viewsError, open) }
                 if (v3 != null) {
@@ -429,6 +430,7 @@ fun BotAssetRowView(a: BotAssetRow, open: (Asset) -> Unit) {
         }
         Text(Bot.todayText(a), fontSize = 13.sp, color = Color.White)
         V3AssetNowRow(a)
+        V4AssetNowRow(a)
         Caption(Bot.assetTestText(a))
     }
 }
@@ -460,6 +462,7 @@ private fun ViewRow(v: BotView, open: (Asset) -> Unit) {
         }
         Caption(Bot.viewText(v))
         v.v3?.takeIf { it.available }?.let { V3SignalsRow(it.signals) }
+        v.v4?.let { V4AvisBlock(it) }
     }
 }
 
@@ -498,6 +501,8 @@ fun BotLine(b: BotView) {
             if (b.contributions.isNotEmpty()) Caption(Bot.contributionsText(b))
             val note = b.effectiveNote
             if (note.isNotBlank()) Text(note, fontSize = 13.sp, color = Color.White.copy(alpha = 0.92f))
+            // v4: the selective bots today (« pas d'avis » unless a score is extreme).
+            if (b.available) b.v4?.let { V4AvisBlock(it) }
             Text(
                 buildAnnotatedString {
                     withStyle(SpanStyle(color = AltimColors.cyan, fontWeight = FontWeight.SemiBold)) { append("Voir le bot et ses résultats →") }

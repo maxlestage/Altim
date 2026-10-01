@@ -284,6 +284,8 @@ data class BotAssetRow(
     val botMaxDrawdown: Double? = null,
     /** Since v3: today's actions of the 4 headline configurations. */
     val v3: BotV3AssetNow? = null,
+    /** Since v4: the selective bots speaking today on it (BotV4.kt). */
+    val v4: BotV4AssetNow? = null,
 ) {
     val asset: Asset get() = Asset(symbol, kind, name.ifBlank { symbol })
 }
@@ -351,6 +353,8 @@ data class BotReport(
     val timing: BotTiming? = null,
     /** Since v3 (see BotV3.kt): the v2-shaped fields then hold v2's selection at 20 days, at the corrected threshold. */
     val v3: BotV3Report? = null,
+    /** Since v4 (see BotV4.kt): the pre-registered selective bots. */
+    val v4: BotV4Report? = null,
 )
 
 /** A feature's weight in today's probability ("up": pushes the probability up, "down": down). */
@@ -400,6 +404,8 @@ data class BotView(
     val kind: Kind? = null,
     /** Since v3: the 4 headline configurations today; `counts` and `note` are then theirs. */
     val v3: BotV3View? = null,
+    /** Since v4: the group's selective bots today; the server's `counts` and `note` then include them. */
+    val v4: BotV4View? = null,
 ) {
     /** Tone of the decision's block (web `dec-proof` classes): "na", "edge" (counts) or "unproven". */
     val tone: String get() = if (!available || action == null) "na" else if (effectiveCounts) "edge" else "unproven"

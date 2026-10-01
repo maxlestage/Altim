@@ -15,6 +15,7 @@ use altim_core::web::insights::validation::{class_short, month_year, plain, sign
 use yew::prelude::*;
 
 use super::v3::BotV3Section;
+use super::v4::{BotV4Section, V4Avis};
 use crate::route::use_on_link;
 
 /// Plain space before "%" in this screen (`NB` of Bot.tsx).
@@ -123,6 +124,9 @@ pub fn BotReportView(p: &BotReportViewProps) -> Html {
 
             if v3.is_some() {
                 <BotV3Section report={p.report.clone()} />
+            }
+            if r.v4.is_some() {
+                <BotV4Section report={p.report.clone()} />
             }
 
             if v3.is_none() && !r.changes.is_empty() {
@@ -438,6 +442,12 @@ pub fn AssetRow(p: &AssetRowProps) -> Html {
                     { " · entre pairs 20 j " }<ActionChip action={v.peers20} />{ " 60 j " }<ActionChip action={v.peers60} />
                 </p>
             }
+            if let Some(v) = &a.v4 {
+                <p class="small bot-v3-now">
+                    <span class="muted">{ "Bots sélectifs :" }</span>
+                    { format!(" {}", if v.bots.is_empty() { "pas d'avis".to_string() } else { v.bots.iter().map(|id| altim_core::engine::bot_v4::short_label(id)).collect::<Vec<_>>().join(", ") }) }
+                </p>
+            }
             <p class="muted small">{ test }</p>
         </li>
     }
@@ -517,6 +527,9 @@ fn ViewRow(p: &ViewRowProps) -> Html {
                         </span>
                     }) }
                 </p>
+            }
+            if let Some(v4) = view.v4.as_ref() {
+                <V4Avis v={v4.clone()} />
             }
         </li>
     }
