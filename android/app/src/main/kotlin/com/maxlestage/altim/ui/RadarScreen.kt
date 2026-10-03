@@ -13,7 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,9 +31,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
@@ -55,6 +53,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -251,18 +251,7 @@ private fun Caption(text: String, modifier: Modifier) = Text(text, color = Altim
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TimeframeChoice(selected: Timeframe, onChange: (Timeframe) -> Unit) {
-    val options = Timeframe.RADAR
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Unité de temps de l'analyse technique" }) {
-        options.forEachIndexed { i, t ->
-            SegmentedButton(
-                selected = selected == t,
-                onClick = { onChange(t) },
-                shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                icon = {},
-            ) { Text(t.label, maxLines = 1, softWrap = false) }
-        }
-    }
+    ChoiceRow(Timeframe.RADAR.map { it to it.label }, selected, onChange, description = "Unité de temps de l'analyse technique")
 }
 
 /** "Trier le radar": the user's order, the largest move, or the full decision. */
@@ -270,16 +259,7 @@ private fun TimeframeChoice(selected: Timeframe, onChange: (Timeframe) -> Unit) 
 @Composable
 private fun SortChoice(sort: String, onChange: (String) -> Unit) {
     val options = listOf("mine" to "Mon ordre", "change" to "Variation", "signal" to "Décision")
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Trier le radar" }) {
-        options.forEachIndexed { i, (k, label) ->
-            SegmentedButton(
-                selected = sort == k,
-                onClick = { onChange(k) },
-                shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-            ) { Text(label, maxLines = 1) }
-        }
-    }
+    ChoiceRow(options, sort, onChange, description = "Trier le radar")
 }
 
 /** The watched assets whose full decision says ACHETER or ZONE D'ACHAT, most confident first. */
@@ -316,6 +296,7 @@ private fun SearchRow(item: SearchItem, watched: Boolean, onClick: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, timeframe: Timeframe = Timeframe.STANDARD, modifier: Modifier = Modifier) {
     val tick = model.live.price(asset)
@@ -325,21 +306,24 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, timeframe: Timef
             .semantics(mergeDescendants = true) { contentDescription = "${asset.name}, ${Format.price(tick?.price ?: row?.price)}" },
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
+        // Symbol, sparkline, price: the symbol and the price share the width (a long price wraps, never runs off a
+        // 320 dp screen); the sparkline steps aside when the font is enlarged.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Column(Modifier.widthIn(min = 70.dp).weight(1f)) {
-                Text(asset.symbol, style = mono(16.sp, FontWeight.Bold))
+            Column(Modifier.weight(1f)) {
+                Text(asset.symbol, style = mono(16.sp, FontWeight.Bold), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(asset.name, color = AltimColors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            row?.sparkline?.takeIf { it.size > 2 }?.let { Sparkline(it, Modifier.width(56.dp).height(26.dp)) }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(Format.price(tick?.price ?: row?.price), style = mono(14.sp))
+            if (LocalDensity.current.fontScale <= 1.3f) row?.sparkline?.takeIf { it.size > 2 }?.let { Sparkline(it, Modifier.width(56.dp).height(26.dp)) }
+            Column(Modifier.weight(1f, fill = false), horizontalAlignment = Alignment.End) {
+                Text(Format.price(tick?.price ?: row?.price), style = mono(14.sp), textAlign = TextAlign.End)
                 ChangeText(tick?.change ?: row?.change)
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(min = 70.dp)) {
-                // The verdict is the full decision's; the technical signal is only one of its inputs (line below).
-                DecisionBadge(decision)
-                row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
-            }
+        }
+        // The verdict is the full decision's; the technical signal is only one of its inputs (line below). The chips
+        // wrap rather than push the row wider than the screen.
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            DecisionBadge(decision)
+            row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
         }
         val s = row?.signal
         if (s != null) TechnicalText(s.action, timeframe.label)

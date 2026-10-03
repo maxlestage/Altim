@@ -86,18 +86,16 @@ struct RadarView: View {
                     }
                 }
                 Section {
-                    Picker("Unité de temps de l'analyse technique", selection: timeframeBinding) {
+                    FittingPicker(title: "Unité de temps de l'analyse technique", selection: timeframeBinding) {
                         ForEach(Timeframe.radarCases) { Text($0.label).tag($0) }
                     }
-                    .pickerStyle(.segmented)
                 }
                 .listRowBackground(Color.clear)
                 if model.watchlist.count > 1 {
                     Section {
-                        Picker("Trier le radar", selection: $sortRaw) {
+                        FittingPicker(title: "Trier le radar", selection: $sortRaw) {
                             ForEach(RadarSort.allCases, id: \.rawValue) { Text($0.label).tag($0.rawValue) }
                         }
-                        .pickerStyle(.segmented)
                     }
                     .listRowBackground(Color.clear)
                 }
@@ -241,7 +239,7 @@ struct RadarRowView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(asset.symbol).font(Theme.mono(16, weight: .bold)).foregroundStyle(.white)
+                    Text(asset.symbol).font(Theme.mono(16, weight: .bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.7)
                     Text(asset.name).font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
                 .frame(minWidth: 70, alignment: .leading)
@@ -250,28 +248,49 @@ struct RadarRowView: View {
                 }
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 3) {
+                    // A long price shrinks a little rather than pushing the row past the screen (320 pt).
                     Text(Format.price(tick?.price ?? row?.price)).font(Theme.mono(14)).foregroundStyle(.white)
+                        .lineLimit(1).minimumScaleFactor(0.6)
                         .contentTransition(.numericText())
                         .animation(.default, value: tick?.price)
                     ChangeText(value: tick?.change ?? row?.change)
                 }
+                .layoutPriority(1)
             }
-            HStack(spacing: 8) {
-                // The verdict: the full decision, never the technical signal alone.
-                DecisionBadge(asset: asset)
-                if let s = row?.signal {
-                    TechnicalLine(action: s.action, interval: timeframe.label)
-                } else if row?.error != nil {
-                    Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            // The chips side by side when they fit, else one under the other (iPhone SE, large Dynamic Type).
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    verdict
+                    technical
+                    Spacer(minLength: 0)
+                    reliability
                 }
-                Spacer(minLength: 0)
-                if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
+                VStack(alignment: .leading, spacing: 4) {
+                    verdict
+                    technical
+                    reliability
+                }
             }
             // Why the chip says ATTENDRE: the decision's short reason, on its own line (web DecisionNote).
             DecisionNoteLine(asset: asset)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
+    }
+
+    /// The verdict: the full decision, never the technical signal alone.
+    private var verdict: some View { DecisionBadge(asset: asset) }
+
+    @ViewBuilder private var technical: some View {
+        if let s = row?.signal {
+            TechnicalLine(action: s.action, interval: timeframe.label)
+        } else if row?.error != nil {
+            Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+        }
+    }
+
+    @ViewBuilder private var reliability: some View {
+        if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
     }
 }
 

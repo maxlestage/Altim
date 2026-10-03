@@ -35,9 +35,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -168,17 +165,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
             if (view == "real") IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, contentDescription = "Ajouter un avoir", tint = AltimColors.cyan) }
         }
         // Real holdings, the simulated portfolio (no real money), or the automatic journal of both.
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
-            val views = listOf("real" to "Réel", "paper" to "Simulation", "journal" to "Journal")
-            views.forEachIndexed { i, (key, label) ->
-                SegmentedButton(
-                    selected = view == key,
-                    onClick = { view = key },
-                    shape = SegmentedButtonDefaults.itemShape(i, views.size),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label) }
-            }
-        }
+        ChoiceRow(listOf("real" to "Réel", "paper" to "Simulation", "journal" to "Journal"), view, { view = it }, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), description = "Portefeuille")
         if (view == "paper") {
             PaperPane(model, Modifier.fillMaxSize())
         } else if (view == "journal") {
