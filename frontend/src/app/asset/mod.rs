@@ -56,7 +56,7 @@ struct Loaded {
     quote: Option<Quote>,
 }
 
-/// The interval chooser ("1 h · 4 h · 1 j"), shared with the Radar.
+/// The interval chooser ("1 h · 4 h · 1 j · 4 j · 1 sem."), shared with the Radar and saved with the app state.
 pub fn interval_chooser(interval: Interval) -> Html {
     let options: Vec<(AttrValue, AttrValue)> = INTERVAL_LABEL.iter().map(|(v, l)| (AttrValue::Static(v), AttrValue::Static(l))).collect();
     let on_change = Callback::from(|v: AttrValue| {
@@ -68,7 +68,7 @@ pub fn interval_chooser(interval: Interval) -> Html {
 }
 
 pub fn interval_label(i: Interval) -> &'static str {
-    INTERVAL_LABEL.iter().find(|(v, _)| *v == i.as_str()).map(|(_, l)| *l).unwrap_or("")
+    i.label()
 }
 
 #[component]

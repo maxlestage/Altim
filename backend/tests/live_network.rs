@@ -44,6 +44,27 @@ async fn live_snapshot_and_quotes() {
     }
 }
 
+/// 4 d and 1 w snapshots: history depth (`analyze` needs 60 candles, 200 for its long-term EMA) and agreeing sources.
+#[tokio::test]
+#[ignore]
+async fn live_multi_day_snapshots() {
+    for (symbol, kind) in [("BTC", Kind::Crypto), ("AAPL", Kind::Stock)] {
+        for i in [Interval::D4, Interval::W1] {
+            let s = snapshot(symbol, kind, i).await.unwrap_or_else(|e| panic!("{symbol} {}: {}", i.as_str(), e.0));
+            let ok: Vec<&str> = s.sources.iter().filter(|x| x.ok).map(|x| x.name.as_str()).collect();
+            let signal = altim::engine::signal::analyze(&s.candles, &Default::default()).map(|x| x.action);
+            println!(
+                "{symbol} {}: {} candles from {}, agreeing {ok:?}, {:?}, {signal:?}",
+                i.as_str(),
+                s.candles.len(),
+                s.source,
+                s.reliability.level
+            );
+            assert!(s.candles.len() >= 60, "{symbol} {}", i.as_str());
+        }
+    }
+}
+
 /// Raw candles of every daily stock source (to compare provider by provider with the TypeScript).
 #[tokio::test]
 #[ignore]

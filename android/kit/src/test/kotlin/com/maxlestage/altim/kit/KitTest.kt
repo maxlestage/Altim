@@ -214,6 +214,19 @@ class FormatAndClientTest {
         assertNull(AltimClient.normalize(""))
     }
 
+    @Test
+    fun timeframes() {
+        assertEquals(listOf("1h", "4h", "1d", "4d", "1w"), Timeframe.entries.map { it.raw })
+        assertEquals(listOf("1 h", "4 h", "1 j", "4 j", "1 sem."), Timeframe.entries.map { it.label })
+        assertEquals(listOf("4 h", "1 j", "4 j", "1 sem."), Timeframe.RADAR.map { it.label })
+        assertEquals(Timeframe.W1, Timeframe.saved("1w"))
+        assertEquals(Timeframe.H4, Timeframe.saved("2w"))
+        assertEquals(Timeframe.H4, Timeframe.saved(null))
+        assertEquals(Timeframe.H4, Timeframe.radar(Timeframe.H1))
+        assertEquals(Timeframe.D4, Timeframe.radar(Timeframe.D4))
+        assertEquals(listOf("short", "short", "medium", "long", "long"), Timeframe.entries.map { it.zoneHorizon })
+    }
+
     @Test fun requests() {
         val c = AltimClient(AltimClient.normalize("x.herokuapp.com")!!, null)
         val r = c.request("/api/radar", mapOf("symbols" to AltimClient.list(Asset.defaults.take(2)), "interval" to "4h"))

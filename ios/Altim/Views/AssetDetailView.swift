@@ -6,7 +6,8 @@ import AltimKit
 struct AssetDetailView: View {
     @Environment(AppModel.self) private var model
     let asset: Asset
-    @State private var interval = "4h"
+    /// Shared with the Radar's chooser (the Radar has no 1 h).
+    @AppStorage(Timeframe.storageKey) private var intervalRaw = Timeframe.standard.rawValue
     @State private var snapshot: Loadable<Snapshot> = .idle
     @State private var signal: RadarRow?
     @State private var zones: Loadable<ZonesReport> = .idle
@@ -14,7 +15,11 @@ struct AssetDetailView: View {
     @State private var decision: Loadable<Decision> = .idle
     @State private var targetSheet = false
 
-    private static let intervals = [("1h", "1 h"), ("4h", "4 h"), ("1d", "1 j")]
+    private var timeframe: Timeframe { Timeframe.saved(intervalRaw) }
+    private var interval: String { timeframe.rawValue }
+    private var timeframeBinding: Binding<Timeframe> {
+        Binding(get: { timeframe }, set: { intervalRaw = $0.rawValue })
+    }
 
     var body: some View {
         ScrollView {
@@ -111,8 +116,8 @@ struct AssetDetailView: View {
 
     private var chartCard: some View {
         Card {
-            Picker("Unité de temps", selection: $interval) {
-                ForEach(Self.intervals, id: \.0) { Text($0.1).tag($0.0) }
+            Picker("Unité de temps", selection: timeframeBinding) {
+                ForEach(Timeframe.allCases) { Text($0.label).tag($0) }
             }
             .pickerStyle(.segmented)
             switch snapshot {
@@ -121,7 +126,7 @@ struct AssetDetailView: View {
             case let .failed(m):
                 ErrorView(message: m) { Task { await loadChart() } }
             case let .loaded(s):
-                PriceChart(candles: Array(s.candles.suffix(interval == "1d" ? 180 : 120)), zone: chartZone)
+                PriceChart(candles: Array(s.candles.suffix(timeframe.chartCandles)), zone: chartZone)
                     .frame(height: 220)
                 HStack {
                     Text("\(s.agreeing) sources en accord").font(.caption).foregroundStyle(Theme.textSecondary)
@@ -138,7 +143,7 @@ struct AssetDetailView: View {
 
     /// Zone drawn on the chart: the horizon whose candles match the interval shown.
     private var chartZone: FibZone? {
-        zones.value?.zones.first { $0.horizon == (interval == "1d" ? "medium" : "short") && $0.zone != nil }
+        zones.value?.zones.first { $0.horizon == timeframe.zoneHorizon && $0.zone != nil }
     }
 
     // MARK: Signal
@@ -146,7 +151,7 @@ struct AssetDetailView: View {
     @ViewBuilder private var signalCard: some View {
         if let s = signal?.signal {
             // A direction, never a verdict: the only verdict and plan are the Décision card's.
-            Card(title: "Signal technique · \(Self.intervals.first { $0.0 == interval }?.1 ?? interval)") {
+            Card(title: "Signal technique · \(timeframe.label)") {
                 Text("Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -307,6 +307,50 @@ data class ZonesReport(
     val fx: FxInfo? = null,
 )
 
+// ---------- Timeframe of the technical analysis ----------
+
+/**
+ * Candles of the technical signal and of the asset chart (server `interval`). Only the technical line and the chart
+ * follow it: the Radar's verdict stays the full decision, and the notifications keep the 4 h signal.
+ */
+enum class Timeframe(val raw: String, val label: String) {
+    H1("1h", "1 h"),
+    H4("4h", "4 h"),
+    D1("1d", "1 j"),
+    D4("4d", "4 j"),
+    W1("1w", "1 sem.");
+
+    /** Candles shown on the asset chart (≈ 5 months of hours to 3 years of weeks). */
+    val chartCandles: Int get() = when (this) {
+        H1, H4 -> 120
+        D1 -> 180
+        D4 -> 150
+        W1 -> 156
+    }
+
+    /** The buy-zone horizon whose candles match (4 h → short, daily → medium, multi-day → long, built on weeks). */
+    val zoneHorizon: String get() = when (this) {
+        H1, H4 -> "short"
+        D1 -> "medium"
+        D4, W1 -> "long"
+    }
+
+    companion object {
+        /** Preference shared by the Radar and the asset page; 4 h by default. */
+        const val KEY = "analysis.interval"
+        val STANDARD = H4
+
+        /** The Radar's choices (the asset page also offers 1 h). */
+        val RADAR = listOf(H4, D1, D4, W1)
+
+        /** The saved choice (4 h when unreadable). */
+        fun saved(raw: String?): Timeframe = entries.firstOrNull { it.raw == raw } ?: STANDARD
+
+        /** The saved choice on the Radar, which has no 1 h: 1 h shows 4 h there. */
+        fun radar(t: Timeframe): Timeframe = if (t in RADAR) t else STANDARD
+    }
+}
+
 // ---------- Selection (which stocks / cryptos to buy) ----------
 
 @Serializable
