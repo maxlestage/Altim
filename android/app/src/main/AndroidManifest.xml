@@ -26,6 +26,11 @@
             </intent-filter>
         </activity>
 
+        <!-- "Arrêter le suivi" of the live following notification (iOS Live Activity equivalent). -->
+        <receiver
+            android:name=".data.LiveTracking$StopReceiver"
+            android:exported="false" />
+
         <!-- Home screen widget: the assets buyable now, from the last background check. -->
         <receiver
             android:name=".data.BuyWidget"

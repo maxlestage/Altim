@@ -1,97 +1,151 @@
 package com.maxlestage.altim.kit
 
-import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.MapSerializer
-import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.doubleOrNull
 
-// Background notifications of what the app already shows inside: the configuration changes of the Radar
-// ("🚨 BTC — changement de configuration : ATTENDRE → ZONE D'ACHAT") and the positions that became dangerous (Mes
-// avoirs). Pure rules: what to notify given what was already notified, the dedupe keys, and the texts (the same as
-// the web cards: Radar.tsx « Changements de configuration » and « Position devenue dangereuse »).
+// Local notifications of the background check for two things the app already computes but only showed inside it: the
+// configuration changes of the watched assets (ConfigChanges) and the positions that became dangerous
+// (PortfolioRisk.dangerousPositions). What to notify given the previous and the new state, the keys that prevent a
+// second notification of the same thing, and the texts. Pure; the app posts the notifications. Port of iOS AltimKit
+// ChangeNotices (same keys, limits and texts).
 
-/** One notification: its title, its text, and the asset a tap opens ("crypto:BTC"; null = the app). */
-data class Notice(val title: String, val body: String, val asset: String?)
+/** A notification to post: identifier, texts and the asset a tap opens ("crypto:BTC"; null: the app opens). */
+data class LocalNotice(val id: String, val title: String, val body: String, val asset: String?)
 
-object ConfigNotices {
-    /** Keys of the transitions already notified (or already there when the notifications were turned on). */
-    const val KEY = "configNotices.v1"
-    /** Transitions listed in a grouped notification; the others are counted. */
-    const val MAX_LINES = 5
+/** What was already notified, kept on the phone. */
+@Serializable
+data class ChangeNoticeState(
+    /** Ids of the configuration changes already notified (oldest first, at most [ChangeNotices.MAX_REMEMBERED]). */
+    val configNotified: List<String> = emptyList(),
+    /** Danger keys ("line id:code") present at the last measurement; null: never measured (a baseline is taken). */
+    val dangerActive: List<String>? = null,
+    /** When each danger key was last notified (ms): gone and back within [ChangeNotices.DANGER_COOLDOWN] is not told again. */
+    val dangerNotified: Map<String, Double> = emptyMap(),
+)
 
-    /** One key per transition: asset, mode and time (a transition is recorded once, at its own time). */
-    fun key(t: ConfigTransition) = "${t.kind.raw}:${t.symbol}:${if (t.personal) "p" else "i"}:${t.at.toLong()}"
+object ChangeNotices {
+    /** SharedPreferences key of the state. */
+    const val KEY = "changeNotices.v1"
+    /** Transition ids remembered against a second notification. */
+    const val MAX_REMEMBERED = 200
+    /** Changes listed one by one in a grouped notification (the others are counted). */
+    const val MAX_LISTED = 5
+    /** A danger gone and back within 24 hours is not notified again (a price hovering around the stop). */
+    const val DANGER_COOLDOWN = 86_400_000.0
+    const val DISCLAIMER = "Conseil indicatif : Altim ne passe aucun ordre."
+    const val DANGER_ADVICE = "Altim ne passe aucun ordre : à vous de décider (réduire, sortir ou accepter le risque)."
+    const val DANGER_DETAIL = "Montants et niveaux dans Mes avoirs."
 
-    /** First check after the notifications were turned on: the transitions already listed are not news. */
-    fun baseline(transitions: List<ConfigTransition>): Set<String> = transitions.map(::key).toSet()
+    /** Identity of a transition, as on iOS ("crypto:BTC:false:1727000000000.0"). */
+    fun id(t: ConfigTransition): String = "${t.kind.raw}:${t.symbol}:${t.personal}:${t.at}"
 
-    /**
-     * Transitions not notified yet (newest first, as stored) and the keys to keep: those of the transitions still
-     * listed, so the set stays bounded by [ConfigChanges.MAX_TRANSITIONS] and a notified one never comes back.
-     */
-    fun fresh(notified: Set<String>, transitions: List<ConfigTransition>): Pair<Set<String>, List<ConfigTransition>> =
-        transitions.map(::key).toSet() to transitions.filter { key(it) !in notified }
-
-    /** The card's lines of one transition: why it changed, missing conditions, what would change the decision. */
-    fun details(t: ConfigTransition): List<String> = buildList {
-        if (t.changes.isNotEmpty()) add("Pourquoi le signal a changé : ${t.changes.joinToString(" ; ")}.")
-        if (t.missing.isNotEmpty()) add("Conditions manquantes : ${t.missing.joinToString(" ; ")}.")
-        if (t.triggers.isNotEmpty()) add("Ce qui changerait la décision : ${t.triggers.joinToString(" ; ")}.")
-    }
-
-    /**
-     * ONE notification for all the new transitions: one transition = the card's title and lines (a tap opens the
-     * asset); several = one line each (a tap opens the app on the Radar). Null when nothing is new.
-     */
-    fun notice(fresh: List<ConfigTransition>): Notice? {
-        val t = fresh.firstOrNull() ?: return null
-        if (fresh.size == 1) {
-            val lines = details(t).ifEmpty { listOf("Niveau ${t.from.levelLabel} → ${t.to.levelLabel}.") }
-            return Notice(t.title, (lines + listOfNotNull(if (t.personal) "Mode personnel." else null)).joinToString("\n"), "${t.kind.raw}:${t.symbol}")
-        }
-        val lines = fresh.take(MAX_LINES).map { x ->
-            val missing = if (x.missing.isNotEmpty()) " — Conditions manquantes : ${x.missing.joinToString(" ; ")}." else ""
-            "${x.symbol} : ${ConfigChanges.changeSummary(x)}${if (x.personal) " (mode personnel)" else ""}$missing"
-        }
-        val more = if (fresh.size > MAX_LINES) listOf("… et ${fresh.size - MAX_LINES} autre(s) : détail dans le Radar.") else emptyList()
-        return Notice("🚨 ${fresh.size} changements de configuration", (lines + more).joinToString("\n"), null)
-    }
-
-    fun parse(raw: String?): Set<String>? =
-        raw?.let { runCatching { AltimJson.decodeFromString(ListSerializer(String.serializer()), it) }.getOrNull() }?.toSet()
-
-    fun encode(keys: Set<String>): String = AltimJson.encodeToString(ListSerializer(String.serializer()), keys.sorted())
-}
-
-object DangerNotices {
-    /** Danger codes already notified, per line (holding id → codes). */
-    const val KEY = "dangerNotices.v1"
+    // ---------- Configuration changes ----------
 
     /**
-     * Lines that newly entered a danger state, or with a new reason (near the stop → stop broken): notified once.
-     * The state kept is the dangers of now, so a line that left the danger zone is notified again if it comes back.
-     * No previous state: every current danger is new. `unmeasured`: lines whose price or daily candles were missing
-     * this time; their previous codes are kept (a failed fetch is not "out of danger", so no repeat when it works again).
+     * One grouped notification for the transitions just found that were never notified (the newest per asset and
+     * mode); null when there is nothing new. The state remembers their ids.
      */
-    fun fresh(previous: Map<String, List<String>>?, now: List<Danger>, unmeasured: Set<String> = emptySet()): Pair<Map<String, List<String>>, List<Danger>> {
-        val prev = previous.orEmpty()
-        val measured = now.associate { d -> d.id to d.reasons.map { it.code } }
-        val state = (measured.keys + prev.keys.filter { it in unmeasured }).associateWith { id ->
-            ((if (id in unmeasured) prev[id].orEmpty() else emptyList()) + measured[id].orEmpty()).distinct().sorted()
+    fun configNotice(found: List<ConfigTransition>, state: ChangeNoticeState): Pair<LocalNotice?, ChangeNoticeState> {
+        val known = state.configNotified.toSet()
+        val seen = mutableSetOf<String>()
+        val fresh = found.withIndex()
+            .sortedWith(compareByDescending<IndexedValue<ConfigTransition>> { it.value.at }.thenBy { it.index })
+            .map { it.value }
+            .filter { id(it) !in known && seen.add(ConfigChanges.snapshotKey(it.kind, it.symbol, it.personal)) }
+        if (fresh.isEmpty()) return null to state
+        val s = state.copy(configNotified = (state.configNotified + fresh.map(::id)).takeLast(MAX_REMEMBERED))
+        return configText(fresh) to s
+    }
+
+    /**
+     * Texts of the notification: one change with its explanation, missing conditions and triggers (the Radar card's
+     * wording), or several, one line each.
+     */
+    fun configText(list: List<ConfigTransition>): LocalNotice {
+        val assets = list.map { "${it.kind.raw}:${it.symbol}" }.toSet()
+        val asset = if (assets.size == 1) assets.first() else null
+        val nid = "altim.config.${id(list[0])}"
+        if (list.size == 1) {
+            val t = list[0]
+            val lines = mutableListOf<String>()
+            if (t.changes.isNotEmpty()) lines += "Pourquoi le signal a changé : ${t.changes.joinToString(" ; ")}."
+            if (t.missing.isNotEmpty()) lines += "Conditions manquantes : ${t.missing.joinToString(" ; ")}."
+            if (t.triggers.isNotEmpty()) lines += "Ce qui changerait la décision : ${t.triggers.joinToString(" ; ")}."
+            if (lines.isEmpty()) lines += "Niveau ${t.from.levelLabel} → ${t.to.levelLabel}."
+            lines += DISCLAIMER
+            return LocalNotice(nid, t.title, lines.joinToString("\n"), asset)
         }
-        return state to now.filter { d -> d.reasons.any { it.code !in prev[d.id].orEmpty() } }
+        val lines = list.take(MAX_LISTED).map { t ->
+            "${t.symbol} : ${ConfigChanges.changeSummary(t)}${if (t.missing.isEmpty()) "" else " (conditions manquantes : ${t.missing.joinToString(" ; ")})"}"
+        }.toMutableList()
+        if (list.size > MAX_LISTED) lines += "+ ${list.size - MAX_LISTED} autre(s) : détail sur le Radar."
+        lines += DISCLAIMER
+        return LocalNotice(nid, "🚨 Changements de configuration · ${list.size}", lines.joinToString("\n"), asset)
     }
 
-    /** Web wording: "⚠ Position(s) devenue(s) dangereuse(s) dans vos avoirs", then "BTC : <reasons>" per line. */
-    fun notice(fresh: List<Danger>): Notice? {
-        val d = fresh.firstOrNull() ?: return null
-        val title = "⚠ ${if (fresh.size > 1) "Positions devenues dangereuses" else "Position devenue dangereuse"} dans vos avoirs"
-        val body = fresh.joinToString("\n") { x -> "${x.symbol} : ${x.reasons.joinToString(" ") { it.text }}" }
-        return Notice(title, body, if (fresh.size == 1) "${d.kind.raw}:${d.symbol}" else null)
+    // ---------- Dangerous positions ----------
+
+    /** "line id:code" for each reason of each dangerous line. */
+    fun dangerKeys(dangers: List<Danger>): List<String> = dangers.flatMap { d -> d.reasons.map { "${d.id}:${it.code}" } }
+
+    /**
+     * One notification for the lines that newly entered a danger state (a reason absent at the last measurement, and
+     * not notified in the last 24 hours), with all the reasons of those lines; null otherwise.
+     * - [baseline]: danger keys already known when the state was never measured (the last measurement shown on Mes
+     *   avoirs), so that an update does not notify what the user already saw.
+     * - [nearStopUnknown]: line ids whose daily candles could not be read: their "near the stop" state is unknown and
+     *   kept as it was (a failed download neither ends nor starts a danger).
+     */
+    fun dangerNotice(
+        dangers: List<Danger>,
+        state: ChangeNoticeState,
+        now: Double,
+        baseline: List<String> = emptyList(),
+        nearStopUnknown: Set<String> = emptySet(),
+    ): Pair<LocalNotice?, ChangeNoticeState> {
+        val previous = state.dangerActive ?: baseline
+        val known = previous.toSet()
+        val active = dangerKeys(dangers).toMutableList()
+        val kept = previous.filter { k -> k.endsWith(":near_stop") && k.removeSuffix(":near_stop") in nearStopUnknown }
+        for (k in kept) if (k !in active) active += k
+        val fresh = dangerKeys(dangers).filter { k -> k !in known && (state.dangerNotified[k]?.let { now - it >= DANGER_COOLDOWN } ?: true) }.toSet()
+        val notified = state.dangerNotified.filterValues { now - it < DANGER_COOLDOWN } + fresh.associateWith { now }
+        val s = state.copy(dangerActive = active, dangerNotified = notified)
+        val lines = dangers.filter { d -> d.reasons.any { "${d.id}:${it.code}" in fresh } }
+        if (lines.isEmpty()) return null to s
+        return dangerText(lines, now) to s
     }
 
-    fun parse(raw: String?): Map<String, List<String>>? =
-        raw?.let { runCatching { AltimJson.decodeFromString(MapSerializer(String.serializer(), ListSerializer(String.serializer())), it) }.getOrNull() }
+    /** Label of a danger without any figure. */
+    fun reasonLabel(code: String): String = when (code) {
+        "stop_broken" -> "stop cassé"
+        "near_stop" -> "prix à moins d'un ATR du stop"
+        else -> "perte au-delà de votre risque par idée"
+    }
 
-    fun encode(state: Map<String, List<String>>): String =
-        AltimJson.encodeToString(MapSerializer(String.serializer(), ListSerializer(String.serializer())), state)
+    /** "⚠ Position devenue dangereuse : BTC" (the Mes avoirs and Radar notices' wording), each line's reasons. */
+    fun dangerText(lines: List<Danger>, now: Double): LocalNotice {
+        val symbols = lines.map { it.symbol }.distinct()
+        val assets = lines.map { "${it.kind.raw}:${it.symbol}" }.toSet()
+        val title = "⚠ ${if (lines.size > 1) "Positions devenues dangereuses" else "Position devenue dangereuse"} : ${symbols.joinToString(", ")}"
+        // Reasons as fixed labels, never the amounts (loss, share of the wealth, stop level): a notification can show on
+        // the lock screen or a watch; the figures stay in Mes avoirs.
+        val body = lines.map { l -> "${l.symbol} : ${l.reasons.joinToString(" ; ") { reasonLabel(it.code) }}." } + DANGER_DETAIL + DANGER_ADVICE
+        return LocalNotice("altim.danger.${now.toLong()}", title, body.joinToString("\n"), if (assets.size == 1) assets.first() else null)
+    }
+
+    // ---------- Storage ----------
+
+    /** The saved state; a damaged field starts empty instead of failing the whole state. */
+    fun parse(raw: String?): ChangeNoticeState {
+        val o = raw?.let { runCatching { AltimJson.parseToJsonElement(it) }.getOrNull() } as? JsonObject ?: return ChangeNoticeState()
+        fun strings(key: String): List<String>? = (o[key] as? JsonArray)?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content }
+        val notified = (o["dangerNotified"] as? JsonObject)?.mapNotNull { (k, v) -> (v as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull?.let { k to it } }?.toMap()
+        return ChangeNoticeState(strings("configNotified") ?: emptyList(), strings("dangerActive"), notified ?: emptyMap())
+    }
+
+    fun encode(s: ChangeNoticeState): String = AltimJson.encodeToString(ChangeNoticeState.serializer(), s)
 }

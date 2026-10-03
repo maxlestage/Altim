@@ -121,7 +121,7 @@ fun JournalToggle(checked: Boolean, onChange: (Boolean) -> Unit, note: String, o
 
 /** The Journal part of Mes avoirs: daily candles of every asset of the journal (once per opening), then the reviews. */
 @Composable
-fun JournalPane(model: AppModel, open: (Asset) -> Unit, modifier: Modifier = Modifier) {
+fun JournalPane(model: AppModel, open: (Asset) -> Unit, modifier: Modifier = Modifier, onReal: (() -> Unit)? = null) {
     val entries = model.tradeJournal.entries
     // Absent: loading; null: failed (the review says so).
     val candles = remember { mutableStateMapOf<String, List<Candle>?>() }
@@ -145,7 +145,7 @@ fun JournalPane(model: AppModel, open: (Asset) -> Unit, modifier: Modifier = Mod
     val closed = model.paper.trades.associate { it.id to ClosedInfo(it.closedAt, it.exit, it.reason.label) }
     JournalView(
         entries, model.tradeJournalError, candles.toMap(), closed, System.currentTimeMillis().toDouble(), modifier,
-        open = open, onNote = model::setJournalNote, onDelete = model::deleteJournalEntry,
+        open = open, onNote = model::setJournalNote, onDelete = model::deleteJournalEntry, onReal = onReal,
     )
 }
 
@@ -162,6 +162,7 @@ fun JournalView(
     open: (Asset) -> Unit = {},
     onNote: (String, String) -> Unit = { _, _ -> },
     onDelete: (String) -> Unit = {},
+    onReal: (() -> Unit)? = null,
 ) {
     var horizon by rememberSaveable { mutableIntStateOf(10) }
     val reviews = remember(entries, candles, closed, now) {
@@ -184,6 +185,7 @@ fun JournalView(
             item {
                 Card(title = "Aucune entrée pour l'instant") {
                     Caption("Simulez un achat depuis la carte « Décision » d'un actif, ou enregistrez un achat ou une vente dans Mes avoirs : l'entrée apparaîtra ici.")
+                    onReal?.let { TextButton(onClick = it) { Text("Mes avoirs réels", color = AltimColors.cyan, fontSize = 13.sp) } }
                 }
             }
             return@LazyColumn

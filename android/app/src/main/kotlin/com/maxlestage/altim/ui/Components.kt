@@ -57,7 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.maxlestage.altim.data.LivePrices
 import com.maxlestage.altim.kit.Action
-import com.maxlestage.altim.kit.ConfigSnapshot
+import com.maxlestage.altim.kit.DecisionDigest
+import com.maxlestage.altim.kit.DecisionDigests
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.Tone
@@ -117,22 +118,33 @@ fun Badge(text: String, tone: Tone, modifier: Modifier = Modifier) {
  * none is known. The 4 h technical signal is never shown as a verdict: see [TechnicalText].
  */
 @Composable
-fun DecisionBadge(snapshot: ConfigSnapshot?, modifier: Modifier = Modifier) {
-    if (snapshot == null) Badge("Décision…", Tone.NEUTRAL, modifier.alpha(0.7f))
-    else Badge(RadarDecisions.label(snapshot), RadarDecisions.tone(snapshot), modifier)
+fun DecisionBadge(digest: DecisionDigest?, modifier: Modifier = Modifier) {
+    if (digest == null) {
+        Badge(DecisionDigests.PENDING_LABEL, Tone.NEUTRAL, modifier.alpha(0.7f).semantics { contentDescription = "Décision en cours de calcul" })
+    } else {
+        Badge(
+            digest.badgeLabel, digest.tone,
+            modifier.semantics { contentDescription = "Décision Altim : ${digest.badgeLabel}, confiance ${Math.round(digest.confidence)}" },
+        )
+    }
 }
 
 /** The decision's short reason under the Radar's chip (« zone d'achat 67 653,51 € (−10,1 %) », « veto : … »); nothing otherwise. */
 @Composable
-fun DecisionNote(snapshot: ConfigSnapshot?, modifier: Modifier = Modifier) {
-    val note = snapshot?.let(RadarDecisions::note) ?: return
+fun DecisionNote(digest: DecisionDigest?, modifier: Modifier = Modifier) {
+    val note = digest?.noteLine ?: return
     Text(note, color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = modifier)
 }
 
 /** « technique 4 h : haussier »: the technical signal as a small direction, one input of the decision. */
 @Composable
 fun TechnicalText(action: Action, interval: String = "4 h", modifier: Modifier = Modifier) =
-    Text("technique $interval : ${RadarDecisions.technicalText(action)}", color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = modifier)
+    Text(
+        "technique $interval : ${RadarDecisions.technicalText(action)}", color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis,
+        modifier = modifier.semantics {
+            contentDescription = "Signal technique sur bougies de $interval : ${RadarDecisions.technicalText(action)}, un indice parmi d'autres de la décision"
+        },
+    )
 
 @Composable
 fun ChangeText(value: Double?) {

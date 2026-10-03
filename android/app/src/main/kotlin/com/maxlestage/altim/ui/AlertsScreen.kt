@@ -15,6 +15,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -112,9 +117,10 @@ fun AlertsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 }
             }
             if (model.priceTargets.isEmpty()) {
-                item { Caption("Aucune alerte de prix. Sur la fiche d'un actif, bouton « Alerte de prix » : « préviens-moi si BTC passe sous 80 000 ${Money.symbol()} ».") }
+                item { Caption("Aucune alerte de prix. Sur la fiche d'un actif, bouton cloche : « préviens-moi si BTC passe sous 80 000 ${Money.symbol()} ».") }
             }
             items(model.priceTargets, key = { "t:" + it.id }) { t -> TargetRow(t, price(t.asset), onOpen = { open(t.asset) }, onRearm = { model.rearmTarget(context, t.id, price(t.asset)) }) { model.removeTarget(context, t.id) } }
+            if (model.priceTargets.isNotEmpty()) item { Caption("Touchez la corbeille pour supprimer une alerte, la flèche pour la réarmer.") }
 
             item { SectionTitle("Journal des alertes") }
             val summary = AlertJournal.summary(model.journal, model.journal.associate { it.asset.id to (price(it.asset) ?: Double.NaN) }.filterValues { it.isFinite() })
@@ -188,9 +194,10 @@ private fun JournalRow(e: JournalEntry, price: Double?, onClick: () -> Unit) {
     }
 }
 
-/** "Alerte de prix" card of an asset page: above / below, threshold prefilled with the current price. */
+/** "Alerte de prix" of an asset page (a sheet, like the iPhone's): above / below / move, threshold prefilled with the current price. */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: () -> Unit) {
+fun PriceTargetSheet(model: AppModel, asset: Asset, current: Double?, onClose: () -> Unit) {
     val context = LocalContext.current
     // 0: falls below, 1: rises above, 2: moves by ±X % from the current price.
     var mode by remember { mutableIntStateOf(0) }
@@ -217,29 +224,40 @@ fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: ()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) save() else denied = true
     }
-    Card(title = "Alerte de prix · ${asset.symbol}", glow = AltimColors.cyan) {
-        current?.let { Caption("Prix actuel : ${Format.price(it)}") }
-        ChoiceRow(listOf(0 to "Passe sous", 1 to "Passe au-dessus", 2 to "Bouge de ±"), mode, { mode = it }, description = "Condition", fontSize = 12.sp)
-        OutlinedTextField(
-            value = if (mode == 2) moveText else text,
-            onValueChange = { if (mode == 2) moveText = it else text = it },
-            suffix = { Text(if (mode == 2) "%" else cur.symbol) },
-            singleLine = true,
-            textStyle = mono(18.sp),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-            modifier = Modifier.fillMaxWidth(),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AltimColors.cyan, cursorColor = AltimColors.cyan),
-        )
-        if (mode == 2) Caption("Une notification quand le prix s'écarte de ce pourcentage (à la hausse ou à la baisse) du prix actuel ; réarmée, elle repart du prix du moment.")
-        else if (value != null && !sideOk) Caption(if (above) "Choisissez un prix au-dessus du prix actuel." else "Choisissez un prix en dessous du prix actuel.", AltimColors.warning)
-        if (denied) Caption("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim.", AltimColors.warning)
-        Caption("Vérifiée toutes les 15 minutes avec les alertes d'achat, même app fermée ; une seule notification, puis vous pouvez la réarmer.")
-        Row {
-            TextButton(onClick = onClose) { Text("Annuler") }
-            androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
-            TextButton(enabled = sideOk, onClick = {
-                if (Build.VERSION.SDK_INT >= 33 && !BuyAlerts.canNotify(context)) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else save()
-            }) { Text("Créer l'alerte", color = if (sideOk) AltimColors.cyan else AltimColors.textSecondary, fontWeight = FontWeight.Bold) }
+    androidx.compose.material3.ModalBottomSheet(
+        onDismissRequest = onClose,
+        sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AltimColors.surface,
+    ) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp).imePadding().navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = onClose) { Text("Annuler", color = AltimColors.cyan) }
+                Text("Alerte de prix · ${asset.symbol}", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                TextButton(enabled = sideOk, onClick = {
+                    if (Build.VERSION.SDK_INT >= 33 && !BuyAlerts.canNotify(context)) permission.launch(Manifest.permission.POST_NOTIFICATIONS) else save()
+                }) { Text("Créer", color = if (sideOk) AltimColors.cyan else AltimColors.textSecondary, fontWeight = FontWeight.Bold) }
+            }
+            current?.let { KeyValue("Prix actuel", Format.price(it)) }
+            ChoiceRow(listOf(0 to "Passe sous", 1 to "Passe au-dessus", 2 to "Bouge de ±"), mode, { mode = it }, description = "Condition", fontSize = 12.sp)
+            OutlinedTextField(
+                value = if (mode == 2) moveText else text,
+                onValueChange = { if (mode == 2) moveText = it else text = it },
+                placeholder = { Text(if (mode == 2) "Variation" else "Prix", color = AltimColors.textSecondary) },
+                suffix = { Text(if (mode == 2) "%" else cur.symbol) },
+                singleLine = true,
+                textStyle = mono(18.sp),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = AltimColors.cyan, cursorColor = AltimColors.cyan),
+            )
+            if (mode == 2) Caption("Une notification quand le prix s'écarte de ce pourcentage (à la hausse ou à la baisse) du prix actuel ; réarmée, elle repart du prix du moment.")
+            else if (value != null && !sideOk) Caption(if (above) "Choisissez un prix au-dessus du prix actuel." else "Choisissez un prix en dessous du prix actuel.", AltimColors.warning)
+            if (denied) Caption("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim → Notifications.", AltimColors.warning)
+            Caption("Vérifiée avec les alertes d'achat (en arrière-plan quand Android le permet, et à chaque ouverture) ; une seule notification, puis vous pouvez la réarmer dans l'onglet Alertes. Un seuil en € est comparé au cours converti au taux du jour.")
+            androidx.compose.foundation.layout.Spacer(Modifier.size(24.dp))
         }
     }
 }

@@ -86,12 +86,16 @@ fun Root(model: AppModel) {
         resumed = true
         onPauseOrDispose { resumed = false }
     }
-    val followed = model.watchlist + model.holdings.map { it.asset } + model.selectionAssets + model.paper.positions.map { it.asset } + listOfNotNull(model.focus)
+    val followed = model.watchlist + model.holdings.map { it.asset } + model.paper.positions.map { it.asset } + model.selectionAssets +
+        listOfNotNull(model.focus, model.activityAsset)
     val key = "${model.phase}|$resumed|" + followed.map { it.id }.toSortedSet().joinToString(",")
     LaunchedEffect(key) {
         if (model.phase != AppModel.Phase.READY || !resumed) model.live.stop()
         else model.live.follow(followed, model.client, onRenewed = { model.persistSession() }) { model.sessionLost() }
     }
+    // The live following (iOS Live Activity) moves with the live price while the app runs (at most every 5 s).
+    val tracked = model.activityAsset?.let { model.live.price(it) }
+    LaunchedEffect(tracked) { tracked?.let { model.liveTrackTick(it) } }
     // EUR/USD rate of the display: read now, then every 10 minutes while the app is in front.
     LaunchedEffect(model.phase, resumed, model.client) {
         if (model.phase != AppModel.Phase.READY || !resumed) return@LaunchedEffect

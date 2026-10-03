@@ -38,10 +38,10 @@ enum class DecisionLevel(val label: String, val emoji: String) {
 
 @Serializable
 enum class FamilyStatus(val label: String, val tone: Tone) {
-    @SerialName("positive") POSITIVE("favorable", Tone.GOOD),
-    @SerialName("neutral") NEUTRAL("neutre", Tone.NEUTRAL),
-    @SerialName("negative") NEGATIVE("défavorable", Tone.BAD),
-    @SerialName("unavailable") UNAVAILABLE("non disponible", Tone.NEUTRAL),
+    @SerialName("positive") POSITIVE("Favorable", Tone.GOOD),
+    @SerialName("neutral") NEUTRAL("Neutre", Tone.NEUTRAL),
+    @SerialName("negative") NEGATIVE("Défavorable", Tone.BAD),
+    @SerialName("unavailable") UNAVAILABLE("Non disponible", Tone.NEUTRAL),
 }
 
 @Serializable
@@ -67,9 +67,9 @@ enum class Uncertainty(val label: String) {
 
 @Serializable
 enum class ExitKind(val label: String) {
-    @SerialName("profit") PROFIT("prise de bénéfices"),
-    @SerialName("defensive") DEFENSIVE("défensive"),
-    @SerialName("macro") MACRO("macro"),
+    @SerialName("profit") PROFIT("Prise de bénéfices"),
+    @SerialName("defensive") DEFENSIVE("Protection"),
+    @SerialName("macro") MACRO("Choc de marché"),
 }
 
 /** 6-level rating derived from the verdict, its level and the confidence (the verdict is unchanged). */

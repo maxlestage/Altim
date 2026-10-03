@@ -327,7 +327,7 @@ class NewCardsTest {
         app.getSharedPreferences("altim", Context.MODE_PRIVATE).edit().clear().commit()
         val model = AppModel(app, NewCardsMemory())
         val now = System.currentTimeMillis().toDouble()
-        model.recordDecision(decision("decision-btc.json").copy(verdict = Verdict.WAIT, label = "ATTENDRE", rating = Rating.HOLD, ratingLabel = "ATTENDRE", chipNote = fr("zone d'achat 67 653,51 € (−10,1 %)")), personal = false, now = now)
+        model.recordDecision(decision("decision-btc.json").copy(verdict = Verdict.WAIT, label = "ATTENDRE", rating = Rating.HOLD, ratingLabel = "ATTENDRE", chipNote = fr("zone d'achat 67 653,51 € (−10,1 %)"), asOf = now), personal = false, now = now)
         val btc = Asset("BTC", Kind.CRYPTO, "Bitcoin")
         val eth = Asset("ETH", Kind.CRYPTO, "Ethereum")
         screen {

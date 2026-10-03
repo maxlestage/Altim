@@ -14,6 +14,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.NotificationAdd
+import androidx.compose.material.icons.filled.Sensors
+import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.HorizontalDivider
@@ -83,7 +85,8 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
     // for this answer only; otherwise the informational decision.
     LaunchedEffect(asset.id, reload, decisionReload, held, model.holdings, model.scoreWeights) {
         val client = model.client ?: return@LaunchedEffect
-        decision = Loadable.Loading
+        // A reload keeps the decision shown until the new one arrives (iOS: an error only when there is none).
+        if (decision.value == null) decision = Loadable.Loading
         decision = try {
             var cost: Double? = null
             var weights: String? = null
@@ -102,7 +105,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            Loadable.Failed(e.message ?: "Décision indisponible")
+            decision.value?.let { Loadable.Loaded(it) } ?: Loadable.Failed(e.message ?: "Décision indisponible")
         }
     }
 
@@ -133,25 +136,48 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
         }
     }
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val livePrice = model.live.price(asset)
+    val tracking = model.activityAsset?.id == asset.id
+    val toggleTracking = {
+        if (tracking) model.stopLiveTrack()
+        else (livePrice?.price ?: signal?.price ?: zones.value?.price)?.let { model.startLiveTrack(asset, it, livePrice?.change ?: signal?.change) }
+        Unit
+    }
+    val trackPermission = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) toggleTracking()
+    }
     Column(modifier.statusBarsPadding()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Retour") }
             Text(asset.symbol, fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            IconButton(onClick = { targetOpen = !targetOpen }) {
+            IconButton(onClick = { targetOpen = true }) {
                 Icon(Icons.Filled.NotificationAdd, contentDescription = "Alerte de prix", tint = AltimColors.cyan)
+            }
+            // Live following (iOS Live Activity): an ongoing notification with the price and the buy verdict.
+            if (model.liveActivityEnabled) {
+                IconButton(onClick = {
+                    if (!tracking && android.os.Build.VERSION.SDK_INT >= 33 && !com.maxlestage.altim.data.BuyAlerts.canNotify(context)) {
+                        trackPermission.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    } else toggleTracking()
+                }) {
+                    Icon(
+                        if (tracking) Icons.Filled.StopCircle else Icons.Filled.Sensors,
+                        contentDescription = if (tracking) "Arrêter le suivi en direct" else "Suivre sur l'écran verrouillé et dans les notifications",
+                        tint = AltimColors.cyan,
+                    )
+                }
             }
             val watched = model.isWatched(asset)
             IconButton(onClick = { if (watched) model.unwatch(asset) else model.watch(asset) }) {
                 Icon(if (watched) Icons.Filled.Star else Icons.Filled.StarBorder, contentDescription = if (watched) "Retirer du radar" else "Ajouter au radar", tint = AltimColors.cyan)
             }
         }
+        androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = false, onRefresh = { reload++ }) {
         Column(
             Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (targetOpen) {
-                PriceTargetCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
-            }
             Header(model, asset, signal, zones.value)
             DecisionCard(decision, held, change = decision.value?.let { ConfigChanges.latestChange(model.configChanges.transitions, it) }, onSimulate = { simulateOpen = true }) { decisionReload++ }
             simulated?.let { Notice(it, Tone.GOOD) }
@@ -214,18 +240,22 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
                 }
             }
             NoteCard(asset)
-            PositionCard(model, asset, model.live.price(asset)?.price ?: zones.value?.price ?: signal?.price, zones.value?.zones.orEmpty())
+            PositionCard(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price, zones.value?.zones.orEmpty())
             DcaCard(model, asset)
             StrategiesCard(model, asset)
             Caption("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
         }
+        }
+    }
+    if (targetOpen) {
+        PriceTargetSheet(model, asset, model.live.price(asset)?.price ?: signal?.price ?: zones.value?.price) { targetOpen = false }
     }
     val d = decision.value
     if (simulateOpen && d != null) {
         SimulateSheet(
             model, asset, d, model.live.price(asset)?.price ?: signal?.price ?: d.price ?: zones.value?.price,
             onDone = {
-                simulated = it
+                simulated = null
                 simulateOpen = false
             },
             onDismiss = { simulateOpen = false },
@@ -351,7 +381,6 @@ fun MacroCard(macro: MacroInfo) {
         }
         macro.regime?.let { RegimeText(it) }
         macro.factors.forEach { Text("• ${it.text}", fontSize = 13.sp) }
-        if (macro.factors.isEmpty()) Caption("Aucun signe de stress sur la peur (VIX), le S&P 500, le pétrole, l'or, le dollar ni les taux.")
         MacroInfo.series.forEach { (key, label) ->
             macro.values[key]?.let { v -> KeyValue(label, "${Format.plain(v.value)} (${Format.percent(v.change5d, 1)} 5 j)") }
         }
@@ -359,6 +388,7 @@ fun MacroCard(macro: MacroInfo) {
             Text("Actualité mondiale (titres des dernières 48 h)", fontSize = 12.sp, fontWeight = FontWeight.Bold)
             macro.themes.forEach { Caption("${it.label} : ${it.count} titres") }
         }
+        if (macro.factors.isEmpty()) Caption("Aucun signe de stress sur la peur (VIX), le S&P 500, le pétrole, l'or, le dollar ni les taux.")
         macro.evidence?.takeIf { it.samples >= 20 }?.let { e ->
             Caption(
                 "Sur cet actif, les jours de stress macro ont été suivis d'une forte baisse dans ${Math.round(e.rate)} % des cas en 5 jours, contre ${Math.round(e.base)} % d'habitude" +

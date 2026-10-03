@@ -1,6 +1,16 @@
 package com.maxlestage.altim.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Report
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.semantics
+import com.maxlestage.altim.kit.Danger
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -38,13 +48,35 @@ import com.maxlestage.altim.kit.Verdict
 @Composable
 fun DangersNotice(state: PortfolioRisk.DangerState) {
     if (state.items.isEmpty()) return
-    val title = if (state.items.size > 1) "Positions devenues dangereuses" else "Position devenue dangereuse"
-    Notice(
-        "⚠ $title dans vos avoirs\n" +
-            state.items.joinToString("\n") { d -> "• ${d.symbol} : ${d.reasons.joinToString(" ") { it.text }}" } +
-            "\nMesuré le ${Format.shortDateTime(state.at)} sur Mes avoirs (ouvrez-le pour actualiser).",
-        Tone.BAD,
-    )
+    DangerNotice(state.items, state.at)
+}
+
+/**
+ * Positions that became dangerous (stop broken or close, loss beyond the risk per idea). On the Radar ([measuredAt]):
+ * with the reasons and when it was measured; on Mes avoirs: the advice (the detail is on each line).
+ */
+@Composable
+fun DangerNotice(dangers: List<Danger>, measuredAt: Double? = null) {
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp)
+    Column(
+        Modifier.fillMaxWidth().clip(shape).background(AltimColors.sell.copy(alpha = 0.1f)).border(1.dp, AltimColors.sell.copy(alpha = 0.4f), shape).padding(12.dp)
+            .semantics(mergeDescendants = true) {},
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Filled.Report, contentDescription = null, tint = AltimColors.sell, modifier = Modifier.size(18.dp))
+            Text(
+                "${if (dangers.size > 1) "Positions devenues dangereuses" else "Position devenue dangereuse"}${if (measuredAt == null) "" else " dans vos avoirs"} : ${dangers.joinToString(", ") { it.symbol }}",
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White,
+            )
+        }
+        if (measuredAt != null) {
+            dangers.forEach { d -> Text("${d.symbol} : ${d.reasons.joinToString(" ") { it.text }}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.9f)) }
+            Text("Mesuré le ${Format.date(measuredAt, time = true)} sur Mes avoirs (ouvrez-le pour actualiser).", fontSize = 11.sp, color = AltimColors.textSecondary)
+        } else {
+            Caption("Détail sur chaque ligne ci-dessous. Altim ne passe aucun ordre : à vous de décider (réduire, sortir ou accepter le risque).")
+        }
+    }
 }
 
 private fun transitionColor(t: ConfigTransition): Color = when (t.to.verdict) {
@@ -56,7 +88,7 @@ private fun transitionColor(t: ConfigTransition): Color = when (t.to.verdict) {
 /** "Changements de configuration · N": newest first, 5 shown then all on demand, cleared after a confirmation. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ConfigChangesCard(transitions: List<ConfigTransition>, open: (Asset) -> Unit, onClear: () -> Unit) {
+fun ConfigChangesCard(transitions: List<ConfigTransition>, open: (Asset) -> Unit, backgroundAlerts: Boolean = false, onClear: () -> Unit) {
     if (transitions.isEmpty()) return
     var showAll by rememberSaveable { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
@@ -72,7 +104,7 @@ fun ConfigChangesCard(transitions: List<ConfigTransition>, open: (Asset) -> Unit
                         modifier = Modifier.clickable(role = Role.Button, onClickLabel = "Ouvrir ${t.symbol}") { open(Asset(t.symbol, t.kind, t.name)) },
                     )
                     Caption(
-                        "${Format.shortDateTime(t.at)} · niveau ${t.from.levelLabel} → ${t.to.levelLabel} · configuration précédente vue le ${Format.shortDateTime(t.since)}" +
+                        "${Format.date(t.at, time = true)} · niveau ${t.from.levelLabel} → ${t.to.levelLabel} · configuration précédente vue le ${Format.date(t.since, time = true)}" +
                             if (t.personal) " · mode personnel" else "",
                     )
                     if (t.changes.isNotEmpty()) Text("Pourquoi le signal a changé : ${t.changes.joinToString(" ; ")}.", fontSize = 12.sp, color = Color.White.copy(alpha = 0.88f))
@@ -86,8 +118,9 @@ fun ConfigChangesCard(transitions: List<ConfigTransition>, open: (Asset) -> Unit
             TextButton(onClick = { confirm = true }) { Text("Effacer", color = AltimColors.cyan) }
         }
         Caption(
-            "Comparaison avec la dernière décision vue sur ce téléphone. Nouvelle analyse toutes les 15 minutes tant que le radar est ouvert, et à chaque ouverture d'une fiche. " +
-                "50 derniers changements conservés ici uniquement.",
+            "Comparaison avec la dernière décision vue sur ce téléphone. Nouvelle analyse toutes les 15 minutes tant que le radar est ouvert, à chaque ouverture d'une fiche" +
+                (if (backgroundAlerts) ", et en arrière-plan quand Android le permet (notification « Changements de configuration »)" else "") +
+                ". 50 derniers changements conservés ici uniquement.",
         )
     }
     if (confirm) {

@@ -98,7 +98,7 @@ fun NewsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit = {}) 
     val upSources = r?.sources?.count { it.ok } ?: 0
 
     if (view == "agenda") {
-        AgendaPane(model, modifier.statusBarsPadding()) { NewsHeader("Les événements à venir, chacun avec sa source.", view, chooseView) }
+        AgendaPane(model, modifier.statusBarsPadding()) { NewsHeader(null, view, chooseView) }
         return
     }
     PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier.statusBarsPadding()) {
@@ -165,11 +165,12 @@ private val VIEWS = listOf("articles" to "Articles", "agenda" to "Agenda")
 
 /** Title, what is shown, and the "Articles / Agenda" choice. */
 @Composable
-private fun NewsHeader(caption: String, view: String, onView: (String) -> Unit) {
+private fun NewsHeader(caption: String?, view: String, onView: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Actualités", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-        Caption(caption)
+        // iOS order: the "Articles / Agenda" choice, then what is shown.
         ChoiceRow(VIEWS, view, onView, description = "Vue")
+        caption?.let { Caption(it) }
     }
 }
 

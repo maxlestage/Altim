@@ -66,7 +66,7 @@ class AlertsTest {
         BuyAlerts.postAll(app, first)
         val nm = shadowOf(app.getSystemService(NotificationManager::class.java))
         assertEquals(if (first.size > 3) 1 else first.size, nm.allNotifications.size)
-        assertEquals(model.lastBuyable, first.size)
+        assertEquals(model.lastAlerts.count { it.buy }, first.size)
         if (first.isNotEmpty()) {
             val n = nm.allNotifications.first()
             val title = n.extras.getString("android.title")!!
