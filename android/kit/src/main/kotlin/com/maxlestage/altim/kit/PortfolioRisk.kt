@@ -364,7 +364,7 @@ object PortfolioRisk {
 
     // ---------- Limits of the user's settings ----------
 
-    private fun fr(v: Double, d: Int = 1) = Format.plain(v, d)
+    private fun fr(v: Double, d: Int = 1) = JsFormat.fr(v, d)
     private fun usd0(v: Double) = Format.amount(abs(v))
     /** A dollar price in the display currency with up to 4 decimals ("140 €", "0,1234 €"). */
     private fun px4(v: Double) = "${fr(Money.toDisplay(v), 4)} ${Money.symbol()}"

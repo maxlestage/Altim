@@ -79,7 +79,7 @@ import com.maxlestage.altim.kit.HoldingChange
 import com.maxlestage.altim.kit.TradeJournal
 import com.maxlestage.altim.kit.Portfolio
 import com.maxlestage.altim.kit.PortfolioLine
-import com.maxlestage.altim.kit.ConfigSnapshot
+import com.maxlestage.altim.kit.DecisionDigest
 import com.maxlestage.altim.kit.SearchItem
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.async
@@ -275,7 +275,7 @@ private class RiskView(
 )
 
 @Composable
-private fun LineRow(line: PortfolioLine, stored: Holding?, unconverted: Boolean, decision: ConfigSnapshot?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun LineRow(line: PortfolioLine, stored: Holding?, unconverted: Boolean, decision: DecisionDigest?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val h = line.holding
     val shape = RoundedCornerShape(14.dp)
     Column(

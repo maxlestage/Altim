@@ -133,18 +133,8 @@ object Money {
     /** Display currency → dollars (what the user typed, for the engines and the server). */
     fun fromDisplay(v: Double): Double = convert(v, displayCurrency(), Currency.USD)
 
-    private fun fr(v: Double, min: Int, max: Int): String {
-        val symbols = DecimalFormatSymbols(Locale.FRANCE).apply {
-            groupingSeparator = ' '
-            decimalSeparator = ','
-            minusSign = '-'
-        }
-        return DecimalFormat("#,##0", symbols).apply {
-            minimumFractionDigits = min
-            maximumFractionDigits = max
-            roundingMode = RoundingMode.HALF_EVEN
-        }.format(v)
-    }
+    /** Numbers written like the browser (iOS `Money.fr` = `JSFormat.fr`). */
+    private fun fr(v: Double, min: Int, max: Int): String = JsFormat.fr(v, min, max)
 
     /** A dollar amount in the display currency with [min]–[max] decimals: "212,40 €" (or "$" without a rate). */
     fun money(usd: Double, min: Int = 2, max: Int = min, sep: String = NBSP): String = "${fr(toDisplay(usd), min, max)}$sep${symbol()}"

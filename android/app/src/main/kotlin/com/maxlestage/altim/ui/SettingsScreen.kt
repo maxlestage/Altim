@@ -110,7 +110,7 @@ fun SettingsScreen(model: AppModel, modifier: Modifier, onBack: (() -> Unit)? = 
             }
             if (denied) Notice("Notifications refusées : autorisez-les dans Paramètres Android → Applications → Altim → Notifications.", Tone.WARN)
             Caption("Toutes les 15 minutes, votre serveur vérifie le radar et vos avoirs : achetable seulement si la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h quelle que soit l'unité choisie sur le Radar, ou zone Fibonacci, sans source en désaccord, choc ni zone cassée). Une notification seulement quand un actif devient achetable ou que la raison change. Conseil indicatif : Altim ne passe aucun ordre.")
-            model.lastAlertCheck?.let { Caption("Dernière vérification : ${Format.date(it.toDouble(), time = true)} · ${model.lastBuyable} actif(s) achetable(s).") }
+            model.lastAlertCheck?.let { Caption("Dernière vérification : ${Format.date(it.toDouble(), time = true)} · ${model.lastAlerts.count { a -> a.buy }} actif(s) achetable(s).") }
         }
         Card(title = "Alertes actualité") {
             Row(verticalAlignment = Alignment.CenterVertically) {
