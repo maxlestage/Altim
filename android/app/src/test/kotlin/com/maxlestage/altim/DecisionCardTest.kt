@@ -72,23 +72,23 @@ class DecisionCardTest {
     @Test fun informationalBitcoin() {
         show(sample("decision-btc.json"), expanded = false)
         expect(
-            "Mode informationnel", "ATTENDRE", "Attente", "Confiance du modèle", "6 familles sur 9",
-            "Tendance · favorable", "Valorisation · non disponible", "Zone d'achat", "Objectif 2", "insuffisant",
+            "Mode informationnel", "ATTENDRE", "Attente", "Confiance", "Calculé le ",
+            "Tendance", "Favorable", "Valorisation", "Non disponible", "Zone d'achat", "Objectif 2", "rapport insuffisant",
             "Pourquoi attendre ?", "Pour passer en ACHAT", "Pour passer en VENTE", "Interdictions d'achat", "rien ne garantit l'avenir",
         )
         // Folded until opened.
         assertTrue(!has("Déblocage de jetons imminent"))
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/decision-btc.png")
-        compose.onNode(hasText("Interdictions d'achat")).performClick()
+        compose.onNode(hasText("Interdictions d'achat ·", substring = true)).performClick()
         compose.waitForIdle()
-        expect("Déblocage de jetons imminent", "NON VÉRIFIABLE", "ACTIVE")
+        expect("Déblocage de jetons imminent", "non vérifiable", "ACTIVE")
     }
 
     @Test @Config(qualifiers = "w360dp-h7600dp-xhdpi")
     fun informationalBitcoinOpen() {
         show(sample("decision-btc.json"), expanded = true)
-        expect("Setup : Achat sur repli", "Scénario haussier", "Pourquoi pas ?", "Capitalisation", "FDV", "Financement (8 h)", "0,0069 %", "Sans objet", "Profit factor", "Sortino", "A fait moins bien")
+        expect("Setup : Achat sur repli", "Scénario haussier", "Pourquoi pas ?", "Capitalisation", "FDV", "Financement (funding)", "0,0069 %", "Sans objet", "Profit factor", "Sortino", "A fait moins bien")
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/decision-btc-detail.png")
     }
@@ -99,7 +99,7 @@ class DecisionCardTest {
         expect(
             "Mode personnel", "jamais conservés", "ALLÉGER", "Signal modéré", "62 % du portefeuille",
             // Progressive exits open by default: one is due now.
-            "Vendre 20 % si objectif 1 atteint", "MAINTENANT", "Votre prix d'achat moyen",
+            "Votre position", "Vendre 20 % si objectif 1 atteint", "MAINTENANT", "Prix d'achat moyen",
         )
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/decision-aapl.png")
@@ -138,7 +138,7 @@ class DecisionCardTest {
         )
         // The rating comes first, then the plan's verdict.
         val top = { t: String -> compose.onAllNodes(hasText(t, substring = true), useUnmergedTree = true).fetchSemanticsNodes().first().boundsInRoot.top }
-        assertTrue(top("Verdict du plan") > top("Mode informationnel"))
+        assertTrue(top("Verdict du plan") < top("Mode informationnel"))
         assertTrue(!has("Signal dégradé"))
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/decision-aapl-v2.png")
@@ -253,7 +253,7 @@ class DecisionCardTest {
     @Test @Config(qualifiers = "w360dp-h9400dp-xhdpi")
     fun personalAppleOpen() {
         show(sample("decision-aapl.json"), expanded = true)
-        expect("Chiffre d'affaires (TTM)", "421 Md$", "PEG", "EV/EBITDA", "date estimée", "T2 2026", "Révisions du consensus", "Comparaison au secteur non disponible", "Exposition du portefeuille", "S&P 500")
+        expect("Chiffre d'affaires", "421 Md$", "PER · PEG · EV/EBITDA", "date estimée", "T2 2026", "Révisions : BPA attendu de l'année", "Comparaison au secteur non disponible", "Exposition au facteur", "S&P 500")
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/decision-aapl-detail.png")
     }

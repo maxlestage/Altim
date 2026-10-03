@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -63,8 +64,8 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
 import com.maxlestage.altim.kit.ConfigChanges
-import com.maxlestage.altim.kit.ConfigSnapshot
-import com.maxlestage.altim.kit.RadarDecisions
+import com.maxlestage.altim.kit.DecisionDigests
+import com.maxlestage.altim.kit.DecisionOpportunity
 import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.MacroInfo
 import com.maxlestage.altim.kit.RadarRow
@@ -95,7 +96,10 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchItem>>(emptyList()) }
     var editing by remember { mutableStateOf(false) }
-    var sort by rememberSaveable { mutableStateOf("mine") }
+    // "Mon ordre", "Variation" or "Décision", kept on this phone (iOS radar.sort).
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val prefs = remember { context.getSharedPreferences("altim", android.content.Context.MODE_PRIVATE) }
+    var sort by remember { mutableStateOf(prefs.getString("radar.sort", "mine")?.takeIf { it in setOf("mine", "change", "decision") } ?: "mine") }
     val scope = rememberCoroutineScope()
     val timeframe = Timeframe.radar(model.timeframe)
 
@@ -127,7 +131,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
         val client = model.client ?: return@LaunchedEffect
         while (true) {
             val now = System.currentTimeMillis().toDouble()
-            val due = model.watchlist.take(20).filter { a -> ConfigChanges.lastSeen(model.configChanges, a)?.let { now - it >= DECISION_EVERY } ?: true }
+            val due = model.watchlist.take(20).filter { a -> model.lastDecisionCheck(a)?.let { now - it >= DECISION_EVERY } ?: true }
             for (pair in due.chunked(2)) {
                 coroutineScope {
                     pair.map { a -> async { runCatching { client.decision(a) }.getOrNull() } }.awaitAll()
@@ -180,30 +184,35 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                 item { BriefCard(model, open) }
                 item { BotRadarCard(model) }
                 macro?.takeIf { it.level != "calm" }?.let { m -> item { MacroBanner(m) } }
+                error?.let { e -> item { ErrorBox(e) { scope.launch { load() } } } }
                 model.dangers?.takeIf { it.items.isNotEmpty() }?.let { d -> item { DangersNotice(d) } }
                 if (model.configChanges.transitions.isNotEmpty()) {
-                    item { ConfigChangesCard(model.configChanges.transitions, open, onClear = { model.clearTransitions() }) }
+                    item { ConfigChangesCard(model.configChanges.transitions, open, model.configAlertsEnabled, onClear = { model.clearTransitions() }) }
                 }
-                error?.let { e -> item { ErrorBox(e) { scope.launch { load() } } } }
                 val now = System.currentTimeMillis().toDouble()
-                // Assets whose full decision is ACHETER or ZONE D'ACHAT (not the 4 h technical signal alone).
-                val opportunities = RadarDecisions.opportunities(model.watchlist, model.configChanges, now)
+                // Assets whose full decision is ACHETER or ZONE D'ACHAT (not the technical signal alone).
+                val opportunities = DecisionDigests.opportunities(model.watchlist, model.decisionDigests, now)
                 if (opportunities.isNotEmpty()) item { OpportunitiesCard(opportunities, open) }
+                item { TimeframeChoice(timeframe) { model.updateTimeframe(it) } }
+                if (model.watchlist.size > 1) item {
+                    SortChoice(sort) {
+                        sort = it
+                        prefs.edit().putString("radar.sort", it).apply()
+                    }
+                }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Caption("DÉCISION · PRIX MÉDIAN DE 40 SOURCES", Modifier.weight(1f))
                         LiveBadge(model.live)
                     }
                 }
-                item { TimeframeChoice(timeframe) { model.updateTimeframe(it) } }
-                if (model.watchlist.size > 1 && !editing) item { SortChoice(sort) { sort = it } }
                 if (loading && rows.isEmpty()) item { Loading("Analyse des marchés…") }
-                val shown = when {
-                    editing || sort == "mine" -> model.watchlist
+                val shown = when (sort) {
                     // Largest move first, whatever its direction; no price last.
-                    sort == "change" -> model.watchlist.sortedByDescending { a -> abs(model.live.price(a)?.change ?: rows[a.id]?.change ?: -1.0) }
+                    "change" -> DecisionDigests.sortByChange(model.watchlist) { a -> model.live.price(a)?.change ?: rows[a.id]?.change }
                     // "Décision": the full decision's rating (buy side first), then its confidence.
-                    else -> RadarDecisions.sorted(model.watchlist, model.configChanges, now)
+                    "decision" -> DecisionDigests.sortByDecision(model.watchlist, model.decisionDigests, now)
+                    else -> model.watchlist
                 }
                 items(shown, key = { it.id }) { asset ->
                     val index = model.watchlist.indexOf(asset)
@@ -221,8 +230,14 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                         },
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadarRowView(model, asset, rows[asset.id], timeframe, Modifier.weight(1f).clickable(enabled = !editing) { open(asset) })
                             if (editing) {
+                                IconButton(onClick = { model.unwatch(asset) }) {
+                                    Icon(Icons.Filled.RemoveCircle, contentDescription = "Retirer ${asset.symbol} du radar", tint = AltimColors.sell)
+                                }
+                            }
+                            RadarRowView(model, asset, rows[asset.id], timeframe, Modifier.weight(1f).clickable(enabled = !editing) { open(asset) })
+                            // Reordering only in "Mon ordre" (another sort would move the rows back).
+                            if (editing && sort == "mine") {
                                 Column {
                                     IconButton(enabled = index > 0, onClick = { model.updateWatchlist(model.watchlist.toMutableList().apply { add(index - 1, removeAt(index)) }) }) {
                                         Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "Monter ${asset.symbol}")
@@ -236,7 +251,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                     }
                 }
                 item {
-                    Caption("La décision est une probabilité mesurée sur l'historique, jamais une certitude ; le signal technique ${timeframe.label} (unité choisie ci-dessus) n'en est qu'un indice parmi d'autres. Glissez vers la gauche pour retirer un actif.")
+                    Caption("Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique ${timeframe.label} (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if (model.watchlist.size >= 2) item { CompareCard(model) }
             }
@@ -258,22 +273,24 @@ private fun TimeframeChoice(selected: Timeframe, onChange: (Timeframe) -> Unit) 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SortChoice(sort: String, onChange: (String) -> Unit) {
-    val options = listOf("mine" to "Mon ordre", "change" to "Variation", "signal" to "Décision")
+    val options = listOf("mine" to "Mon ordre", "change" to "Variation", "decision" to "Décision")
     ChoiceRow(options, sort, onChange, description = "Trier le radar")
 }
 
 /** The watched assets whose full decision says ACHETER or ZONE D'ACHAT, most confident first. */
 @Composable
-private fun OpportunitiesCard(items: List<Pair<Asset, ConfigSnapshot>>, open: (Asset) -> Unit) {
+private fun OpportunitiesCard(items: List<DecisionOpportunity>, open: (Asset) -> Unit) {
     Card(title = "Opportunités détectées") {
-        items.forEach { (a, d) ->
+        items.forEach { o ->
+            val a = o.asset
+            val d = o.decision
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable { open(a) },
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(a.name, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                d.confidence?.let { Text("confiance ${Math.round(it)}", color = AltimColors.textSecondary, fontSize = 12.sp) }
+                Text("confiance ${Math.round(d.confidence)}", color = AltimColors.textSecondary, fontSize = 12.sp)
                 DecisionBadge(d)
             }
         }
@@ -321,14 +338,14 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, timeframe: Timef
         }
         // The verdict is the full decision's; the technical signal is only one of its inputs (line below). The chips
         // wrap rather than push the row wider than the screen.
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
             DecisionBadge(decision)
+            val s = row?.signal
+            if (s != null) TechnicalText(s.action, timeframe.label)
+            else if (row?.error != null) Text("signal technique indisponible", color = AltimColors.textSecondary, fontSize = 11.sp, maxLines = 1)
             row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
         }
-        val s = row?.signal
-        if (s != null) TechnicalText(s.action, timeframe.label)
-        else if (row?.error != null) Text("signal technique indisponible", color = AltimColors.textSecondary, fontSize = 11.sp)
-        // Why the chip says ATTENDRE: the decision's short reason (web DecisionNote).
+        // Why the chip says ATTENDRE: the decision's short reason, on its own line (web DecisionNote).
         DecisionNote(decision)
     }
 }

@@ -212,19 +212,7 @@ object ModelValidation {
     const val NNBSP = " "
 
     /** French number with at most [max] decimals, rounded half away from zero like Intl in the browser. */
-    fun fr(v: Double, max: Int): String {
-        val symbols = DecimalFormatSymbols(Locale.FRANCE).apply {
-            groupingSeparator = ' '
-            decimalSeparator = ','
-        }
-        val f = DecimalFormat("#,##0", symbols).apply {
-            minimumFractionDigits = 0
-            maximumFractionDigits = max
-            roundingMode = RoundingMode.HALF_UP
-        }
-        // Rounded from the shortest decimal writing of the number, as Intl does (−86.55 → 86,6, not 86,5).
-        return if (v.isFinite()) f.format(java.math.BigDecimal(v.toString())) else f.format(v)
-    }
+    fun fr(v: Double, max: Int): String = JsFormat.fr(v, max)
 
     /** "+12,3 %", "−4 %", "—". */
     fun signedPct(v: Double?, digits: Int = 1): String {

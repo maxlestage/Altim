@@ -83,12 +83,13 @@ fun OpportunitiesScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Un
     var report by remember { mutableStateOf<OpportunityReport?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var pending by remember { mutableStateOf(false) }
-    LaunchedEffect(saved.market) {
+    var refresh by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    // The first scan takes ≈ 30 s: the server answers "pending" meanwhile, asked again every 5 seconds until ready.
+    LaunchedEffect(saved.market, refresh) {
         val client = model.client ?: return@LaunchedEffect
-        report = null
+        if (report?.kind != saved.market) report = null
         error = null
-        pending = false
-        repeat(36) {
+        while (true) {
             try {
                 when (val r = client.opportunities(saved.market)) {
                     is OpportunitiesResult.Ready -> {
@@ -112,9 +113,10 @@ fun OpportunitiesScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Un
                 return@LaunchedEffect
             }
         }
-        error = "Le calcul prend plus de temps que prévu. Revenez dans un instant."
     }
-    OpportunitiesView(saved, report, error, pending, modifier, onSaved = update, open = open, onBack = onBack)
+    androidx.compose.material3.pulltorefresh.PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier) {
+        OpportunitiesView(saved, report, error, pending, Modifier.fillMaxSize(), onSaved = update, open = open, onBack = onBack)
+    }
 }
 
 /** The whole screen from its state (no server: also rendered by the tests). */
@@ -183,15 +185,15 @@ fun OpportunitiesView(
             if (report != null) {
                 item {
                     Text(
-                        "RÉSULTATS · ${shown.size} SUR ${report.scanned} ANALYSÉ${if (report.scanned > 1) "S" else ""}",
-                        color = AltimColors.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp).semantics { heading() },
+                        "Résultats · ${shown.size} sur ${report.scanned} analysé${if (report.scanned > 1) "s" else ""}",
+                        fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 6.dp).semantics { heading() },
                     )
                 }
                 if (shown.isEmpty()) item { Caption("Aucun actif ne remplit ces critères en ce moment.") }
                 items(shown, key = { it.symbol }) { i -> OppCard(i, market, open) }
                 item { RulesCard(report) }
                 item {
-                    val at = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.FRANCE).withZone(ZoneId.of("Europe/Paris")).format(Instant.ofEpochMilli(report.asOf.toLong()))
+                    val at = DateTimeFormatter.ofPattern("HH:mm:ss", Locale.FRANCE).withZone(ZoneId.systemDefault()).format(Instant.ofEpochMilli(report.asOf.toLong()))
                     Caption("Scan calculé à $at. Conseil indicatif, pas une recommandation personnalisée : Altim ne passe aucun ordre.")
                 }
             }

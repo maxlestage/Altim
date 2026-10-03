@@ -160,6 +160,12 @@ object PortfolioRisk {
     const val CLUSTER_CORRELATION = 0.7
     const val DAILY_LOSS_REACHED = "Limite de perte du jour atteinte : n'ouvrez plus de position aujourd'hui."
 
+    /** "Votre stop : 95,00 € (5,9 % sous le cours)." (iOS RiskText.userStop). */
+    fun userStop(stop: Double, price: Double?): String {
+        val below = price?.takeIf { it > 0 }?.let { " (${JsFormat.fr((it - stop) / it * 100, 1)} % sous le cours)" } ?: ""
+        return "Votre stop : ${Format.price(stop)}$below."
+    }
+
     /** Benchmark of each asset class: Bitcoin for cryptos, the S&P 500 (via the SPY ETF) for stocks. */
     fun benchmark(kind: Kind): Asset = if (kind == Kind.CRYPTO) Asset("BTC", Kind.CRYPTO, "Bitcoin") else Asset("SPY", Kind.STOCK, "S&P 500")
     fun benchmarkLabel(kind: Kind): String = if (kind == Kind.CRYPTO) "Bitcoin" else "S&P 500"
@@ -364,7 +370,7 @@ object PortfolioRisk {
 
     // ---------- Limits of the user's settings ----------
 
-    private fun fr(v: Double, d: Int = 1) = Format.plain(v, d)
+    private fun fr(v: Double, d: Int = 1) = JsFormat.fr(v, d)
     private fun usd0(v: Double) = Format.amount(abs(v))
     /** A dollar price in the display currency with up to 4 decimals ("140 €", "0,1234 €"). */
     private fun px4(v: Double) = "${fr(Money.toDisplay(v), 4)} ${Money.symbol()}"

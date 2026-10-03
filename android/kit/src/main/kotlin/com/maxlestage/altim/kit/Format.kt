@@ -57,6 +57,24 @@ object Format {
 
     fun plain(v: Double, digits: Int = 2): String = number(v, 0, digits)
 
+    /**
+     * Large amounts and counts (iOS `Format.large`): "421 Md€", "3,2 Md€", "38 M€", "19,9 M" (unit ""); below a
+     * million, whole numbers from 100. With the default unit "$" the dollar amount is shown in the display currency.
+     */
+    fun large(value: Double?, unit: String = "$"): String {
+        if (value == null || !value.isFinite()) return "—"
+        val money = unit == "$"
+        val v = if (money) Money.toDisplay(value) else value
+        val u = if (money) Money.symbol() else unit
+        val a = abs(v)
+        return when {
+            a >= 1e9 -> "${number(v / 1e9, 0, if (a >= 1e11) 0 else 1)} Md$u"
+            a >= 1e6 -> "${number(v / 1e6, 0, if (a >= 1e8) 0 else 1)} M$u"
+            u.isEmpty() -> number(v, 0, if (a >= 100) 0 else 2)
+            else -> "${number(v, 0, if (a >= 100) 0 else 2)} $u"
+        }
+    }
+
     /** Exactly [digits] decimals: 12,30 (French, narrow no-break space between thousands). */
     fun fixed(v: Double, digits: Int): String = number(v, digits, digits)
 

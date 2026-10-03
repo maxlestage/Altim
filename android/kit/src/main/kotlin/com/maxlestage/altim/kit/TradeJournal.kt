@@ -247,7 +247,7 @@ object TradeJournal {
         return floor(v * k + 0.5) / k
     }
 
-    private fun fr(v: Double, d: Int = 1) = Format.plain(v, d)
+    private fun fr(v: Double, d: Int = 1) = JsFormat.fr(v, d)
     private fun signed(v: Double, d: Int = 1) = "${if (v > 0) "+" else if (v < 0) "−" else ""}${fr(abs(v), d)}"
     private fun plural(n: Int, w: String) = "$n $w${if (n > 1) "s" else ""}"
 
