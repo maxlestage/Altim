@@ -43,6 +43,12 @@ pub enum Interval {
     H4,
     #[serde(rename = "1d")]
     D1,
+    /// 4 calendar days, buckets anchored on the Unix epoch (see `candles::bucket`).
+    #[serde(rename = "4d")]
+    D4,
+    /// One week, Monday 00:00 UTC (Binance's weekly candles).
+    #[serde(rename = "1w")]
+    W1,
 }
 
 impl Interval {
@@ -51,13 +57,33 @@ impl Interval {
             Interval::H1 => "1h",
             Interval::H4 => "4h",
             Interval::D1 => "1d",
+            Interval::D4 => "4d",
+            Interval::W1 => "1w",
         }
+    }
+    /// Every timeframe, shortest first.
+    pub const ALL: [Interval; 5] = [Interval::H1, Interval::H4, Interval::D1, Interval::D4, Interval::W1];
+    /// French label of the choosers ("1 h", "4 h", "1 j", "4 j", "1 sem.").
+    pub fn label(self) -> &'static str {
+        match self {
+            Interval::H1 => "1 h",
+            Interval::H4 => "4 h",
+            Interval::D1 => "1 j",
+            Interval::D4 => "4 j",
+            Interval::W1 => "1 sem.",
+        }
+    }
+    /// Built from daily candles (or a provider's native weekly ones): 4 d and 1 w.
+    pub fn multi_day(self) -> bool {
+        matches!(self, Interval::D4 | Interval::W1)
     }
     pub fn parse(s: &str) -> Option<Interval> {
         match s {
             "1h" => Some(Interval::H1),
             "4h" => Some(Interval::H4),
             "1d" => Some(Interval::D1),
+            "4d" => Some(Interval::D4),
+            "1w" => Some(Interval::W1),
             _ => None,
         }
     }
@@ -67,14 +93,18 @@ impl Interval {
             Interval::H1 => 3_600_000,
             Interval::H4 => 14_400_000,
             Interval::D1 => 86_400_000,
+            Interval::D4 => 4 * 86_400_000,
+            Interval::W1 => 7 * 86_400_000,
         }
     }
-    /// Next timeframe up (`HIGHER`).
+    /// Next timeframe up (`HIGHER`). 1 d keeps none (unchanged since its validation); 4 d is confirmed by the week.
     pub fn higher(self) -> Option<Interval> {
         match self {
             Interval::H1 => Some(Interval::H4),
             Interval::H4 => Some(Interval::D1),
             Interval::D1 => None,
+            Interval::D4 => Some(Interval::W1),
+            Interval::W1 => None,
         }
     }
 }

@@ -152,4 +152,5 @@ pub async fn bot_views(items: &[(String, Kind)]) -> Result<altim_core::web::bot:
     get(&altim_core::web::bot::bot_views_url(items)).await
 }
 
-pub const INTERVAL_LABEL: [(&str, &str); 3] = [("1h", "1 h"), ("4h", "4 h"), ("1d", "1 j")];
+/// The timeframes of the chooser shared by the Radar and the asset screen (`Interval::label`).
+pub const INTERVAL_LABEL: [(&str, &str); 5] = [("1h", "1 h"), ("4h", "4 h"), ("1d", "1 j"), ("4d", "4 j"), ("1w", "1 sem.")];

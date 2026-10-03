@@ -148,6 +148,9 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         private set
     var selectionHorizon by mutableStateOf(Horizon.of(prefs.getString("selectionHorizon", null)) ?: Horizon.MO1)
         private set
+    /** Timeframe of the technical line (Radar) and of the asset chart, saved; 4 h by default. */
+    var timeframe by mutableStateOf(com.maxlestage.altim.kit.Timeframe.saved(prefs.getString(com.maxlestage.altim.kit.Timeframe.KEY, null)))
+        private set
 
     /** Buy notifications (Réglages): on by default once allowed; "strong only" = signal and zone together. */
     var alertsEnabled by mutableStateOf(prefs.getBoolean("alertsEnabled", false))
@@ -324,6 +327,11 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
         val state = PortfolioRisk.DangerState(1, now, items)
         dangers = state
         prefs.edit().putString("dangers.v1", PortfolioRisk.encodeDangers(items, now)).apply()
+    }
+
+    fun updateTimeframe(t: com.maxlestage.altim.kit.Timeframe) {
+        timeframe = t
+        prefs.edit().putString(com.maxlestage.altim.kit.Timeframe.KEY, t.raw).apply()
     }
 
     fun updateSelection(market: Kind = selectionMarket, horizon: Horizon = selectionHorizon) {

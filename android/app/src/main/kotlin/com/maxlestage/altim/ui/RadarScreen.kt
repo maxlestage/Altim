@@ -69,6 +69,7 @@ import com.maxlestage.altim.kit.Format
 import com.maxlestage.altim.kit.MacroInfo
 import com.maxlestage.altim.kit.RadarRow
 import com.maxlestage.altim.kit.SearchItem
+import com.maxlestage.altim.kit.Timeframe
 import com.maxlestage.altim.kit.Tone
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -80,7 +81,10 @@ import kotlin.math.abs
 /** The decisions of the radar are re-read at most this often (they are heavier than the signals). */
 private const val DECISION_EVERY = 15 * 60_000.0
 
-/** Watch list: live price, full decision (the 4 h technical signal as one input), reliability of the data, macro context. */
+/**
+ * Watch list: live price, full decision (the technical signal of the chosen timeframe as one input), reliability of the
+ * data, macro context.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSettings: () -> Unit = {}) {
@@ -93,13 +97,14 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
     var editing by remember { mutableStateOf(false) }
     var sort by rememberSaveable { mutableStateOf("mine") }
     val scope = rememberCoroutineScope()
+    val timeframe = Timeframe.radar(model.timeframe)
 
     suspend fun load() {
         val client = model.client ?: return
         if (model.watchlist.isEmpty()) return
         loading = true
         try {
-            val r = client.radar(model.watchlist)
+            val r = client.radar(model.watchlist, timeframe.raw)
             rows.clear()
             r.forEach { rows[it.id] = it }
             error = null
@@ -114,7 +119,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
         macro = runCatching { client.macro() }.getOrNull()
     }
 
-    LaunchedEffect(model.watchlist.joinToString { it.id }) { load() }
+    LaunchedEffect(model.watchlist.joinToString { it.id }, timeframe) { load() }
     // Decisions of the watched assets (market data only), re-read at most every 15 minutes while the Radar is open:
     // each one goes through the configuration diff (ConfigChanges). Two at a time: the server fetches fundamentals and
     // order books for each one; a decision that fails is simply compared at the next pass.
@@ -190,6 +195,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                         LiveBadge(model.live)
                     }
                 }
+                item { TimeframeChoice(timeframe) { model.updateTimeframe(it) } }
                 if (model.watchlist.size > 1 && !editing) item { SortChoice(sort) { sort = it } }
                 if (loading && rows.isEmpty()) item { Loading("Analyse des marchés…") }
                 val shown = when {
@@ -215,7 +221,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                         },
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            RadarRowView(model, asset, rows[asset.id], Modifier.weight(1f).clickable(enabled = !editing) { open(asset) })
+                            RadarRowView(model, asset, rows[asset.id], timeframe, Modifier.weight(1f).clickable(enabled = !editing) { open(asset) })
                             if (editing) {
                                 Column {
                                     IconButton(enabled = index > 0, onClick = { model.updateWatchlist(model.watchlist.toMutableList().apply { add(index - 1, removeAt(index)) }) }) {
@@ -230,7 +236,7 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
                     }
                 }
                 item {
-                    Caption("La décision est une probabilité mesurée sur l'historique, jamais une certitude ; le signal technique 4 h n'en est qu'un indice parmi d'autres. Glissez vers la gauche pour retirer un actif.")
+                    Caption("La décision est une probabilité mesurée sur l'historique, jamais une certitude ; le signal technique ${timeframe.label} (unité choisie ci-dessus) n'en est qu'un indice parmi d'autres. Glissez vers la gauche pour retirer un actif.")
                 }
                 if (model.watchlist.size >= 2) item { CompareCard(model) }
             }
@@ -240,6 +246,24 @@ fun RadarScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit, onSe
 
 @Composable
 private fun Caption(text: String, modifier: Modifier) = Text(text, color = AltimColors.textSecondary, fontSize = 12.sp, modifier = modifier)
+
+/** Timeframe of the technical line (4 h, 1 j, 4 j, 1 sem.), saved and shared with the asset page. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TimeframeChoice(selected: Timeframe, onChange: (Timeframe) -> Unit) {
+    val options = Timeframe.RADAR
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Unité de temps de l'analyse technique" }) {
+        options.forEachIndexed { i, t ->
+            SegmentedButton(
+                selected = selected == t,
+                onClick = { onChange(t) },
+                shape = SegmentedButtonDefaults.itemShape(i, options.size),
+                colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
+                icon = {},
+            ) { Text(t.label, maxLines = 1, softWrap = false) }
+        }
+    }
+}
 
 /** "Trier le radar": the user's order, the largest move, or the full decision. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -293,7 +317,7 @@ private fun SearchRow(item: SearchItem, watched: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifier = Modifier) {
+fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, timeframe: Timeframe = Timeframe.STANDARD, modifier: Modifier = Modifier) {
     val tick = model.live.price(asset)
     val decision = model.radarDecision(asset)
     Column(
@@ -312,13 +336,13 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, modifier: Modifi
                 ChangeText(tick?.change ?: row?.change)
             }
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.widthIn(min = 70.dp)) {
-                // The verdict is the full decision's; the 4 h technical signal is only one of its inputs (line below).
+                // The verdict is the full decision's; the technical signal is only one of its inputs (line below).
                 DecisionBadge(decision)
                 row?.reliability?.takeIf { it.level != "high" }?.let { Badge(if (it.level == "medium") "FIAB. MOY." else "FIAB. FAIBLE", it.tone) }
             }
         }
         val s = row?.signal
-        if (s != null) TechnicalText(s.action)
+        if (s != null) TechnicalText(s.action, timeframe.label)
         else if (row?.error != null) Text("signal technique indisponible", color = AltimColors.textSecondary, fontSize = 11.sp)
         // Why the chip says ATTENDRE: the decision's short reason (web DecisionNote).
         DecisionNote(decision)

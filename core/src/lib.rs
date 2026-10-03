@@ -3,6 +3,7 @@
 //! clock of its own except `js::now_ms` (host clock); time is passed in wherever a result depends on it.
 pub mod bot_history;
 pub mod calendar;
+pub mod candles;
 pub mod engine;
 pub mod error;
 pub mod fx;

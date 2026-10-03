@@ -46,8 +46,8 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 
 - **Connexion** : adresse du serveur, identifiant et mot de passe (le même formulaire que le site, protégé contre le CSRF ; code à 6 chiffres seulement si la 2FA est activée sur le serveur). Le mot de passe et la session (cookie de 7 jours) sont chiffrés dans le **trousseau iOS** (« cet appareil uniquement », jamais dans iCloud) ; à l'expiration, l'app se reconnecte seule. HTTPS obligatoire (HTTP seulement pour un serveur local).
 - **Face ID** (ou code de l'iPhone) à l'ouverture et après 2 minutes en arrière-plan, désactivable dans Réglages.
-- **Radar** : prix en direct (flux `/api/live`, reconnexion automatique), signal 4 h, fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
-- **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
+- **Radar** : prix en direct (flux `/api/live`, reconnexion automatique), signal technique sur l'unité choisie (4 h par défaut, 1 j, 4 j, 1 sem. ; aussi 1 h sur le web, mémorisée et partagée avec la fiche ; le verdict reste la décision complète et les notifications le signal 4 h), fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
+- **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j / 4 j / 1 sem. avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
 - **Sélection** : actions ou cryptos, 8 durées (30 min à 6 mois), méthode, résultat rejoué avec ses limites, plan (entrée, stop, objectif) et montant pour votre budget.
 - **Mes avoirs** : lignes gardées sur l'iPhone (fichier protégé, exclu des sauvegardes), valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne, et l'[historique](#historique-du-portefeuille) de ces lignes face au Bitcoin et au S&P 500.
 - **Notifications « achat possible »** : vérification en arrière-plan (iOS en décide le rythme, au mieux toutes les 15 min) et à chaque ouverture ; une notification seulement quand un actif devient achetable ou que la raison change ; option « seulement les achats conseillés » (signal + zone).
@@ -86,7 +86,7 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | Route | Rôle |
 |---|---|
 | `GET /api/radar?symbols=BTC:crypto,AAPL:stock&interval=4h` | Signaux validés du radar (calculés côté serveur avec le même moteur) |
-| `GET /api/candles?symbol=BTC&kind=crypto&interval=1h` | Bougies par consensus + qualité + score de fiabilité |
+| `GET /api/candles?symbol=BTC&kind=crypto&interval=1h` | Bougies par consensus + qualité + score de fiabilité ; `interval` = `1h` \| `4h` \| `1d` \| `4d` \| `1w` (aussi pour `/api/radar`, 4h par défaut) |
 | `GET /api/tickers?symbols=…` | Cours par consensus (8 sources crypto, 3 actions) |
 | `GET /api/search?q=…` · `GET /api/sentiment?symbol=…` | Recherche d'actifs · Fear & Greed et StockTwits |
 | `GET /api/live?symbols=BTC:crypto,AAPL:stock` | **Prix en direct** (Server-Sent Events) : dernier prix tout de suite, puis chaque changement |
@@ -260,7 +260,7 @@ La stratégie **limite fortement les pertes en marché baissier** (BTC 1 j : −
 | Actions / ETF (17) | Bougies journalières : Yahoo Finance (2 serveurs), Nasdaq, Robinhood, Cboe, StockAnalysis, Webull, WSJ / MarketWatch (Dow Jones), Financial Times, Finviz, AlphaQuery, eToro. Cours en direct : TradingView, Zacks, Fidelity, StockCharts, TipRanks, Public.com, et ceux de Robinhood, Cboe, Webull, Nasdaq, Yahoo |
 | Contexte (hors score) | Fear & Greed (alternative.me), StockTwits |
 
-HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commence à 16 h UTC). En 1 h / 4 h, les bougies d'actions viennent de Yahoo (seules alignées sur la séance) et sont recoupées avec 6 cours en direct.
+HTX, BingX et LBank ne servent qu'en 1 h / 4 h (leur bougie journalière commence à 16 h UTC). En 4 j et 1 sem., les bougies journalières sont regroupées (`core/src/candles.rs`) : blocs de 4 jours calendaires comptés depuis le 1er janvier 1970 (stables dans le temps), semaines du lundi 00 h UTC ; ouverture = la première, clôture = la dernière, plus haut / plus bas extrêmes, volumes additionnés, jours sans séance simplement absents, premier bloc (peut-être coupé) écarté, bloc en cours écarté comme toute bougie non clôturée. Semaines natives chez Binance, MEXC (≈ 9 ans) et Yahoo (10 ans). Crypto : Bitstamp, Binance, Gate.io, MEXC, Kraken (500 à 1 000 jours, ≈ 250 bougies de 4 j) ; actions : Yahoo (5 ans de séances) puis les sources journalières. Moins de 60 bougies : pas de signal, et « Historique trop court » dans la qualité. En 1 h / 4 h, les bougies d'actions viennent de Yahoo (seules alignées sur la séance) et sont recoupées avec 6 cours en direct.
 
 1. **Consensus** : toutes les sources sont interrogées en parallèle. Pour chaque bougie, la référence est la médiane ; une source qui s'en écarte de plus de 0,5 % (crypto) / 1 % (actions) est écartée, tout comme une source en retard (paire inactive). Les bougies analysées sont la médiane des sources concordantes.
 2. **Contrôle qualité** des bougies : trous, pics aberrants aussitôt annulés (erreur de cotation), données périmées, volume absent, prix figés. Les fuseaux de New York (heure d'été / d'hiver) sont gérés pour aligner les séances.

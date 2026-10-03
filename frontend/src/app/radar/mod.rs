@@ -1,5 +1,5 @@
 //! Radar (Radar.tsx): the watchlist with live prices, the full decision of each asset (from this browser's cache,
-//! re-read every 15 minutes), the 4 h technical signal, the configuration changes, what is buyable now, the macro
+//! re-read every 15 minutes), the technical signal of the chosen timeframe, the configuration changes, what is buyable now, the macro
 //! context and the positions that became dangerous.
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -413,7 +413,7 @@ pub fn Radar() -> Html {
                         }) }
                     </ul>
                     <small class="muted">
-                        { "Listés seulement quand la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h ou zone Fibonacci, sans source en désaccord, choc ni zone cassée) : la même règle que les notifications des apps. Conseil indicatif." }
+                        { "Listés seulement quand la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h quelle que soit l'unité choisie ci-dessus, ou zone Fibonacci, sans source en désaccord, choc ni zone cassée) : la même règle que les notifications des apps. Conseil indicatif." }
                     </small>
                 </div>
             }
@@ -467,7 +467,7 @@ pub fn Radar() -> Html {
                                     <DecisionBadge kind={w.kind} symbol={w.symbol.clone()} />
                                     { match r {
                                         Some(r) if r.signal.is_some() => html! {
-                                            <small class="muted" title="Signal technique sur bougies de 4 h : un indice parmi d'autres de la décision">
+                                            <small class="muted" title={format!("Signal technique sur bougies de {label} : un indice parmi d'autres de la décision")}>
                                                 { format!("technique {label} : {}", technical_text(r.signal.as_ref().map(|s| s.action).unwrap_or(altim_core::engine::signal::Action::Hold))) }
                                             </small>
                                         },

@@ -58,17 +58,18 @@ import com.maxlestage.altim.kit.MacroInfo
 import com.maxlestage.altim.kit.RadarDecisions
 import com.maxlestage.altim.kit.RadarRow
 import com.maxlestage.altim.kit.Snapshot
+import com.maxlestage.altim.kit.Timeframe
 import com.maxlestage.altim.kit.Tone
 import com.maxlestage.altim.kit.ZonesReport
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
-private val INTERVALS = listOf("1h" to "1 h", "4h" to "4 h", "1d" to "1 j")
-
 /** Everything about one asset: live price, chart, signal, Fibonacci buy zones by horizon, market guard, macro. */
 @Composable
 fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack: () -> Unit) {
-    var interval by remember(asset.id) { mutableStateOf("4h") }
+    // Shared with the Radar's chooser (saved; the Radar has no 1 h).
+    val timeframe = model.timeframe
+    val interval = timeframe.raw
     var snapshot by remember(asset.id) { mutableStateOf<Loadable<Snapshot>>(Loadable.Loading) }
     var signal by remember(asset.id) { mutableStateOf<RadarRow?>(null) }
     var zones by remember(asset.id) { mutableStateOf<Loadable<ZonesReport>>(Loadable.Loading) }
@@ -159,21 +160,22 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             simulated?.let { Notice(it, Tone.GOOD) }
             Card {
                 SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    INTERVALS.forEachIndexed { i, (k, label) ->
+                    Timeframe.entries.forEachIndexed { i, t ->
                         SegmentedButton(
-                            selected = interval == k,
-                            onClick = { interval = k },
-                            shape = SegmentedButtonDefaults.itemShape(i, INTERVALS.size),
+                            selected = timeframe == t,
+                            onClick = { model.updateTimeframe(t) },
+                            shape = SegmentedButtonDefaults.itemShape(i, Timeframe.entries.size),
                             colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                        ) { Text(label) }
+                            icon = {},
+                        ) { Text(t.label, maxLines = 1, softWrap = false) }
                     }
                 }
-                val chartZone = zones.value?.zones?.firstOrNull { it.horizon == (if (interval == "1d") "medium" else "short") && it.zone != null }
+                val chartZone = zones.value?.zones?.firstOrNull { it.horizon == timeframe.zoneHorizon && it.zone != null }
                 when (val s = snapshot) {
                     is Loadable.Loading -> Loading()
                     is Loadable.Failed -> ErrorBox(s.message) { reload++ }
                     is Loadable.Loaded -> {
-                        PriceChart(s.value.candles.takeLast(if (interval == "1d") 180 else 120), chartZone, Modifier.fillMaxWidth().height(220.dp))
+                        PriceChart(s.value.candles.takeLast(timeframe.chartCandles), chartZone, Modifier.fillMaxWidth().height(220.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Caption("${s.value.agreeing} sources en accord", modifier = Modifier.weight(1f))
                             Badge(s.value.reliability.label.uppercase(), s.value.reliability.tone)
@@ -186,7 +188,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             }
             signal?.signal?.let { s ->
                 // A direction, not a verdict: the only verdict and plan (stop, target) are the Décision card's.
-                Card(title = "Signal technique · ${INTERVALS.first { it.first == interval }.second}") {
+                Card(title = "Signal technique · ${timeframe.label}") {
                     Caption("Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.")
                     val direction = RadarDecisions.technicalTone(s.action)
                     Text(

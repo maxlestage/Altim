@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use altim::live::{ChanIds, FEEDS};
-use altim::market::{SOURCES, STOCK_SOURCES};
+use altim::market::{MULTI_DAY_SOURCES, MULTI_DAY_STOCK_SOURCES, SOURCES, STOCK_SOURCES};
 use altim::quotes::{QUOTE_SOURCES, make_asset};
 use altim::types::{Interval, Kind};
 use futures::{SinkExt, StreamExt, future::join_all};
@@ -34,9 +34,15 @@ fn report(results: Vec<(String, Result<f64, String>)>) {
 #[ignore]
 async fn candles_every_source_every_interval() {
     let mut jobs = Vec::new();
-    for (sources, base) in [(&*SOURCES, "BTC"), (&*STOCK_SOURCES, "AAPL")] {
+    let multi = [Interval::D4, Interval::W1];
+    for (sources, base, intervals) in [
+        (&SOURCES[..], "BTC", &INTERVALS[..]),
+        (&STOCK_SOURCES[..], "AAPL", &INTERVALS[..]),
+        (&MULTI_DAY_SOURCES[0][..], "BTC", &multi[..]),
+        (&MULTI_DAY_STOCK_SOURCES[..], "AAPL", &multi[..]),
+    ] {
         for s in sources.iter() {
-            for i in INTERVALS.into_iter().filter(|i| s.supports(*i)) {
+            for i in intervals.iter().copied().filter(|i| s.supports(*i)) {
                 let label = format!("{} {base} {}", s.name, i.as_str());
                 let fut = (s.fetch)(base.to_string(), i);
                 jobs.push(async move {
