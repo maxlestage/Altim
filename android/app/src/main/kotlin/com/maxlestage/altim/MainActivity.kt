@@ -9,6 +9,7 @@ import com.maxlestage.altim.data.AppModel
 import com.maxlestage.altim.data.BuyAlerts
 import com.maxlestage.altim.ui.AltimTheme
 import com.maxlestage.altim.ui.Root
+import kotlinx.coroutines.launch
 
 class AltimApplication : Application() {
     lateinit var model: AppModel
@@ -49,6 +50,21 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         model.willEnterForeground()
+        // Like the iPhone at each activation: an alert check (at most every 15 minutes) and the simulated exits.
+        model.scope.launch {
+            BuyAlerts.foregroundCheck(applicationContext, model)
+            if (model.phase == AppModel.Phase.READY) {
+                try {
+                    model.checkPaperExits()
+                } catch (_: com.maxlestage.altim.kit.AltimException.Unauthorized) {
+                    model.sessionLost()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Checked again at the next opening.
+                }
+            }
+        }
     }
 
     override fun onStop() {

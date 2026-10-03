@@ -122,17 +122,17 @@ object Strategies {
 
     /** "+12,3 %" / "−4,0 %" / "—". */
     fun signedPct(v: Double?, digits: Int = 1): String =
-        if (v == null) "—" else "${if (v > 0) "+" else if (v < 0) "−" else ""}${Format.fixed(abs(v), digits)}$NNBSP%"
+        if (v == null) "—" else "${if (v > 0) "+" else if (v < 0) "−" else ""}${JsFormat.fr(abs(v), digits, digits)}$NNBSP%"
 
-    fun plainPct(v: Double?, digits: Int = 0): String = if (v == null) "—" else "${Format.fixed(v, digits)}$NNBSP%"
+    fun plainPct(v: Double?, digits: Int = 0): String = if (v == null) "—" else "${JsFormat.fr(v, digits, digits)}$NNBSP%"
 
-    fun ratio(v: Double?): String = if (v == null) "—" else "${if (v < 0) "−" else ""}${Format.fixed(abs(v), 2)}"
+    fun ratio(v: Double?): String = if (v == null) "—" else "${if (v < 0) "−" else ""}${JsFormat.fr(abs(v), 2, 2)}"
 
     /** "15 juil. 2022" (UTC calendar day). */
     fun shortDate(t: Double): String = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.FRANCE).withZone(ZoneOffset.UTC).format(Instant.ofEpochMilli(t.toLong()))
 
     /** Value of 100 invested, whole: "127". */
-    fun value100(v: Double): String = Format.plain(v, 0)
+    fun value100(v: Double): String = JsFormat.fr(v, 0)
 
     /** Strategies to draw: selected, available, with a curve, in the fixed order. */
     fun drawable(report: StrategiesReport, selected: Collection<String>): List<StrategyResult> =

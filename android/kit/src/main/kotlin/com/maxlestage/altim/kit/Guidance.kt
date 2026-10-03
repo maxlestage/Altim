@@ -85,7 +85,7 @@ object Guidance {
         val x = Money.toDisplay(v)
         val a = abs(x)
         val digits = if (a >= 1) (if (x == Math.rint(x)) 0 else 2) else if (a >= 0.01) 4 else 8
-        return "${Format.fixed(x, digits)}${Money.NNBSP}${Money.symbol()}"
+        return "${JsFormat.fr(x, digits, digits)}${Money.NNBSP}${Money.symbol()}"
     }
 
     /** Check state: icon and word, never colour alone. */

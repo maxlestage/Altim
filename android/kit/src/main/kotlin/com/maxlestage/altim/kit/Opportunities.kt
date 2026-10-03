@@ -241,20 +241,20 @@ object Opportunities {
         val s = Money.symbol()
         val a = abs(v)
         return when {
-            a >= 1e9 -> "${Format.plain(v / 1e9, 1)} Md$s"
-            a >= 1e6 -> "${Format.plain(v / 1e6, 1)} M$s"
-            a >= 1e3 -> "${Format.plain(v / 1e3, 0)} k$s"
-            else -> "${Format.plain(v, 0)} $s"
+            a >= 1e9 -> "${JsFormat.fr(v / 1e9, 1)} Md$s"
+            a >= 1e6 -> "${JsFormat.fr(v / 1e6, 1)} M$s"
+            a >= 1e3 -> "${JsFormat.fr(v / 1e3, 0)} k$s"
+            else -> "${JsFormat.fr(v, 0)} $s"
         }
     }
 
     /** "+12,3 %" / "−0,0100 %" (maximum [digits] decimals). */
-    fun signed(v: Double, digits: Int = 1) = "${if (v >= 0) "+" else "−"}${Format.plain(abs(v), digits)} %"
+    fun signed(v: Double, digits: Int = 1) = "${if (v >= 0) "+" else "−"}${JsFormat.fr(abs(v), digits)} %"
 
     /** "RSI 14 : 61", "volatilité 2,3 %/j", "échangé 32 Md€/j", "capitalisation 4 100 Md€" (the known ones). */
     fun metrics(i: OppItem): List<String> = listOfNotNull(
         i.rsi14?.let { "RSI 14 : ${Math.round(it)}" },
-        i.volatility?.let { "volatilité ${Format.plain(it, 1)} %/j" },
+        i.volatility?.let { "volatilité ${JsFormat.fr(it, 1)} %/j" },
         i.liquidity?.let { "échangé ${compactUsd(it)}/j" },
         i.marketCap?.let { "capitalisation ${compactUsd(it)}" },
     )

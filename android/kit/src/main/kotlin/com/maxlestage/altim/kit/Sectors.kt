@@ -190,14 +190,14 @@ object Sectors {
         )
     }
 
-    private fun pc(v: Any?) = "${Format.plain((v as? Double) ?: 0.0, 1)} %"
+    private fun pc(v: Any?) = "${JsFormat.fr((v as? Double) ?: 0.0, 1)} %"
 
     fun insightText(i: SectorInsight): String {
         val v = i.values
         return when (i.code) {
             "sector_heavy" -> "${v["sector"]} pèse ${pc(v["weight"])} de votre patrimoine : une mauvaise passe de ce secteur pourrait toucher plusieurs lignes à la fois."
             "sector_heavy_stocks" -> "${v["sector"]} représente ${pc(v["share"])} de vos actions : leur diversification sectorielle est faible."
-            "sector_effective" -> "Vos actions classées équivalent à ${Format.plain((v["effective"] as? Double) ?: 0.0, 1)} secteur(s) de même poids."
+            "sector_effective" -> "Vos actions classées équivalent à ${JsFormat.fr((v["effective"] as? Double) ?: 0.0, 1)} secteur(s) de même poids."
             "sector_etf" -> "ETF (${v["symbols"]}, ${pc(v["weight"])}) : leur répartition par secteur n'est pas couverte (composition non lue)."
             "sector_unknown" -> "Secteur non couvert pour ${v["symbols"]} (${pc(v["weight"])})."
             else -> i.code

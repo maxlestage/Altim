@@ -10,6 +10,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -110,11 +111,11 @@ class PaperScreenTest {
         show(state(steps.lastIndex), emptyMap())
         expect(
             "Portefeuille simulé — aucun argent réel, aucun ordre passé", "10 509,12 $", "+509,12 $", "+5,09 %",
-            "Capital de départ", "10 000,00 $", "Liquidités", "Recommencer",
-            "POSITIONS OUVERTES · 0", "JOURNAL DES VENTES · 5", "OBJECTIF ATTEINT", "STOP TOUCHÉ", "VENTE MANUELLE",
-            "Résultats par décision affichée à l'achat", "ZONE D'ACHAT", "Sans décision", "sous une vingtaine de trades",
-            "Positions ouvertes", "0,00 $", "Gain moyen", "+15,90 %", "Perte moyenne", "−8,40 %", "Stop touché", "Vente manuelle",
-            "Taux de réussite", "40 %", "Profit factor", "2,47", "Comment c'est calculé", "0,1 % de frais", "0,05 % de glissement",
+            "Capital de départ", "10 000 $", "Liquidités", "Recommencer",
+            "POSITIONS OUVERTES", "JOURNAL DES VENTES SIMULÉES", "objectif atteint", "stop touché", "vente manuelle",
+            "Résultats par décision affichée à l'achat", "ZONE D'ACHAT", "Sans décision", "en dessous d'une vingtaine",
+            "Positions (si vendues maintenant)", "0 $", "Gain moyen", "+15,90 %", "Perte moyenne", "−8,40 %", "Sorties",
+            "Gagnantes", "40 %", "Profit factor", "2,47", "Comment c'est calculé", "Frais de 0,1 %", "Glissement de 0,05 %",
         )
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/paper-final.png")
@@ -125,18 +126,18 @@ class PaperScreenTest {
     fun openPositions() {
         show(state(8), prices(8))
         expect(
-            "10 072,50 $", "+72,50 $", "POSITIONS OUVERTES · 4", "BTC", "Bitcoin", "ACHETER", "confiance 70/100", "1 septembre 2026",
+            "10 072,5 $", "+72,5 $", "POSITIONS OUVERTES", "BTC", "Bitcoin", "ACHETER", "confiance 70 %", "1 septembre 2026",
             "64 032,00 $", "66 000,00 $", "3 084,48 $", "+84,48 $", "+2,82 %", "60 000,00 $", "72 000,00 $",
-            "ZONE D'ACHAT", "ATTENDRE", "Ouverte sans décision affichée", "prix indisponible", "1 position sans prix",
-            "JOURNAL DES VENTES · 0", "Aucune vente",
+            "ZONE D'ACHAT", "ATTENDRE", "Ouverte sans décision affichée", "sans prix : au coût", "1 position sans prix",
+            "JOURNAL DES VENTES SIMULÉES", "Aucune position clôturée pour l'instant.",
         )
-        assertTrue(compose.onAllNodes(hasContentDescription("Vendre BTC (simulé)")).fetchSemanticsNodes().isNotEmpty())
+        assertTrue(compose.onAllNodes(hasContentDescription("Vendre BTC (simulé)", substring = true)).fetchSemanticsNodes().isNotEmpty())
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/paper-open.png")
-        compose.onNode(hasContentDescription("Vendre BTC (simulé)")).performClick()
+        compose.onNode(hasContentDescription("Vendre BTC (simulé)", substring = true)).performClick()
         compose.waitForIdle()
         assertTrue(compose.onAllNodes(isDialog()).fetchSemanticsNodes().isNotEmpty())
-        expect("Vendre BTC (simulé) ?", "Aucun ordre réel")
+        expect("Vendre (simulé) ?", "Vendre BTC (simulé)", "Aucun ordre réel")
         compose.onNode(isDialog()).captureRoboImage("build/screens/paper-sell.png")
     }
 
@@ -150,7 +151,7 @@ class PaperScreenTest {
         val r = checkExits(before, candles)
         assertEquals(listOf("p1", "p2", "p4"), r.closed.map { it.id })
         show(r.state, prices(8), r.closed)
-        expect("Fermé automatiquement", "BTC : objectif atteint", "AAPL : objectif atteint", "ETH : stop touché", "J'ai vu")
+        expect("Clôturée automatiquement : BTC, objectif atteint", "Clôturée automatiquement : AAPL, objectif atteint", "Clôturée automatiquement : ETH, stop touché", "J'ai vu")
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/paper-exits.png")
     }
@@ -166,11 +167,14 @@ class PaperScreenTest {
         }
         compose.onNode(hasText("Recommencer")).performClick()
         compose.waitForIdle()
-        expect("Recommencer la simulation ?", "Capital de départ en $", "10 000", "Tout effacer")
+        expect("Recommencer la simulation", "Capital de départ en $", "10 000", "Par défaut 10")
         assertEquals(null, reset)
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/paper-reset.png")
-        compose.onNode(hasText("Tout effacer")).performClick()
+        compose.onAllNodes(hasText("Recommencer")).onLast().performClick()
+        compose.waitForIdle()
+        expect("Effacer la simulation ?", "Toutes les positions et ventes simulées seront effacées.")
+        compose.onNode(hasText("Recommencer avec", substring = true)).performClick()
         compose.waitForIdle()
         assertEquals(10_000.0, reset!!, 0.0)
     }
@@ -199,7 +203,7 @@ class PaperScreenTest {
             }
         }
         compose.waitForIdle()
-        expect("Simuler l'achat de BTC", "aucun argent réel", "83 120,50 $", "1 000", "74 900", "86 400", "ATTENDRE", "vous simulez contre la décision", "Montant en $", "Stop en $", "Objectif en $", "insuffisantes", "SIMULER L'ACHAT")
+        expect("Simuler cet achat", "aucun argent réel", "83 120,50 $", "1 000", "74 900", "86 400", "ATTENDRE", "vous simulez contre la décision", "Montant en $", "Stop en $", "Objectif en $", "insuffisantes", "Simuler")
         assertTrue(!has("sera ignoré"))
         fitsWidth()
         compose.onRoot().captureRoboImage("build/screens/paper-simuler.png")
@@ -216,7 +220,7 @@ class PaperScreenTest {
         compose.onNode(hasText("Simulation")).performClick()
         compose.waitForIdle()
         // No server here: the positions are valued at their cost.
-        expect("Portefeuille simulé — aucun argent réel, aucun ordre passé", "10 000,00 $", "4 positions sans prix", "POSITIONS OUVERTES · 4")
+        expect("Portefeuille simulé — aucun argent réel, aucun ordre passé", "10 000 $", "4 positions sans prix", "POSITIONS OUVERTES")
         assertTrue(!has("Ajoutez ce que vous possédez"))
         assertTrue(compose.onAllNodes(hasContentDescription("Ajouter un avoir")).fetchSemanticsNodes().isEmpty())
         fitsWidth()
@@ -228,7 +232,7 @@ class PaperScreenTest {
         val d = AltimJson.decodeFromString(Decision.serializer(), File("../kit/src/test/resources/fixtures/decision-btc.json").readText())
         var clicked = false
         compose.setContent { AltimTheme { AppBackground { Box(Modifier.fillMaxWidth()) { DecisionView(d, onSimulate = { clicked = true }) } } } }
-        expect("Simuler cet achat", "Mes avoirs → Simulation")
+        expect("Simuler cet achat")
         fitsWidth()
         compose.onNode(hasText("Simuler cet achat")).performClick()
         assertTrue(clicked)
@@ -244,7 +248,7 @@ class PaperScreenTest {
                 )
             }
         }
-        expect("Stop au-dessus du prix d'achat : il sera ignoré.", "Objectif sous le prix d'achat : il sera ignoré.")
+        expect("un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
         assertTrue(!has("contre la décision"))
     }
 

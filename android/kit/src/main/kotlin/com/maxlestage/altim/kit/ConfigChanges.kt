@@ -137,7 +137,7 @@ object ConfigChanges {
         StepState.OK -> "validée"
     }
 
-    private fun usd(v: Double) = Money.moneyFmt(v, " ") { x -> Format.plain(x, if (x >= 1) 2 else 6) }
+    private fun usd(v: Double) = Money.moneyFmt(v, " ") { x -> JsFormat.fr(x, if (x >= 1) 2 else 6) }
 
     private fun fin(v: Double?): Double? = v?.takeIf { it.isFinite() }
 
@@ -165,8 +165,8 @@ object ConfigChanges {
     }
 
     /** "1,4×" (web `num(v, 1)`). */
-    private fun x1(v: Double) = "${if (v < 0) "−" else ""}${Format.plain(abs(v), 1)}×"
-    private fun num0(v: Double) = "${if (v < 0) "−" else ""}${Format.plain(abs(v), 0)}"
+    private fun x1(v: Double) = "${if (v < 0) "−" else ""}${JsFormat.fr(abs(v), 1)}×"
+    private fun num0(v: Double) = "${if (v < 0) "−" else ""}${JsFormat.fr(abs(v), 0)}"
     private fun sameLevel(a: Double, b: Double) = abs(a - b) / max(abs(a), 1e-9) <= Limits.LEVEL
 
     /**

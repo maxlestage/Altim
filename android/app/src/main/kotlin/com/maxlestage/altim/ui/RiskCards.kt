@@ -30,7 +30,7 @@ import kotlin.math.abs
 // market shocks passed through each line's beta. Stacked rows, no table: nothing wider than a 360 dp phone.
 
 private fun usd(v: Double) = Format.amount(abs(v), 0)
-private fun pc(v: Double) = "${Format.plain(abs(v), 1)} %"
+private fun pc(v: Double) = "${com.maxlestage.altim.kit.JsFormat.fr(abs(v), 1)} %"
 
 private fun limitIcon(l: LimitLevel) = when (l) {
     LimitLevel.DANGER -> "⛔"
@@ -84,7 +84,7 @@ fun StressCard(p: RiskPortfolio, results: List<StressResult>, betas: Map<String,
         Caption(
             "Ce que perdrait votre portefeuille si les marchés chutaient d'un coup : chaque ligne bouge selon son bêta face à sa référence " +
                 "(${PortfolioRisk.benchmarkLabel(Kind.CRYPTO)} pour les cryptos, ${PortfolioRisk.benchmarkLabel(Kind.STOCK)} pour les actions)." +
-                if (p.cash > 0) " Vos liquidités (${usd(p.cash)}) ne bougent pas." else "",
+                if (p.cash > 0) " Vos liquidités (${usd(p.cash)}) ne bougent pas." else " Les liquidités ne sont pas saisies sur le téléphone : pourcentages calculés sur vos lignes.",
         )
         results.forEach { r ->
             val color = if (r.lossPercent >= 10) AltimColors.sell else if (r.loss > 0) AltimColors.warning else AltimColors.buy
