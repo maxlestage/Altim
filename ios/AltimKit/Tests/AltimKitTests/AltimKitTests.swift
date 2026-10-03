@@ -229,6 +229,20 @@ final class FormatAndClientTests: XCTestCase {
         XCTAssertNil(AltimClient.normalize(""))
     }
 
+    func testTimeframes() {
+        XCTAssertEqual(Timeframe.allCases.map(\.rawValue), ["1h", "4h", "1d", "4d", "1w"])
+        XCTAssertEqual(Timeframe.allCases.map(\.label), ["1 h", "4 h", "1 j", "4 j", "1 sem."])
+        XCTAssertEqual(Timeframe.radarCases.map(\.label), ["4 h", "1 j", "4 j", "1 sem."])
+        XCTAssertEqual(Timeframe.saved("1w"), .w1)
+        XCTAssertEqual(Timeframe.saved("2w"), .h4)
+        XCTAssertEqual(Timeframe.radar("1h"), .h4, "no 1 h on the Radar")
+        XCTAssertEqual(Timeframe.radar("4d"), .d4)
+        XCTAssertEqual(Timeframe.allCases.map(\.zoneHorizon), ["short", "short", "medium", "long", "long"])
+        let c = AltimClient(baseURL: URL(string: "https://x.herokuapp.com")!, credentials: nil)
+        let r = c.request("/api/radar", query: ["symbols": "BTC:crypto", "interval": Timeframe.w1.rawValue])
+        XCTAssertEqual(r.url?.absoluteString, "https://x.herokuapp.com/api/radar?interval=1w&symbols=BTC:crypto")
+    }
+
     func testRequestsAndForm() {
         let c = AltimClient(baseURL: URL(string: "https://x.herokuapp.com")!, credentials: nil)
         let r = c.request("/api/radar", query: ["symbols": AltimClient.list(Asset.defaults.prefix(2).map { $0 }), "interval": "4h"])

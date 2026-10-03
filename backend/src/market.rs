@@ -15,6 +15,7 @@ use crate::jsval::encode_uri_component as enc;
 use crate::quotes::{QUOTE_SOURCES, QuoteSourceStatus, consensus_quotes, make_asset, webull_ticker_id};
 use crate::stocks_extra::EXTRA_CANDLE_SOURCES;
 use crate::types::{Candle, Interval, Kind};
+use altim_core::candles::{align, bucket};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SourceStatus {
@@ -658,7 +659,8 @@ fn pick(i: Interval, h1: &'static str, h4: &'static str, d1: &'static str) -> &'
     match i {
         Interval::H1 => h1,
         Interval::H4 => h4,
-        Interval::D1 => d1,
+        // 4 d / 1 w never reach these sources (see `MULTI_DAY_SOURCES`): their daily candles if they did.
+        Interval::D1 | Interval::D4 | Interval::W1 => d1,
     }
 }
 fn lower(s: &str) -> String {
@@ -667,8 +669,9 @@ fn lower(s: &str) -> String {
 fn kraken_pair(b: &str) -> &str {
     if b == "BTC" { "XBT" } else { b }
 }
+/// Hourly timeframes only (daily candles that start at 16:00 UTC cannot build 4 d / 1 w buckets either).
 fn not_daily(i: Interval) -> bool {
-    i != Interval::D1
+    matches!(i, Interval::H1 | Interval::H4)
 }
 fn daily(i: Interval) -> bool {
     i == Interval::D1
@@ -835,6 +838,8 @@ pub static STOCK_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
                 Interval::D1 => ("1d", "2y"),
                 Interval::H4 => ("1h", "2y"),
                 Interval::H1 => ("1h", "6mo"),
+                // Multi-day candles come from `MULTI_DAY_STOCK_SOURCES` (5 years of days, 10 of weeks).
+                Interval::D4 | Interval::W1 => ("1d", "2y"),
             };
             let url =
                 format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={interval}&range={range}&includePrePost=false", enc(&symbol));
@@ -925,6 +930,68 @@ pub static LONG_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
         }),
     ]
 });
+
+// ---------- 4 d / 1 w ----------
+
+/// A daily source turned into a 4 d / 1 w one: its daily candles grouped into buckets (`altim_core::candles::bucket`).
+pub fn from_daily(s: &Source) -> Source {
+    let (daily, orig) = (s.fetch.clone(), s.clone());
+    Source::new(&s.name, move |b, i| {
+        let daily = daily.clone();
+        async move { Ok(bucket(&daily(b, Interval::D1).await?, i)) }
+    })
+    .only(move |i| i.multi_day() && orig.supports(Interval::D1))
+}
+
+/// Native weekly candles (Monday 00:00 UTC, Binance format), 4 d from the source's long daily history.
+fn binance_like(name: &str, host: &'static str, weekly: &'static str) -> Source {
+    Source::new(name, move |b, i| async move {
+        let tf = if i == Interval::W1 { weekly } else { "1d" };
+        let c = parse::binance(&get_json(&format!("https://{host}/api/v3/klines?symbol={b}USDT&interval={tf}&limit=1000")).await?)?;
+        Ok(if i == Interval::W1 { align(&c, i) } else { bucket(&c, i) })
+    })
+    .only(Interval::multi_day)
+}
+
+/// Crypto 4 d / 1 w: the long-history sources (500 to 1 000 days, see `LONG_SOURCES`), Binance and MEXC with their
+/// native weekly candles (≈ 9 years), the others' days grouped into buckets. The deepest history comes first, since
+/// the first agreeing source gives the candles: Bitstamp's 1 000 days (≈ 250 × 4 d), Binance's / MEXC's weeks.
+pub static MULTI_DAY_SOURCES: LazyLock<[Vec<Source>; 2]> = LazyLock::new(|| {
+    let long = |n: &str| from_daily(LONG_SOURCES.iter().find(|s| s.name == n).expect("long source"));
+    let binance = || binance_like("Binance", "api.binance.com", "1w");
+    let mexc = || binance_like("MEXC", "api.mexc.com", "1W");
+    [
+        vec![long("Bitstamp"), binance(), long("Gate.io"), mexc(), long("Kraken")],
+        vec![binance(), mexc(), long("Bitstamp"), long("Gate.io"), long("Kraken")],
+    ]
+});
+
+/// Stock 4 d / 1 w: Yahoo (5 years of days for 4 d, 10 years of native weeks), then every daily source (800 to
+/// 1 300 sessions) grouped into buckets.
+pub static MULTI_DAY_STOCK_SOURCES: LazyLock<Vec<Source>> = LazyLock::new(|| {
+    let yahoo = Source::new("Yahoo Finance", |symbol, i| async move {
+        let (interval, range) = if i == Interval::W1 { ("1wk", "10y") } else { ("1d", "5y") };
+        let url =
+            format!("https://query1.finance.yahoo.com/v8/finance/chart/{}?interval={interval}&range={range}&includePrePost=false", enc(&symbol));
+        let c = parse_stock::yahoo(&get_json(&url).await?)?;
+        Ok(if i == Interval::W1 { align(&c, i) } else { bucket(&c, i) })
+    })
+    .only(Interval::multi_day);
+    let mut v = vec![yahoo];
+    v.extend(STOCK_SOURCES.iter().filter(|s| s.name != "Yahoo Finance").map(from_daily));
+    v
+});
+
+/// The candle sources of a market and timeframe.
+pub fn sources_for(kind: Kind, interval: Interval) -> &'static [Source] {
+    match (kind, interval) {
+        (Kind::Crypto, Interval::D4) => &MULTI_DAY_SOURCES[0],
+        (Kind::Crypto, Interval::W1) => &MULTI_DAY_SOURCES[1],
+        (Kind::Crypto, _) => &SOURCES,
+        (Kind::Stock, i) if i.multi_day() => &MULTI_DAY_STOCK_SOURCES,
+        (Kind::Stock, _) => &STOCK_SOURCES,
+    }
+}
 
 // ---------- Consensus ----------
 
@@ -1049,12 +1116,12 @@ pub fn cross_check(last: f64, quotes: &[QuoteSourceStatus], known: &[String], to
 
 /// Validated snapshot: multi-source candles + quality + reliability score.
 pub async fn snapshot(symbol: &str, kind: Kind, interval: Interval) -> Result<Snapshot> {
-    let intra_stock = kind == Kind::Stock && interval != Interval::D1;
+    let intra_stock = kind == Kind::Stock && matches!(interval, Interval::H1 | Interval::H4);
     // Live prices are fetched at the same time as the candles (not after).
     let candles = async {
         match kind {
-            Kind::Crypto => consensus(symbol, interval, &SOURCES, None, 0.5, closed_only).await,
-            Kind::Stock => consensus(symbol, interval, &STOCK_SOURCES, None, 1.0, stock_closed).await,
+            Kind::Crypto => consensus(symbol, interval, sources_for(kind, interval), None, 0.5, closed_only).await,
+            Kind::Stock => consensus(symbol, interval, sources_for(kind, interval), None, 1.0, stock_closed).await,
         }
     };
     let quotes = async { if intra_stock { consensus_quotes(&[make_asset(symbol, Kind::Stock, None)], &QUOTE_SOURCES).await } else { vec![] } };

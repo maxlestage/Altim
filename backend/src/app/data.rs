@@ -43,6 +43,8 @@ fn snap_ttl(i: Interval) -> i64 {
         Interval::H1 => 60_000,
         Interval::H4 => 120_000,
         Interval::D1 => 300_000,
+        // A 4 d / 1 w candle closes every few days: 30 min keeps the sources' load low.
+        Interval::D4 | Interval::W1 => 1_800_000,
     }
 }
 
