@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -89,7 +90,7 @@ class CurrencyTest {
         expect("Devise d'affichage", "Euro (€)", "Dollar ($)", "1 $ = 0,8819 € · Yahoo Finance, 17:15 (dernier taux connu)", "Les montants que vous saisissez")
         compose.onRoot().captureRoboImage("build/screens/currency-settings.png")
         // Dollars on request: no conversion, no rate line, and the choice is kept.
-        compose.onNode(hasContentDescription("Devise d'affichage : Dollar ($)")).performClick()
+        compose.onNodeWithText("Dollar ($)").performClick()
         compose.waitForIdle()
         assertEquals(Currency.USD, Money.displayCurrency())
         assertTrue(!has("1 $ = 0,8819 €"))
