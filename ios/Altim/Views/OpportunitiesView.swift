@@ -27,11 +27,10 @@ struct OpportunitiesView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Ce qui bouge de façon notable aujourd'hui, catégorie par catégorie, avec la raison mesurée. Des pistes à examiner, pas des ordres d'achat.")
                     .font(.footnote).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
-                Picker("Marché", selection: Binding(get: { market }, set: { m in update { $0.market = m } })) {
+                FittingPicker(title: "Marché", selection: Binding(get: { market }, set: { m in update { $0.market = m } })) {
                     Text("Actions").tag(Kind.stock)
                     Text("Cryptos").tag(Kind.crypto)
                 }
-                .pickerStyle(.segmented)
                 filtersCard(market: market, filters: filters)
                 if let error { Notice(text: error, tone: .warn) }
                 if report == nil && error == nil {

@@ -8,9 +8,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -125,16 +122,7 @@ fun DcaCard(model: AppModel, asset: Asset) {
 
 @Composable
 private fun Choice(options: List<Pair<Int, String>>, selected: Int, onSelect: (Int) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        options.forEachIndexed { i, (v, label) ->
-            SegmentedButton(
-                selected = selected == v,
-                onClick = { onSelect(v) },
-                shape = SegmentedButtonDefaults.itemShape(i, options.size),
-                colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-            ) { Text(label, fontSize = 13.sp) }
-        }
-    }
+    ChoiceRow(options, selected, onSelect, fontSize = 13.sp)
 }
 
 @Composable

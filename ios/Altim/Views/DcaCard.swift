@@ -30,18 +30,16 @@ struct DcaCard: View {
                 TextField("100", text: $amountText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).font(Theme.mono(16)).frame(maxWidth: 120)
                 Text(Money.symbol()).foregroundStyle(Theme.textSecondary)
             }
-            Picker("Achat", selection: $every) {
+            FittingPicker(title: "Achat", selection: $every) {
                 Text("Une fois").tag(once)
                 Text("Chaque semaine").tag(7)
                 Text("Chaque mois").tag(30)
             }
-            .pickerStyle(.segmented)
-            Picker("Depuis", selection: $days) {
+            FittingPicker(title: "Depuis", selection: $days) {
                 Text("6 mois").tag(182)
                 Text("1 an").tag(365)
                 Text("2 ans").tag(730)
             }
-            .pickerStyle(.segmented)
             if let error {
                 Notice(text: error, tone: .bad)
             } else if let closes {

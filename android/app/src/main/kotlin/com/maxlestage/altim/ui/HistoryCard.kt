@@ -16,9 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -89,16 +86,7 @@ fun HistoryCard(model: AppModel) {
     val h = data?.let { PortfolioHistory.compute(lines, it.byId, days) }
 
     Card(title = "Évolution de mes lignes") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf(30 to "30 j", 90 to "90 j", 365 to "1 an").forEachIndexed { i, (v, label) ->
-                SegmentedButton(
-                    selected = days == v,
-                    onClick = { days = v },
-                    shape = SegmentedButtonDefaults.itemShape(i, 3),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label) }
-            }
-        }
+        ChoiceRow(listOf(30 to "30 j", 90 to "90 j", 365 to "1 an"), days, { days = it }, description = "Période")
         when {
             error != null -> Notice(error!!, com.maxlestage.altim.kit.Tone.BAD)
             data == null -> Loading("Chargement de l'historique…")

@@ -125,7 +125,7 @@ private struct BuyRow: View {
             HStack {
                 Text(alert.symbol).font(Theme.mono(15, weight: .bold))
                 Spacer()
-                Text(Format.price(alert.price)).font(Theme.mono(14))
+                Text(Format.price(alert.price)).font(Theme.mono(14)).lineLimit(1).minimumScaleFactor(0.6)
                 Badge(text: alert.strong ? "ACHETER" : "ZONE D'ACHAT", tone: .good)
             }
             ForEach(alert.reasons + alert.cautions, id: \.self) { Text($0).font(.caption).foregroundStyle(.white.opacity(0.85)) }
@@ -221,12 +221,11 @@ struct PriceTargetSheet: View {
                     Section { KeyValue(key: "Prix actuel", value: Format.price(current)) }
                 }
                 Section {
-                    Picker("Condition", selection: $mode) {
+                    FittingPicker(title: "Condition", selection: $mode) {
                         Text("Passe sous").tag(0)
                         Text("Passe au-dessus").tag(1)
                         Text("Bouge de ±").tag(2)
                     }
-                    .pickerStyle(.segmented)
                     HStack {
                         if mode == 2 {
                             TextField("Variation", text: $moveText).keyboardType(.decimalPad).font(Theme.mono(18))

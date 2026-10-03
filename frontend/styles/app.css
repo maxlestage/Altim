@@ -18,7 +18,7 @@
 
 .app-tabs {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   background: rgba(7, 9, 20, 0.92); border-top: 1px solid var(--line);
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
@@ -38,9 +38,10 @@
 .card-title { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cyan); margin-bottom: 12px; }
 .section-label { font-family: var(--mono); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--cyan); margin-top: 8px; }
 .notice { margin: 0; padding: 12px 14px; border-radius: 14px; background: rgba(255, 199, 51, 0.08); border: 1px solid rgba(255, 199, 51, 0.35); font-size: 14px; }
-.kv { display: flex; justify-content: space-between; gap: 12px; margin: 6px 0; }
+.kv { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; margin: 6px 0; }
+.kv > * { min-width: 0; overflow-wrap: anywhere; }
 .kv span { color: var(--muted); }
-.kv b { text-align: right; }
+.kv b { text-align: right; margin-left: auto; }
 
 /* Segmented control */
 .segmented { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
@@ -61,7 +62,7 @@
 .buyable-list li { display: grid; gap: 2px; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
 .buyable-list .opp-row { border-top: 0; min-height: 40px; }
 .buyable-list .opp-row b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.opp-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
+.opp-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; min-height: 48px; border-top: 1px solid rgba(255, 255, 255, 0.06); }
 .opp-row:first-of-type { border-top: 0; }
 .asset-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 .asset-card {
@@ -144,7 +145,7 @@
 .field { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
 .field input { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid rgba(0, 240, 255, 0.3); background: rgba(255, 255, 255, 0.04); color: #fff; font-family: var(--mono); font-size: 17px; }
 .field input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 240, 255, 0.2); }
-.two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .check-row { display: flex; align-items: center; gap: 10px; min-height: 44px; cursor: pointer; }
 .check-row input { width: 22px; height: 22px; accent-color: var(--cyan); flex-shrink: 0; }
 .issues { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; color: var(--sell); font-size: 13px; }
@@ -233,7 +234,7 @@
 .reasons b { color: var(--text); }
 .holding-actions { display: flex; gap: 18px; }
 .link-btn.danger { color: var(--sell); }
-.row-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .row-actions .btn { width: 100%; padding: 0 10px; }
 .screen-top .btn-small { white-space: nowrap; flex-shrink: 0; }
 .chosen { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
@@ -368,25 +369,36 @@
 .validation p { margin: 0 0 8px; }
 .validation.good { border-color: rgba(57, 255, 136, 0.4); }
 .validation.weak { border-color: rgba(255, 199, 51, 0.4); }
-.pick-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-.pick { display: grid; gap: 12px; min-width: 0; }
+.pick-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+/* The card's rows never widen it (grid items default to min-width: auto): a long price or score wraps instead. */
+.pick { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
+.pick > * { min-width: 0; }
 .pick-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; }
 .pick-rank { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-family: var(--mono); font-weight: 800; background: rgba(0, 240, 255, 0.12); color: var(--cyan); border: 1px solid rgba(0, 240, 255, 0.4); }
 .pick-id { display: grid; min-width: 0; }
 .pick-id b { overflow-wrap: anywhere; }
-.pick-price { display: grid; justify-items: end; font-size: 14px; }
-.pick-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.pick-price { display: grid; justify-items: end; text-align: right; font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+/* Phones: the price and its score go under the name, the full width of the card. */
+@media (max-width: 440px) {
+  .pick-head { grid-template-columns: auto minmax(0, 1fr); }
+  .pick-price { grid-column: 2; justify-items: start; text-align: left; }
+}
+.pick-plan { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr)); gap: 8px; }
 .pick-plan > div { display: grid; gap: 2px; padding: 8px 10px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); min-width: 0; }
 .pick-plan small { font-size: 11px; color: var(--muted); }
 .pick-plan b { font-family: var(--mono); font-size: 14px; overflow-wrap: anywhere; }
 .pick-plan .pick-amount { grid-column: 1 / -1; border-color: rgba(0, 240, 255, 0.35); }
 .pick-toggle { justify-self: start; }
-.pick-detail { display: grid; gap: 12px; }
+.pick-detail { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.pick-detail > * { min-width: 0; }
 .crit-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.crit-list li { display: grid; gap: 4px; }
+.crit-list li { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; min-width: 0; }
 .crit-list li.main .crit-head span { color: var(--cyan); font-weight: 700; }
-.crit-head { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: baseline; font-size: 14px; }
-.crit-role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+/* Criterion, its role, its score: on one line when they fit, the role under the name otherwise (320 px). */
+.crit-head { display: flex; flex-wrap: wrap; gap: 2px 8px; align-items: baseline; font-size: 14px; min-width: 0; }
+.crit-head > span { flex: 1 1 8em; min-width: 0; overflow-wrap: anywhere; }
+.crit-head > b { margin-left: auto; }
+.crit-role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; overflow-wrap: anywhere; }
 .crit-bar { height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
 .crit-bar i { display: block; height: 100%; border-radius: 4px; }
 .crit-bar i.good { background: #39ff88; }
@@ -465,8 +477,8 @@
   .compare-table td[data-label]::before { content: attr(data-label); color: var(--muted); text-align: left; }
 }
 .compare-table .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
-.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .grid-2 .field, .grid-3 .field { margin: 0; min-width: 0; }
 .grid-2 input, .grid-3 input { width: 100%; min-width: 0; }
 .rebalance-lines { margin: 6px 0; padding-left: 18px; display: grid; gap: 3px; }
@@ -629,7 +641,7 @@
 
 /* ---------- Simulation (paper trading) ----------
    Mobile first: tables are stacked cards under 720 px; gains / losses always carry a sign (+ / −), never colour alone. */
-.portfolio-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.portfolio-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 14px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
 .portfolio-tabs a { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 4px; min-height: 44px; padding: 4px 8px; border-radius: 10px; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.2; }
 .portfolio-tabs a small { font-size: 11px; }
 .portfolio-tabs a.on { background: var(--cyan); color: #02030a; font-weight: 600; box-shadow: 0 0 16px rgba(0, 240, 255, 0.45); }

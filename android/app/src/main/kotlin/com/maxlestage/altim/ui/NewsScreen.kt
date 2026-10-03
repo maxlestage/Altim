@@ -22,9 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -172,16 +169,7 @@ private fun NewsHeader(caption: String, view: String, onView: (String) -> Unit) 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Actualités", fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Caption(caption)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Vue" }) {
-            VIEWS.forEachIndexed { i, (key, label) ->
-                SegmentedButton(
-                    selected = view == key,
-                    onClick = { onView(key) },
-                    shape = SegmentedButtonDefaults.itemShape(i, VIEWS.size),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label) }
-            }
-        }
+        ChoiceRow(VIEWS, view, onView, description = "Vue")
     }
 }
 

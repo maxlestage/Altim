@@ -15,11 +15,10 @@ struct SettingsView: View {
                 Button("Se déconnecter", role: .destructive) { confirmLogout = true }
             }
             Section {
-                Picker("Devise d'affichage", selection: $model.currency) {
+                FittingPicker(title: "Devise d'affichage", selection: $model.currency) {
                     Text("Euro (€)").tag(Currency.eur)
                     Text("Dollar ($)").tag(Currency.usd)
                 }
-                .pickerStyle(.segmented)
                 FxNote()
                 if model.currency == .eur, model.fx == nil, let e = model.fxError {
                     Text(e).font(.caption).foregroundStyle(Theme.warning)

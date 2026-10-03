@@ -75,10 +75,9 @@ struct AgendaView: View {
         Card(title: "Agenda") {
             Text("Publications économiques majeures, décisions des banques centrales, résultats, dividendes, splits et introductions en bourse. Heures de Paris ; chiffres tels que publiés par la source.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
-            Picker("Période", selection: $days) {
+            FittingPicker(title: "Période", selection: $days) {
                 ForEach(Agenda.periods, id: \.self) { Text("\($0) jours").tag($0) }
             }
-            .pickerStyle(.segmented)
             WrapLayout(spacing: 6) {
                 ForEach(Agenda.Filter.allCases, id: \.self) { f in
                     Button { filterRaw = f.rawValue } label: { TagChip(text: f.label, color: .white, selected: filter == f) }

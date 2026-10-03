@@ -22,12 +22,11 @@ struct HistoryCard: View {
 
     var body: some View {
         Card(title: "Évolution de mes lignes") {
-            Picker("Période", selection: $days) {
+            FittingPicker(title: "Période", selection: $days) {
                 Text("30 j").tag(30)
                 Text("90 j").tag(90)
                 Text("1 an").tag(365)
             }
-            .pickerStyle(.segmented)
             if let error {
                 Notice(text: error, tone: .bad)
             } else if data == nil {

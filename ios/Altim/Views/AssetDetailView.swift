@@ -97,6 +97,7 @@ struct AssetDetailView: View {
             }
             Text(Format.price(tick?.price ?? signal?.price ?? zones.value?.price))
                 .font(Theme.mono(32, weight: .bold))
+                .lineLimit(1).minimumScaleFactor(0.5)
                 .contentTransition(.numericText())
                 .animation(.default, value: tick?.price)
             HStack(spacing: 10) {
@@ -116,10 +117,9 @@ struct AssetDetailView: View {
 
     private var chartCard: some View {
         Card {
-            Picker("Unité de temps", selection: timeframeBinding) {
+            FittingPicker(title: "Unité de temps", selection: timeframeBinding) {
                 ForEach(Timeframe.allCases) { Text($0.label).tag($0) }
             }
-            .pickerStyle(.segmented)
             switch snapshot {
             case .idle, .loading:
                 ProgressView().frame(maxWidth: .infinity, minHeight: 220)
