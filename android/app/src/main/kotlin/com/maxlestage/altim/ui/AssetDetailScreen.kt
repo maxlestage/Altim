@@ -19,9 +19,6 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -159,17 +156,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
             DecisionCard(decision, held, change = decision.value?.let { ConfigChanges.latestChange(model.configChanges.transitions, it) }, onSimulate = { simulateOpen = true }) { decisionReload++ }
             simulated?.let { Notice(it, Tone.GOOD) }
             Card {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                    Timeframe.entries.forEachIndexed { i, t ->
-                        SegmentedButton(
-                            selected = timeframe == t,
-                            onClick = { model.updateTimeframe(t) },
-                            shape = SegmentedButtonDefaults.itemShape(i, Timeframe.entries.size),
-                            colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                            icon = {},
-                        ) { Text(t.label, maxLines = 1, softWrap = false) }
-                    }
-                }
+                ChoiceRow(Timeframe.entries.map { it to it.label }, timeframe, { model.updateTimeframe(it) }, description = "Unité de temps")
                 val chartZone = zones.value?.zones?.firstOrNull { it.horizon == timeframe.zoneHorizon && it.zone != null }
                 when (val s = snapshot) {
                     is Loadable.Loading -> Loading()

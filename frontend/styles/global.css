@@ -44,6 +44,10 @@ body {
 }
 a { color: inherit; text-decoration: none; }
 img { max-width: 100%; display: block; }
+/* Nothing wider than the screen: media shrink to their box, a word longer than its line breaks (an address, a
+   long number). The overflow-x clip of html and body above is only a safety net. */
+svg, canvas, video, iframe { max-width: 100%; }
+body { overflow-wrap: break-word; }
 button { font: inherit; color: inherit; }
 h1, h2, h3 { font-family: var(--display); letter-spacing: 0.02em; line-height: 1.12; margin: 0; }
 strong, b { color: #fff; }
@@ -126,7 +130,7 @@ main { position: relative; }
 .hero h1 { font-size: clamp(40px, 12vw, 92px); font-weight: 900; }
 .lead { font-size: 17px; color: var(--muted); margin: 20px 0 28px; }
 .cta { display: grid; gap: 12px; }
-.stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 36px 0 0; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 36px 0 0; }
 .stats dt { font-family: var(--display); font-size: 28px; font-weight: 900; color: var(--cyan); text-shadow: 0 0 18px rgba(0, 240, 255, 0.6); }
 .stats dd { margin: 0; font-size: 12px; line-height: 1.35; color: var(--muted); }
 
@@ -148,7 +152,7 @@ main { position: relative; }
 .screen-head { display: flex; align-items: center; justify-content: space-between; }
 .screen-title { font-family: var(--display); font-weight: 900; font-size: 20px; }
 .env { font-family: var(--mono); font-size: 9px; font-weight: 700; color: var(--violet); border: 1px solid var(--violet); border-radius: 5px; padding: 2px 6px; }
-.seg { display: grid; grid-template-columns: repeat(4, 1fr); background: rgba(255, 255, 255, 0.06); border-radius: 9px; padding: 2px; font-size: 10px; text-align: center; }
+.seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); background: rgba(255, 255, 255, 0.06); border-radius: 9px; padding: 2px; font-size: 10px; text-align: center; }
 .seg span { padding: 4px 0; border-radius: 7px; color: var(--muted); }
 .seg .on { background: rgba(255, 255, 255, 0.16); color: #fff; }
 .gauge-card { border-radius: 16px; padding: 8px; border: 1px solid rgba(57, 255, 136, 0.4); background: rgba(16, 22, 44, 0.7); box-shadow: 0 0 22px rgba(57, 255, 136, 0.15); }
@@ -235,7 +239,7 @@ main { position: relative; }
 .bar i { position: absolute; top: 0; bottom: 0; border-radius: 3px; transition: all 0.8s; }
 .bar i.pos { background: var(--buy); box-shadow: 0 0 10px var(--buy); }
 .bar i.neg { background: var(--sell); box-shadow: 0 0 10px var(--sell); }
-.plan { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 18px; text-align: center; font-family: var(--mono); }
+.plan { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 18px; text-align: center; font-family: var(--mono); }
 .plan small { display: block; color: var(--muted); font-size: 10px; }
 .plan b { font-size: 12px; }
 .skeleton { flex: 1; min-height: 220px; border-radius: 14px; background: linear-gradient(90deg, rgba(255,255,255,.03), rgba(0,240,255,.08), rgba(255,255,255,.03)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
@@ -309,7 +313,7 @@ main { position: relative; }
 .footer-brand p.muted { margin: 0; max-width: 360px; }
 .footer-badges { list-style: none; padding: 0; margin: 16px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .footer-badges li { font-family: var(--mono); font-size: 11px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--cyan); }
-.footer-nav { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px 16px; }
+.footer-nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 16px; }
 .footer-col h3 { font-family: var(--mono); font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--cyan); margin-bottom: 10px; }
 .footer-col ul { list-style: none; padding: 0; margin: 0; }
 .footer-col a { display: flex; align-items: center; min-height: 44px; color: var(--muted); transition: color 0.2s; }

@@ -570,6 +570,8 @@ cargo run --release --bin altim-audit                                    # audit
 
 Les écrans eux-mêmes (rendu Yew) sont vérifiés dans un navigateur à 320 et 1 100 px : aucun défilement horizontal, aucune erreur dans la console.
 
+Aucun défilement horizontal, vérifié automatiquement à 320–430 px : `node scripts/no-hscroll.mjs` (serveur `ALTIM_DEV_OPEN=1` lancé, `playwright-core` installé) parcourt chaque page du site et chaque écran de l'app (onglets, accordéons, unités de temps jusqu'à « 1 sem. ») en iPhone et échoue au moindre débordement ou défilement horizontal interne ; la CI (Web) le lance à 320 et 375 px sur des réponses enregistrées (`--replay scripts/no-hscroll-data.json.gz`, sans réseau). Sur iOS et Android, les choix segmentés passent en menu ou en puces qui reviennent à la ligne quand ils ne tiennent pas (320 pt/dp, grands caractères).
+
 Références vérifiées : RSI de Wilder (exemple StockCharts), parseurs construits à partir de réponses réelles de chaque source.
 
 ## Crédits

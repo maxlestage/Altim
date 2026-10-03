@@ -2,9 +2,9 @@ name: Web
 
 on:
   push:
-    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "backend/src/app/web.rs", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "scripts/no-hscroll*", "backend/src/app/web.rs", ".github/workflows/web.yml"]
   pull_request:
-    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "backend/src/app/web.rs", ".github/workflows/web.yml"]
+    paths: ["web/**", "frontend/**", "core/**", "Cargo.toml", "Cargo.lock", "scripts/build-web.sh", "scripts/web-tools.sh", "scripts/precompress/**", "scripts/no-hscroll*", "backend/src/app/web.rs", ".github/workflows/web.yml"]
 
 # Least privilege: the jobs only read the repository.
 permissions:
@@ -66,5 +66,21 @@ jobs:
           curl -fsSI localhost:3000/logo.svg | grep -qi "content-type: image/svg+xml"
           curl -fsSI localhost:3000/apple-touch-icon.png | grep -qi "content-type: image/png"
           curl -fsSI localhost:3000/ | grep -qi "script-src 'self' 'wasm-unsafe-eval'"
+      # No horizontal scrolling (scripts/no-hscroll.mjs): every page of the site and every app screen (tabs, accordions,
+      # timeframes) at 320 and 375 px as an iPhone, on the answers recorded in scripts/no-hscroll-data.json.gz (no
+      # network: the same data on every run). The runner's Chrome, driven by playwright-core (no browser download).
+      - name: Aucun défilement horizontal (320 et 375 px)
+        run: |
+          npm install --no-save --no-package-lock --no-audit --no-fund --prefix "$RUNNER_TEMP/pw" playwright-core@1.56.1
+          ALTIM_DEV_OPEN=1 PORT=3001 ALTIM_WEB_ROOT=$PWD/web ./target/debug/altim > hscroll.log 2>&1 &
+          for i in $(seq 1 30); do curl -fsS localhost:3001/health && break; sleep 1; done
+          PLAYWRIGHT_CORE="$RUNNER_TEMP/pw/node_modules/playwright-core/index.mjs" CHROME="$(command -v google-chrome)" \
+            node scripts/no-hscroll.mjs --url http://127.0.0.1:3001 --widths 320,375 --replay scripts/no-hscroll-data.json.gz --shots hscroll-shots
       - if: failure()
-        run: cat run.log || true
+        uses: actions/upload-artifact@v4
+        with:
+          name: no-hscroll-captures
+          path: hscroll-shots
+          if-no-files-found: ignore
+      - if: failure()
+        run: cat run.log hscroll.log || true
