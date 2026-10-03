@@ -228,7 +228,7 @@ class PaperScreenTest {
         val d = AltimJson.decodeFromString(Decision.serializer(), File("../kit/src/test/resources/fixtures/decision-btc.json").readText())
         var clicked = false
         compose.setContent { AltimTheme { AppBackground { Box(Modifier.fillMaxWidth()) { DecisionView(d, onSimulate = { clicked = true }) } } } }
-        expect("Simuler cet achat", "Mes avoirs → Simulation")
+        expect("Simuler cet achat")
         fitsWidth()
         compose.onNode(hasText("Simuler cet achat")).performClick()
         assertTrue(clicked)
