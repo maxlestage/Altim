@@ -81,7 +81,7 @@ class OpportunitiesScreenTest {
         expect(
             "Opportunités du moment", "Des pistes à examiner, pas des ordres d'achat.", "Actions", "Cryptos", "Catégories", "Cassures · 1", "Volume anormal · 1",
             "Survendus · 1", "Fondamentaux · 1", "Configurations · 0", "Capitalisation", "≥ 200 Md$", "Liquidité (volume échangé)", "Volatilité max (ATR)",
-            "Fondamentaux : analysé sur les 30 plus liquides", "RÉSULTATS · 3 SUR 150 ANALYSÉS", "Micron Technology, Inc.", "MU · Technologie", "+4,2 %",
+            "Fondamentaux : analysé sur les 30 plus liquides", "Résultats · 3 sur 150 analysés", "Micron Technology, Inc.", "MU · Technologie", "+4,2 %",
             "Clôture 123,45 \$ au-dessus du plus haut 55 j", "RSI 14 : 68", "échangé 2,9 Md\$/j", "capitalisation 138 Md\$", "Voir la fiche", "Règles, sources et limites",
             "Conseil indicatif, pas une recommandation personnalisée",
         )
@@ -91,7 +91,7 @@ class OpportunitiesScreenTest {
         compose.onRoot().captureRoboImage("build/screens/opportunities.png")
         // Filters: volatility ≤ 2 %/day keeps Apple only; a category chip off hides its reasons.
         click("≤ 2 % / jour")
-        expect("RÉSULTATS · 1 SUR 150")
+        expect("Résultats · 1 sur 150")
         assertTrue(!has("Micron Technology"))
         assertEquals(2.0, saved.filters.maxVolatility)
         click("Fondamentaux · 1")

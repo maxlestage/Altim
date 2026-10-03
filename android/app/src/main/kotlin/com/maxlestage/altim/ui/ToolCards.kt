@@ -375,12 +375,7 @@ fun RebalanceCard(portfolio: Portfolio) {
             r.lines.filterNot { small(it.second) }.forEach { (id, amount) ->
                 Caption("${if (amount > 0) "Acheter" else "Vendre"} ${usd0(abs(amount))} de ${id.substringAfter(":")}")
             }
-            Caption(
-                "Réparti au prorata de vos lignes actuelles" +
-                    (if (r.moves.getValue(Kind.STOCK) > 0 && portfolio.lines.none { it.holding.asset.kind == Kind.STOCK }) " (aucune action détenue : à répartir vous-même)" else "") +
-                    (if (r.moves.getValue(Kind.CRYPTO) > 0 && portfolio.lines.none { it.holding.asset.kind == Kind.CRYPTO }) " (aucune crypto détenue : à répartir vous-même)" else "") +
-                    ". Avant de vendre, pensez aux frais et à l'impôt sur les plus-values. Altim ne passe aucun ordre.",
-            )
+            Caption("Réparti au prorata de vos lignes actuelles. Avant de vendre, pensez aux frais et à l'impôt sur les plus-values. Altim ne passe aucun ordre.")
         }
     }
 }

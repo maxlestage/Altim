@@ -118,7 +118,7 @@ class CurrencyTest {
         }
         compose.waitForIdle()
         // 10 509,12 $ × 0,8819 = 9 267,99 €; 10 000 $ = 8 819 €.
-        expect("9 267,99 €", "8 819,00 €", "Portefeuille simulé tenu en $ comme les cours", "1 $ = 0,8819 € · Yahoo Finance")
+        expect("9 267,99 €", "8 819 €", "Portefeuille simulé tenu en $ comme les cours", "1 $ = 0,8819 € · Yahoo Finance")
         assertTrue(!has("10 509,12 $"))
         compose.onRoot().captureRoboImage("build/screens/currency-paper.png")
     }

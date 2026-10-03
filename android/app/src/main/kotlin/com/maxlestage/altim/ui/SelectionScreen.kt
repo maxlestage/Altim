@@ -141,6 +141,7 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
     PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier.statusBarsPadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Sélection", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            OpportunitiesLink { opportunities = true }
             ChoiceRow(listOf(Kind.STOCK to "Actions", Kind.CRYPTO to "Cryptos"), market, { model.updateSelection(market = it) }, description = "Marché")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Caption("Durée de détention")
@@ -159,8 +160,6 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
                     }
                 }
             }
-
-            OpportunitiesLink { opportunities = true }
 
             error?.let { ErrorBox(it) { refresh++ } }
             val r = report

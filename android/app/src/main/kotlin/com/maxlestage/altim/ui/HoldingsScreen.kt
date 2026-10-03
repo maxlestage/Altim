@@ -104,11 +104,14 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     // Daily candles of the lines and of the benchmarks (Bitcoin, S&P 500 via SPY): betas, limits, dangerous positions.
     val daily = remember { mutableStateMapOf<String, List<Candle>>() }
     var marketLoads by remember { mutableIntStateOf(0) }
+    // Daily technical signal of each line (a direction only: the verdict is the asset's Décision card).
+    val signals = remember { mutableStateMapOf<String, com.maxlestage.altim.kit.RadarRow>() }
 
     LaunchedEffect(model.holdings.joinToString { it.asset.id }, refresh) {
         val client = model.client ?: return@LaunchedEffect
         val assets = model.holdings.map { it.asset }.distinctBy { it.id }
         if (assets.isEmpty()) return@LaunchedEffect
+        val rows = async { runCatching { client.radar(assets, "1d") }.getOrNull() }
         try {
             client.quotes(assets).forEach { quotes["${it.kind.raw}:${it.symbol}"] = it.price }
             error = null
@@ -119,6 +122,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
         } catch (e: Exception) {
             error = e.message
         }
+        rows.await()?.forEach { signals[it.id] = it }
         val benchmarks = assets.map { it.kind }.distinct().map { PortfolioRisk.benchmark(it) }.filter { b -> assets.none { it.id == b.id } }
         coroutineScope {
             (assets + benchmarks).map { a -> async { a.id to runCatching { client.candles(a, "1d").candles }.getOrNull() } }.awaitAll()
@@ -137,8 +141,8 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
     val candles = daily.toMap()
     // Betas depend on the candles only, not on the live prices: computed once per load.
     val betas = remember(lines, candles) { PortfolioRisk.betas(lines, candles) }
-    val risk = remember(lines, prices, candles, model.risk) {
-        if (lines.isEmpty() || quotes.isEmpty()) null
+    val risk = remember(lines, prices, candles, model.risk, marketLoads) {
+        if (lines.isEmpty() || (quotes.isEmpty() && candles.isEmpty()) || marketLoads == 0) null
         else {
             val d = candles
             val p = RiskPortfolio.of(lines, 0.0, prices, d)
@@ -169,7 +173,7 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
         if (view == "paper") {
             PaperPane(model, Modifier.fillMaxSize())
         } else if (view == "journal") {
-            JournalPane(model, open, Modifier.fillMaxSize())
+            JournalPane(model, open, Modifier.fillMaxSize(), onReal = { view = "real" })
         } else PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxSize()) {
                 if (model.holdings.isEmpty()) {
@@ -190,11 +194,14 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 if (usd.unconverted.isNotEmpty()) item {
                     Notice("Taux EUR/USD indisponible : ${usd.unconverted.joinToString(", ")} saisi(es) en € ne peuvent pas être converti(es) ; plus-values de ces lignes non calculées jusqu'au retour du taux.", Tone.WARN)
                 }
+                risk?.takeIf { r -> r.limits.any { it.level == LimitLevel.DANGER && it.code == "daily_loss" } }?.let {
+                    item { Notice(PortfolioRisk.DAILY_LOSS_REACHED, Tone.BAD) }
+                }
+                risk?.dangers?.takeIf { it.isNotEmpty() }?.let { d -> item { DangerNotice(d) } }
                 item { HistoryCard(model) }
                 item { RebalanceCard(portfolio) }
                 item { SaleCard(portfolio) }
                 item { ProjectionCard(portfolio.total) }
-                risk?.let { r -> if (r.dangers.isNotEmpty() || r.limits.any { it.level == LimitLevel.DANGER && it.code == "daily_loss" }) item { RiskBanners(r.limits, r.dangers) } }
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("LIGNES · SIGNAL 1 JOUR", color = AltimColors.textSecondary, fontSize = 12.sp, modifier = Modifier.weight(1f))
@@ -203,16 +210,16 @@ fun HoldingsScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) {
                 }
                 items(portfolio.lines, key = { it.holding.id }) { line ->
                     val stored = model.holdings.firstOrNull { it.id == line.holding.id }
-                    LineRow(line, stored, line.holding.asset.symbol in usd.unconverted, model.radarDecision(line.holding.asset), dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = stored ?: line.holding }) {
+                    LineRow(line, stored, signals[line.holding.asset.id]?.signal?.action, dangerById[line.holding.id], onOpen = { open(line.holding.asset) }, onEdit = { form = stored ?: line.holding }) {
                         model.updateHoldings(model.holdings.filterNot { it.id == line.holding.id })
                     }
                 }
-                item { Caption("Touchez le crayon pour modifier une ligne, la corbeille pour la supprimer. Vos avoirs restent sur ce téléphone.") }
+                item { Caption("Touchez le crayon pour modifier une ligne (et saisir votre stop), la corbeille pour la supprimer. Vos avoirs restent sur ce téléphone.") }
                 risk?.let { r ->
                     item { LimitsCard(r.limits) }
                     item { StressCard(r.portfolio, r.stress, r.betas) }
-                    item { SectorCard(r.portfolio.lines, model.client) }
                     item { WhatIfCard(r.portfolio, candles, model.client) }
+                    item { SectorCard(r.portfolio.lines, model.client) }
                 }
             }
         }
@@ -275,12 +282,11 @@ private class RiskView(
 )
 
 @Composable
-private fun LineRow(line: PortfolioLine, stored: Holding?, unconverted: Boolean, decision: DecisionDigest?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun LineRow(line: PortfolioLine, stored: Holding?, signal: com.maxlestage.altim.kit.Action?, danger: Danger?, onOpen: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
     val h = line.holding
     val shape = RoundedCornerShape(14.dp)
     Column(
         Modifier.fillMaxWidth().clip(shape).background(AltimColors.surface.copy(alpha = 0.8f))
-            .then(if (danger != null) Modifier.border(1.dp, AltimColors.sell.copy(alpha = 0.6f), shape) else Modifier)
             .clickable(onClick = onOpen).padding(start = 14.dp, top = 10.dp, bottom = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -288,28 +294,25 @@ private fun LineRow(line: PortfolioLine, stored: Holding?, unconverted: Boolean,
             Column(Modifier.weight(1f)) {
                 Text(h.asset.symbol, style = mono(15.sp, FontWeight.Bold))
                 Text("${Format.quantity(h.quantity)} · ${Format.price(line.price)}", color = AltimColors.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (unconverted) Caption("PRU non converti")
-                Holdings.costNote(stored)?.let { Caption(it) }
+                // The daily technical signal as a direction only: the verdict is the asset's Décision card.
+                signal?.let { TechnicalText(it, "1 j") }
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(line.value?.let { Format.money(it) } ?: "—", style = mono(14.sp))
                 val gp = line.gainPercent
                 if (gp != null) ChangeText(gp) else line.weight?.let { Text("${Math.round(it)} %", fontSize = 12.sp, color = AltimColors.textSecondary) }
             }
-            // The asset's full decision when seen less than 12 h ago (Radar or asset page); nothing otherwise.
-            decision?.let { DecisionBadge(it) }
             Column {
                 IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Edit, contentDescription = "Modifier ${h.asset.symbol}", tint = AltimColors.violet, modifier = Modifier.size(18.dp)) }
                 IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) { Icon(Icons.Filled.Delete, contentDescription = "Supprimer ${h.asset.symbol}", tint = AltimColors.sell, modifier = Modifier.size(18.dp)) }
             }
         }
-        if (h.stop != null || danger != null) {
+        val note = Holdings.costNote(stored)
+        if (danger != null || h.stop != null || note != null) {
             Column(Modifier.padding(end = 14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                h.stop?.let { stop ->
-                    val below = line.price?.takeIf { it > 0 }?.let { " (${Format.plain((it - stop) / it * 100, 1)} % sous le cours)" } ?: ""
-                    Caption("Votre stop : ${Format.price(stop)}$below.")
-                }
                 danger?.let { DangerBlock(it) }
+                h.stop?.let { Caption(PortfolioRisk.userStop(it, line.price)) }
+                note?.let { Caption(it) }
             }
         }
     }
@@ -419,10 +422,10 @@ private fun HoldingForm(model: AppModel, holding: Holding?, lastPrice: Double?, 
                 }
             }
             FormField(quantity, "Quantité (ex. 0,25)", KeyboardType.Decimal) { quantity = it }
-            FormField(average, current?.let { "Prix moyen d'achat (actuel ${Format.price(it)})" } ?: "Prix moyen d'achat en ${cur.symbol} (facultatif)", KeyboardType.Decimal) { average = it }
+            FormField(average, current?.let { "Prix moyen d'achat en ${cur.symbol} (actuel ${Format.price(it)})" } ?: "Prix moyen d'achat en ${cur.symbol} (facultatif)", KeyboardType.Decimal) { average = it }
             if (keepCost) Holdings.costNote(holding)?.let { Caption("$it Le modifier l'enregistre en ${cur.symbol}.") }
             Caption("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
-            FormField(stopText, "Mon stop (${cur.symbol}, facultatif)", KeyboardType.Decimal) { stopText = it }
+            FormField(stopText, "Mon stop en ${cur.symbol} (facultatif)", KeyboardType.Decimal) { stopText = it }
             Caption("Prix auquel vous comptez vendre pour limiter la perte. Altim vous alerte quand le cours s'en approche (moins d'une volatilité journalière) ou le casse. Aucun ordre n'est passé.")
             change?.let { c ->
                 val text = if (holding == null) {

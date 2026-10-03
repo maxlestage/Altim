@@ -255,7 +255,7 @@ fun AssetDetailScreen(model: AppModel, asset: Asset, modifier: Modifier, onBack:
         SimulateSheet(
             model, asset, d, model.live.price(asset)?.price ?: signal?.price ?: d.price ?: zones.value?.price,
             onDone = {
-                simulated = it
+                simulated = null
                 simulateOpen = false
             },
             onDismiss = { simulateOpen = false },
