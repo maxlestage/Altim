@@ -19,9 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -131,16 +128,7 @@ fun CompareCard(model: AppModel) {
                 )
             }
         }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf(30 to "30 j", 90 to "90 j", 365 to "1 an").forEachIndexed { i, (v, label) ->
-                SegmentedButton(
-                    selected = days == v,
-                    onClick = { days = v },
-                    shape = SegmentedButtonDefaults.itemShape(i, 3),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label) }
-            }
-        }
+        ChoiceRow(listOf(30 to "30 j", 90 to "90 j", 365 to "1 an"), days, { days = it }, description = "Période")
         when {
             picked.size < 2 -> Caption("Sélectionnez au moins 2 actifs.")
             error != null -> Notice(error!!, Tone.BAD)
@@ -340,16 +328,7 @@ fun ProjectionCard(start: Double) {
     val paid = runs.first().second.last().paid
     Card(title = "Projection") {
         NumberField("Versement chaque mois, facultatif", monthlyText, Money.symbol(), Modifier.fillMaxWidth()) { monthlyText = it }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf(5, 10, 20).forEachIndexed { i, v ->
-                SegmentedButton(
-                    selected = years == v,
-                    onClick = { years = v },
-                    shape = SegmentedButtonDefaults.itemShape(i, 3),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text("$v ans") }
-            }
-        }
+        ChoiceRow(listOf(5, 10, 20).map { it to "$it ans" }, years, { years = it }, description = "Durée")
         KeyValue(if (monthly > 0) "Aujourd'hui ${usd0(start)} + versements" else "Vos avoirs aujourd'hui, sans rien ajouter", usd0(paid) + if (monthly > 0) " versés" else "")
         runs.forEach { (rate, points) ->
             val end = points.last().value

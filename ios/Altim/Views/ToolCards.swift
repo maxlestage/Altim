@@ -30,12 +30,11 @@ struct CompareCard: View {
         Card(title: "Comparer") {
             Text("Choisissez 2 à 4 actifs de votre radar.").font(.caption).foregroundStyle(Theme.textSecondary)
             WrapLayout(spacing: 6) { chips }
-            Picker("Période", selection: $days) {
+            FittingPicker(title: "Période", selection: $days) {
                 Text("30 j").tag(30)
                 Text("90 j").tag(90)
                 Text("1 an").tag(365)
             }
-            .pickerStyle(.segmented)
             if picked.count < 2 {
                 Text("Sélectionnez au moins 2 actifs.").font(.footnote).foregroundStyle(Theme.textSecondary)
             } else if let error {
@@ -109,30 +108,54 @@ private struct CompareBody: View {
             } }
             .frame(height: 140)
             .accessibilityLabel(c.stats.map { "\(name($0.id)) \(signed($0.change))" }.joined(separator: ", "))
-            Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 4) {
-                GridRow {
-                    Text("Actif").gridColumnAlignment(.leading)
-                    Text("Variation")
-                    Text("Volatilité")
-                    Text("Pire recul")
-                }
-                .font(.caption).foregroundStyle(Theme.textSecondary)
-                ForEach(c.stats) { s in
-                    GridRow {
-                        HStack(spacing: 6) {
-                            Circle().fill(color(s.id)).frame(width: 8, height: 8)
-                            Text(name(s.id)).font(.footnote.weight(.semibold))
-                        }
-                        Text(signed(s.change)).foregroundStyle(s.change >= 0 ? Theme.buy : Theme.sell)
-                        Text("\(Int(s.volatility.rounded())) %/an")
-                        Text(signed(s.maxDrawdown)).foregroundStyle(Theme.sell)
-                    }
-                    .font(Theme.mono(13))
-                }
+            // The table while its four columns fit the width, else one block per asset (320 pt, large Dynamic Type).
+            ViewThatFits(in: .horizontal) {
+                table
+                stacked
             }
             Text(correlationText).font(.caption).foregroundStyle(Theme.textSecondary)
             Text("Mêmes jours pour tous. Volatilité = écart type annualisé des variations journalières. Le passé ne dit pas ce qui arrivera.")
                 .font(.caption).foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    private var stacked: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(c.stats) { s in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Circle().fill(color(s.id)).frame(width: 8, height: 8)
+                        Text(name(s.id)).font(.footnote.weight(.semibold))
+                    }
+                    KeyValue(key: "Variation", value: signed(s.change), tone: s.change >= 0 ? .good : .bad)
+                    KeyValue(key: "Volatilité", value: "\(Int(s.volatility.rounded())) %/an")
+                    KeyValue(key: "Pire recul", value: signed(s.maxDrawdown), tone: .bad)
+                }
+            }
+        }
+    }
+
+    private var table: some View {
+        Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 4) {
+            GridRow {
+                Text("Actif").gridColumnAlignment(.leading)
+                Text("Variation")
+                Text("Volatilité")
+                Text("Pire recul")
+            }
+            .font(.caption).foregroundStyle(Theme.textSecondary)
+            ForEach(c.stats) { s in
+                GridRow {
+                    HStack(spacing: 6) {
+                        Circle().fill(color(s.id)).frame(width: 8, height: 8)
+                        Text(name(s.id)).font(.footnote.weight(.semibold))
+                    }
+                    Text(signed(s.change)).foregroundStyle(s.change >= 0 ? Theme.buy : Theme.sell)
+                    Text("\(Int(s.volatility.rounded())) %/an")
+                    Text(signed(s.maxDrawdown)).foregroundStyle(Theme.sell)
+                }
+                .font(Theme.mono(13))
+            }
         }
     }
 
@@ -308,12 +331,11 @@ struct ProjectionCard: View {
                 TextField("200", text: $monthlyText).keyboardType(.decimalPad).multilineTextAlignment(.trailing).font(Theme.mono(16)).frame(maxWidth: 120)
                 Text(Money.symbol()).foregroundStyle(Theme.textSecondary)
             }
-            Picker("Durée", selection: $years) {
+            FittingPicker(title: "Durée", selection: $years) {
                 Text("5 ans").tag(5)
                 Text("10 ans").tag(10)
                 Text("20 ans").tag(20)
             }
-            .pickerStyle(.segmented)
             KeyValue(key: monthly > 0 ? "Aujourd'hui \(dollars(start)) + versements" : "Vos avoirs aujourd'hui, sans rien ajouter", value: dollars(paid) + (monthly > 0 ? " versés" : ""))
             ForEach(runs, id: \.rate) { run in
                 let gain = run.end.value - paid

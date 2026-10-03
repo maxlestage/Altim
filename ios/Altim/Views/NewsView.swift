@@ -133,11 +133,10 @@ struct NewsViewPicker: View {
     @Binding var view: String
 
     var body: some View {
-        Picker("Vue", selection: $view) {
+        FittingPicker(title: "Vue", selection: $view) {
             Text("Articles").tag("articles")
             Text("Agenda").tag("agenda")
         }
-        .pickerStyle(.segmented)
     }
 }
 

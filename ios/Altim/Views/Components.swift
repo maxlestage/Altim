@@ -266,6 +266,30 @@ extension InsightRow where Extra == EmptyView {
     }
 }
 
+/// A choice among a few options that never runs off the screen: a segmented control while all its labels fit the
+/// width at their full size, otherwise (iPhone SE at 320 pt, large Dynamic Type) a menu showing the current choice.
+struct FittingPicker<Value: Hashable, Options: View>: View {
+    var title: String
+    @Binding var selection: Value
+    @ViewBuilder var options: () -> Options
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            menu
+        } else {
+            ViewThatFits(in: .horizontal) {
+                Picker(title, selection: $selection, content: options).pickerStyle(.segmented)
+                menu
+            }
+        }
+    }
+
+    private var menu: some View {
+        Picker(title, selection: $selection, content: options).pickerStyle(.menu)
+    }
+}
+
 /// Lays its children out left to right and wraps to a new line when the width runs out (never a horizontal scroll).
 struct WrapLayout: Layout {
     var spacing: CGFloat = 6

@@ -26,9 +26,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -222,16 +219,7 @@ fun PriceTargetCard(model: AppModel, asset: Asset, current: Double?, onClose: ()
     }
     Card(title = "Alerte de prix · ${asset.symbol}", glow = AltimColors.cyan) {
         current?.let { Caption("Prix actuel : ${Format.price(it)}") }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf("Passe sous", "Passe au-dessus", "Bouge de ±").forEachIndexed { i, label ->
-                SegmentedButton(
-                    selected = mode == i,
-                    onClick = { mode = i },
-                    shape = SegmentedButtonDefaults.itemShape(i, 3),
-                    colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                ) { Text(label, fontSize = 12.sp) }
-            }
-        }
+        ChoiceRow(listOf(0 to "Passe sous", 1 to "Passe au-dessus", 2 to "Bouge de ±"), mode, { mode = it }, description = "Condition", fontSize = 12.sp)
         OutlinedTextField(
             value = if (mode == 2) moveText else text,
             onValueChange = { if (mode == 2) moveText = it else text = it },

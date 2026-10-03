@@ -30,9 +30,6 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -144,16 +141,7 @@ fun SelectionScreen(model: AppModel, modifier: Modifier, open: (Asset) -> Unit) 
     PullToRefreshBox(isRefreshing = false, onRefresh = { refresh++ }, modifier = modifier.statusBarsPadding()) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("Sélection", fontSize = 30.sp, fontWeight = FontWeight.Bold)
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                listOf(Kind.STOCK to "Actions", Kind.CRYPTO to "Cryptos").forEachIndexed { i, (k, label) ->
-                    SegmentedButton(
-                        selected = market == k,
-                        onClick = { model.updateSelection(market = k) },
-                        shape = SegmentedButtonDefaults.itemShape(i, 2),
-                        colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                    ) { Text(label) }
-                }
-            }
+            ChoiceRow(listOf(Kind.STOCK to "Actions", Kind.CRYPTO to "Cryptos"), market, { model.updateSelection(market = it) }, description = "Marché")
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Caption("Durée de détention")
                 FlowRow(maxItemsInEachRow = 4, horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

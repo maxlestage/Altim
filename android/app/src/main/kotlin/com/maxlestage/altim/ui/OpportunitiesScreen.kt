@@ -22,9 +22,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -149,16 +146,7 @@ fun OpportunitiesView(
         LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
             item { Caption("Ce qui bouge de façon notable aujourd'hui, catégorie par catégorie, avec la raison mesurée. Des pistes à examiner, pas des ordres d'achat.") }
             item {
-                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().semantics { contentDescription = "Marché" }) {
-                    listOf(Kind.STOCK to "Actions", Kind.CRYPTO to "Cryptos").forEachIndexed { i, (k, label) ->
-                        SegmentedButton(
-                            selected = market == k,
-                            onClick = { onSaved(saved.copy(market = k)) },
-                            shape = SegmentedButtonDefaults.itemShape(i, 2),
-                            colors = SegmentedButtonDefaults.colors(activeContainerColor = AltimColors.cyan.copy(alpha = 0.2f), activeContentColor = AltimColors.cyan),
-                        ) { Text(label) }
-                    }
-                }
+                ChoiceRow(listOf(Kind.STOCK to "Actions", Kind.CRYPTO to "Cryptos"), market, { onSaved(saved.copy(market = it)) }, description = "Marché")
             }
             item {
                 Card(title = "Catégories") {

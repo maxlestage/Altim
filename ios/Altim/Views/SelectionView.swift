@@ -23,11 +23,10 @@ struct SelectionView: View {
             VStack(alignment: .leading, spacing: 16) {
                 OpportunitiesLink()
 
-                Picker("Marché", selection: $model.selectionMarket) {
+                FittingPicker(title: "Marché", selection: $model.selectionMarket) {
                     Text("Actions").tag(Kind.stock)
                     Text("Cryptos").tag(Kind.crypto)
                 }
-                .pickerStyle(.segmented)
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Durée de détention").font(.caption.bold()).foregroundStyle(Theme.textSecondary)

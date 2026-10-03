@@ -6,12 +6,11 @@ struct PortfolioModePicker: View {
     @Binding var mode: Int
 
     var body: some View {
-        Picker("Portefeuille", selection: $mode) {
+        FittingPicker(title: "Portefeuille", selection: $mode) {
             Text("Réel").tag(0)
             Text("Simulation").tag(1)
             Text("Journal").tag(2)
         }
-        .pickerStyle(.segmented)
     }
 }
 
@@ -232,6 +231,18 @@ struct PaperView: View {
 
     @ViewBuilder private func verdictTable(_ rows: [PaperVerdictStats]) -> some View {
         if dynamicTypeSize.isAccessibilitySize {
+            verdictBlocks(rows)
+        } else {
+            // The table while its columns fit the width (iPhone SE: 320 pt), else one block per decision.
+            ViewThatFits(in: .horizontal) {
+                verdictGrid(rows)
+                verdictBlocks(rows)
+            }
+        }
+    }
+
+    private func verdictBlocks(_ rows: [PaperVerdictStats]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             ForEach(rows, id: \.verdict) { r in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(r.label).font(.footnote.weight(.semibold)).foregroundStyle(.white)
@@ -240,30 +251,32 @@ struct PaperView: View {
                 }
                 .accessibilityElement(children: .combine)
             }
-        } else {
-            Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 4) {
-                GridRow {
-                    Text("Décision").gridColumnAlignment(.leading)
-                    Text("Nombre")
-                    Text("Gagnantes")
-                    Text("Moyenne")
-                }
-                .font(.caption).foregroundStyle(Theme.textSecondary)
-                ForEach(rows, id: \.verdict) { r in
-                    GridRow {
-                        Text(r.label).font(.footnote.weight(.semibold)).foregroundStyle(.white)
-                        Text("\(r.trades)")
-                        Text("\(Format.plain(r.winRate, digits: 0)) %")
-                        Text(Format.percent(r.avgPnlPct)).foregroundStyle(Theme.color(PaperFormat.tone(r.avgPnlPct)))
-                    }
-                    .font(Theme.mono(13))
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel(rows.map { r in
-                "\(r.label) : \(r.trades) position\(r.trades > 1 ? "s" : ""), \(Format.plain(r.winRate, digits: 0)) % gagnantes, résultat moyen \(Format.percent(r.avgPnlPct))"
-            }.joined(separator: " ; "))
         }
+    }
+
+    private func verdictGrid(_ rows: [PaperVerdictStats]) -> some View {
+        Grid(alignment: .trailing, horizontalSpacing: 8, verticalSpacing: 4) {
+            GridRow {
+                Text("Décision").gridColumnAlignment(.leading)
+                Text("Nombre")
+                Text("Gagnantes")
+                Text("Moyenne")
+            }
+            .font(.caption).foregroundStyle(Theme.textSecondary)
+            ForEach(rows, id: \.verdict) { r in
+                GridRow {
+                    Text(r.label).font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                    Text("\(r.trades)")
+                    Text("\(Format.plain(r.winRate, digits: 0)) %")
+                    Text(Format.percent(r.avgPnlPct)).foregroundStyle(Theme.color(PaperFormat.tone(r.avgPnlPct)))
+                }
+                .font(Theme.mono(13))
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rows.map { r in
+            "\(r.label) : \(r.trades) position\(r.trades > 1 ? "s" : ""), \(Format.plain(r.winRate, digits: 0)) % gagnantes, résultat moyen \(Format.percent(r.avgPnlPct))"
+        }.joined(separator: " ; "))
     }
 
     private var howCard: some View {
