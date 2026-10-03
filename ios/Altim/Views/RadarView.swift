@@ -14,8 +14,8 @@ enum RadarSort: String, CaseIterable {
     }
 }
 
-/// Watch list: live price, full decision (the technical 4 h signal only as a direction), reliability of the data,
-/// macro context.
+/// Watch list: live price, full decision (the technical signal of the chosen timeframe only as a direction),
+/// reliability of the data, macro context.
 struct RadarView: View {
     @Environment(AppModel.self) private var model
     @State private var rows: [String: RadarRow] = [:]
@@ -25,6 +25,13 @@ struct RadarView: View {
     @State private var query = ""
     @State private var results: [SearchItem] = []
     @AppStorage("radar.sort") private var sortRaw = RadarSort.mine.rawValue
+    /// Timeframe of the technical line, shared with the asset page (which also offers 1 h).
+    @AppStorage(Timeframe.storageKey) private var intervalRaw = Timeframe.standard.rawValue
+
+    private var timeframe: Timeframe { Timeframe.radar(intervalRaw) }
+    private var timeframeBinding: Binding<Timeframe> {
+        Binding(get: { timeframe }, set: { intervalRaw = $0.rawValue })
+    }
 
     private var sort: RadarSort { RadarSort(rawValue: sortRaw) ?? .mine }
     private var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
@@ -78,6 +85,13 @@ struct RadarView: View {
                         Text("Opportunités détectées")
                     }
                 }
+                Section {
+                    Picker("Unité de temps de l'analyse technique", selection: timeframeBinding) {
+                        ForEach(Timeframe.radarCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+                .listRowBackground(Color.clear)
                 if model.watchlist.count > 1 {
                     Section {
                         Picker("Trier le radar", selection: $sortRaw) {
@@ -90,7 +104,7 @@ struct RadarView: View {
                 Section {
                     let shown = sortedWatchlist
                     ForEach(shown) { asset in
-                        NavigationLink(value: asset) { RadarRowView(asset: asset, row: rows[asset.id]) }
+                        NavigationLink(value: asset) { RadarRowView(asset: asset, row: rows[asset.id], timeframe: timeframe) }
                             .listRowBackground(Theme.surface.opacity(0.6))
                     }
                     .onDelete { offsets in
@@ -106,7 +120,7 @@ struct RadarView: View {
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique 4 h n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique \(timeframe.label) (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -129,7 +143,7 @@ struct RadarView: View {
             ToolbarItem(placement: .topBarTrailing) { EditButton() }
         }
         .refreshable { await load() }
-        .task(id: model.watchlist.map(\.id).joined()) { await load() }
+        .task(id: model.watchlist.map(\.id).joined() + "|" + timeframe.rawValue) { await load() }
         .task(id: model.watchlist.map(\.id).joined(separator: ",")) {
             // Decisions of the watched assets (market data only), re-read every 15 minutes while the radar is on screen:
             // each one goes through the configuration diff.
@@ -203,7 +217,7 @@ struct RadarView: View {
         defer { loading = false }
         async let m = try? client.macro()
         do {
-            let r = try await client.radar(model.watchlist)
+            let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)
             rows = Dictionary(r.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             error = nil
             model.persistSession()
@@ -220,6 +234,7 @@ struct RadarRowView: View {
     @Environment(AppModel.self) private var model
     var asset: Asset
     var row: RadarRow?
+    var timeframe: Timeframe = .standard
 
     var body: some View {
         let tick = model.live.price(asset)
@@ -242,10 +257,10 @@ struct RadarRowView: View {
                 }
             }
             HStack(spacing: 8) {
-                // The verdict: the full decision, never the 4 h technical signal alone.
+                // The verdict: the full decision, never the technical signal alone.
                 DecisionBadge(asset: asset)
                 if let s = row?.signal {
-                    TechnicalLine(action: s.action, interval: "4 h")
+                    TechnicalLine(action: s.action, interval: timeframe.label)
                 } else if row?.error != nil {
                     Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }

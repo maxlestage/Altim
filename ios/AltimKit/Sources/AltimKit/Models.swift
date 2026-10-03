@@ -264,6 +264,53 @@ public struct ZonesReport: Codable, Sendable {
     public var macro: MacroInfo?
 }
 
+// MARK: - Timeframe of the technical analysis
+
+/// Candles of the technical signal and of the asset chart (server `interval`). Only the technical line and the chart
+/// follow it: the Radar's verdict stays the full decision, and the notifications keep the 4 h signal.
+public enum Timeframe: String, Codable, Sendable, CaseIterable, Identifiable {
+    case h1 = "1h", h4 = "4h", d1 = "1d", d4 = "4d", w1 = "1w"
+    public var id: String { rawValue }
+    public var label: String {
+        switch self {
+        case .h1: return "1 h"
+        case .h4: return "4 h"
+        case .d1: return "1 j"
+        case .d4: return "4 j"
+        case .w1: return "1 sem."
+        }
+    }
+    /// The Radar's choices (the asset page also offers 1 h).
+    public static let radarCases: [Timeframe] = [.h4, .d1, .d4, .w1]
+    /// @AppStorage key shared by the Radar and the asset page; 4 h by default.
+    public static let storageKey = "analysis.interval"
+    public static let standard = Timeframe.h4
+    /// The saved choice (4 h when unreadable).
+    public static func saved(_ raw: String) -> Timeframe { Timeframe(rawValue: raw) ?? standard }
+    /// The saved choice on the Radar, which has no 1 h: 1 h shows 4 h there.
+    public static func radar(_ raw: String) -> Timeframe {
+        let t = saved(raw)
+        return radarCases.contains(t) ? t : standard
+    }
+    /// Candles shown on the asset chart (≈ 5 months of hours to 3 years of weeks).
+    public var chartCandles: Int {
+        switch self {
+        case .h1, .h4: return 120
+        case .d1: return 180
+        case .d4: return 150
+        case .w1: return 156
+        }
+    }
+    /// The buy-zone horizon whose candles match (4 h → short, daily → medium, multi-day → long, built on weeks).
+    public var zoneHorizon: String {
+        switch self {
+        case .h1, .h4: return "short"
+        case .d1: return "medium"
+        case .d4, .w1: return "long"
+        }
+    }
+}
+
 // MARK: - Selection (which stocks / cryptos to buy)
 
 public enum Horizon: String, Codable, Sendable, CaseIterable, Identifiable {

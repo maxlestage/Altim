@@ -30,7 +30,7 @@ pub fn parse_symbol(v: Option<&str>, kind: Kind) -> ApiResult<String> {
 }
 
 pub fn parse_interval(v: Option<&str>) -> ApiResult<Interval> {
-    v.and_then(Interval::parse).map_or_else(|| bad("interval invalide (1h | 4h | 1d)"), Ok)
+    v.and_then(Interval::parse).map_or_else(|| bad("interval invalide (1h | 4h | 1d | 4d | 1w)"), Ok)
 }
 
 /// "BTC:crypto,AAPL:stock" → list of assets (20 max); absent or empty → the default list.
