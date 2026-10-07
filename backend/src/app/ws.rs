@@ -77,6 +77,8 @@ pub const PING_EVERY: Duration = Duration::from_secs(20);
 pub const IDLE_TIMEOUT: Duration = Duration::from_secs(65);
 pub const CHECK_EVERY: Duration = Duration::from_secs(60);
 pub const CHECK_CLOSED: Duration = Duration::from_secs(600);
+/// A worker nobody watches any more stops after this (moving between screens reopens a socket).
+pub const WORKER_GRACE: Duration = Duration::from_secs(90);
 /// The first alerts message waits at most this long for every asset's first check.
 pub const FIRST_ALERTS_WAIT: Duration = Duration::from_secs(20);
 /// "checked" messages at most this often.
@@ -305,6 +307,8 @@ pub struct AlertHub {
     /// Kept by the hub (which outlives every socket): a socket's `changed()` never ends on a dropped sender.
     fx: Arc<watch::Sender<Option<FxNow>>>,
     fx_live: bool,
+    /// How long a worker nobody watches keeps its last check before stopping.
+    grace: Duration,
     fx_started: Arc<std::sync::atomic::AtomicBool>,
 }
 
@@ -317,7 +321,7 @@ impl Default for AlertHub {
 impl AlertHub {
     /// `/api/alerts` and `/api/decision` computations (their inputs cached).
     pub fn new() -> Self {
-        AlertHub { fx_live: true, ..Self::with(|a, usd| Box::pin(compute(a, usd)), |k| check_every(k, now_ms())) }
+        AlertHub { fx_live: true, grace: WORKER_GRACE, ..Self::with(|a, usd| Box::pin(compute(a, usd)), |k| check_every(k, now_ms())) }
     }
 
     /// With another computation and pace (tests).
@@ -332,6 +336,7 @@ impl AlertHub {
             fx: Arc::new(watch::channel(None).0),
             fx_live: false,
             fx_started: Arc::default(),
+            grace: Duration::ZERO,
         }
     }
 
@@ -357,14 +362,20 @@ impl AlertHub {
         tokio::spawn(async move {
             loop {
                 let state = tokio::select! {
-                    s = (hub.compute)(asset.clone(), usd) => s,
-                    _ = tx.closed() => break,
+                    s = (hub.compute)(asset.clone(), usd) => Some(s),
+                    _ = tx.closed() => None,
                 };
-                tx.send_replace(Some(Arc::new(state)));
-                let pause = (hub.every)(asset.kind);
-                tokio::select! {
-                    _ = tokio::time::sleep(pause) => {}
-                    _ = tx.closed() => {}
+                if let Some(state) = state {
+                    tx.send_replace(Some(Arc::new(state)));
+                    let pause = (hub.every)(asset.kind);
+                    tokio::select! {
+                        _ = tokio::time::sleep(pause) => {}
+                        _ = tx.closed() => {}
+                    }
+                }
+                if tx.receiver_count() == 0 {
+                    // Kept a little (the last check served at once to the next screen), without computing.
+                    tokio::time::sleep(hub.grace).await;
                 }
                 // Removed under the lock: a socket arriving now gets a new worker, never a dead one.
                 let mut w = hub.workers.lock().unwrap();
@@ -373,7 +384,6 @@ impl AlertHub {
                     return;
                 }
             }
-            hub.workers.lock().unwrap().remove(&key);
         });
         rx
     }
