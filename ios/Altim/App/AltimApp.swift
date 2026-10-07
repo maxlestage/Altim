@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         notifications.openNews = { model.pendingNews = true }
         UNUserNotificationCenter.current().delegate = notifications
         WatchBridge.shared.refresh = { await BuyNotifications.run(model) }
+        WatchBridge.shared.link = { model.watchLink }
         WatchBridge.shared.activate()
         model.activityAsset = LiveActivities.shared.current
         return true
@@ -89,7 +90,7 @@ struct RootView: View {
     }
 
     private var followKey: String {
-        "\(model.phase)|\(scenePhase == .active)|" + Set(followed.map(\.id)).sorted().joined(separator: ",")
+        "\(model.phase)|\(scenePhase == .active)|\(model.moneyStamp.rawValue)|" + Set(followed.map(\.id)).sorted().joined(separator: ",")
     }
 }
 
