@@ -21,6 +21,7 @@ import com.maxlestage.altim.kit.ChangeNotices
 import com.maxlestage.altim.kit.ConfigChanges
 import com.maxlestage.altim.kit.DecisionDigest
 import com.maxlestage.altim.kit.DecisionDigests
+import com.maxlestage.altim.kit.VerdictPush
 import com.maxlestage.altim.kit.LiveTrack
 import com.maxlestage.altim.kit.LiveTrackState
 import com.maxlestage.altim.kit.LocalNotice
@@ -260,9 +261,90 @@ class AppModel(context: Context, private val secure: SecretStore = SecureStore(c
 
     private var lastBackground: Long? = null
 
+    /** The app is in the foreground (ProcessLifecycleOwner): the live socket is open only then. */
+    var foreground by mutableStateOf(false)
+        private set
+
     init {
         Money.set(currency, fx)
         restore()
+        // What the live socket pushes while the app is open.
+        live.onAlerts = { items, at -> applyPushedAlerts(items, at) }
+        live.onVerdict = { applyPushedVerdict(it) }
+        live.onFx = { rate ->
+            if (fx?.rate != rate) scope.launch { runCatching { refreshFx() } }
+        }
+        // Process-wide: a rotation or a system dialog does not close the socket, going to the background does.
+        runCatching {
+            androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle.addObserver(object : androidx.lifecycle.DefaultLifecycleObserver {
+                override fun onStart(owner: androidx.lifecycle.LifecycleOwner) {
+                    foreground = true
+                }
+
+                override fun onStop(owner: androidx.lifecycle.LifecycleOwner) {
+                    foreground = false
+                }
+            })
+        }
+    }
+
+    /**
+     * Alerts pushed by the live socket while the app is open. The same tracker as the background check decides what to
+     * notify, so a situation is notified once whichever found it first; merged into the last alerts (a socket covers
+     * the followed assets only), then the widget and the live following are refreshed at once.
+     */
+    fun applyPushedAlerts(items: List<BuyAlert>, checkedAt: Long) {
+        if (items.isEmpty()) return
+        val tracker = prefs.getString("alertTracker", null)?.let { runCatching { AltimJson.decodeFromString(AlertTracker.serializer(), it) }.getOrNull() } ?: AlertTracker()
+        val (next, fresh) = tracker.newAlerts(items, alertsStrongOnly)
+        val byId = lastAlerts.associateBy { it.id }.toMutableMap()
+        items.forEach { byId[it.id] = it }
+        lastAlerts = byId.values.sortedWith(compareBy<BuyAlert> { if (it.buy) 0 else 1 }.thenBy { it.symbol })
+        lastAlertCheck = checkedAt
+        prefs.edit().putString("alertTracker", AltimJson.encodeToString(AlertTracker.serializer(), next))
+            .putString("lastAlerts", AltimJson.encodeToString(ListSerializer(BuyAlert.serializer()), lastAlerts))
+            .putLong("lastAlertCheck", checkedAt)
+            .apply()
+        BuyWidget.refresh(appContext)
+        refreshLiveTrack()
+        if (!alertsEnabled || fresh.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val entries = fresh.mapNotNull { a ->
+            a.price?.let { JournalEntry(asset = a.asset, source = if (a.strong) JournalEntry.Source.STRONG_BUY else JournalEntry.Source.BUY, title = a.title, price = it, date = now) }
+        }
+        if (entries.isNotEmpty()) {
+            journal = AlertJournal.add(entries, journal)
+            save(ListSerializer(JournalEntry.serializer()), "journal", journal)
+        }
+        BuyAlerts.postAll(appContext, fresh)
+    }
+
+    /** Verdicts already re-read after a push (one reading per pushed change). */
+    private val pushedVerdicts = mutableSetOf<String>()
+
+    /**
+     * A Radar verdict pushed by the live socket that differs from the last decision seen: that decision is re-read at
+     * once (configuration diff, chip, note) instead of at the next 15-minute round. An asset never read yet, or seen
+     * last in personal mode, is left to the Radar's own reading.
+     */
+    fun applyPushedVerdict(v: VerdictPush) {
+        val c = client ?: return
+        val old = decisionDigests[DecisionDigests.key(v.kind, v.symbol)] ?: return
+        if (old.personal) return
+        val pushed = runCatching { AltimJson.decodeFromString(com.maxlestage.altim.kit.Verdict.serializer(), "\"${v.verdict}\"") }.getOrNull()
+        if (pushed == old.verdict && (old.note ?: "") == (v.chipNote ?: "")) return
+        if (!pushedVerdicts.add("${v.key}|${v.verdict}|${v.chipNote ?: ""}")) return
+        val asset = watchlist.firstOrNull { it.id == v.key } ?: Asset(v.symbol, v.kind, v.symbol)
+        scope.launch {
+            val d = try {
+                c.decision(asset)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                null
+            }
+            d?.let { recordDecision(it, personal = false) }
+        }
     }
 
     // ---------- Settings ----------

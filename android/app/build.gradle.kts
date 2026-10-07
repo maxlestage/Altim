@@ -75,6 +75,8 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.12.4")
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    // ProcessLifecycleOwner: the live socket closes when the whole app goes to the background.
+    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.9.1")
     implementation("androidx.work:work-runtime-ktx:2.11.2")

@@ -58,7 +58,8 @@ pub fn Alerts() -> Html {
         uniq(&all, key)
     };
     let tracked_key = tracked.iter().map(key).collect::<Vec<_>>().join(",");
-    let live = use_live(tracked.clone());
+    // Prices of the tracked assets, and the alerts of the user's own assets pushed when they change.
+    let live = use_live(uniq(&mine.iter().chain(tracked.iter()).cloned().collect::<Vec<_>>(), key));
     let quotes = use_state(|| Rc::new(HashMap::<String, f64>::new()));
 
     {
@@ -108,6 +109,11 @@ pub fn Alerts() -> Html {
             prices.insert(asset_key(sym, *k), t.price);
         }
     }
+    let pushed: Option<Rc<Vec<BuyAlert>>> = live.alert_rows::<BuyAlert>().map(|list| {
+        let mut list: Vec<BuyAlert> = list.into_iter().filter(|x| x.buy).collect();
+        list.sort_by_key_dyn(|x| !x.strong);
+        Rc::new(list)
+    });
     let summary = journal_summary(&s.journal, &prices, js_sys::Date::now(), 3_600_000.0);
 
     let turn_on = |buy: bool| {
@@ -172,7 +178,7 @@ pub fn Alerts() -> Html {
 
             <div class="card">
                 <h2 class="card-title">{ "Achetables maintenant" }</h2>
-                { match (&*error, &*buyable) {
+                { match (&*error, &pushed.or_else(|| (*buyable).clone())) {
                     (Some(e), _) => html! { <p class="notice warn small">{ format!("⚠ {e}") }</p> },
                     (None, None) => html! { <p class="muted small">{ "Vérification du radar et des avoirs…" }</p> },
                     (None, Some(list)) if list.is_empty() => html! {

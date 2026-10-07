@@ -33,11 +33,14 @@ pub fn parse_interval(v: Option<&str>) -> ApiResult<Interval> {
     v.and_then(Interval::parse).map_or_else(|| bad("interval invalide (1h | 4h | 1d | 4d | 1w)"), Ok)
 }
 
+/// Assets of one request or subscription at most (`/api/live`, `/api/alerts`, `/api/ws`).
+pub const MAX_ASSETS: usize = 20;
+
 /// "BTC:crypto,AAPL:stock" → list of assets (20 max); absent or empty → the default list.
 pub fn parse_assets(v: Option<&str>, default: &[Asset], make: impl Fn(&str, Kind) -> Asset) -> ApiResult<Vec<Asset>> {
     let Some(v) = v.filter(|s| !s.is_empty()) else { return Ok(default.to_vec()) };
     v.split(',')
-        .take(20)
+        .take(MAX_ASSETS)
         .map(|item| {
             let mut parts = item.split(':');
             let sym = parts.next();

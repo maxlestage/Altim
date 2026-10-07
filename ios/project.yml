@@ -96,6 +96,9 @@ targets:
         CFBundleDevelopmentRegion: fr
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.maxlestage.altim
+        # HTTPS to the server (ATS default); a development server on the local network as on the iPhone.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
