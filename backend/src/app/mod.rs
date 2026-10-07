@@ -9,6 +9,7 @@ pub mod validate;
 pub mod validation;
 pub mod web;
 pub mod why;
+pub mod ws;
 
 use std::collections::HashMap;
 use std::convert::Infallible;
@@ -55,12 +56,20 @@ const MAX_LIVE_STREAMS: usize = 8;
 #[derive(Clone)]
 pub struct AppState {
     pub live: LiveHub,
+    /// Alerts and verdicts of the WebSocket, one worker per watched asset.
+    pub alerts: ws::AlertHub,
     streams: Arc<Mutex<HashMap<String, usize>>>,
+    /// Open WebSockets per address.
+    sockets: Arc<Mutex<HashMap<String, usize>>>,
 }
 
 impl AppState {
     pub fn new(live: LiveHub) -> Self {
-        AppState { live, streams: Arc::default() }
+        Self::with_alerts(live, ws::AlertHub::new())
+    }
+
+    pub fn with_alerts(live: LiveHub, alerts: ws::AlertHub) -> Self {
+        AppState { live, alerts, streams: Arc::default(), sockets: Arc::default() }
     }
 }
 
@@ -451,6 +460,7 @@ pub fn api(state: AppState) -> Router {
         .route("/universe", get(universe_route))
         .route("/guard", get(guard))
         .route("/live", get(live))
+        .route("/ws", get(ws::ws_route))
         .route("/zones", get(zones_route))
         .route("/selection", get(selection_route))
         .route("/alerts", get(alerts))

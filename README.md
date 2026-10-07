@@ -46,14 +46,14 @@ L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre se
 
 - **Connexion** : adresse du serveur, identifiant et mot de passe (le même formulaire que le site, protégé contre le CSRF ; code à 6 chiffres seulement si la 2FA est activée sur le serveur). Le mot de passe et la session (cookie de 7 jours) sont chiffrés dans le **trousseau iOS** (« cet appareil uniquement », jamais dans iCloud) ; à l'expiration, l'app se reconnecte seule. HTTPS obligatoire (HTTP seulement pour un serveur local).
 - **Face ID** (ou code de l'iPhone) à l'ouverture et après 2 minutes en arrière-plan, désactivable dans Réglages.
-- **Radar** : prix en direct (flux `/api/live`, reconnexion automatique), signal technique sur l'unité choisie (4 h par défaut, 1 j, 4 j, 1 sem. ; aussi 1 h sur le web, mémorisée et partagée avec la fiche ; le verdict reste la décision complète et les notifications le signal 4 h), fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
+- **Radar** : prix, alertes et verdicts en direct ([WebSocket](#temps-réel-websocket), reconnexion automatique), signal technique sur l'unité choisie (4 h par défaut, 1 j, 4 j, 1 sem. ; aussi 1 h sur le web, mémorisée et partagée avec la fiche ; le verdict reste la décision complète et les notifications le signal 4 h), fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
 - **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j / 4 j / 1 sem. avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
 - **Sélection** : actions ou cryptos, 8 durées (30 min à 6 mois), méthode, résultat rejoué avec ses limites, plan (entrée, stop, objectif) et montant pour votre budget.
 - **Mes avoirs** : lignes gardées sur l'iPhone (fichier protégé, exclu des sauvegardes), valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne, et l'[historique](#historique-du-portefeuille) de ces lignes face au Bitcoin et au S&P 500.
 - **Notifications « achat possible »** : vérification en arrière-plan (iOS en décide le rythme, au mieux toutes les 15 min) et à chaque ouverture ; une notification seulement quand un actif devient achetable ou que la raison change ; option « seulement les achats conseillés » (signal + zone).
 - **Live Activity et Dynamic Island** : sur la fiche d'un actif, « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island (en direct quand l'app tourne, à chaque vérification en arrière-plan sinon) ; activable dans Réglages.
 - **Onglet Alertes** : les actifs achetables maintenant (même règle que les notifications), vos **alertes de prix** (« préviens-moi si BTC passe sous 80 000 $ », une notification puis réarmable, bouton cloche sur la fiche) et le **journal des alertes** : chaque notification reçue avec son prix et ce qu'elle a donné depuis, et un résumé honnête (part des alertes d'achat en hausse, variation moyenne, sans frais ni règle de sortie).
-- **Apple Watch** : les actifs achetables et leurs raisons, envoyés par l'iPhone (la montre ne détient ni mot de passe ni session) ; les notifications de l'iPhone arrivent au poignet.
+- **Apple Watch** : les actifs achetables, leurs raisons et leur prix actuel, lus par la montre elle-même sur le serveur en HTTPS à l'ouverture puis toutes les 30 s à l'écran, avec la session transmise par l'iPhone (jamais le mot de passe) ; « Vérifié il y a X s » ; voir [Temps réel](#temps-réel-websocket). Les notifications de l'iPhone arrivent au poignet.
 - **Point du jour** (en tête du Radar) et **simulateur d'investissement programmé** (fiche d'un actif) : voir [plus bas](#point-du-jour-et-investissement-programmé).
 - **Alertes actualité** (Réglages) : voir [Actualités](#actualités-onglet-actu). Une notification ouvre l'onglet Actu.
 - **Onglet Actu** : la même section Actualités que le site (à la une, ce qui domine, rubriques, articles en français seulement) ; un article s'ouvre chez sa source. Les Réglages passent sous la roue dentée du Radar.
@@ -90,6 +90,7 @@ Le serveur (`backend/`, Rust 2024, Axum 0.8, Tokio, reqwest) remplace l'ancien s
 | `GET /api/tickers?symbols=…` | Cours par consensus (8 sources crypto, 3 actions) |
 | `GET /api/search?q=…` · `GET /api/sentiment?symbol=…` | Recherche d'actifs · Fear & Greed et StockTwits |
 | `GET /api/live?symbols=BTC:crypto,AAPL:stock` | **Prix en direct** (Server-Sent Events) : dernier prix tout de suite, puis chaque changement |
+| `GET /api/ws` (WebSocket) | **Temps réel** : prix, alertes, verdicts et EUR/USD poussés quand ils changent, voir [Temps réel](#temps-réel-websocket) |
 | `GET /api/zones?symbol=BTC&kind=crypto` | **Zones d'achat** court / moyen / long terme (Fibonacci), vérifiées sur l'historique, avec le contexte macro |
 | `GET /api/macro` | **Contexte macro et géopolitique** : VIX, S&P 500, pétrole, or, dollar, taux, actualités d'escalade |
 | `GET /api/alerts?symbols=…` | **« Puis-je acheter ? »** pour les notifications des apps : achetable si le signal 4 h dit ACHAT ou si le prix est dans une zone d'achat Fibonacci, sauf sources en désaccord, risque de choc ou plus bas cassé ; une clé de situation évite les notifications répétées |
@@ -279,9 +280,30 @@ Les prix bougent en temps réel : radar, fiche d'un actif, conseil et « Mes avo
 - **Actions** : il n'existe pas de flux temps réel gratuit. Robinhood, TradingView, Zacks et Webull sont interrogés **toutes les 5 s** tant que l'écran est ouvert. Hors séance (9 h 30 – 16 h à New York), le badge « Bourse fermée » signale que c'est le dernier cours.
 - **Affichage** : 4 mises à jour par seconde au plus par actif, et rien n'est envoyé si le prix n'a pas changé. Le prix clignote en vert ou en rouge à chaque mouvement. Le badge « EN DIRECT » donne l'heure du dernier tick. La courbe du radar et le graphique se terminent sur le prix en direct.
 - **Montants** : la zone d'entrée, la valeur du patrimoine, les gains et les quantités suggérées suivent le prix en direct. Les signaux, eux, ne changent qu'à la clôture d'une bougie, pour ne jamais être décidés sur une bougie inachevée.
-- **Web** : Server-Sent Events non compressés, avec un battement toutes les 15 s pour traverser le routeur Heroku. Le flux se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
+- **Web** : une connexion [WebSocket](#temps-réel-websocket) (repli sur les Server-Sent Events non compressés, battement toutes les 15 s pour traverser le routeur Heroku). Elle se ferme quand l'onglet est masqué et reprend avec les derniers prix quand on y revient.
 
 Mesuré le 27/09/2026 : BTC, ETH, SOL et PEPE à 8/8 sources d'accord, et 6 à 13 prix différents en 20 s. Les messages de chaque bourse sont figés dans `backend/tests/samples/live-samples.json`, et les tests les rejouent.
+
+## Temps réel (WebSocket)
+
+Une seule connexion WebSocket authentifiée par écran (`GET /api/ws`) apporte tout ce qui change pendant qu'on regarde : prix, alertes « acheter maintenant ? », verdicts du Radar et taux EUR/USD. Le web, l'iPhone et Android l'ouvrent au premier plan et la ferment en arrière-plan (onglet masqué, app quittée) ; reconnexion automatique en 1 s, 2 s, 4 s… jusqu'à 30 s ; après deux ouvertures ratées de suite (réseau qui bloque les WebSockets), les prix reviennent par le flux SSE `/api/live`, toujours disponible.
+
+| Quoi | Source et rythme réels |
+| --- | --- |
+| Prix des cryptos | Flux WebSocket des 7 bourses (médiane des bourses d'accord), poussés dès qu'ils changent : **moins d'une seconde**, 4 mises à jour par seconde au plus par actif |
+| Prix des actions | Aucun flux temps réel gratuit : sources interrogées **toutes les 5 s** tant que l'actif est suivi ; hors séance, l'état « Bourse fermée » comme avant |
+| Alertes « achetable maintenant » et verdicts du Radar | Recalculés par le serveur **toutes les 60 s** (cryptos, et actions pendant la séance de New York : leurs données sont en cache 60 s) ; **toutes les 10 min** pour une action marché fermé ; envoyés seulement quand ils changent, plus une fois juste après l'abonnement. Un calcul par actif, partagé par toutes les connexions qui le suivent |
+| EUR/USD | Vérifié chaque minute (le taux lui-même est relu toutes les 10 min), envoyé quand il change |
+| Apple Watch | Lecture HTTPS de `/api/alerts` et des cours **à l'ouverture puis toutes les 30 s** tant que l'app est à l'écran ; « Mettre à jour » interroge le serveur directement (15 s au plus). watchOS n'autorise pas de WebSocket pour une app ordinaire (note technique Apple TN3135) : d'où ces lectures, avec la session que l'iPhone transmet à la montre (jamais le mot de passe, gardée dans son trousseau). Pendant que l'app iPhone est ouverte, chaque alerte poussée est aussi relayée à la montre |
+
+« EN DIRECT » ne s'affiche que tant que des messages arrivent : le client envoie un `ping` toutes les 20 s et le serveur répond ; 45 s de silence et la connexion est refermée puis rouverte (« RECONNEXION… »).
+
+**Sécurité** : même session que le reste de l'API (cookie ; les apps l'envoient elles-mêmes, ou le jeton des bots) — sans elle, 401 et aucune connexion ; `Origin`, quand il est présent, doit être le serveur lui-même (403 sinon : pas de détournement depuis un autre site) ; 8 connexions par adresse (IPv6 par /64), messages de 16 Ko, 20 actifs par abonnement, 60 messages par minute, coupure après 65 s sans nouvelles du client ; ping serveur toutes les 20 s (le routeur Heroku coupe à 55 s d'inactivité). La CSP autorise `wss://` vers le même hôte seulement.
+
+**Protocole v1** (JSON, un message par trame texte ; détail dans `backend/src/app/ws.rs`) :
+
+- client → serveur : `{"type":"subscribe","assets":[{"kind":"crypto","symbol":"BTC"},{"kind":"stock","symbol":"AAPL"}],"interval":"4h","currency":"EUR"}` (remplace l'abonnement précédent ; `currency` EUR | USD pour les textes) ; `{"type":"ping"}` ;
+- serveur → client : `{"type":"hello","v":1,"maxAssets":20,"pingEvery":20}` ; `{"type":"tick",…}` (mêmes champs qu'un événement de `/api/live`) ; `{"type":"alerts","items":[…],"checkedAt":…}` (les éléments de `/api/alerts`) ; `{"type":"checked","checkedAt":…}` (revérifié, rien n'a changé) ; `{"type":"verdict","symbol","kind","verdict","label","rating","ratingLabel","chipNote","asOf"}` ; `{"type":"fx","rate","usdPerEur","asOf","source"}` ; `{"type":"pong","time"}` ; `{"type":"error","code","message"}` (`bad_message`, `too_many_assets`, `rate_limited`).
 
 ## Quelles actions acheter (onglet « Sélection »)
 

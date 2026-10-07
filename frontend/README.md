@@ -77,7 +77,7 @@ frontend/ (altim-web)
   src/state/               stores localStorage : app (altim.webapp.v1), holdings (altim.holdings.v1), fx (altim.fx.v1)
   src/money.rs             devise d'affichage : money(), price(), compact(), use_money(), cur_param(), fx_line()
   src/api.rs               get / get_pending / batched / get_public, 401 → /login?next=, 202 { pending }
-  src/live.rs              use_live (SSE /api/live), LiveBadge, LivePrice
+  src/live.rs              use_live (WebSocket /api/ws, repli SSE /api/live), LiveBadge, LivePrice
   src/ui.rs                ActionBadge, ReliabilityBadge, Change, Price, Gauge, Sparkline, PriceChart, Segmented, dates fr
   src/hooks.rs             use_reveal, use_interval, use_ticks, visible, every_visible, set_title
   src/site/                site de présentation

@@ -151,6 +151,16 @@ final class AppModel {
         applyMoney()
         moneyStamp = Money.displayCurrency
         restore()
+        // What the live socket pushes while the app is open.
+        live.onAlerts = { [weak self] items, at in
+            guard let self else { return }
+            Task { await self.applyPushedAlerts(items, checkedAt: at) }
+        }
+        live.onVerdict = { [weak self] v in self?.applyPushedVerdict(v) }
+        live.onFx = { [weak self] rate in
+            guard let self, self.fx?.rate != rate else { return }
+            Task { await self.refreshFx() }
+        }
     }
 
     // MARK: Display currency
@@ -294,12 +304,20 @@ final class AppModel {
         client = nil
         user = nil
         phase = .setup
+        WatchBridge.shared.sendLink()
     }
 
     /// Called after each API call: keeps the (possibly renewed) session cookie for the next launch.
     func persistSession() {
         guard let cookie = client?.sessionCookie, cookie != KeychainStore.string(.session) else { return }
         KeychainStore.setString(cookie, for: .session)
+        WatchBridge.shared.sendLink()
+    }
+
+    /// The server and the session given to the Apple Watch for its own HTTPS readings (never the password).
+    var watchLink: WatchLink? {
+        guard let client, let cookie = client.sessionCookie, !cookie.isEmpty else { return nil }
+        return WatchLink(server: client.baseURL.absoluteString, session: cookie)
     }
 
     /// The session expired and could not be renewed (2FA on, or password changed): back to the login screen.
@@ -309,6 +327,7 @@ final class AppModel {
         KeychainStore.setString(nil, for: .session)
         client = nil
         phase = .setup
+        WatchBridge.shared.sendLink()
     }
 
     // MARK: Lock (Face ID / code of the iPhone)
@@ -443,6 +462,45 @@ final class AppModel {
         defaults.set(lastAlertCheck, forKey: "lastAlertCheck")
         persistSession()
         return fresh
+    }
+
+    /// Alerts pushed by the live socket while the app is open. The same tracker as the background check decides what
+    /// to notify, so a situation is notified once whichever found it first; merged into the last alerts (a socket
+    /// covers the followed assets only), then sent to the Watch and the Live Activity at once.
+    func applyPushedAlerts(_ items: [BuyAlert], checkedAt: Date) async {
+        guard !items.isEmpty else { return }
+        var tracker = LocalStore.load(AlertTracker.self, "alertTracker") ?? AlertTracker()
+        let fresh = tracker.newAlerts(items, onlyStrong: alertsStrongOnly)
+        LocalStore.save(tracker, "alertTracker")
+        var byId = Dictionary(lastAlerts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        for a in items { byId[a.id] = a }
+        lastAlerts = byId.values.sorted { ($0.buy ? 0 : 1, $0.symbol) < ($1.buy ? 0 : 1, $1.symbol) }
+        LocalStore.save(lastAlerts, "lastAlerts")
+        lastAlertCheck = checkedAt
+        defaults.set(lastAlertCheck, forKey: "lastAlertCheck")
+        WatchBridge.shared.send(lastAlerts, checked: checkedAt)
+        LiveActivities.shared.refresh(with: lastAlerts)
+        guard alertsEnabled, !fresh.isEmpty else { return }
+        let now = Date()
+        let entries = fresh.compactMap { a in a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) } }
+        if !entries.isEmpty { journal = AlertJournal.add(entries, to: journal) }
+        await BuyNotifications.post(fresh)
+    }
+
+    /// Verdicts already re-read after a push (one reading per pushed change).
+    @ObservationIgnored private var pushedVerdicts: Set<String> = []
+
+    /// A Radar verdict pushed by the live socket that differs from the last decision seen: that decision is re-read at
+    /// once (configuration diff, chip, note) instead of at the next 15-minute round. An asset never read yet, or seen
+    /// last in personal mode, is left to the Radar's own reading.
+    func applyPushedVerdict(_ v: VerdictPush) {
+        guard let client, let old = decisionDigests[DecisionDigests.key(kind: v.kind, symbol: v.symbol)], !old.personal else { return }
+        if old.verdict.rawValue == v.verdict && (old.note ?? "") == (v.chipNote ?? "") { return }
+        guard pushedVerdicts.insert("\(v.key)|\(v.verdict)|\(v.chipNote ?? "")").inserted else { return }
+        let asset = watchlist.first { $0.id == v.key } ?? Asset(symbol: v.symbol, kind: v.kind, name: v.symbol)
+        Task { [weak self] in
+            if let d = try? await client.decision(asset: asset) { self?.recordDecision(d, personal: false) }
+        }
     }
 
     func clearJournal() { journal = [] }

@@ -7,6 +7,7 @@ import kotlinx.coroutines.channels.trySendBlocking
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.KSerializer
@@ -347,6 +348,65 @@ class AltimClient(
             }
         })
         awaitClose { call.cancel() }
+    }
+
+    /** `wss://host/api/ws` (`ws://` for a plain-http development server) with the session cookie; no `Origin` (native app). */
+    fun liveSocketRequest(): Request {
+        val r = withSession(request("/api/ws"))
+        val scheme = if (baseUrl.scheme == "http") "ws" else "wss"
+        // OkHttp takes ws:// and wss:// URLs as strings only (HttpUrl knows http and https).
+        return r.newBuilder().url(r.url.toString().replaceFirst(Regex("^https?"), scheme)).build()
+    }
+
+    /**
+     * Everything that changes while the app is open, on one WebSocket: prices, alerts, verdicts, EUR/USD
+     * ([LiveSocket]). Ends on a network error, a silent socket or an expired session ([AltimException.Unauthorized]);
+     * the caller reconnects. [onOpened] is told when the server greeted the socket (an opening that never gets there
+     * counts as failed). Cancelling the collector closes the socket.
+     */
+    fun liveMessages(assets: List<Asset>, usd: Boolean, interval: String = "4h", onOpened: () -> Unit = {}): Flow<LiveMessage> = callbackFlow {
+        val client = http.newBuilder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            // Protocol pings (OkHttp answers the server's own ones); a missing pong closes the socket.
+            .pingInterval(LiveSocket.PING_MS, TimeUnit.MILLISECONDS)
+            .build()
+        val last = java.util.concurrent.atomic.AtomicLong(System.currentTimeMillis())
+        val socket = client.newWebSocket(liveSocketRequest(), object : okhttp3.WebSocketListener() {
+            override fun onOpen(webSocket: okhttp3.WebSocket, response: Response) {
+                webSocket.send(LiveSocket.subscribe(assets, interval, usd))
+            }
+
+            override fun onMessage(webSocket: okhttp3.WebSocket, text: String) {
+                last.set(System.currentTimeMillis())
+                val m = LiveSocket.decode(text) ?: return
+                if (m is LiveMessage.Hello) onOpened()
+                trySendBlocking(m)
+            }
+
+            override fun onClosing(webSocket: okhttp3.WebSocket, code: Int, reason: String) {
+                webSocket.close(1000, null)
+                close(AltimException.Network("connexion en direct fermée ($code)"))
+            }
+
+            override fun onFailure(webSocket: okhttp3.WebSocket, t: Throwable, response: Response?) {
+                close(if (response?.code == 401) AltimException.Unauthorized else AltimException.Network(t.message ?: "connexion perdue"))
+            }
+        })
+        // Application ping every 20 s (answered by the server), and the silence check.
+        val pinger = launch {
+            while (true) {
+                kotlinx.coroutines.delay(LiveSocket.PING_MS)
+                if (!LiveSocket.isLive(last.get(), System.currentTimeMillis())) {
+                    close(AltimException.Network("connexion en direct silencieuse"))
+                    break
+                }
+                socket.send("""{"type":"ping"}""")
+            }
+        }
+        awaitClose {
+            pinger.cancel()
+            socket.close(1001, null)
+        }
     }
 
     // ---------- Plumbing ----------
