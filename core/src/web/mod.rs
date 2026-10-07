@@ -6,6 +6,7 @@ pub mod bundle;
 pub mod danger;
 pub mod fx;
 pub mod json;
+pub mod live_ws;
 pub mod market;
 pub mod money;
 pub mod sorting;

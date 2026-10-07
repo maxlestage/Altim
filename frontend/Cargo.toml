@@ -29,10 +29,10 @@ yew-router = "0.20.0"
 version = "0.3.106"
 features = [
   "AbortController", "AbortSignal", "CanvasRenderingContext2d", "CanvasGradient", "Document", "DomRect", "DomTokenList", "Element",
-  "EventSource", "Headers", "HtmlCanvasElement", "HtmlElement", "HtmlInputElement", "HtmlSelectElement",
+  "CloseEvent", "EventSource", "Headers", "HtmlCanvasElement", "HtmlElement", "HtmlInputElement", "HtmlSelectElement",
   "IntersectionObserver", "IntersectionObserverEntry", "IntersectionObserverInit", "Location", "MediaQueryList",
   "MessageEvent", "Request", "RequestInit", "Response", "Storage", "Url", "UrlSearchParams", "Window",
-  "VisibilityState", "History", "ScrollToOptions", "ScrollBehavior",
+  "VisibilityState", "History", "ScrollToOptions", "ScrollBehavior", "WebSocket",
 ]
 
 [dev-dependencies]

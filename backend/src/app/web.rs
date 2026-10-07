@@ -14,8 +14,7 @@ use regex::Regex;
 pub const CSP: &str = "default-src 'self';script-src 'self' 'wasm-unsafe-eval';style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;font-src https://fonts.gstatic.com;img-src 'self' data:;connect-src 'self' https://api.binance.com https://api.coingecko.com;frame-ancestors 'none';base-uri 'self';form-action 'self';object-src 'none'";
 
 /// Headers of helmet 8 (defaults, custom CSP, HSTS 2 years with subdomains, no COEP) + Permissions-Policy.
-const SECURITY: [(&str, &str); 13] = [
-    ("content-security-policy", CSP),
+const SECURITY: [(&str, &str); 12] = [
     ("cross-origin-opener-policy", "same-origin"),
     ("cross-origin-resource-policy", "same-origin"),
     ("referrer-policy", "strict-origin-when-cross-origin"),
@@ -30,12 +29,26 @@ const SECURITY: [(&str, &str); 13] = [
     ("permissions-policy", "camera=(), microphone=(), geolocation=()"),
 ];
 
+static PLAIN_HOST: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9.-]{1,253}(:[0-9]{1,5})?$").unwrap());
+
+/// [`CSP`] with this host's own secure WebSocket (`wss://host`) in `connect-src`: `'self'` covers it in current
+/// browsers, older Safari versions need it spelled out. Never another host (only a plain `host[:port]` is used).
+pub fn csp_for(host: Option<&str>) -> String {
+    match host.filter(|h| PLAIN_HOST.is_match(h)) {
+        Some(h) => CSP.replacen("connect-src 'self'", &format!("connect-src 'self' wss://{}", h.to_ascii_lowercase()), 1),
+        None => CSP.to_string(),
+    }
+}
+
 pub async fn security_headers(req: Request, next: Next) -> Response {
+    let host = req.headers().get(header::HOST).and_then(|v| v.to_str().ok()).map(str::to_string);
     let mut res = next.run(req).await;
     let h = res.headers_mut();
     for (k, v) in SECURITY {
         h.insert(k, HeaderValue::from_static(v));
     }
+    let csp = HeaderValue::from_str(&csp_for(host.as_deref())).unwrap_or(HeaderValue::from_static(CSP));
+    h.insert("content-security-policy", csp);
     res
 }
 

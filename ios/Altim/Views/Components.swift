@@ -115,16 +115,18 @@ struct Sparkline: View {
     }
 }
 
-/// "EN DIRECT" while ticks keep coming, otherwise the reconnection state.
+/// "EN DIRECT" while the live socket keeps talking (ticks, or the answer to its ping every 20 s), otherwise the
+/// reconnection state.
 struct LiveBadge: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 2)) { ctx in
-            let fresh = model.live.lastTick.map { ctx.date.timeIntervalSince($0) < 20 } ?? false
+            let fresh = LiveMessage.isLive(lastMessage: model.live.lastMessage, now: ctx.date)
             HStack(spacing: 6) {
                 Circle().fill(fresh ? Theme.buy : Theme.warning).frame(width: 7, height: 7).neonGlow(fresh ? Theme.buy : Theme.warning, radius: 4)
-                Text(fresh ? "EN DIRECT" : "CONNEXION…").font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1)
+                Text(fresh ? "EN DIRECT" : model.live.lastMessage == nil ? "CONNEXION…" : "RECONNEXION…")
+                    .font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1)
                     .foregroundStyle(fresh ? Theme.buy : Theme.warning)
             }
             .accessibilityElement(children: .combine)

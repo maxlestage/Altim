@@ -88,10 +88,12 @@ fun Root(model: AppModel) {
     }
     val followed = model.watchlist + model.holdings.map { it.asset } + model.paper.positions.map { it.asset } + model.selectionAssets +
         listOfNotNull(model.focus, model.activityAsset)
-    val key = "${model.phase}|$resumed|" + followed.map { it.id }.toSortedSet().joinToString(",")
+    // One WebSocket while the app is in the foreground (ProcessLifecycleOwner), closed in the background.
+    val usd = model.currency == com.maxlestage.altim.kit.Currency.USD
+    val key = "${model.phase}|${model.foreground}|$usd|" + followed.map { it.id }.toSortedSet().joinToString(",")
     LaunchedEffect(key) {
-        if (model.phase != AppModel.Phase.READY || !resumed) model.live.stop()
-        else model.live.follow(followed, model.client, onRenewed = { model.persistSession() }) { model.sessionLost() }
+        if (model.phase != AppModel.Phase.READY || !model.foreground) model.live.stop()
+        else model.live.follow(followed, model.client, usd, onRenewed = { model.persistSession() }) { model.sessionLost() }
     }
     // The live following (iOS Live Activity) moves with the live price while the app runs (at most every 5 s).
     val tracked = model.activityAsset?.let { model.live.price(it) }

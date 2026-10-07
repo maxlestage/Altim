@@ -7,62 +7,104 @@ import androidx.compose.runtime.setValue
 import com.maxlestage.altim.kit.AltimClient
 import com.maxlestage.altim.kit.AltimException
 import com.maxlestage.altim.kit.Asset
+import com.maxlestage.altim.kit.BuyAlert
+import com.maxlestage.altim.kit.LiveMessage
+import com.maxlestage.altim.kit.LiveSocket
 import com.maxlestage.altim.kit.LiveTick
+import com.maxlestage.altim.kit.VerdictPush
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
-/** Live prices of the displayed assets (Server-Sent Events of /api/live), reconnected automatically. */
+/**
+ * Live data of the displayed assets on the WebSocket `/api/ws`: prices, the « can I buy now? » alerts, the Radar
+ * verdicts and the EUR/USD rate, pushed by the server. Reconnected with a growing pause (1 s → 30 s), closed when the
+ * app goes to the background (ProcessLifecycleOwner, see Root) and reopened when it comes back. After two failed
+ * openings in a row (a network that blocks WebSockets), the prices come from the Server-Sent Events of `/api/live`.
+ */
 class LivePrices(private val scope: CoroutineScope) {
     val ticks = mutableStateMapOf<String, LiveTick>()
-    /** Time of the last refresh (the badge says "en direct" only while ticks keep coming). */
+    /** Time of the last refresh of the prices. */
     var lastTick by mutableStateOf<Long?>(null)
         private set
+    /** Time of the last message of any kind (the badge says « en direct » only while messages keep coming). */
+    var lastMessage by mutableStateOf<Long?>(null)
+        private set
 
-    private var job: Job? = null
+    /** Pushed alerts of the followed assets (one socket per 20 assets), with the server's check time. */
+    var onAlerts: ((List<BuyAlert>, Long) -> Unit)? = null
+    var onVerdict: ((VerdictPush) -> Unit)? = null
+    var onFx: ((Double) -> Unit)? = null
+
+    private var jobs: List<Job> = emptyList()
     private var keys: List<String> = emptyList()
     private val pending = mutableMapOf<String, LiveTick>()
     private var flush: Job? = null
 
     fun price(a: Asset): LiveTick? = ticks[a.id]
 
-    /** Follows these assets (restarts the stream only when the list changes). */
-    fun follow(assets: List<Asset>, client: AltimClient?, onRenewed: () -> Unit = {}, onExpired: () -> Unit) {
+    /** Follows these assets (restarts only when the list or the currency of the texts changes). */
+    fun follow(assets: List<Asset>, client: AltimClient?, usd: Boolean, onRenewed: () -> Unit = {}, onExpired: () -> Unit) {
         val unique = assets.associateBy { it.id }
-        val wanted = unique.keys.sorted()
-        if (client == null || wanted.isEmpty()) return stop()
-        if (wanted == keys && job?.isActive == true) return
+        val wanted = unique.keys.sorted() + (if (usd) "USD" else "EUR")
+        if (client == null || unique.isEmpty()) return stop()
+        if (wanted == keys && jobs.any { it.isActive }) return
         stop()
         keys = wanted
-        job = scope.launch {
-            var wait = 1_000L
-            while (isActive) {
-                try {
-                    client.liveTicks(unique.values.toList()).collect { tick ->
+        jobs = unique.values.sortedBy { it.id }.chunked(LiveSocket.MAX_ASSETS).map { chunk -> scope.launch { run(chunk, client, usd, onRenewed, onExpired) } }
+    }
+
+    private suspend fun run(chunk: List<Asset>, client: AltimClient, usd: Boolean, onRenewed: () -> Unit, onExpired: () -> Unit) {
+        var attempt = 0
+        var failures = 0
+        var sse = false
+        while (scope.isActive) {
+            val opened = AtomicBoolean(false)
+            try {
+                if (sse) {
+                    client.liveTicks(chunk).collect { tick ->
+                        lastMessage = System.currentTimeMillis()
                         buffer(tick)
-                        wait = 1_000L
+                        attempt = 0
                     }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: AltimException.Unauthorized) {
-                    if (!client.renewSession()) {
-                        onExpired()
-                        return@launch
+                } else {
+                    client.liveMessages(chunk, usd, onOpened = { opened.set(true) }).collect { m ->
+                        handle(m)
+                        attempt = 0
                     }
-                    onRenewed()
-                    // A pause even after a successful login: a stream refused again must not loop on logins.
-                    delay(wait)
-                    wait = minOf(30_000L, wait * 2)
-                    continue
-                } catch (_: Exception) {
                 }
-                // 1 s, 2 s, 4 s … up to 30 s between attempts (network lost, server restart).
-                delay(wait)
-                wait = minOf(30_000L, wait * 2)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: AltimException.Unauthorized) {
+                if (!client.renewSession()) {
+                    onExpired()
+                    return
+                }
+                onRenewed()
+                opened.set(true)
+            } catch (_: Exception) {
             }
+            if (!sse) {
+                failures = if (opened.get()) 0 else failures + 1
+                if (failures >= LiveSocket.FALLBACK_AFTER) sse = true
+            }
+            delay(LiveSocket.backoffMs(attempt))
+            attempt++
+        }
+    }
+
+    private fun handle(m: LiveMessage) {
+        lastMessage = System.currentTimeMillis()
+        when (m) {
+            is LiveMessage.Tick -> buffer(m.tick)
+            is LiveMessage.Alerts -> onAlerts?.invoke(m.items, if (m.checkedAt > 0) m.checkedAt.toLong() else System.currentTimeMillis())
+            is LiveMessage.Verdict -> onVerdict?.invoke(m.verdict)
+            is LiveMessage.Fx -> onFx?.invoke(m.rate)
+            else -> {}
         }
     }
 
@@ -81,8 +123,8 @@ class LivePrices(private val scope: CoroutineScope) {
     }
 
     fun stop() {
-        job?.cancel()
-        job = null
+        jobs.forEach { it.cancel() }
+        jobs = emptyList()
         flush?.cancel()
         flush = null
         pending.clear()

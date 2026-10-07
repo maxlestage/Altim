@@ -1,9 +1,13 @@
+import Security
 import SwiftUI
 import WatchConnectivity
 import AltimKit
 
-/// Apple Watch app: which assets can be bought now, as computed by the iPhone (the Watch holds neither the password
-/// nor the session). The notifications "achat possible" of the iPhone appear on the Watch when the iPhone is locked.
+/// Apple Watch app: which assets can be bought now and their current prices. The Watch reads them itself from the
+/// server over HTTPS (`/api/alerts` and `/api/tickers`, through the iPhone's connection or Wi-Fi / cellular) when it
+/// opens and every 30 s while it stays on screen, with the session the iPhone gave it (`WatchLink`, kept in the Watch's
+/// Keychain; never the password). watchOS does not allow a WebSocket for an ordinary app (Apple TN3135), hence these
+/// HTTPS readings. While the iPhone app is open, every change it receives on its live socket also lands here.
 @main
 struct AltimWatchApp: App {
     @State private var store = WatchStore()
@@ -17,6 +21,33 @@ struct AltimWatchApp: App {
     }
 }
 
+/// The session given by the iPhone, in the Watch's Keychain (readable after the first unlock, this device only).
+enum WatchKeychain {
+    private static let base: [String: Any] = [
+        kSecClass as String: kSecClassGenericPassword,
+        kSecAttrService as String: "com.maxlestage.altim.watch",
+        kSecAttrAccount as String: "link",
+    ]
+
+    static func save(_ link: WatchLink?) {
+        SecItemDelete(base as CFDictionary)
+        guard let link, let data = try? JSONEncoder().encode(link) else { return }
+        var attributes = base
+        attributes[kSecValueData as String] = data
+        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        SecItemAdd(attributes as CFDictionary, nil)
+    }
+
+    static func load() -> WatchLink? {
+        var query = base
+        query[kSecReturnData as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
+        return try? JSONDecoder().decode(WatchLink.self, from: data)
+    }
+}
+
 @MainActor
 @Observable
 final class WatchStore: NSObject, WCSessionDelegate {
@@ -24,6 +55,7 @@ final class WatchStore: NSObject, WCSessionDelegate {
     private(set) var checked: Date? = nil
     private(set) var refreshing = false
     private(set) var message: String? = nil
+    private(set) var link: WatchLink? = nil
 
     override init() {
         super.init()
@@ -31,6 +63,7 @@ final class WatchStore: NSObject, WCSessionDelegate {
             alerts = saved
             checked = UserDefaults.standard.object(forKey: "checked") as? Date
         }
+        link = WatchKeychain.load()
         Self.applyDisplay(currency: UserDefaults.standard.string(forKey: "currency"), fx: UserDefaults.standard.data(forKey: "fx"))
         if WCSession.isSupported() {
             WCSession.default.delegate = self
@@ -38,23 +71,38 @@ final class WatchStore: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Asks the iPhone for a fresh check (it must be reachable: nearby, Altim installed).
-    func refresh() {
-        let session = WCSession.default
-        guard session.activationState == .activated, session.isReachable else {
-            message = "iPhone injoignable : ouvrez Altim sur l'iPhone."
+    /// Reads the alerts and the prices from the server now (15 s at most), whether or not the iPhone is nearby.
+    func refresh() async {
+        guard !refreshing else { return }
+        guard let client = link?.client() else {
+            message = WatchLink.notLinked
+            return
+        }
+        let assets = alerts.map(\.asset)
+        guard !assets.isEmpty else {
+            message = "Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois."
             return
         }
         refreshing = true
-        message = nil
-        session.sendMessage(["refresh": true], replyHandler: { _ in
-            Task { @MainActor in self.refreshing = false }
-        }, errorHandler: { _ in
-            Task { @MainActor in
-                self.refreshing = false
-                self.message = "Échec de la mise à jour."
-            }
-        })
+        defer { refreshing = false }
+        do {
+            async let fresh = client.alerts(assets)
+            // The prices are a plus: the alerts alone are enough when the quotes fail.
+            async let quotes = try? client.quotes(assets)
+            let items = try await fresh
+            let prices = Dictionary(((await quotes) ?? []).map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
+            store(WatchLink.merge(items, quotes: prices), checked: Date())
+            message = nil
+        } catch {
+            message = WatchLink.message(for: error)
+        }
+    }
+
+    private func store(_ items: [BuyAlert], checked: Date?) {
+        alerts = items
+        self.checked = checked
+        UserDefaults.standard.set(try? JSONEncoder().encode(items), forKey: "alerts")
+        UserDefaults.standard.set(checked, forKey: "checked")
     }
 
     /// Display currency and rate chosen on the iPhone (euros by default; dollars until a rate is known).
@@ -69,11 +117,20 @@ final class WatchStore: NSObject, WCSessionDelegate {
             UserDefaults.standard.set(currency, forKey: "currency")
             UserDefaults.standard.set(fx, forKey: "fx")
         }
+        if let data = context["link"] as? Data {
+            // Empty: the iPhone logged out, the Watch forgets the session.
+            let next = data.isEmpty ? nil : try? JSONDecoder().decode(WatchLink.self, from: data)
+            if next != link {
+                link = next
+                WatchKeychain.save(next)
+                if next != nil, message == WatchLink.notLinked { message = nil }
+            }
+        }
         guard let data = context["alerts"] as? Data, let items = try? JSONDecoder().decode([BuyAlert].self, from: data) else { return }
-        alerts = items
-        checked = context["checked"] as? Date
-        UserDefaults.standard.set(data, forKey: "alerts")
-        UserDefaults.standard.set(checked, forKey: "checked")
+        let at = context["checked"] as? Date
+        // An older check of the iPhone never replaces a fresher reading of the Watch.
+        if let mine = checked, let at, at < mine { return }
+        store(items, checked: at)
     }
 
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
@@ -90,12 +147,16 @@ private let buyColor = Color(red: 0.22, green: 1.0, blue: 0.53)
 
 struct AlertsList: View {
     @Environment(WatchStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         List {
+            if store.link == nil {
+                Text(WatchLink.notLinked).font(.footnote).foregroundStyle(.orange)
+            }
             let buyable = store.alerts.filter(\.buy)
-            if store.alerts.isEmpty {
-                Text("Ouvrez Altim sur l'iPhone et activez les notifications d'achat.").font(.footnote).foregroundStyle(.secondary)
+            if store.alerts.isEmpty && store.link != nil {
+                Text("Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois.").font(.footnote).foregroundStyle(.secondary)
             }
             if !buyable.isEmpty {
                 Section("Achetables") {
@@ -110,21 +171,29 @@ struct AlertsList: View {
             }
             Section {
                 Button {
-                    store.refresh()
+                    Task { await store.refresh() }
                 } label: {
                     Label(store.refreshing ? "Mise à jour…" : "Mettre à jour", systemImage: "arrow.clockwise")
                 }
                 .disabled(store.refreshing)
                 if let m = store.message { Text(m).font(.footnote).foregroundStyle(.orange) }
-                if let checked = store.checked {
-                    Text("Vérifié \(checked, style: .relative)").font(.footnote).foregroundStyle(.secondary)
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    Text(WatchLink.checkedText(store.checked, now: ctx.date)).font(.footnote).foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("Lu sur le serveur toutes les 30 s tant que l'app est à l'écran. Conseil indicatif : Altim ne passe aucun ordre.")
             }
         }
         .navigationTitle("Altim")
         .navigationDestination(for: BuyAlert.self) { AlertDetail(alert: $0) }
+        // On screen: a reading now, then every 30 s; stopped when the screen goes off or the app leaves.
+        .task(id: scenePhase == .active) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                await store.refresh()
+                try? await Task.sleep(nanoseconds: UInt64(WatchLink.refreshInterval * 1e9))
+            }
+        }
     }
 }
 

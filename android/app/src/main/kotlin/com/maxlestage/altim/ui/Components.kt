@@ -171,7 +171,7 @@ fun Sparkline(values: List<Double>, modifier: Modifier = Modifier) {
     }
 }
 
-/** "EN DIRECT" while ticks keep coming, otherwise the reconnection state. */
+/** "EN DIRECT" while the live socket keeps talking (ticks, or the answer to its ping every 20 s), otherwise the reconnection state. */
 @Composable
 fun LiveBadge(live: LivePrices) {
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -181,11 +181,11 @@ fun LiveBadge(live: LivePrices) {
             now = System.currentTimeMillis()
         }
     }
-    val fresh = live.lastTick?.let { now - it < 20_000 } ?: false
+    val fresh = com.maxlestage.altim.kit.LiveSocket.isLive(live.lastMessage, now)
     val c = if (fresh) AltimColors.buy else AltimColors.warning
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(7.dp).clip(CircleShape).background(c))
-        Text(if (fresh) "EN DIRECT" else "CONNEXION…", color = c, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+        Text(if (fresh) "EN DIRECT" else if (live.lastMessage == null) "CONNEXION…" else "RECONNEXION…", color = c, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
     }
 }
 

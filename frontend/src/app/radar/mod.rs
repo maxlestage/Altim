@@ -267,6 +267,33 @@ pub fn Radar() -> Html {
         }
     });
 
+    // A verdict pushed by the live connection that differs from the cached decision: that decision is re-read at
+    // once (configuration diff, chip, note), instead of waiting for the 15-minute round. Once per pushed verdict.
+    {
+        let handled = use_mut_ref(std::collections::HashSet::<String>::new);
+        use_effect_with(live.verdicts.clone(), move |verdicts| {
+            for v in verdicts.values() {
+                let sig = format!("{}:{}:{}:{}", v.kind.as_str(), v.symbol, v.verdict, v.chip_note.as_deref().unwrap_or(""));
+                let Some(c) = store::cached(v.kind, &v.symbol) else { continue };
+                let same = serde_json::to_value(c.decision.d.verdict).ok().and_then(|x| x.as_str().map(String::from)).as_deref()
+                    == Some(v.verdict.as_str())
+                    && c.decision.d.chip_note.as_deref().unwrap_or("") == v.chip_note.as_deref().unwrap_or("");
+                if same || c.personal == Some(true) || !handled.borrow_mut().insert(sig) {
+                    continue;
+                }
+                let (symbol, kind) = (v.symbol.clone(), v.kind);
+                wasm_bindgen_futures::spawn_local(async move {
+                    if let Ok(d) = api::decision(&symbol, kind, None, None).await {
+                        store::cache_decision(&d, false);
+                    }
+                });
+            }
+        });
+    }
+    // What can be bought now: pushed by the live connection when it changes, else the 5-minute reading.
+    let pushed_buyable: Option<Vec<BuyAlertRow>> = live.alert_rows::<BuyAlertRow>().map(|v| v.into_iter().filter(|x| x.buy).collect());
+    let buyable_now = pushed_buyable.as_ref().or(buyable.as_ref());
+
     let dangers = parse_dangers(local_get(DANGERS_KEY).as_deref());
     let transitions = &transitions_state.transitions;
     let fresh: HashMap<String, Rc<altim_core::web::decision::CachedDecision>> =
@@ -397,7 +424,7 @@ pub fn Radar() -> Html {
                 </div>
             }
 
-            if let Some(b) = buyable.as_ref().filter(|b| !b.is_empty()) {
+            if let Some(b) = buyable_now.filter(|b| !b.is_empty()) {
                 <div class="card buyable">
                     <h2 class="card-title">{ format!("Achetables maintenant · {}", b.len()) }</h2>
                     <ul class="buyable-list">

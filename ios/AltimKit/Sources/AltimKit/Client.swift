@@ -329,7 +329,7 @@ public final class AltimClient: Sendable {
         return r
     }
 
-    private func withSession(_ r: URLRequest) -> URLRequest {
+    func withSession(_ r: URLRequest) -> URLRequest {
         var r = r
         if let cookie = jar.value { r.setValue("\(Self.cookieName)=\(cookie)", forHTTPHeaderField: "Cookie") }
         return r
