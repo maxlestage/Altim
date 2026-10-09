@@ -98,8 +98,7 @@ struct AssetDetailView: View {
             Text(Format.price(tick?.price ?? signal?.price ?? zones.value?.price))
                 .font(Theme.mono(32, weight: .bold))
                 .lineLimit(1).minimumScaleFactor(0.5)
-                .contentTransition(.numericText())
-                .animation(.default, value: tick?.price)
+                .liveTick(tick?.price ?? signal?.price ?? zones.value?.price)
             HStack(spacing: 10) {
                 ChangeText(value: tick?.change ?? signal?.change)
                 Text("24 h").font(.caption).foregroundStyle(Theme.textSecondary)

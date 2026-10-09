@@ -49,6 +49,7 @@
 		B65F47DC924C66C6F7FDE74B /* DcaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C83BF100932D1E6615DDDA4 /* DcaCard.swift */; };
 		BA2D193403F1FFE4FC9C15D4 /* GlossaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F1184807782062E4AE3CBCA /* GlossaryView.swift */; };
 		BD159469B25EAEF47D37DB01 /* AltimKit in Frameworks */ = {isa = PBXBuildFile; productRef = 04405F3D04B71F8EAB052729 /* AltimKit */; };
+		BF7F4C414C3FE6BA81B8539C /* MotionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF1D3E9E8FBB3139A94AFB7B /* MotionViews.swift */; };
 		C014505067DAC5CD41EFF0C3 /* BriefCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BF52A57FC09A77F2B66CAE3 /* BriefCard.swift */; };
 		C8CD470129473743A750D57C /* AltimWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = CBD21CA120784BE78A7FBA9F /* AltimWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CD687E9A52712F75F7F6B691 /* WhatIfCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A13CFC8BA3512668B22639 /* WhatIfCard.swift */; };
@@ -147,6 +148,7 @@
 		AEC31325526311E531B7597E /* NewsSummaryCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewsSummaryCard.swift; sourceTree = "<group>"; };
 		B58EB39E05859EFE22C316EE /* TrackDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackDetails.swift; sourceTree = "<group>"; };
 		BBB18A5D5E198EB8F00280A9 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		BF1D3E9E8FBB3139A94AFB7B /* MotionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionViews.swift; sourceTree = "<group>"; };
 		BF22433F7A6087C7829C60FC /* AltimKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AltimKit; path = AltimKit; sourceTree = SOURCE_ROOT; };
 		C1B18B396E44D756579DD732 /* AnomaliesCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnomaliesCard.swift; sourceTree = "<group>"; };
 		C4B2052AD10A8D318F5AA870 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				AB1634EAFB6D24DE5180E557 /* HoldingsView.swift */,
 				410995807C0C138A9AFEE2D6 /* JournalView.swift */,
 				9978B040C3FC9EEBB7693F1A /* LoginView.swift */,
+				BF1D3E9E8FBB3139A94AFB7B /* MotionViews.swift */,
 				AEC31325526311E531B7597E /* NewsSummaryCard.swift */,
 				245A8B336D3AA40AAE42F8E7 /* NewsView.swift */,
 				05D5DA1D258DB0D6272602F5 /* NoteCard.swift */,
@@ -520,6 +523,7 @@
 				9B052493BF8CB0AE5C0D2B18 /* LivePrices.swift in Sources */,
 				97A2DA0A1E25E3AD00D32AB0 /* LocalStore.swift in Sources */,
 				5B46D930CEBC015DE7E0821B /* LoginView.swift in Sources */,
+				BF7F4C414C3FE6BA81B8539C /* MotionViews.swift in Sources */,
 				25FBC3B62BD10F066023A4D7 /* NewsSummaryCard.swift in Sources */,
 				6D3C940207C1589192337633 /* NewsView.swift in Sources */,
 				870B572066D34C8EBB86FB73 /* NoteCard.swift in Sources */,

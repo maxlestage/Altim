@@ -8,7 +8,8 @@
 # - the whole app, altim-app-<hash>.js and altim-app-<hash>_bg.wasm, which each group's page fetches in the background
 #   and hands the page over to at the first move to another group (no reload; frontend/loader-app.js, altim_web::part;
 #   before it is ready, the target group's own .wasm when prepared: on hover, or as a neighbour);
-# plus the shared styles (global-<hash>.css, app-<hash>.css). Icons and other static files stay in web/public.
+# plus the shared styles (global-<hash>.css, app-<hash>.css) and the site's motion (motion-<hash>.js). Icons and other
+# static files stay in web/public.
 # The .wasm, .js and .css also get a brotli (.br) and a gzip (.gz) copy (scripts/precompress), sent as is by the server.
 # The parts are the entry points of frontend/bundles (Cargo examples of altim-bundles): one compilation of the library,
 # then one link per part, in parallel. Tools: cargo with the wasm32-unknown-unknown target, wasm-bindgen (same version
@@ -39,6 +40,10 @@ cp "$ROOT/frontend/styles/global.css" "$OUT/$gcss"
 cp "$ROOT/frontend/styles/app.css" "$OUT/$acss"
 gate="gate-$(hash "$ROOT/frontend/gate.js").js"
 cp "$ROOT/frontend/gate.js" "$OUT/$gate"
+# The site's motion (frontend/motion.js, loaded after the first paint: the particle film, the cursor and magnetic
+# buttons on fine pointers).
+motion="motion-$(hash "$ROOT/frontend/motion.js").js"
+cp "$ROOT/frontend/motion.js" "$OUT/$motion"
 
 # The .wasm of one part ($1 = site | app-<group> | app, from the entry point frontend/bundles/src/<site | group | app>.rs)
 # through wasm-bindgen and wasm-opt: its .wasm and glue in web/dist, their names in $tmp/<part>.names (glue, wasm).
@@ -69,7 +74,11 @@ page() {
   gate_tag=""
   shell=""
   if [ "$1" = site ]; then
-    printf 'import init from "/%s";\ninit({ module_or_path: "/%s" });\n' "$glue" "$wasm" > "$tmp/$1.main.js"
+    # The home page's opening (frontend/door.js, its markup frontend/door.html) runs first in the site's loader, which
+    # counts the .wasm's bytes for it (its decoded size); one file, without its comment lines (the critical path).
+    cat "$ROOT/frontend/door.js" "$ROOT/frontend/loader-site.js" | sed -e '/^[[:space:]]*\/\//d' -e "s#{{GLUE_JS}}#$glue#" -e "s#{{WASM}}#$wasm#" \
+      -e "s#{{WASM_SIZE}}#$(wc -c < "$OUT/$wasm" | tr -d ' ')#" -e "s#{{MOTION_JS}}#$motion#" > "$tmp/$1.main.js"
+    gate_tag=$(tr -d '\n' < "$ROOT/frontend/door.html")
   else
     group=${1#app-}
     near=""

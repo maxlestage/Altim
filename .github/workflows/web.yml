@@ -28,6 +28,8 @@ jobs:
       - run: cargo clippy -p altim-core -p altim-web -p altim-bundles --target wasm32-unknown-unknown --lib --examples --locked -- -D warnings
       - run: cargo clippy -p altim-core -p altim-web -p altim-bundles --all-targets --locked -- -D warnings
       - run: cargo test -p altim-core -p altim-web --locked
+      # The pure functions of the site's motion (frontend/motion.js: morph, shapes, grain counts) under Node.
+      - run: node --experimental-detect-module --test frontend/motion.test.mjs
       - run: sh scripts/web-tools.sh
       # web/dist: the site's page and .wasm, one page (web/dist/app) and .wasm per group of app screens, the whole app's
       # .wasm, their brotli and gzip copies; sizes in the log.
@@ -51,6 +53,11 @@ jobs:
           curl -fsS localhost:3000/app/journal | grep -q '<div class="webapp" data-static="">.*<a href="/app/avoirs" aria-current="page" class="on">Mes avoirs</a>'
           curl -fsS localhost:3000/app/bot | grep -q '<script src="/gate-[0-9a-f]*\.js"></script><div id="root"><div class="webapp" data-static="">'
           ! curl -fsS localhost:3000/ | grep -q 'data-static'
+          # The home page's opening (hidden until its script shows it) and the site's loader, which loads the motion.
+          curl -fsS localhost:3000/ | grep -q '<div class="door" id="door" aria-hidden="true">'
+          main=$(curl -fsS localhost:3000/ | grep -o 'src="/main-site-[0-9a-f]*\.js"' | cut -d'"' -f2)
+          curl -fsS "localhost:3000$main" | grep -q 'altimDoor'
+          curl -fsS "localhost:3000$main" | grep -Eq '"/motion-[0-9a-f]{16}\.js"'
           # Each app page's loader prepares the whole app (in-place moves to the other groups' screens).
           main=$(curl -fsS localhost:3000/app/reglages | grep -o 'src="/main-app-reglages-[0-9a-f]*\.js"' | cut -d'"' -f2)
           curl -fsS "localhost:3000$main" | grep -Eq '"/altim-app-[0-9a-f]{16}_bg\.wasm"'

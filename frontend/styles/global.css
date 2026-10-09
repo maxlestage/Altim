@@ -438,3 +438,96 @@ main { position: relative; }
 @media (min-width: 900px) {
   .bot-site { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 }
+
+/* ---------- Opening of the home page (frontend/door.js, door.html): once per session ---------- */
+.door { display: none; }
+.door-on .door { display: block; position: fixed; inset: 0; z-index: 100; overflow: hidden; cursor: pointer; }
+.door-half { position: absolute; top: 0; bottom: 0; width: 50.5%; background: var(--bg); transition: transform 0.75s cubic-bezier(0.7, 0, 0.2, 1); }
+.door-l { left: 0; }
+.door-r { right: 0; }
+.door-l::after { content: ""; position: absolute; top: 0; right: 0; bottom: 0; width: 1px; background: linear-gradient(transparent, var(--cyan), transparent); opacity: 0; transition: opacity 0.25s; }
+.door-open .door-l { transform: translateX(-101%); }
+.door-open .door-r { transform: translateX(101%); }
+.door-open .door-l::after { opacity: 1; }
+.door-logo {
+  position: absolute; left: 50%; top: 46%; width: min(40vw, 168px); transform: translate(-50%, -50%); overflow: visible;
+  fill: none; stroke: var(--text); stroke-width: 30; stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.45)); transition: opacity 0.35s, transform 0.6s cubic-bezier(0.7, 0, 0.2, 1);
+}
+.door-logo path { stroke-dasharray: 1 1.2; stroke-dashoffset: 1.01; animation: door-trace 0.55s cubic-bezier(0.6, 0, 0.3, 1) forwards; }
+.door-logo .acc { stroke: var(--cyan); animation-delay: 0.42s; animation-duration: 0.38s; }
+.door-logo circle { fill: var(--cyan); stroke: none; opacity: 0; transform-origin: 700px 420px; animation: door-dot 0.25s 0.78s ease-out forwards; }
+/* Dash 1, gap 1.2, offset 1.01: nothing drawn at the start, not even the round cap of an empty dash. */
+@keyframes door-trace { to { stroke-dashoffset: 0; } }
+@keyframes door-dot { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: none; } }
+.door-open .door-logo { opacity: 0; transform: translate(-50%, -50%) scale(1.12); }
+.door-count {
+  position: absolute; right: var(--gutter); bottom: calc(16px + env(safe-area-inset-bottom)); margin: 0;
+  font-family: var(--mono); font-size: 32px; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; transition: opacity 0.3s;
+}
+.door-count small { margin-left: 2px; font-size: 13px; color: var(--cyan); }
+.door-open .door-count { opacity: 0; }
+
+/* ---------- Scroll film of the home page (site::film, frontend/motion.js) ---------- */
+.film { position: relative; height: calc(var(--n) * 70vh + 30vh); height: calc(var(--n) * 70svh + 30svh); margin-top: 32px; }
+.film-stage {
+  position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden;
+  background: radial-gradient(120% 70% at 50% 40%, #0b1124 0%, var(--bg) 62%);
+}
+.film-stage::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 18%; background: linear-gradient(transparent, var(--bg)); pointer-events: none; }
+.film-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* Before the grains (or without them): the logo, still. */
+.film-poster {
+  position: absolute; left: 50%; top: 40%; width: min(78vw, 53vh); width: min(78vw, 53svh); max-height: 60%; transform: translate(-50%, -50%);
+  fill: none; stroke: rgba(238, 243, 255, 0.55); stroke-width: 14; stroke-linecap: round; stroke-linejoin: round;
+  filter: drop-shadow(0 0 16px rgba(0, 240, 255, 0.35)); transition: opacity 0.8s;
+}
+.film-poster .acc { stroke: var(--cyan); }
+.film-poster circle { fill: var(--cyan); stroke: none; }
+.film-live .film-poster { opacity: 0; }
+.film-caps { position: absolute; left: 0; right: 0; bottom: max(13vh, 88px); z-index: 1; margin: 0; padding: 0; list-style: none; }
+.film-cap { position: absolute; left: var(--gutter); right: var(--gutter); bottom: 0; text-align: center; will-change: opacity, transform; }
+.film-cap p {
+  max-width: 20ch; margin: 0 auto; font-weight: 700; font-size: clamp(24px, 6.6vw, 46px); line-height: 1.15; letter-spacing: -0.01em;
+  color: var(--text); text-shadow: 0 2px 24px rgba(5, 7, 15, 0.9);
+}
+.film-cap em { font-style: normal; color: var(--cyan); text-shadow: 0 0 22px rgba(0, 240, 255, 0.45); }
+.film-still { display: none; }
+.film-count { position: absolute; right: var(--gutter); top: calc(var(--nav-h) + 14px); margin: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 0.1em; }
+.film-count b { color: var(--cyan); }
+/* Reduced motion (a still film): the captions as a plain list, each beside its still drawing. */
+.film.still { height: auto; margin-top: 0; }
+.film.still .film-stage { position: static; height: auto; overflow: visible; max-width: var(--max); margin: 0 auto; padding: 56px var(--gutter) 32px; background: none; }
+.film.still .film-stage::after, .film.still .film-canvas, .film.still .film-poster, .film.still .film-count { display: none; }
+.film.still .film-caps { position: static; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.film.still .film-cap { position: static; display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 16px; align-items: center; text-align: left; opacity: 1 !important; transform: none !important; }
+.film.still .film-still { display: block; width: 96px; height: 72px; border-radius: 12px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--line); }
+.film.still .film-cap p { max-width: none; margin: 0; font-size: 20px; }
+
+/* ---------- Ambient: film grain (site), soft cursor and magnetic buttons (fine pointers, frontend/motion.js) ---------- */
+.grain {
+  position: fixed; inset: 0; z-index: 40; pointer-events: none; opacity: 0.07;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1.3 -.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: grain 0.9s steps(1) infinite;
+}
+@keyframes grain { 0% { background-position: 0 0; } 25% { background-position: -37px 22px; } 50% { background-position: 24px -41px; } 75% { background-position: -15px -18px; } }
+.cursor {
+  position: fixed; left: 0; top: 0; z-index: 210; width: 34px; height: 34px; margin: -17px 0 0 -17px; border-radius: 50%;
+  border: 1px solid rgba(0, 240, 255, 0.55); pointer-events: none; opacity: 0;
+  transition: opacity 0.3s, width 0.25s, height 0.25s, margin 0.25s, background-color 0.25s;
+}
+.cursor.on { opacity: 1; }
+.cursor.link { width: 58px; height: 58px; margin: -29px 0 0 -29px; background: rgba(0, 240, 255, 0.08); }
+.btn.magnet { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s; }
+@media (min-width: 900px) {
+  .film-caps { bottom: 9vh; }
+  .film-cap p { max-width: 26ch; font-size: clamp(30px, 3.3vw, 48px); }
+}
+@media (min-width: 720px) {
+  .film.still .film-caps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .film.still .film-cap { grid-template-columns: 140px minmax(0, 1fr); }
+  .film.still .film-still { width: 140px; height: 105px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .door { display: none !important; }
+}

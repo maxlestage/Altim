@@ -274,7 +274,7 @@ private fun Header(model: AppModel, asset: Asset, signal: RadarRow?, zones: Zone
             Text(asset.name, fontSize = 20.sp, fontWeight = FontWeight.Bold, maxLines = 2, modifier = Modifier.weight(1f))
             Badge(asset.kind.label, Tone.NEUTRAL)
         }
-        Text(Format.price(tick?.price ?: signal?.price ?: zones?.price), style = mono(32.sp, FontWeight.Bold))
+        LivePriceText(tick?.price ?: signal?.price ?: zones?.price, Format.price(tick?.price ?: signal?.price ?: zones?.price), mono(32.sp, FontWeight.Bold))
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ChangeText(tick?.change ?: signal?.change)
             Caption("24 h")

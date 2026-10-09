@@ -72,6 +72,14 @@ import com.maxlestage.altim.kit.Asset
 
 @Composable
 fun Root(model: AppModel) {
+    // The Altim logo traced at launch, and again right after the login (never when animations are off).
+    val motion = animationsOn()
+    var trace by remember { mutableStateOf(motion) }
+    var lastPhase by remember { mutableStateOf(model.phase) }
+    LaunchedEffect(model.phase) {
+        if (motion && lastPhase == AppModel.Phase.SETUP && model.phase == AppModel.Phase.READY) trace = true
+        lastPhase = model.phase
+    }
     AppBackground {
         when {
             !model.acceptedDisclaimer -> DisclaimerScreen(model)
@@ -79,6 +87,7 @@ fun Root(model: AppModel) {
             model.phase == AppModel.Phase.LOCKED -> LockScreen(model)
             else -> MainTabs(model)
         }
+        if (trace) key(lastPhase) { LaunchTrace { trace = false } }
     }
     // Live prices of everything visible: watch list, holdings, Sélection picks, simulated positions and the open asset.
     var resumed by remember { mutableStateOf(false) }

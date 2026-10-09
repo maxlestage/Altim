@@ -142,7 +142,8 @@ pub struct SparklineProps {
 pub fn Sparkline(p: &SparklineProps) -> Html {
     let v = &p.values;
     if v.len() < 2 {
-        return html! { <svg class="spark" /> };
+        // Drawn in (CSS) when the line arrives: the class change starts the animation once.
+        return html! { <svg class="spark empty" /> };
     }
     let min = v.iter().copied().fold(f64::INFINITY, f64::min);
     let max = v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
