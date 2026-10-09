@@ -49,6 +49,33 @@ allumé, le même balisage que `WebApp`), affiché dès l'arrivée du HTML ; le 
 avant le cadre) le masque : l'app affiche alors l'avertissement. Un changement de l'en-tête ou des onglets dans
 `app::WebApp` se reporte dans `shell.html`.
 
+## Animations
+
+Le site (page d'accueil) :
+
+- **Ouverture** (`frontend/door.js`, balisage `door.html`), une fois par session (`sessionStorage` `altim.door`) : le
+  logo tracé trait par trait, un compteur 0 → 100 % qui ne bouge que sur des événements réels (octets du `.wasm` reçus,
+  comptés par le chargeur du site sur une copie du flux : 80 % ; polices du héros : 10 % ; première réponse `/api/` :
+  10 %), puis la porte s'ouvre. Elle s'ouvre au plus tard 0,7 s après le premier rendu, quoi que dise le compteur ; un
+  toucher ou une touche l'ouvre aussitôt ; jamais avec « réduire les animations ». `build-web.sh` place `door.js` en
+  tête du chargeur du site (`loader-site.js`, un module : rien ne bloque l'analyse de la page).
+- **Film au défilement** (`site::film`, logique `altim_core::web::film`) : une scène collante plein écran, une
+  légende (texte réel) par station ; le `.wasm` écrit la position dans le film (`data-s`) et l'opacité des légendes.
+  `frontend/motion.js`, chargé après le premier rendu (`requestIdleCallback`), y dessine des milliers de grains
+  (WebGL : formes envoyées une fois, morphose dans le vertex shader ; Canvas 2D sinon) : 2 000–2 800 sur mobile,
+  5 000–7 000 sur ordinateur, `devicePixelRatio` plafonné à 2, en pause hors écran ou onglet caché, rien avec
+  « économie de données » (le logo fixe reste). Défilement natif partout ; seule la scène suit avec un peu d'inertie.
+- **Ambiance** : grain de film (bruit SVG en CSS), apparition des sections au défilement ; sur pointeur fin seulement
+  (`hover: hover` et `pointer: fine`) un curseur rond qui suit la souris (le curseur du système reste) et des boutons
+  magnétiques.
+- **Réduire les animations** : ni ouverture ni film ; les légendes en liste, chacune avec son dessin fixe.
+
+L'app (sobre, c'est un outil ; rien ne masque ni ne retarde un chiffre, tout s'arrête avec « réduire les animations ») :
+le logo tracé une fois en arrivant de `/login` (`gate.js`), les chiffres d'un prix qui changent roulent et le prix
+s'allume brièvement en cyan ou en rouge (`LivePrice`, `altim_core::web::motion::digit_runs`, chiffres tabulaires), le
+verdict qui change apparaît en fondu (`DecisionBadge`), les cartes montent légèrement à leur première apparition, le
+point « EN DIRECT » pulse, les sparklines se dessinent de gauche à droite.
+
 Les `.wasm`, `.js` et `.css` ont une copie brotli (qualité 11, `.br`) et gzip (`.gz`) écrite par `scripts/precompress`,
 que le serveur envoie telle quelle (`Content-Encoding`, `Vary: Accept-Encoding`) au lieu de compresser à la volée.
 `wasm-opt -O2` sans sa passe d'inlining (et non `-Oz`) : l'inlining réduit le fichier brut mais il se compresse moins
@@ -71,6 +98,8 @@ frontend/ (altim-web)
   styles/global.css, app.css
   src/lib.rs, part.rs      bibliothèque de tout le front ; une partie = un .wasm (part::run, hand_over, stop)
   loader-app.js            chargeur des pages de l'app (groupe, puis app entière en arrière-plan)
+  loader-site.js, door.js  chargeur du site, précédé de l'ouverture de la page d'accueil (door.html)
+  motion.js                film de particules, curseur et boutons magnétiques du site (chargé après le premier rendu)
   shell.html, gate.js      cadre de l'app dans la page avant le .wasm, masqué avant l'avertissement
   bundles/                 paquet altim-bundles : un point d'entrée par partie (exemples Cargo)
   src/route.rs             enum Route, Root, use_on_link()
@@ -80,7 +109,7 @@ frontend/ (altim-web)
   src/live.rs              use_live (WebSocket /api/ws, repli SSE /api/live), LiveBadge, LivePrice
   src/ui.rs                ActionBadge, ReliabilityBadge, Change, Price, Gauge, Sparkline, PriceChart, Segmented, dates fr
   src/hooks.rs             use_reveal, use_interval, use_ticks, visible, every_visible, set_title
-  src/site/                site de présentation
+  src/site/                site de présentation (film.rs : le film au défilement)
   src/app/mod.rs           coquille : en-tête, onglets, avertissement, aiguillage des routes
   src/app/<écran>/         un dossier par écran (sous-composants dans le même dossier)
 ```
