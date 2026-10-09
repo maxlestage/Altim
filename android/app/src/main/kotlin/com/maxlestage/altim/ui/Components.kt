@@ -38,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -119,13 +121,16 @@ fun Badge(text: String, tone: Tone, modifier: Modifier = Modifier) {
  */
 @Composable
 fun DecisionBadge(digest: DecisionDigest?, modifier: Modifier = Modifier) {
-    if (digest == null) {
-        Badge(DecisionDigests.PENDING_LABEL, Tone.NEUTRAL, modifier.alpha(0.7f).semantics { contentDescription = "Décision en cours de calcul" })
-    } else {
-        Badge(
-            digest.badgeLabel, digest.tone,
-            modifier.semantics { contentDescription = "Décision Altim : ${digest.badgeLabel}, confiance ${Math.round(digest.confidence)}" },
-        )
+    // A new verdict (pushed live, or the first one computed) cross-fades in (web .dec-changed).
+    VerdictSwap(digest?.badgeLabel) { label ->
+        if (label == null || digest == null) {
+            Badge(DecisionDigests.PENDING_LABEL, Tone.NEUTRAL, modifier.alpha(0.7f).semantics { contentDescription = "Décision en cours de calcul" })
+        } else {
+            Badge(
+                label, digest.tone,
+                modifier.semantics { contentDescription = "Décision Altim : $label, confiance ${Math.round(digest.confidence)}" },
+            )
+        }
     }
 }
 
@@ -156,7 +161,9 @@ fun ChangeText(value: Double?) {
 fun Sparkline(values: List<Double>, modifier: Modifier = Modifier) {
     val up = (values.lastOrNull() ?: 0.0) >= (values.firstOrNull() ?: 0.0)
     val color = if (up) AltimColors.buy else AltimColors.sell
-    Canvas(modifier.clearAndSetSemantics { }) {
+    // Drawn from left to right the first time it shows (at once when animations are off).
+    val drawn = rememberDrawIn()
+    Canvas(modifier.clearAndSetSemantics { }.drawWithContent { clipRect(right = size.width * drawn) { this@drawWithContent.drawContent() } }) {
         if (values.size < 2) return@Canvas
         val lo = values.min()
         val hi = values.max()
@@ -184,7 +191,7 @@ fun LiveBadge(live: LivePrices) {
     val fresh = com.maxlestage.altim.kit.LiveSocket.isLive(live.lastMessage, now)
     val c = if (fresh) AltimColors.buy else AltimColors.warning
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(7.dp).clip(CircleShape).background(c))
+        PulseDot(c, active = fresh)
         Text(if (fresh) "EN DIRECT" else if (live.lastMessage == null) "CONNEXION…" else "RECONNEXION…", color = c, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
     }
 }
