@@ -1,6 +1,7 @@
 //! The presentation site (App.tsx `Home` + web/src/components), same markup and classes as the React one.
 pub mod background;
 pub mod bot_section;
+pub mod film;
 pub mod footer;
 pub mod hero;
 pub mod legal;
@@ -23,9 +24,11 @@ pub fn Home() -> Html {
     html! {
         <>
             <background::Background />
+            <div class="grain" aria-hidden="true" />
             <nav::Nav />
             <main>
                 <hero::Hero ticks={ticks.clone()} />
+                <film::Film />
                 <ticker::Ticker ticks={ticks} />
                 <live_signal::LiveSignal />
                 <sections::Features />

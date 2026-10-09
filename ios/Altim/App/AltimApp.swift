@@ -52,6 +52,9 @@ struct AltimApp: App {
 struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The logo traced at launch, and again right after the login (none with Reduce Motion).
+    @State private var trace = true
 
     var body: some View {
         Group {
@@ -64,6 +67,14 @@ struct RootView: View {
                 case .ready: MainTabs()
                 }
             }
+        }
+        .overlay {
+            if trace && !reduceMotion {
+                LaunchTraceView { trace = false }
+            }
+        }
+        .onChange(of: model.phase) { old, new in
+            if old == .setup && new == .ready { trace = true }
         }
         // App switcher snapshot: the holdings are hidden as soon as the app is not in the foreground.
         .overlay {

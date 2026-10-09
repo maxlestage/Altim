@@ -332,7 +332,7 @@ fun RadarRowView(model: AppModel, asset: Asset, row: RadarRow?, timeframe: Timef
             }
             if (LocalDensity.current.fontScale <= 1.3f) row?.sparkline?.takeIf { it.size > 2 }?.let { Sparkline(it, Modifier.width(56.dp).height(26.dp)) }
             Column(Modifier.weight(1f, fill = false), horizontalAlignment = Alignment.End) {
-                Text(Format.price(tick?.price ?: row?.price), style = mono(14.sp), textAlign = TextAlign.End)
+                LivePriceText(tick?.price ?: row?.price, Format.price(tick?.price ?: row?.price), mono(14.sp), textAlign = TextAlign.End)
                 ChangeText(tick?.change ?: row?.change)
             }
         }
