@@ -249,10 +249,9 @@ struct RadarRowView: View {
                 Spacer(minLength: 4)
                 VStack(alignment: .trailing, spacing: 3) {
                     // A long price shrinks a little rather than pushing the row past the screen (320 pt).
-                    Text(Format.price(tick?.price ?? row?.price)).font(Theme.mono(14)).foregroundStyle(.white)
+                    Text(Format.price(tick?.price ?? row?.price)).font(Theme.mono(14))
                         .lineLimit(1).minimumScaleFactor(0.6)
-                        .contentTransition(.numericText())
-                        .animation(.default, value: tick?.price)
+                        .liveTick(tick?.price ?? row?.price)
                     ChangeText(value: tick?.change ?? row?.change)
                 }
                 .layoutPriority(1)

@@ -41,17 +41,26 @@ struct Badge: View {
 /// less than 12 h ago; "Décision…" until then. The 4 h technical signal is only one of its inputs (web DecisionBadge).
 struct DecisionBadge: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var asset: Asset
 
     var body: some View {
-        if let d = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000) {
-            Badge(text: d.badgeLabel, tone: d.tone)
-                .accessibilityLabel("Décision Altim : \(d.badgeLabel), confiance \(Int(d.confidence.rounded()))")
-        } else {
-            Badge(text: DecisionDigests.pendingLabel, tone: .neutral)
-                .opacity(0.7)
-                .accessibilityLabel("Décision en cours de calcul")
+        let d = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000)
+        // A new verdict (pushed live, or the first one computed) cross-fades in, rising slightly (web .dec-changed).
+        ZStack {
+            if let d {
+                Badge(text: d.badgeLabel, tone: d.tone)
+                    .accessibilityLabel("Décision Altim : \(d.badgeLabel), confiance \(Int(d.confidence.rounded()))")
+                    .id(d.badgeLabel)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)).combined(with: .scale(scale: 0.92)), removal: .opacity))
+            } else {
+                Badge(text: DecisionDigests.pendingLabel, tone: .neutral)
+                    .opacity(0.7)
+                    .accessibilityLabel("Décision en cours de calcul")
+                    .transition(.opacity)
+            }
         }
+        .animation(reduceMotion ? nil : .spring(duration: 0.45), value: d?.badgeLabel)
     }
 }
 
@@ -111,6 +120,8 @@ struct Sparkline: View {
         .chartXAxis(.hidden)
         .chartYAxis(.hidden)
         .chartYScale(domain: (values.min() ?? 0)...(values.max() ?? 1))
+        // Draws itself from left to right the first time it shows (still with Reduce Motion).
+        .modifier(DrawIn())
         .accessibilityHidden(true)
     }
 }
@@ -124,7 +135,7 @@ struct LiveBadge: View {
         TimelineView(.periodic(from: .now, by: 2)) { ctx in
             let fresh = LiveMessage.isLive(lastMessage: model.live.lastMessage, now: ctx.date)
             HStack(spacing: 6) {
-                Circle().fill(fresh ? Theme.buy : Theme.warning).frame(width: 7, height: 7).neonGlow(fresh ? Theme.buy : Theme.warning, radius: 4)
+                PulseDot(color: fresh ? Theme.buy : Theme.warning, active: fresh)
                 Text(fresh ? "EN DIRECT" : model.live.lastMessage == nil ? "CONNEXION…" : "RECONNEXION…")
                     .font(.system(size: 10, weight: .bold, design: .rounded)).tracking(1)
                     .foregroundStyle(fresh ? Theme.buy : Theme.warning)
