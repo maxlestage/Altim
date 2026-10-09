@@ -316,21 +316,30 @@
 .live-badge small { font-weight: 400; letter-spacing: 0; }
 .live-badge i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
 .live-badge.live { color: #39ff88; }
-.live-badge.live i { background: #39ff88; box-shadow: 0 0 8px #39ff88; animation: live-pulse 1.6s ease-in-out infinite; }
+.live-badge.live i { position: relative; background: #39ff88; box-shadow: 0 0 8px #39ff88; animation: live-pulse 1.6s ease-in-out infinite; }
+/* A ring leaves the dot on each beat (sonar), in the same rhythm. */
+.live-badge.live i::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 1px solid #39ff88; opacity: 0; animation: live-ring 1.6s ease-out infinite; }
+@keyframes live-ring { from { transform: scale(0.5); opacity: 0.9; } to { transform: scale(1.7); opacity: 0; } }
 .live-badge.connecting i { background: #ffc733; }
 .live-badge.offline { color: #ff3b5c; }
 .live-badge.offline i { background: #ff3b5c; }
 @keyframes live-pulse { 50% { opacity: 0.35; } }
-.live-price { border-radius: 4px; padding: 0 2px; margin: 0 -2px; }
+/* A tick: the price flashes cyan (up) or red (down), its changed digits roll in; tabular figures, transforms only:
+   nothing around it moves. */
+.live-price { border-radius: 4px; padding: 0 2px; margin: 0 -2px; font-variant-numeric: tabular-nums; }
 .live-price.flash-up { animation: flash-up 0.9s ease-out; }
 .live-price.flash-down { animation: flash-down 0.9s ease-out; }
-@keyframes flash-up { from { background: rgba(57, 255, 136, 0.35); color: #39ff88; } to { background: transparent; } }
-@keyframes flash-down { from { background: rgba(255, 59, 92, 0.35); color: #ff3b5c; } to { background: transparent; } }
+@keyframes flash-up { from { background: rgba(0, 240, 255, 0.28); color: var(--cyan); } to { background: transparent; } }
+@keyframes flash-down { from { background: rgba(255, 59, 92, 0.3); color: #ff3b5c; } to { background: transparent; } }
+.live-price .roll-up, .live-price .roll-down { display: inline-block; animation: roll-up 0.36s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.live-price .roll-down { animation-name: roll-down; }
+@keyframes roll-up { from { transform: translateY(0.38em); opacity: 0; } }
+@keyframes roll-down { from { transform: translateY(-0.38em); opacity: 0; } }
 .market-closed { font-family: var(--mono); font-size: 10px; color: #ffc733; white-space: nowrap; }
 .summary-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .asset-head-price .live-badge { justify-self: end; }
 @media (prefers-reduced-motion: reduce) {
-  .live-badge.live i, .live-price.flash-up, .live-price.flash-down { animation: none; }
+  .live-badge.live i, .live-badge.live i::after, .live-price.flash-up, .live-price.flash-down, .live-price span { animation: none; }
 }
 
 /* ---------- Buy zones (Fibonacci) and macro context ---------- */
@@ -941,3 +950,26 @@
 /* The app frame drawn in an app page before its .wasm (frontend/shell.html): hidden until the disclaimer is accepted
    on this browser (frontend/gate.js). */
 .no-shell .webapp[data-static] { display: none; }
+
+/* ---------- Micro-animations of the app: restrained, never hiding or delaying a figure (reduced motion: none) ---------- */
+/* Cards rise slightly on their first appearance (never from invisible). */
+.app-main .card { animation: card-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.app-main .card:nth-of-type(2) { animation-delay: 0.04s; }
+.app-main .card:nth-of-type(3) { animation-delay: 0.08s; }
+.app-main .card:nth-of-type(n + 4) { animation-delay: 0.12s; }
+@keyframes card-rise { from { opacity: 0.4; transform: translateY(10px); } }
+/* A sparkline draws itself from left to right when its line arrives. */
+.spark:not(.empty) { animation: spark-draw 0.9s cubic-bezier(0.4, 0, 0.2, 1) both; }
+@keyframes spark-draw { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+/* A new verdict cross-fades in with a short cyan glow. */
+.badge.dec-changed { animation: dec-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes dec-in { from { opacity: 0.2; transform: translateY(35%) scale(0.92); box-shadow: 0 0 22px var(--cyan); } }
+/* After the login: the Altim logo traced once over the app's frame, gone in 0.9 s (frontend/gate.js). */
+.arrive { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; pointer-events: none; background: rgba(5, 7, 15, 0.82); animation: arrive-out 0.3s 0.62s ease-in forwards; }
+.arrive svg { width: 96px; height: 96px; fill: none; stroke: var(--text); stroke-width: 34; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 12px rgba(0, 240, 255, 0.5)); }
+.arrive path { stroke-dasharray: 1 1.2; stroke-dashoffset: 1.01; animation: door-trace 0.42s cubic-bezier(0.6, 0, 0.3, 1) forwards; }
+.arrive .acc { stroke: var(--cyan); animation-delay: 0.3s; animation-duration: 0.3s; }
+@keyframes arrive-out { to { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) {
+  .arrive { display: none; }
+}

@@ -481,12 +481,35 @@ pub struct LivePriceProps {
     pub format: Callback<f64, String>,
 }
 
-/// Price that flashes green / red on each move (the key restarts the animation).
+/// Price that flashes cyan / red on each move, its changed digits rolling in from below (up) or above (down); the key
+/// restarts the animations. Tabular figures: nothing moves sideways.
 #[component]
 pub fn LivePrice(p: &LivePriceProps) -> Html {
     let _m = crate::money::use_money();
+    // The text shown before this tick (per tick sequence), for the digits that roll.
+    let shown = use_mut_ref(|| (0u64, None::<String>, None::<String>));
     let v = p.tick.as_ref().map(|t| t.price).or(p.fallback).filter(|v| v.is_finite());
     let Some(v) = v else { return html! { { "—" } } };
     let dir = p.tick.as_ref().and_then(|t| t.dir).map(|d| if d == Dir::Up { "flash-up" } else { "flash-down" });
-    html! { <span key={p.tick.as_ref().map(|t| t.seq).unwrap_or(0).to_string()} class={classes!("live-price", dir)}>{ p.format.emit(v) }</span> }
+    let seq = p.tick.as_ref().map(|t| t.seq).unwrap_or(0);
+    let text = p.format.emit(v);
+    let prev = {
+        let mut s = shown.borrow_mut();
+        if s.0 != seq {
+            s.1 = s.2.take();
+            s.0 = seq;
+        }
+        s.2 = Some(text.clone());
+        if dir.is_some() { s.1.clone() } else { None }
+    };
+    let roll = if dir == Some("flash-up") { "roll-up" } else { "roll-down" };
+    html! {
+        <span key={seq.to_string()} class={classes!("live-price", dir)}>
+            { for altim_core::web::motion::digit_runs(prev.as_deref(), &text).into_iter().map(|(run, changed)| if changed {
+                html! { <>{ for run.chars().map(|c| html! { <span class={roll}>{ c }</span> }) }</> }
+            } else {
+                html! { { run } }
+            }) }
+        </span>
+    }
 }

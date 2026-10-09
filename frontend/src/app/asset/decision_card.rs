@@ -662,7 +662,11 @@ pub struct DecisionBadgeProps {
 #[component]
 pub fn DecisionBadge(p: &DecisionBadgeProps) -> Html {
     let _seen = store::use_decisions_seen();
+    // The label shown before: a new verdict (pushed live, or the first one computed) cross-fades in, the key
+    // restarting the animation; the same verdict stays still.
+    let before = use_mut_ref(|| (String::new(), false));
     let Some(c) = store::fresh(p.kind, &p.symbol) else {
+        *before.borrow_mut() = ("Décision…".into(), false);
         return html! { <span class="badge hold dec-pending" title="Décision en cours de calcul">{ "Décision…" }</span> };
     };
     let doc = &c.decision;
@@ -671,9 +675,17 @@ pub fn DecisionBadge(p: &DecisionBadgeProps) -> Html {
         Some(r) => rating_ui(r).1.to_string(),
         None => d.label.clone(),
     };
+    let changed = {
+        let mut b = before.borrow_mut();
+        if b.0 != label {
+            *b = (label.clone(), !b.0.is_empty());
+        }
+        b.1
+    };
     html! {
         <span
-            class={format!("badge {}", rating_tone(doc.rating(), d.verdict))}
+            key={label.clone()}
+            class={classes!("badge", rating_tone(doc.rating(), d.verdict), changed.then_some("dec-changed"))}
             title={format!("Décision Altim du {} : {} · confiance {}", short_date_time(c.at), level_ui(d.level).1, altim_core::js::round(d.confidence))}
         >
             { label }
