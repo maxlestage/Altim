@@ -31,8 +31,8 @@ struct AssetDetailView: View {
                 signalCard
                 TimeMachineCard(asset: asset)
                 zonesCard
+                guardCard
                 if !model.isStandalone {
-                    guardCard
                     AnomaliesCard(asset: asset)
                     WhyCard(asset: asset)
                 }
@@ -244,9 +244,8 @@ struct AssetDetailView: View {
         if zones.value == nil { zones = .loading }
         if guardReport.value == nil { guardReport = .loading }
         async let z = client.zones(asset)
-        do { zones = .loaded(try await z) } catch { zones = .failed(error.localizedDescription) }
-        guard !client.isStandalone else { return }
         async let g = client.guardReport(asset)
+        do { zones = .loaded(try await z) } catch { zones = .failed(error.localizedDescription) }
         do { guardReport = .loaded(try await g) } catch { guardReport = .failed(error.localizedDescription) }
         model.persistSession()
     }

@@ -14,7 +14,7 @@ public actor LocalBackend {
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -38,6 +38,8 @@ public actor LocalBackend {
                 return (try Self.encode(await fx()), 200)
             case "/api/zones":
                 return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/guard":
+                return (try Self.encode(try await guardReport(try Self.asset(query["symbol"], query["kind"]))), 200)
             case "/api/alerts":
                 return (await alerts(Self.assets(query["symbols"])), 200)
             case "/api/news":
