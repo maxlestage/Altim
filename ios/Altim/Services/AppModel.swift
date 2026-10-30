@@ -78,6 +78,8 @@ final class AppModel {
     var risk: RiskSettings { didSet { defaults.set(try? JSONEncoder().encode(risk), forKey: "riskSettings") } }
     /// Last decision seen per asset and the configuration changes (Radar), stored on the iPhone only.
     var configChanges: ConfigState { didSet { LocalStore.save(configChanges, "configChanges") } }
+    /// Every change of verdict seen on this iPhone with its price: the live track record (Alertes → Bilan des verdicts).
+    var verdictLog: [VerdictLogEntry] { didSet { LocalStore.save(verdictLog, "verdictLog") } }
     /// Positions that became dangerous, last measured on Mes avoirs (shown again on the Radar with their time).
     var dangers: DangerState? { didSet { LocalStore.save(dangers, "dangers") } }
 
@@ -137,6 +139,7 @@ final class AppModel {
         risk = defaults.data(forKey: "riskSettings").flatMap { try? JSONDecoder().decode(RiskSettings.self, from: $0) } ?? .defaults
         // Damaged or older entries are dropped on reading (ConfigState validates each one).
         configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
+        verdictLog = LocalStore.load([VerdictLogEntry].self, "verdictLog") ?? []
         dangers = LocalStore.load(DangerState.self, "dangers")
         applyMoney()
         moneyStamp = Money.displayCurrency
@@ -368,6 +371,8 @@ final class AppModel {
     /// Every verdict seen (its page, the background check) goes through the configuration diff.
     @discardableResult
     func recordVerdict(_ v: TrendEngine.Verdict, asset: Asset, now: Date = Date()) -> ConfigTransition? {
+        let log = VerdictLog.record(verdictLog, v, asset: asset, now: now.timeIntervalSince1970 * 1000)
+        if log != verdictLog { verdictLog = log }
         let r = ConfigChanges.apply(configChanges, verdict: v, asset: asset, now: now.timeIntervalSince1970 * 1000)
         if r.state != configChanges { configChanges = r.state }
         return r.transition

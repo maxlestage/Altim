@@ -24,7 +24,7 @@ struct AlertsView: View {
                 } else if let alerts {
                     let buyable = alerts.filter(\.buy)
                     if buyable.isEmpty {
-                        Text("Rien d'achetable pour l'instant : aucune décision complète ne dit ACHETER ou ZONE D'ACHAT.")
+                        Text("Rien d'achetable pour l'instant : aucun de vos actifs n'est en tendance de fond haussière avec un momentum positif, sans source en désaccord ni choc.")
                             .font(.footnote).foregroundStyle(Theme.textSecondary)
                     }
                     ForEach(buyable) { a in
@@ -80,6 +80,19 @@ struct AlertsView: View {
                 Text("Journal des alertes")
             }
             .listRowBackground(Theme.surface.opacity(0.6))
+
+            Section {
+                let outcomes = VerdictLog.outcomes(model.verdictLog, prices: prices)
+                Text(VerdictLog.summary(outcomes).text).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                ForEach(outcomes.suffix(30).reversed()) { o in
+                    NavigationLink(value: o.entry.asset) { VerdictLogRow(outcome: o) }
+                }
+            } header: {
+                Text("Bilan des verdicts")
+            } footer: {
+                Text("Chaque changement de verdict vu sur cet iPhone, avec le prix du moment, et ce que le prix a fait jusqu'au verdict suivant (ou jusqu'à maintenant). Ce sont les vrais conseils donnés, pas un test rejoué ; sans frais, sur peu de cas : une indication, pas une preuve.")
+            }
+            .listRowBackground(Theme.surface.opacity(0.6))
         }
         .listStyle(.insetGrouped)
         .altimScreen()
@@ -101,7 +114,7 @@ struct AlertsView: View {
     private func load() async {
         guard let client = model.client else { return }
         let mine = model.watchlist + model.holdings.map(\.asset)
-        let tracked = mine + model.priceTargets.map(\.asset) + model.journal.map(\.asset)
+        let tracked = mine + model.priceTargets.map(\.asset) + model.journal.map(\.asset) + model.verdictLog.map(\.asset)
         let unique = { (list: [Asset]) in Array(Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }).values) }
         // The quotes of the price alerts and of the journal do not wait for (nor fail with) the buy alerts.
         async let q = try? client.quotes(unique(tracked))
@@ -278,5 +291,28 @@ struct PriceTargetSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// One verdict of the track record: the advice, since when, at what price, and the move until the next verdict or now.
+private struct VerdictLogRow: View {
+    var outcome: VerdictLog.Outcome
+
+    var body: some View {
+        let e = outcome.entry
+        VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(e.symbol).font(Theme.mono(15, weight: .bold))
+                Badge(text: e.label, tone: e.side == "buy" ? .good : e.side == "out" ? .bad : .neutral)
+                Spacer(minLength: 4)
+                if let c = outcome.change {
+                    Text(Format.percent(c, digits: 1)).font(Theme.mono(13)).foregroundStyle(Theme.color(forChange: c))
+                }
+            }
+            Text("\(outcome.ended ? "Du" : "Depuis le") \(Format.date(e.at)) à \(Format.price(e.price))\(outcome.ended ? " jusqu'au verdict suivant" : "")")
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+        }
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .combine)
     }
 }
