@@ -1,5 +1,6 @@
 import SwiftUI
 import UserNotifications
+import AppIntents
 import AltimKit
 
 /// Launch-time registrations: background check of the alerts, notification taps, Watch link.
@@ -114,7 +115,7 @@ struct MainTabs: View {
         TabView(selection: $tab) {
             NavigationStack { RadarView() }
                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }.tag(0)
-            NavigationStack { SelectionView() }
+            NavigationStack { if model.isStandalone { RotationView() } else { SelectionView() } }
                 .tabItem { Label("Sélection", systemImage: "list.number") }.tag(1)
             NavigationStack { HoldingsView() }
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }.tag(2)
@@ -182,5 +183,86 @@ struct LockView: View {
         .padding(24)
         .background(AppBackground())
         .task { await model.unlock() }
+    }
+}
+
+// MARK: - Siri and Shortcuts
+
+/// « Dis Siri, que dit le radar Altim ? » : the signals of the watch list, computed on the iPhone (no server, no
+/// account). The watch list is personal: the iPhone must be unlocked.
+struct RadarSummaryIntent: AppIntent {
+    static var title: LocalizedStringResource = "Résumé du radar"
+    static var description = IntentDescription("Les signaux des actifs de votre radar, calculés par Altim sur l'iPhone.")
+    static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let watchlist = Array((LocalStore.load([Asset].self, "watchlist") ?? Asset.defaults).prefix(8))
+        guard !watchlist.isEmpty else { return .result(dialog: "Votre radar est vide.") }
+        let rows = try await AltimClient.standalone().radar(watchlist, interval: Timeframe.standard.rawValue)
+        return .result(dialog: "\(SiriText.radar(rows))")
+    }
+}
+
+/// « Cours avec Altim » : the consensus price of one asset, its 24 h move and its 4 h signal.
+struct AssetPriceIntent: AppIntent {
+    static var title: LocalizedStringResource = "Cours d'un actif"
+    static var description = IntentDescription("Le prix médian des sources qui s'accordent, la variation sur 24 h et le signal technique, calculés par Altim sur l'iPhone.")
+
+    @Parameter(title: "Actif", requestValueDialog: "Quel actif ? Par exemple Bitcoin ou Apple.")
+    var name: String
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let client = AltimClient.standalone()
+        let wanted = name.trimmingCharacters(in: .whitespaces)
+        let found = try await client.search(wanted, limit: 5)
+        guard let item = found.first(where: { $0.symbol == wanted.uppercased() }) ?? found.first else {
+            return .result(dialog: "Je ne trouve pas « \(wanted) ».")
+        }
+        let rows = try await client.radar([item.asset], interval: Timeframe.standard.rawValue)
+        return .result(dialog: "\(SiriText.asset(item.asset, rows.first))")
+    }
+}
+
+/// The spoken answers (plain words: Siri reads them aloud).
+enum SiriText {
+    static func radar(_ rows: [RadarRow]) -> String {
+        let ok = rows.filter { $0.signal != nil }
+        guard !ok.isEmpty else { return "Les marchés ne répondent pas pour l'instant. Réessayez dans un moment." }
+        let buys = ok.filter { $0.signal?.action == .buy || $0.signal?.action == .strongBuy }.map { $0.name ?? $0.symbol }
+        let sells = ok.filter { $0.signal?.action == .sell || $0.signal?.action == .strongSell }.map { $0.name ?? $0.symbol }
+        var parts: [String] = []
+        parts.append(buys.isEmpty ? "Aucun signal d'achat sur votre radar." : "Signal d'achat sur \(list(buys)).")
+        if !sells.isEmpty { parts.append("Signal de vente sur \(list(sells)).") }
+        let wait = ok.count - buys.count - sells.count
+        if wait > 0 { parts.append("\(wait) actif\(wait > 1 ? "s" : "") à attendre.") }
+        if let best = ok.max(by: { ($0.change ?? -.infinity) < ($1.change ?? -.infinity) }), let c = best.change {
+            parts.append("Plus forte hausse : \(best.name ?? best.symbol), \(Format.percent(c, digits: 1)) sur 24 heures.")
+        }
+        parts.append("Altim ne passe aucun ordre.")
+        return parts.joined(separator: " ")
+    }
+
+    static func asset(_ a: Asset, _ row: RadarRow?) -> String {
+        guard let row, let price = row.price else { return "Le cours de \(a.name) est indisponible pour l'instant." }
+        var text = "\(a.name) vaut \(Format.price(price))"
+        if let c = row.change { text += ", \(Format.percent(c, digits: 1)) sur 24 heures" }
+        text += "."
+        if let s = row.signal { text += " Verdict Altim : \(s.action.label.lowercased())." }
+        return text
+    }
+
+    static func list(_ names: [String]) -> String {
+        names.count <= 1 ? names.joined() : names.dropLast().joined(separator: ", ") + " et " + names.last!
+    }
+}
+
+struct AltimShortcuts: AppShortcutsProvider {
+    static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: RadarSummaryIntent(),
+                    phrases: ["Que dit le radar \(.applicationName)", "Résumé du radar \(.applicationName)", "\(.applicationName) radar"],
+                    shortTitle: "Résumé du radar", systemImageName: "dot.radiowaves.left.and.right")
+        AppShortcut(intent: AssetPriceIntent(),
+                    phrases: ["Cours avec \(.applicationName)", "Prix avec \(.applicationName)"],
+                    shortTitle: "Cours d'un actif", systemImageName: "chart.line.uptrend.xyaxis")
     }
 }

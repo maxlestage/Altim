@@ -103,16 +103,19 @@ struct AlertsView: View {
         let mine = model.watchlist + model.holdings.map(\.asset)
         let tracked = mine + model.priceTargets.map(\.asset) + model.journal.map(\.asset)
         let unique = { (list: [Asset]) in Array(Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }).values) }
+        // The quotes of the price alerts and of the journal do not wait for (nor fail with) the buy alerts.
+        async let q = try? client.quotes(unique(tracked))
         do {
             alerts = try await client.alerts(unique(mine))
             error = nil
-            let q = try await client.quotes(unique(tracked))
-            quotes = Dictionary(q.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
             model.persistSession()
         } catch AltimError.unauthorized {
             model.sessionLost()
         } catch {
             self.error = error.localizedDescription
+        }
+        if let q = await q {
+            quotes = Dictionary(q.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
         }
     }
 }
