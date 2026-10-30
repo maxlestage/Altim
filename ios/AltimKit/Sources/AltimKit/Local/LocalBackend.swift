@@ -9,11 +9,12 @@ public actor LocalBackend {
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
     private var longCache: [String: (at: Double, bars: [Bar])] = [:]
+    private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
 
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -37,6 +38,8 @@ public actor LocalBackend {
                 return (try Self.encode(await fx()), 200)
             case "/api/zones":
                 return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/news":
+                return (try Self.encode(await news(Self.assets(query["symbols"]))), 200)
             case "/api/history":
                 let days = Int(query["days"] ?? "90") ?? 0
                 guard [30, 90, 365, 730].contains(days) else { throw MarketError("Paramètre days invalide (30 | 90 | 365 | 730)") }
@@ -155,6 +158,17 @@ public actor LocalBackend {
         }
         longCache[key] = (nowMs(), bars)
         return bars
+    }
+
+    // MARK: News
+
+    /// The news section, read again at most every 5 minutes for the same assets.
+    func news(_ assets: [Asset]) async -> NewsReport {
+        let key = assets.map(\.id).sorted().joined(separator: ",")
+        if let c = newsCache[key], nowMs() - c.at < 300_000 { return c.report }
+        let r = await NewsEngine.report(assets, fetcher: fetcher)
+        if !r.items.isEmpty { newsCache[key] = (nowMs(), r) }
+        return r
     }
 
     // MARK: History
