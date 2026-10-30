@@ -106,7 +106,8 @@ extension AltimClient {
     /// consuming task closes the socket.
     public func liveMessages(_ assets: [Asset], interval: String = "4h", usd: Bool,
                              opened: @escaping @Sendable () -> Void = {}) -> AsyncThrowingStream<LiveMessage, Error> {
-        AsyncThrowingStream { continuation in
+        if isStandalone, let local { return LocalLive.messages(assets, local: local, opened: opened) }
+        return AsyncThrowingStream { continuation in
             let config = URLSessionConfiguration.default
             config.httpShouldSetCookies = false
             config.httpCookieAcceptPolicy = .never

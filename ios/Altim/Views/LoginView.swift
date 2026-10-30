@@ -25,8 +25,8 @@ struct LoginView: View {
                     .foregroundStyle(Theme.accentGradient)
                     .neonGlow(Theme.cyan, radius: 12)
                     .padding(.top, 32)
-                Text("Accès privé").font(.title2.bold())
-                Text("Altim se connecte à votre serveur (l'application Heroku) : toutes les analyses y sont calculées sur 40 sources. Le mot de passe est gardé chiffré dans le trousseau de cet iPhone.")
+                Text("Serveur Altim (facultatif)").font(.title2.bold())
+                Text("Altim fonctionne seul : les cours, signaux et le Radar sont calculés sur cet iPhone. Un serveur Altim (l'application Heroku) ajoute les analyses pas encore portées sur l'iPhone. Le mot de passe est gardé chiffré dans le trousseau de cet iPhone.")
                     .font(.subheadline).foregroundStyle(Theme.textSecondary)
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -86,8 +86,10 @@ struct LoginView: View {
                 .disabled(busy || !canSubmit)
                 .opacity(canSubmit ? 1 : 0.4)
 
-                Text("Sans réseau vers le serveur, l'app ne peut rien afficher : aucune donnée de marché n'est inventée ni gardée en cache au-delà de quelques minutes.")
-                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                Button("Continuer sans serveur") { model.useStandalone() }
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 4)
             }
             .padding(24)
         }

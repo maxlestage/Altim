@@ -38,7 +38,19 @@ extension AltimClient {
     /// cryptos, every 5 s for stocks). Ends on a network error or an expired session (`.unauthorized`);
     /// the caller reconnects. Cancelling the consuming task closes the connection.
     public func liveTicks(_ assets: [Asset]) -> AsyncThrowingStream<LiveTick, Error> {
-        AsyncThrowingStream { continuation in
+        if isStandalone, let local {
+            let messages = LocalLive.messages(assets, local: local)
+            return AsyncThrowingStream { continuation in
+                let t = Task {
+                    do {
+                        for try await m in messages { if case .tick(let tick) = m { continuation.yield(tick) } }
+                        continuation.finish()
+                    } catch { continuation.finish(throwing: error) }
+                }
+                continuation.onTermination = { _ in t.cancel() }
+            }
+        }
+        return AsyncThrowingStream { continuation in
             let queue = OperationQueue()
             queue.maxConcurrentOperationCount = 1
             let config = URLSessionConfiguration.default

@@ -9,10 +9,21 @@ struct SettingsView: View {
     var body: some View {
         @Bindable var model = model
         Form {
-            Section("Serveur") {
-                KeyValue(key: "Adresse", value: model.serverURL?.host ?? "—")
-                KeyValue(key: "Identifiant", value: model.user ?? "accès ouvert")
-                Button("Se déconnecter", role: .destructive) { confirmLogout = true }
+            if model.isStandalone {
+                Section {
+                    KeyValue(key: "Mode", value: "Autonome (sur cet iPhone)")
+                    Button("Connecter un serveur Altim") { model.showServerSetup() }
+                } header: {
+                    Text("Données")
+                } footer: {
+                    Text("Altim lit lui-même les cours sur les bourses crypto (Coinbase, Kraken, OKX, KuCoin, Gate.io, Bitstamp, Bitfinex, Binance) et les données boursières (Yahoo Finance, Nasdaq, Robinhood), puis calcule sur l'iPhone les signaux, la fiabilité et le Radar. Aucun compte, aucun serveur. Un serveur Altim reste facultatif pour les analyses pas encore portées sur l'iPhone.")
+                }
+            } else {
+                Section("Serveur (facultatif)") {
+                    KeyValue(key: "Adresse", value: model.serverURL?.host ?? "—")
+                    KeyValue(key: "Identifiant", value: model.user ?? "accès ouvert")
+                    Button("Se déconnecter (mode autonome)", role: .destructive) { confirmLogout = true }
+                }
             }
             Section {
                 FittingPicker(title: "Devise d'affichage", selection: $model.currency) {
@@ -180,9 +191,9 @@ struct SettingsView: View {
                 NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
             }
             Section("Données") {
-                KeyValue(key: "Sources de prix", value: "40 (23 crypto, 17 actions)")
-                KeyValue(key: "Prix en direct", value: "7 bourses crypto, actions toutes les 5 s")
-                Text("Chaque prix est la médiane des sources qui s'accordent ; une source qui s'écarte est écartée. Les calculs (signaux, zones de Fibonacci, garde-fou, sélection) sont faits sur votre serveur, comme sur le site.")
+                KeyValue(key: "Sources lues par l'iPhone", value: "8 crypto, 3 actions")
+                KeyValue(key: "Prix en direct", value: "crypto toutes les 5 s, actions 15 s")
+                Text("Chaque prix est la médiane des sources qui s'accordent ; une source qui s'écarte est écartée. Les cours, les bougies, les signaux, la fiabilité et le Radar sont calculés sur cet iPhone, avec ou sans serveur.")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
             }
             Section("À savoir") {
@@ -196,7 +207,7 @@ struct SettingsView: View {
         .confirmationDialog("Se déconnecter ?", isPresented: $confirmLogout, titleVisibility: .visible) {
             Button("Se déconnecter", role: .destructive) { Task { await model.logout() } }
         } message: {
-            Text("Le mot de passe enregistré sur cet iPhone sera effacé. Vos avoirs et votre radar restent.")
+            Text("Le mot de passe enregistré sur cet iPhone sera effacé. Altim continue en mode autonome ; vos avoirs et votre radar restent.")
         }
     }
 }
