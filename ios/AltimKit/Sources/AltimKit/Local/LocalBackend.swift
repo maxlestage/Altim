@@ -8,11 +8,12 @@ public actor LocalBackend {
     private var snapshots: [String: (at: Double, task: Task<LocalSnapshot, Error>)] = [:]
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
+    private var longCache: [String: (at: Double, bars: [Bar])] = [:]
 
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -34,6 +35,14 @@ public actor LocalBackend {
                 return (try Self.encode(await LocalSearch.search(query["q"] ?? "", limit: limit, fetcher: fetcher)), 200)
             case "/api/fx":
                 return (try Self.encode(await fx()), 200)
+            case "/api/zones":
+                return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/history":
+                let days = Int(query["days"] ?? "90") ?? 0
+                guard [30, 90, 365, 730].contains(days) else { throw MarketError("Paramètre days invalide (30 | 90 | 365 | 730)") }
+                return (try Self.encode(await history(Self.assets(query["symbols"]), days: days)), 200)
+            case "/api/backtest":
+                return (try Self.encode(try await backtest(try Self.asset(query["symbol"], query["kind"]))), 200)
             default:
                 return nil
             }
@@ -107,6 +116,69 @@ public actor LocalBackend {
                             reliability: nil, agreeing: nil, sources: nil, sparkline: nil,
                             error: (error as? MarketError)?.message ?? error.localizedDescription)
         }
+    }
+
+    // MARK: Zones
+
+    /// Fibonacci buy zones of the three horizons; the status and distance follow the current consensus price.
+    func zones(_ a: Asset) async throws -> ZonesReport {
+        async let h4 = try? snapshot(a, .h4)
+        async let d1 = try? snapshot(a, .d1)
+        async let w1 = try? snapshot(a, .w1)
+        async let q = quotes([a])
+        let (s4, sd, sw) = (await h4, await d1, await w1)
+        guard s4 != nil || sd != nil || sw != nil else { throw MarketError("Toutes les sources ont échoué") }
+        let price = await q.first?.price ?? s4?.candles.last?.close ?? sd?.candles.last?.close
+        let zones = FibEngine.zones(h4: s4?.candles ?? [], daily: sd?.candles ?? [], weekly: sw?.candles ?? [], price: price)
+        return ZonesReport(symbol: a.symbol, kind: a.kind, price: price, asOf: nowMs(), zones: zones, macro: nil)
+    }
+
+    // MARK: Backtest
+
+    /// The signal replayed on two years of daily candles (`Backtest.run`).
+    func backtest(_ a: Asset) async throws -> BacktestReport {
+        let s = try await snapshot(a, .d1)
+        return Backtest.run(try await longDaily(a), asset: a, reliability: s.reliability)
+    }
+
+    /// Longest daily history: for cryptos the exchanges' ≈ 1 000 days when they agree, else the usual daily candles
+    /// (stocks: Yahoo's 2 years, Nasdaq's and Robinhood's 5).
+    func longDaily(_ a: Asset) async throws -> [Bar] {
+        let key = "long:\(a.id)"
+        if let c = longCache[key], nowMs() - c.at < 3_600_000 { return c.bars }
+        let s = try await snapshot(a, .d1)
+        var bars = s.candles
+        if a.kind == .crypto,
+           let long = try? await Consensus.candles(a.symbol, kind: .crypto, .d1, sources: Sources.cryptoLongDaily, fetcher: fetcher, tolerance: 0.5),
+           long.candles.count > bars.count {
+            bars = long.candles
+        }
+        longCache[key] = (nowMs(), bars)
+        return bars
+    }
+
+    // MARK: History
+
+    /// Daily closes of each asset over `days` (+ a week), plus Bitcoin and SPY (the benchmarks of the portfolio history).
+    func history(_ held: [Asset], days: Int) async -> HistoryResponse {
+        var unique: [Asset] = []
+        for a in held + [Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), Asset(symbol: "SPY", kind: .stock, name: "S&P 500 (SPY)")]
+        where !unique.contains(where: { $0.id == a.id }) { unique.append(a) }
+        let from = nowMs() - Double(days + 7) * 86_400_000
+        let series: [HistoryResponse.Series] = await withTaskGroup(of: (Int, HistoryResponse.Series).self) { g in
+            for (i, a) in unique.enumerated() {
+                g.addTask {
+                    guard let bars = try? await self.longDaily(a) else {
+                        return (i, .init(symbol: a.symbol, kind: a.kind, closes: [], error: "historique indisponible"))
+                    }
+                    return (i, .init(symbol: a.symbol, kind: a.kind, closes: bars.filter { $0.time >= from }.map { [$0.time, $0.close] }, error: nil))
+                }
+            }
+            var out: [(Int, HistoryResponse.Series)] = []
+            for await r in g { out.append(r) }
+            return out.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+        return HistoryResponse(asOf: nowMs(), days: days, series: series)
     }
 
     // MARK: Quotes
