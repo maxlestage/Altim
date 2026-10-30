@@ -25,19 +25,23 @@ struct AssetDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                decisionCard
+                // Without a server, only what the iPhone computes itself is shown (no card stuck on an error).
+                if model.isStandalone { VerdictCard(asset: asset) } else { decisionCard }
                 chartCard
-                signalCard
+                if !model.isStandalone { signalCard }
+                TimeMachineCard(asset: asset)
                 zonesCard
                 guardCard
-                AnomaliesCard(asset: asset)
-                WhyCard(asset: asset)
+                if !model.isStandalone {
+                    AnomaliesCard(asset: asset)
+                    WhyCard(asset: asset)
+                }
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
                 NoteCard(asset: asset)
                 PositionCard(asset: asset, price: model.live.price(asset)?.price ?? signal?.price ?? zones.value?.price, zones: zones.value?.zones ?? [])
                 DcaCard(asset: asset)
-                StrategiesCard(asset: asset)
+                if !model.isStandalone { StrategiesCard(asset: asset) }
                 Text("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }
@@ -249,7 +253,7 @@ struct AssetDetailView: View {
     /// Informational decision, or personal when the asset is held: its average cost and the share (%) of each line of
     /// the portfolio are sent for this answer only (never the quantities nor the amounts; the server keeps nothing).
     private func loadDecision() async {
-        guard let client = model.client else { return }
+        guard let client = model.client, !client.isStandalone else { return }
         if decision.value == nil { decision = .loading }
         var cost: Double?
         var weights: [DecisionWeight] = []
@@ -458,5 +462,226 @@ struct MacroCard: View {
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }
         }
+    }
+}
+
+/// « La machine à remonter le temps » : the technical signal replayed day by day on the asset's history, computed on
+/// the iPhone (AltimKit Backtest), against simply holding the asset. Honest by design: it says so when holding won.
+struct TimeMachineCard: View {
+    @Environment(AppModel.self) private var model
+    let asset: Asset
+    @State private var report: Loadable<BacktestReport> = .idle
+    @State private var showTrades = false
+
+    var body: some View {
+        Card(title: "Machine à remonter le temps", glow: Theme.magenta) {
+            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, sorti sinon. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
+                .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            switch report {
+            case .idle, .loading:
+                ProgressView("Voyage dans le temps…").frame(maxWidth: .infinity, minHeight: 80).tint(Theme.magenta)
+            case let .failed(m):
+                ErrorView(message: m) { Task { await load() } }
+            case let .loaded(r):
+                content(r)
+            }
+        }
+        .task(id: asset.id) { await load() }
+    }
+
+    @ViewBuilder private func content(_ r: BacktestReport) -> some View {
+        if let e = r.error {
+            Notice(text: e, tone: .warn)
+        } else {
+            Badge(text: r.verdict.uppercased(), tone: r.tone)
+            Text("Du \(Format.date(r.from)) au \(Format.date(r.to)) · \(r.days) jours")
+                .font(.caption).foregroundStyle(Theme.textSecondary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) { tiles(r) }
+                VStack(spacing: 10) { tiles(r) }
+            }
+            TimeMachineChart(points: r.curve)
+                .frame(height: 170)
+            HStack(spacing: 14) {
+                legend(Theme.magenta, "Suivre Altim", dashed: false)
+                legend(.white.opacity(0.6), "Garder", dashed: true)
+            }
+            .font(.caption2)
+            KeyValue(key: "Achats déclenchés", value: "\(r.trades.count)")
+            if let w = r.winRate { KeyValue(key: "Trades gagnants", value: "\(Int(w.rounded())) %", tone: w >= 50 ? .good : .warn) }
+            KeyValue(key: "Temps investi", value: "\(Int(r.exposure.rounded())) %")
+            if !r.trades.isEmpty {
+                Button(showTrades ? "Masquer les trades" : "Voir les derniers trades") {
+                    withAnimation(.snappy) { showTrades.toggle() }
+                }
+                .font(.footnote).buttonStyle(.borderless)
+                if showTrades {
+                    ForEach(r.trades.suffix(8).reversed()) { t in tradeRow(t) }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+            }
+            Text("Le passé ne garantit rien. La règle protège surtout dans les marchés baissiers ; en forte hausse, garder peut faire mieux.")
+                .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder private func tiles(_ r: BacktestReport) -> some View {
+        tile("Suivre Altim", r.strategyReturn, drawdown: r.strategyDrawdown, color: Theme.magenta)
+        tile("Garder", r.holdReturn, drawdown: r.holdDrawdown, color: .white)
+    }
+
+    private func tile(_ title: String, _ ret: Double, drawdown: Double, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title).font(.caption.weight(.semibold)).foregroundStyle(color)
+            Text(Self.signed(ret)).font(Theme.mono(22, weight: .bold)).foregroundStyle(Theme.color(forChange: ret))
+                .lineLimit(1).minimumScaleFactor(0.6)
+            Text("pire creux \(Self.signed(drawdown))").font(.caption2).foregroundStyle(Theme.textSecondary)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.05)))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func legend(_ color: Color, _ text: String, dashed: Bool) -> some View {
+        HStack(spacing: 6) {
+            Capsule().fill(color).frame(width: 16, height: 3).opacity(dashed ? 0.7 : 1)
+            Text(text).foregroundStyle(Theme.textSecondary)
+        }
+    }
+
+    private func tradeRow(_ t: BacktestReport.Trade) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(Format.date(t.entryTime)) → \(t.exit == "open" ? "en cours" : Format.date(t.exitTime))").font(.caption)
+                Text(Self.exitLabel(t.exit)).font(.caption2).foregroundStyle(Theme.textSecondary)
+            }
+            Spacer()
+            Text(Self.signed(t.result)).font(Theme.mono(13)).foregroundStyle(Theme.color(forChange: t.result))
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    static func exitLabel(_ e: String) -> String {
+        switch e {
+        case "stop": return "Sorti au stop"
+        case "target": return "Objectif atteint"
+        case "signal": return "Signal de vente"
+        default: return "Toujours détenu"
+        }
+    }
+
+    static func signed(_ v: Double) -> String { "\(v >= 0 ? "+" : "−")\(Format.plain(abs(v), digits: abs(v) >= 100 ? 0 : 1)) %" }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        if report.value == nil { report = .loading }
+        do { report = .loaded(try await client.backtest(asset)) } catch { report = .failed(error.localizedDescription) }
+    }
+}
+
+/// Value of 100 invested: following the signal (magenta, filled) and holding (white, dashed). Drawn once, left to
+/// right, when it appears (none with Reduce Motion).
+struct TimeMachineChart: View {
+    var points: [BacktestReport.Point]
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = 0.0
+
+    var body: some View {
+        let visible = Array(points.prefix(max(2, Int((Double(points.count) * shown).rounded()))))
+        let values = points.flatMap { [$0.strategy, $0.hold] }
+        let lo = (values.min() ?? 90) * 0.97
+        let hi = (values.max() ?? 110) * 1.03
+        Chart {
+            RuleMark(y: .value("départ", 100)).foregroundStyle(.white.opacity(0.15)).lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 3]))
+            ForEach(visible, id: \.time) { p in
+                AreaMark(x: .value("date", Date(timeIntervalSince1970: p.time / 1000)), yStart: .value("bas", lo), yEnd: .value("Altim", p.strategy))
+                    .foregroundStyle(LinearGradient(colors: [Theme.magenta.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("date", Date(timeIntervalSince1970: p.time / 1000)), y: .value("Altim", p.strategy), series: .value("courbe", "Altim"))
+                    .foregroundStyle(Theme.magenta)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5))
+                    .interpolationMethod(.monotone)
+                LineMark(x: .value("date", Date(timeIntervalSince1970: p.time / 1000)), y: .value("Garder", p.hold), series: .value("courbe", "Garder"))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                    .interpolationMethod(.monotone)
+            }
+        }
+        .chartYScale(domain: lo...hi)
+        .chartXScale(domain: Date(timeIntervalSince1970: (points.first?.time ?? 0) / 1000)...Date(timeIntervalSince1970: (points.last?.time ?? 1) / 1000))
+        .chartXAxis {
+            AxisMarks(values: .automatic(desiredCount: 3)) { _ in
+                AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                AxisValueLabel()
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { _ in
+                AxisGridLine().foregroundStyle(.white.opacity(0.06))
+                AxisValueLabel()
+            }
+        }
+        .accessibilityLabel("100 investis deviennent \(Int((points.last?.strategy ?? 100).rounded())) en suivant Altim, \(Int((points.last?.hold ?? 100).rounded())) en gardant")
+        // The curve is traced in 30 steps (a chart's point count does not animate by itself).
+        .task(id: points.count) {
+            guard !reduceMotion else { return shown = 1 }
+            for step in 1...30 {
+                shown = Double(step) / 30
+                try? await Task.sleep(nanoseconds: 40_000_000)
+                if Task.isCancelled { return shown = 1 }
+            }
+        }
+    }
+}
+
+/// « Verdict Altim » (standalone): the daily rule chosen on measured results (AltimKit TrendEngine) — in only while the
+/// background trend is up and the momentum positive, best entered on a short pull-back.
+struct VerdictCard: View {
+    @Environment(AppModel.self) private var model
+    let asset: Asset
+    @State private var verdict: Loadable<TrendEngine.Verdict> = .idle
+
+    var body: some View {
+        Card(title: "Verdict Altim", glow: tone.map { Theme.color($0) } ?? Theme.cyan) {
+            switch verdict {
+            case .idle, .loading:
+                ProgressView().frame(maxWidth: .infinity, minHeight: 60)
+            case let .failed(m):
+                ErrorView(message: m) { Task { await load() } }
+            case let .loaded(v):
+                HStack(spacing: 8) {
+                    Badge(text: Self.label(v), tone: v.action.tone)
+                    if let m = v.momentum {
+                        Text("momentum \(m >= 0 ? "+" : "−")\(Format.plain(abs(m) * 100, digits: 1)) %").font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                Text(v.text).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                if let e = v.ema200 {
+                    KeyValue(key: "Moyenne 200 jours", value: Format.price(e))
+                }
+                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; le meilleur moment d'entrée est un repli de quelques jours. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .task(id: asset.id) { await load() }
+    }
+
+    private var tone: Tone? { verdict.value.map { $0.action.tone } }
+
+    static func label(_ v: TrendEngine.Verdict) -> String {
+        switch v.state {
+        case .pullback: return v.action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
+        case .trend: return v.action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
+        case .mixed: return "CONSERVER SANS RENFORCER"
+        case .down: return "RESTER À L'ÉCART"
+        case .unknown: return "PAS DE VERDICT"
+        }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        if verdict.value == nil { verdict = .loading }
+        do { verdict = .loaded(try await client.verdict(asset)) } catch { verdict = .failed(error.localizedDescription) }
     }
 }
