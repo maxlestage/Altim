@@ -1,7 +1,7 @@
 import SwiftUI
 import AltimKit
 
-/// Sort of the Radar (web: "Mon ordre", "Variation", "Décision").
+/// Sort of the Radar: "Mon ordre", "Variation", "Verdict".
 enum RadarSort: String, CaseIterable {
     case mine, change, decision
 
@@ -9,13 +9,13 @@ enum RadarSort: String, CaseIterable {
         switch self {
         case .mine: return "Mon ordre"
         case .change: return "Variation"
-        case .decision: return "Décision"
+        case .decision: return "Verdict"
         }
     }
 }
 
-/// Watch list: live price, full decision (the technical signal of the chosen timeframe only as a direction),
-/// reliability of the data, macro context.
+/// Watch list: live price, Altim's verdict (daily trend + momentum, computed on the iPhone), reliability of the data,
+/// macro context, heat map.
 struct RadarView: View {
     @Environment(AppModel.self) private var model
     @State private var rows: [String: RadarRow] = [:]
@@ -34,9 +34,8 @@ struct RadarView: View {
     }
 
     private var sort: RadarSort { RadarSort(rawValue: sortRaw) ?? .mine }
-    private var nowMs: Double { Date().timeIntervalSince1970 * 1000 }
 
-    /// "Décision": the full decision's rating (buy side first), then its confidence; "Variation": the largest move.
+    /// "Verdict": buy side first (strong buy, buy, wait, sell), then the score; "Variation": the largest move.
     private var sortedWatchlist: [Asset] {
         switch sort {
         case .mine:
@@ -44,7 +43,14 @@ struct RadarView: View {
         case .change:
             return DecisionDigests.sortByChange(model.watchlist) { a in model.live.price(a)?.change ?? rows[a.id]?.change }
         case .decision:
-            return DecisionDigests.sortByDecision(model.watchlist, model.decisionDigests, now: nowMs)
+            let rank: [Action: Int] = [.strongBuy: 0, .buy: 1, .hold: 2, .sell: 3, .strongSell: 4]
+            return model.watchlist.enumerated().sorted { x, y in
+                let a = rows[x.element.id]?.signal, b = rows[y.element.id]?.signal
+                let ra = a.map { rank[$0.action] ?? 5 } ?? 6, rb = b.map { rank[$0.action] ?? 5 } ?? 6
+                if ra != rb { return ra < rb }
+                if (a?.score ?? 0) != (b?.score ?? 0) { return (a?.score ?? 0) > (b?.score ?? 0) }
+                return x.offset < y.offset
+            }.map(\.element)
         }
     }
 
@@ -55,10 +61,6 @@ struct RadarView: View {
             if !query.isEmpty {
                 searchSection
             } else {
-                if !model.isStandalone {
-                    Section { BriefCard() }.listRowBackground(Color.clear)
-                    Section { BotRadarCard() }.listRowBackground(Color.clear)
-                }
                 if model.watchlist.count >= 3 {
                     Section { MarketHeatmap(assets: model.watchlist, rows: rows) }.listRowBackground(Color.clear)
                 }
@@ -72,26 +74,8 @@ struct RadarView: View {
                 if !model.configChanges.transitions.isEmpty {
                     Section { ConfigChangesCard() }.listRowBackground(Color.clear)
                 }
-                let opportunities = DecisionDigests.opportunities(model.watchlist, model.decisionDigests, now: nowMs)
-                if !opportunities.isEmpty {
-                    Section {
-                        ForEach(opportunities) { o in
-                            NavigationLink(value: o.asset) {
-                                HStack(spacing: 8) {
-                                    Text(o.asset.name).font(.subheadline.bold()).foregroundStyle(.white).lineLimit(1)
-                                    Spacer(minLength: 4)
-                                    Text("confiance \(Int(o.decision.confidence.rounded()))").font(.caption).foregroundStyle(Theme.textSecondary)
-                                    DecisionBadge(asset: o.asset)
-                                }
-                            }
-                            .listRowBackground(Theme.surface.opacity(0.6))
-                        }
-                    } header: {
-                        Text("Opportunités détectées")
-                    }
-                }
                 Section {
-                    FittingPicker(title: "Unité de temps de l'analyse technique", selection: timeframeBinding) {
+                    FittingPicker(title: "Unité de temps de la courbe", selection: timeframeBinding) {
                         ForEach(Timeframe.radarCases) { Text($0.label).tag($0) }
                     }
                 }
@@ -118,14 +102,12 @@ struct RadarView: View {
                     .onMove(perform: sort == .mine ? moveRows : nil)
                 } header: {
                     HStack {
-                        Text(model.isStandalone ? "Verdict Altim · prix médian des sources" : "Décision · prix médian de 40 sources")
+                        Text("Verdict Altim · prix médian des sources")
                         Spacer()
                         LiveBadge()
                     }
                 } footer: {
-                    Text(model.isStandalone
-                         ? "Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif."
-                         : "Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique \(timeframe.label) (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -149,14 +131,6 @@ struct RadarView: View {
         }
         .refreshable { await load() }
         .task(id: model.watchlist.map(\.id).joined() + "|" + timeframe.rawValue) { await load() }
-        .task(id: model.watchlist.map(\.id).joined(separator: ",")) {
-            // Decisions of the watched assets (market data only), re-read every 15 minutes while the radar is on screen:
-            // each one goes through the configuration diff.
-            while !Task.isCancelled {
-                await checkDecisions()
-                try? await Task.sleep(for: .seconds(Self.decisionEvery))
-            }
-        }
         .overlay { if loading && rows.isEmpty { ProgressView("Analyse des marchés…") } }
     }
 
@@ -191,31 +165,6 @@ struct RadarView: View {
         results = (try? await client.search(q)) ?? []
     }
 
-    /// The decisions of the radar are re-read at most this often (they are heavier than the signals).
-    static let decisionEvery: Double = 15 * 60
-
-    /// Two at a time (the server fetches fundamentals and order books for each one), 20 assets at most; an asset
-    /// compared less than 15 minutes ago (here or on its page) waits. A failed one is compared at the next round.
-    private func checkDecisions() async {
-        guard let client = model.client, !client.isStandalone else { return }
-        let due = model.watchlist.prefix(20).filter { a in
-            model.lastDecisionCheck(a).map { Date().timeIntervalSince($0) >= Self.decisionEvery } ?? true
-        }
-        var i = 0
-        while i < due.count && !Task.isCancelled {
-            let pair = Array(due[i..<min(i + 2, due.count)])
-            let got = await withTaskGroup(of: Decision?.self) { group in
-                for a in pair { group.addTask { try? await client.decision(asset: a) } }
-                var out: [Decision] = []
-                for await d in group { if let d { out.append(d) } }
-                return out
-            }
-            guard !Task.isCancelled else { return }
-            for d in got { model.recordDecision(d, personal: false) }
-            i += 2
-        }
-    }
-
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
         loading = true
@@ -225,9 +174,6 @@ struct RadarView: View {
             let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)
             rows = Dictionary(r.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             error = nil
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch {
             self.error = error.localizedDescription
         }
@@ -277,39 +223,26 @@ struct RadarRowView: View {
                     reliability
                 }
             }
-            // Why the chip says ATTENDRE: the decision's short reason, on its own line (web DecisionNote).
-            DecisionNoteLine(asset: asset)
         }
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
     }
 
-    /// The verdict: the full decision, never the technical signal alone. Without a server, the signal computed on the
-    /// iPhone (already suspended to ATTENDRE on doubtful data) is the verdict, said as such.
+    /// Altim's verdict, computed on the iPhone from the daily candles (already suspended to ATTENDRE on doubtful data).
     @ViewBuilder private var verdict: some View {
-        if model.isStandalone {
-            if let s = row?.signal {
-                Badge(text: s.action.label, tone: s.action.tone)
-                    .accessibilityLabel("Signal \(timeframe.label) : \(s.action.label)")
-            } else if row == nil {
-                Badge(text: "ANALYSE…", tone: .neutral).opacity(0.7)
-            }
-        } else {
-            DecisionBadge(asset: asset)
+        if let s = row?.signal {
+            Badge(text: s.action.label, tone: s.action.tone)
+                .accessibilityLabel("Verdict Altim : \(s.action.label)")
+        } else if row == nil {
+            Badge(text: "ANALYSE…", tone: .neutral).opacity(0.7)
         }
     }
 
     @ViewBuilder private var technical: some View {
-        if model.isStandalone {
-            if let s = row?.signal {
-                Text("confiance \(Int(s.confidence.rounded()))").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
-            } else if row?.error != nil {
-                Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
-            }
-        } else if let s = row?.signal {
-            TechnicalLine(action: s.action, interval: timeframe.label)
+        if let s = row?.signal {
+            Text("confiance \(Int(s.confidence.rounded()))").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
         } else if row?.error != nil {
-            Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
         }
     }
 

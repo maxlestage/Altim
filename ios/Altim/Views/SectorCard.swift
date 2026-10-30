@@ -97,8 +97,6 @@ struct SectorCard: View {
             let r = try await client.sectors(stocks)
             guard !Task.isCancelled else { return }
             state = Loaded(key: key, items: r.bySymbol, error: nil)
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch is CancellationError {
         } catch {
             guard !Task.isCancelled else { return }

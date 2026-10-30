@@ -166,9 +166,10 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertTrue(c.isStandalone)
         do {
             _ = try await c.macro()
-            XCTFail("macro sans serveur")
+            XCTFail("macro sans aucune source")
         } catch {
-            XCTAssertEqual(error as? AltimError, .needsServer)
+            // Computed on the iPhone: with every source down it fails like a dead network, never by asking a server.
+            XCTAssertEqual(error as? AltimError, .server("données macro indisponibles"))
         }
         let items = try await c.search("btc")
         XCTAssertEqual(items.first?.symbol, "BTC")

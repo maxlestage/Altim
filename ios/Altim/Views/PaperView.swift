@@ -319,9 +319,6 @@ struct PaperView: View {
             let q = try await client.quotes(assets)
             quotes = Dictionary(q.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
             error = nil
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch {
             self.error = error.localizedDescription
         }
