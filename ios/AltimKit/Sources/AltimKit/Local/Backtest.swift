@@ -159,6 +159,18 @@ public enum Backtest {
 }
 
 extension AltimClient {
+    /// Altim's daily verdict of an asset (trend + momentum), always computed on the iPhone.
+    public func verdict(_ a: Asset) async throws -> TrendEngine.Verdict {
+        let (data, status) = try await getWithStatus("/api/verdict", ["symbol": a.symbol, "kind": a.kind.rawValue])
+        return try decodeResponse(TrendEngine.Verdict.self, data, status)
+    }
+
+    /// « Sélection Altim » of a market (always computed on the iPhone).
+    public func rotation(_ kind: Kind) async throws -> RotationReport {
+        let (data, status) = try await getWithStatus("/api/rotation", ["kind": kind.rawValue])
+        return try decodeResponse(RotationReport.self, data, status)
+    }
+
     /// The signal replayed on the asset's daily history, always computed on the iPhone.
     public func backtest(_ a: Asset) async throws -> BacktestReport {
         let (data, status) = try await getWithStatus("/api/backtest", ["symbol": a.symbol, "kind": a.kind.rawValue])

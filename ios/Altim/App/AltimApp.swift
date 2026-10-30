@@ -115,7 +115,7 @@ struct MainTabs: View {
         TabView(selection: $tab) {
             NavigationStack { RadarView() }
                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }.tag(0)
-            NavigationStack { SelectionView() }
+            NavigationStack { if model.isStandalone { RotationView() } else { SelectionView() } }
                 .tabItem { Label("Sélection", systemImage: "list.number") }.tag(1)
             NavigationStack { HoldingsView() }
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }.tag(2)
@@ -247,7 +247,7 @@ enum SiriText {
         var text = "\(a.name) vaut \(Format.price(price))"
         if let c = row.change { text += ", \(Format.percent(c, digits: 1)) sur 24 heures" }
         text += "."
-        if let s = row.signal { text += " Signal 4 heures : \(s.action.label.lowercased())." }
+        if let s = row.signal { text += " Verdict Altim : \(s.action.label.lowercased())." }
         return text
     }
 

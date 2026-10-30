@@ -1,21 +1,17 @@
 import Foundation
 
-/// "Puis-je acheter maintenant ?" on the iPhone (core/src/engine/alerts.rs `buy_alert`): an asset is buyable when a
-/// measured reason says so (4 h signal ACHAT / ACHAT FORT, or the price in a Fibonacci buy zone) and nothing blocks it.
-///
-/// The server also waits for its full decision before announcing a buy; that decision is not computed on the iPhone
-/// yet, so the standalone rule is stricter instead: the data must be highly reliable (3 independent sources at least),
-/// and the alert says so. The market guard is computed on the iPhone: a shock blocks, an agitated market warns.
+/// "Puis-je acheter maintenant ?" on the iPhone, on the rule chosen by its measured results (TrendEngine): buyable
+/// only in an up background trend with a positive momentum; the best moment (advised) is a short pull-back inside it,
+/// or the price in a Fibonacci buy zone at the same time. Blocked by unreliable data, a market shock or a broken zone.
 enum LocalAlertRule {
     struct Input {
         var asset: Asset
         var price: Double?
-        var signal: LocalSignal?
+        var verdict: TrendEngine.Verdict?
         var reliability: Reliability?
         var zones: [FibZone]
-        /// The guard's shock level ("calm", "agitated", "shock") and background trend ("up", "down", "range").
+        /// The guard's shock level ("calm", "agitated", "shock").
         var shock: String? = nil
-        var trend: String? = nil
     }
 
     struct Output: Equatable {
@@ -24,47 +20,46 @@ enum LocalAlertRule {
         var key: String, title: String, body: String
     }
 
-    static let noGuard = "Décision complète pas encore calculée sur l'iPhone : taille prudente."
-
     static func evaluate(_ a: Input) -> Output {
         var reasons: [String] = [], blockers: [String] = [], cautions: [String] = [], parts: [String] = []
-        let signalBuy = a.signal?.action.isBuy ?? false
-        if let s = a.signal, signalBuy {
-            reasons.append("Signal \(s.action == .strongBuy ? "ACHAT FORT" : "ACHAT") en 4 h (confiance \(Int(s.confidence.rounded())) %).")
-            parts.append("signal")
+        let state = a.verdict?.state ?? .unknown
+        let inTrend = state == .trend || state == .pullback
+        if let v = a.verdict, inTrend {
+            reasons.append(v.text)
+            parts.append(state == .pullback ? "repli" : "tendance")
         }
         // Longest horizon first: a long-term zone matters more than a short one.
         let order = ["long": 0, "medium": 1, "short": 2]
         let hit = a.zones.sorted { order[$0.horizon, default: 3] < order[$1.horizon, default: 3] }
             .first { ($0.status == "inZone" || $0.status == "golden") && $0.zone != nil }
-        if let hit, let zone = hit.zone {
+        if let hit, let zone = hit.zone, inTrend {
             let band = hit.status == "golden" ? hit.golden ?? zone : zone
             reasons.append("Prix dans la \(hit.status == "golden" ? "zone d'or" : "zone d'achat") \(hit.label.lowercased()) (\(Money.money(band.to)) – \(Money.money(band.from))).")
             parts.append("zone:\(hit.horizon)")
         }
-        switch a.reliability?.level {
-        case "low", nil: blockers.append("Sources de prix en désaccord : données peu fiables.")
-        case "medium": blockers.append("Fiabilité moyenne des données : sans serveur, Altim n'annonce un achat que sur des données très fiables.")
+        switch state {
+        case .down: blockers.append("Tendance de fond baissière et momentum négatif : rester à l'écart.")
+        case .mixed: blockers.append("Signaux contraires (tendance de fond et momentum ne s'accordent pas) : ne pas ouvrir de position.")
+        case .unknown: blockers.append("Historique trop court pour juger la tendance de fond.")
         default: break
         }
+        if a.reliability?.level == "low" { blockers.append("Sources de prix en désaccord : données peu fiables.") }
         if a.shock == "shock" { blockers.append("Garde-fou : risque de choc élevé, mieux vaut attendre.") }
-        if let hit, let price = a.price, let inv = hit.invalidation, price < inv {
+        if let hit, inTrend, let price = a.price, let inv = hit.invalidation, price < inv {
             blockers.append("Le plus bas du mouvement est cassé : zone invalidée.")
         }
-        if a.trend == "down" || (a.trend == nil && (a.signal?.factors.first { $0.name == "UT supérieure" }?.score ?? 0) < 0) {
-            cautions.append("Tendance de fond baissière : taille réduite.")
-        }
-        if a.shock == "agitated" { cautions.append("Marché agité : stop plus large.") }
-        cautions.append(noGuard)
-        let buy = !reasons.isEmpty && blockers.isEmpty
-        let strong = buy && signalBuy && hit != nil
-        let stop = hit?.invalidation.map { " Invalidé sous \(Money.money($0))." } ?? ""
+        if a.shock == "agitated" { cautions.append("Marché agité : taille réduite, stop plus large.") }
+        if a.reliability?.level == "medium" { cautions.append("Fiabilité moyenne des données : taille réduite.") }
+        if state == .trend && hit == nil { cautions.append("Pas de repli en cours : entrer en plusieurs fois.") }
+        let buy = inTrend && blockers.isEmpty
+        let strong = buy && (state == .pullback || hit != nil)
+        let stop = a.verdict?.ema200.map { " Sortie si le prix repasse sous \(Money.money($0)) (moyenne 200 jours) ou si le momentum devient négatif." } ?? ""
         let price = a.price.map { " à \(Money.money($0))" } ?? ""
         let symbol = a.asset.symbol
         return Output(buy: buy, strong: strong, reasons: reasons, blockers: blockers, cautions: cautions,
                       key: buy ? parts.joined(separator: "+") : "",
                       title: buy ? "\(symbol) : achat \(strong ? "conseillé" : "possible")\(price)" : "\(symbol) : pas d'achat pour l'instant",
-                      body: buy ? (reasons + cautions).joined(separator: " ") + stop : blockers.first ?? "Ni signal d'achat ni prix dans une zone d'achat.")
+                      body: buy ? (reasons + cautions).joined(separator: " ") + stop : blockers.first ?? "Pas de signal d'achat.")
     }
 
     /// `/api/alerts` item (the server's JSON: an error item carries only the asset and `error`).
@@ -89,7 +84,7 @@ enum LocalAlertRule {
 }
 
 extension LocalBackend {
-    /// The rule on each asset: 4 h signal (confirmed by the day), zones, reliability, consensus price.
+    /// The rule on each asset: daily verdict (trend + momentum), zones, guard, reliability, consensus price.
     func alerts(_ list: [Asset]) async -> Data {
         let prices = await quotes(list)
         let items: [[String: Any]] = await withTaskGroup(of: (Int, [String: Any]).self) { g in
@@ -97,15 +92,12 @@ extension LocalBackend {
                 g.addTask {
                     let price = prices.first { $0.symbol == a.symbol && $0.kind == a.kind }?.price
                     do {
-                        async let h4 = self.snapshot(a, .h4)
-                        async let d1 = try? self.snapshot(a, .d1)
+                        async let d1 = self.snapshot(a, .d1)
                         async let z = try? self.zones(a)
                         async let g = try? self.guardReport(a)
-                        let s = try await h4
-                        let guardReport = await g
-                        let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, signal: s.signal(higher: await d1?.candles),
-                                                         reliability: s.reliability, zones: await z?.zones ?? [],
-                                                         shock: guardReport?.shock.level, trend: guardReport?.regime.trend)
+                        let s = try await d1
+                        let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: TrendEngine.verdict(s.candles, kind: a.kind),
+                                                         reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level)
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))
                     } catch {
                         return (i, LocalAlertRule.json(a, nil, price: nil, asOf: nowMs(), error: (error as? MarketError)?.message ?? error.localizedDescription))

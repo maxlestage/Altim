@@ -118,13 +118,13 @@ struct RadarView: View {
                     .onMove(perform: sort == .mine ? moveRows : nil)
                 } header: {
                     HStack {
-                        Text(model.isStandalone ? "Signal · prix médian des sources" : "Décision · prix médian de 40 sources")
+                        Text(model.isStandalone ? "Verdict Altim · prix médian des sources" : "Décision · prix médian de 40 sources")
                         Spacer()
                         LiveBadge()
                     }
                 } footer: {
                     Text(model.isStandalone
-                         ? "Le signal technique \(timeframe.label) est calculé sur cet iPhone à partir des bourses et sources qui s'accordent ; il est suspendu (ATTENDRE) quand les données ne sont pas assez fiables. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif."
+                         ? "Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif."
                          : "Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique \(timeframe.label) (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
