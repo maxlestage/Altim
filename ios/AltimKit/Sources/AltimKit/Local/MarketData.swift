@@ -389,6 +389,10 @@ enum Sources {
     ]
 
     static let crypto: [CandleSource] = [binance, okx, coinbase, kraken, kucoin, gate, bitstamp, bitfinex]
+    /// The long daily histories as daily sources (the backtest).
+    static let cryptoLongDaily: [CandleSource] = longDaily.map { name, fetch in
+        CandleSource(name, supports: { $0 == .d1 }) { f, b, _ in try await fetch(f, b) }
+    }
     static let cryptoMultiDay: [CandleSource] = longDaily.map { name, fetch in
         CandleSource(name, supports: { $0.multiDay }) { f, b, tf in Candles.bucket(try await fetch(f, b), tf) }
     }
