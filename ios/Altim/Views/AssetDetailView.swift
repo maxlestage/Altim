@@ -2,7 +2,8 @@ import SwiftUI
 import Charts
 import AltimKit
 
-/// Everything about one asset: live price, chart, signal, Fibonacci buy zones by horizon, market guard, macro.
+/// Everything about one asset, computed on the iPhone: live price, Altim's verdict, chart, time machine, Fibonacci buy
+/// zones by horizon, market guard, macro, news, note, position, DCA.
 struct AssetDetailView: View {
     @Environment(AppModel.self) private var model
     let asset: Asset
@@ -12,7 +13,6 @@ struct AssetDetailView: View {
     @State private var signal: RadarRow?
     @State private var zones: Loadable<ZonesReport> = .idle
     @State private var guardReport: Loadable<GuardReport> = .idle
-    @State private var decision: Loadable<Decision> = .idle
     @State private var targetSheet = false
 
     private var timeframe: Timeframe { Timeframe.saved(intervalRaw) }
@@ -25,23 +25,16 @@ struct AssetDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 header
-                // Without a server, only what the iPhone computes itself is shown (no card stuck on an error).
-                if model.isStandalone { VerdictCard(asset: asset) } else { decisionCard }
+                VerdictCard(asset: asset)
                 chartCard
-                if !model.isStandalone { signalCard }
                 TimeMachineCard(asset: asset)
                 zonesCard
                 guardCard
-                if !model.isStandalone {
-                    AnomaliesCard(asset: asset)
-                    WhyCard(asset: asset)
-                }
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
                 NoteCard(asset: asset)
                 PositionCard(asset: asset, price: model.live.price(asset)?.price ?? signal?.price ?? zones.value?.price, zones: zones.value?.zones ?? [])
                 DcaCard(asset: asset)
-                if !model.isStandalone { StrategiesCard(asset: asset) }
                 Text("Altim ne passe aucun ordre : ces analyses sont des probabilités, à confronter à votre propre jugement.")
                     .font(.caption).foregroundStyle(Theme.textSecondary)
             }
@@ -79,11 +72,8 @@ struct AssetDetailView: View {
         .onAppear { model.focus = asset }
         .onDisappear { if model.focus == asset { model.focus = nil } }
         .task { await loadStatic() }
-        // Reloaded when the score weights change (Réglages).
-        .task(id: model.scoreWeights) { await loadDecision() }
         .task(id: interval) { await loadChart() }
         .refreshable {
-            await loadDecision()
             await loadStatic()
             await loadChart()
         }
@@ -147,38 +137,6 @@ struct AssetDetailView: View {
     /// Zone drawn on the chart: the horizon whose candles match the interval shown.
     private var chartZone: FibZone? {
         zones.value?.zones.first { $0.horizon == timeframe.zoneHorizon && $0.zone != nil }
-    }
-
-    // MARK: Signal
-
-    @ViewBuilder private var signalCard: some View {
-        if let s = signal?.signal {
-            // A direction, never a verdict: the only verdict and plan are the Décision card's.
-            Card(title: "Signal technique · \(timeframe.label)") {
-                Text("Un indice parmi d'autres : le verdict à suivre est celui de la carte Décision, qui y ajoute les interdictions d'achat, la zone d'achat, le gain/risque, l'agenda et la preuve du modèle.")
-                    .font(.caption).foregroundStyle(Theme.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text("Tendance technique : \(s.action.technicalText)")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(s.action.directionTone == .neutral ? Color.white : Theme.color(s.action.directionTone))
-                Text("score \(Int(s.score.rounded())) · confiance \(Int(s.confidence.rounded())) %").font(Theme.mono(13))
-                Text("Calculé sur les bougies médianes de toutes les sources ; la confiance tient compte de l'accord entre indicateurs et unités de temps.")
-                    .font(.caption).foregroundStyle(Theme.textSecondary)
-            }
-        }
-    }
-
-    // MARK: Decision
-
-    @ViewBuilder private var decisionCard: some View {
-        switch decision {
-        case .idle, .loading:
-            Card(title: "Décision") { ProgressView().frame(maxWidth: .infinity) }
-        case let .failed(m):
-            Card(title: "Décision") { ErrorView(message: m) { Task { await loadDecision() } } }
-        case let .loaded(d):
-            DecisionCard(decision: d)
-        }
     }
 
     // MARK: Zones
@@ -247,47 +205,6 @@ struct AssetDetailView: View {
         async let g = client.guardReport(asset)
         do { zones = .loaded(try await z) } catch { zones = .failed(error.localizedDescription) }
         do { guardReport = .loaded(try await g) } catch { guardReport = .failed(error.localizedDescription) }
-        model.persistSession()
-    }
-
-    /// Informational decision, or personal when the asset is held: its average cost and the share (%) of each line of
-    /// the portfolio are sent for this answer only (never the quantities nor the amounts; the server keeps nothing).
-    private func loadDecision() async {
-        guard let client = model.client, !client.isStandalone else { return }
-        if decision.value == nil { decision = .loading }
-        var cost: Double?
-        var weights: [DecisionWeight] = []
-        if model.holdings.contains(where: { $0.asset.id == asset.id }) {
-            // In dollars (a euro cost basis converted at the current rate), as the server expects.
-            let usd = model.usdHoldings.holdings
-            cost = DecisionInputs.cost(of: asset, in: usd)
-            weights = DecisionInputs.weights(usd, prices: await holdingPrices(client))
-        }
-        do {
-            let d = try await client.decision(asset: asset, cost: cost, weights: weights, scoreWeights: model.scoreWeights)
-            decision = .loaded(d)
-            // Compared with the last decision seen for this asset (Radar → Changements de configuration).
-            model.recordDecision(d, personal: d.isPersonal)
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
-        } catch is CancellationError {
-        } catch {
-            if decision.value == nil { decision = .failed(error.localizedDescription) }
-        }
-    }
-
-    /// Live price of each held asset, the consensus quote for those without a tick yet.
-    private func holdingPrices(_ client: AltimClient) async -> [String: Double] {
-        var prices: [String: Double] = [:]
-        for h in model.holdings {
-            if let t = model.live.price(h.asset) { prices[h.asset.id] = t.price }
-        }
-        let missing = Array(Dictionary(model.holdings.filter { prices[$0.asset.id] == nil }.map { ($0.asset.id, $0.asset) }, uniquingKeysWith: { a, _ in a }).values)
-        if !missing.isEmpty, let quotes = try? await client.quotes(missing) {
-            for q in quotes { prices["\(q.kind.rawValue):\(q.symbol)"] = q.price }
-        }
-        return prices
     }
 
     private func loadChart() async {
@@ -296,8 +213,6 @@ struct AssetDetailView: View {
         async let r = try? client.radar([asset], interval: interval)
         do {
             snapshot = .loaded(try await client.candles(asset, interval: interval))
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch {
             snapshot = .failed(error.localizedDescription)
         }
@@ -651,7 +566,7 @@ struct VerdictCard: View {
                 ErrorView(message: m) { Task { await load() } }
             case let .loaded(v):
                 HStack(spacing: 8) {
-                    Badge(text: Self.label(v), tone: v.action.tone)
+                    Badge(text: v.label, tone: v.action.tone)
                     if let m = v.momentum {
                         Text("momentum \(m >= 0 ? "+" : "−")\(Format.plain(abs(m) * 100, digits: 1)) %").font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
                     }
@@ -669,19 +584,16 @@ struct VerdictCard: View {
 
     private var tone: Tone? { verdict.value.map { $0.action.tone } }
 
-    static func label(_ v: TrendEngine.Verdict) -> String {
-        switch v.state {
-        case .pullback: return v.action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
-        case .trend: return v.action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
-        case .mixed: return "CONSERVER SANS RENFORCER"
-        case .down: return "RESTER À L'ÉCART"
-        case .unknown: return "PAS DE VERDICT"
-        }
-    }
-
     private func load() async {
         guard let client = model.client else { return }
         if verdict.value == nil { verdict = .loading }
-        do { verdict = .loaded(try await client.verdict(asset)) } catch { verdict = .failed(error.localizedDescription) }
+        do {
+            let v = try await client.verdict(asset)
+            verdict = .loaded(v)
+            // Compared with the last verdict seen for this asset (Radar → Changements de configuration).
+            model.recordVerdict(v, asset: asset)
+        } catch {
+            verdict = .failed(error.localizedDescription)
+        }
     }
 }

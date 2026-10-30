@@ -215,7 +215,7 @@ struct HoldingsView: View {
                 Text(h.asset.symbol).font(Theme.mono(15, weight: .bold)).foregroundStyle(.white)
                 Text("\(Format.quantity(h.quantity)) · \(Format.price(line.price))").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 // The daily technical signal as a direction only: the verdict is the asset's Décision card.
-                if let s = signals[h.asset.id]?.signal { TechnicalLine(action: s.action, interval: "1 j") }
+                if let s = signals[h.asset.id]?.signal { VerdictLine(action: s.action) }
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 3) {
@@ -235,9 +235,6 @@ struct HoldingsView: View {
             let q = try await client.quotes(assets)
             quotes = Dictionary(q.map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
             error = nil
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch {
             self.error = error.localizedDescription
         }
@@ -334,7 +331,7 @@ struct HoldingForm: View {
                         Text("\(note) Le modifier l'enregistre en \(Money.symbol()).").font(.footnote).foregroundStyle(Theme.textSecondary)
                     }
                 } footer: {
-                    Text("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Rien n'est envoyé au serveur.")
+                    Text("Le prix moyen d'achat sert seulement à calculer votre gain ou perte. Il reste sur cet iPhone.")
                 }
                 Section {
                     TextField("Mon stop en \(Money.symbol()) (facultatif)", text: $stopText).keyboardType(.decimalPad)

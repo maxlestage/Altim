@@ -37,62 +37,16 @@ struct Badge: View {
     }
 }
 
-/// The verdict of an asset outside its page: the full decision (the same as its Décision card), seen on this iPhone
-/// less than 12 h ago; "Décision…" until then. The 4 h technical signal is only one of its inputs (web DecisionBadge).
-struct DecisionBadge: View {
-    @Environment(AppModel.self) private var model
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    var asset: Asset
-
-    var body: some View {
-        let d = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000)
-        // A new verdict (pushed live, or the first one computed) cross-fades in, rising slightly (web .dec-changed).
-        ZStack {
-            if let d {
-                Badge(text: d.badgeLabel, tone: d.tone)
-                    .accessibilityLabel("Décision Altim : \(d.badgeLabel), confiance \(Int(d.confidence.rounded()))")
-                    .id(d.badgeLabel)
-                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 6)).combined(with: .scale(scale: 0.92)), removal: .opacity))
-            } else {
-                Badge(text: DecisionDigests.pendingLabel, tone: .neutral)
-                    .opacity(0.7)
-                    .accessibilityLabel("Décision en cours de calcul")
-                    .transition(.opacity)
-            }
-        }
-        .animation(reduceMotion ? nil : .spring(duration: 0.45), value: d?.badgeLabel)
-    }
-}
-
-/// The decision's short reason under the Radar's chip (« zone d'achat 67 653,51 € (−10,1 %) », « veto : … »), when the
-/// chip reads ATTENDRE or AUCUNE POSITION; nothing otherwise (web DecisionNote).
-struct DecisionNoteLine: View {
-    @Environment(AppModel.self) private var model
-    var asset: Asset
-
-    var body: some View {
-        if let n = DecisionDigests.fresh(model.decisionDigests, asset, now: Date().timeIntervalSince1970 * 1000)?.noteLine {
-            Text(n)
-                .font(.caption2)
-                .foregroundStyle(Theme.textSecondary)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-}
-
-/// The technical signal as a small direction line, never a verdict: "technique 4 h : haussier" (web `technicalText`).
-struct TechnicalLine: View {
+/// Altim's verdict of an asset outside its page (Mes avoirs): the daily trend + momentum rule, computed on the iPhone.
+struct VerdictLine: View {
     var action: Action
-    var interval: String
 
     var body: some View {
-        Text("technique \(interval) : \(action.technicalText)")
+        Text("verdict Altim : \(action.label.lowercased())")
             .font(.caption2)
-            .foregroundStyle(Theme.textSecondary)
-            .lineLimit(2)
-            .fixedSize(horizontal: false, vertical: true)
-            .accessibilityLabel("Signal technique sur bougies de \(interval) : \(action.technicalText), un indice parmi d'autres de la décision")
+            .foregroundStyle(Theme.color(action.tone))
+            .lineLimit(1)
+            .accessibilityLabel("Verdict Altim : \(action.label)")
     }
 }
 
@@ -359,5 +313,45 @@ struct FxNote: View {
         if let text = Money.note() {
             Text(text).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// A key and its value side by side, one under the other when they do not fit (journal, simulation).
+struct DecisionRow: View {
+    var key: String
+    var value: String
+    var tone: Tone?
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline) {
+                keyText
+                Spacer(minLength: 12)
+                valueText.multilineTextAlignment(.trailing)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                keyText.fixedSize(horizontal: false, vertical: true)
+                valueText.fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var keyText: some View { Text(key).font(.subheadline).foregroundStyle(Theme.textSecondary) }
+    private var valueText: some View {
+        Text(value).font(.subheadline.monospacedDigit().weight(.semibold)).foregroundStyle(tone.map { Theme.color($0) } ?? .white)
+    }
+}
+
+/// "Régime de marché : 🟢 Risk-on — …" (macro context).
+struct RegimeLine: View {
+    let regime: Decision.MarketRegime
+
+    var body: some View {
+        (Text("Régime de marché : ").foregroundStyle(Theme.textSecondary)
+            + Text("\(regime.kind.emoji) \(regime.kind.label)").bold().foregroundStyle(.white)
+            + Text(regime.reasons.isEmpty ? "" : " — \(regime.reasons.joined(separator: " · "))").foregroundStyle(Theme.textSecondary))
+            .font(.caption)
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
