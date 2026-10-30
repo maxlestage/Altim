@@ -13,6 +13,8 @@ public enum AltimError: LocalizedError, Equatable {
     case unauthorized
     case server(String)
     case network(String)
+    /// A feature that Altim does not compute on the iPhone yet, without a connected server.
+    case needsServer
 
     public var errorDescription: String? {
         switch self {
@@ -25,6 +27,7 @@ public enum AltimError: LocalizedError, Equatable {
         case .unauthorized: return "Session expirée : reconnectez-vous."
         case let .server(m): return m
         case let .network(m): return "Réseau indisponible (\(m))."
+        case .needsServer: return "Cette analyse n'est pas encore calculée sur l'iPhone : elle arrive dans une prochaine version (ou connectez un serveur Altim dans Réglages)."
         }
     }
 }
@@ -80,15 +83,29 @@ public final class AltimClient: Sendable {
     private let cache: ResponseCache?
     /// Told after each call: nil when the server answered, the date of the data when a cached answer was served.
     private let onStatus: (@Sendable (Date?) -> Void)?
+    /// Market data read and judged on the iPhone itself: its routes never reach the server.
+    public let local: LocalBackend?
+
+    /// Address of the client without any server (`standalone`).
+    public static let standaloneURL = URL(string: "https://iphone.altim.invalid")!
+    /// No Altim server: everything the app shows comes from `local`.
+    public var isStandalone: Bool { baseURL == Self.standaloneURL }
 
     public init(baseURL: URL, credentials: Credentials?, sessionCookie: String? = nil, session: URLSession = AltimClient.makeSession(),
-                cache: ResponseCache? = nil, onStatus: (@Sendable (Date?) -> Void)? = nil) {
+                cache: ResponseCache? = nil, local: LocalBackend? = nil, onStatus: (@Sendable (Date?) -> Void)? = nil) {
         self.baseURL = baseURL
+        self.local = local
         self.credentials = credentials
         self.session = session
         self.cache = cache
         self.onStatus = onStatus
         jar = CookieJar(sessionCookie)
+    }
+
+    /// Altim on its own: the markets read by the iPhone, no server, no account.
+    public static func standalone(local: LocalBackend = LocalBackend(), cache: ResponseCache? = nil,
+                                  onStatus: (@Sendable (Date?) -> Void)? = nil) -> AltimClient {
+        AltimClient(baseURL: standaloneURL, credentials: nil, cache: cache, local: local, onStatus: onStatus)
     }
 
     /// Paths whose last answer is kept for the offline mode (not the search nor the login).
@@ -175,6 +192,7 @@ public final class AltimClient: Sendable {
     }
 
     public func logout() async {
+        guard !isStandalone else { return }
         var r = request("/logout")
         r.httpMethod = "POST"
         r.setValue(origin, forHTTPHeaderField: "Origin")
@@ -372,6 +390,28 @@ public final class AltimClient: Sendable {
     private func authorized(_ r: URLRequest) async throws -> (Data, Int) {
         let key = r.url.map { "\($0.path)?\($0.query ?? "")" } ?? ""
         let cacheable = cache != nil && Self.cacheable.contains(r.url?.path ?? "")
+        if let local, let url = r.url, (r.httpMethod ?? "GET") == "GET" {
+            let query = Dictionary((URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).map { ($0.name, $0.value ?? "") },
+                                   uniquingKeysWith: { a, _ in a })
+            if let (data, status) = await local.answer(path: url.path, query: query) {
+                if status == 200 {
+                    if cacheable { cache?.save(key, data) }
+                    onStatus?(nil)
+                } else if status >= 500, cacheable, let saved = cache?.load(key) {
+                    // Every provider failed (no network): the last good answer, with its date for the banner.
+                    onStatus?(saved.date)
+                    return (saved.data, 200)
+                }
+                return (data, status)
+            }
+        }
+        if isStandalone {
+            if cacheable, let saved = cache?.load(key) {
+                onStatus?(saved.date)
+                return (saved.data, 200)
+            }
+            throw AltimError.needsServer
+        }
         do {
             var (data, response) = try await sendRetrying(r)
             if response.statusCode == 401 {
