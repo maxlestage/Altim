@@ -232,14 +232,15 @@ final class AppModel {
 
     // MARK: Access
 
-    /// Reopens the saved access (server + Keychain) without asking anything, apart from Face ID.
+    /// Reopens the saved access (server + Keychain) without asking anything, apart from Face ID. Without a server,
+    /// Altim works on its own: the markets are read and judged on the iPhone.
     private func restore() {
-        guard let s = defaults.string(forKey: "server"), let url = AltimClient.normalize(s) else { return }
+        guard let s = defaults.string(forKey: "server"), let url = AltimClient.normalize(s) else { return useStandalone(lock: true) }
         let creds = KeychainStore.get(.credentials).flatMap { try? JSONDecoder().decode(Credentials.self, from: $0) }
         let cookie = KeychainStore.string(.session)
         let open = defaults.bool(forKey: "openServer")
         // Launched in the background while the iPhone is locked: the password is unreadable, the session is enough.
-        guard creds != nil || cookie != nil || open else { return }
+        guard creds != nil || cookie != nil || open else { return useStandalone(lock: true) }
         serverURL = url
         user = creds?.user ?? defaults.string(forKey: "user")
         // Empty password = 2FA account: no silent re-login (a wrong attempt would count towards the lockout).
@@ -249,10 +250,33 @@ final class AppModel {
     }
 
     /// Client with the offline cache: the last good answers are shown, dated, when the network or the server fails.
+    /// Prices, candles, the Radar, the search and EUR/USD are always computed on the iPhone (`local`), server or not.
     private func makeClient(_ url: URL, credentials: Credentials?, cookie: String?) -> AltimClient {
-        AltimClient(baseURL: url, credentials: credentials, sessionCookie: cookie, cache: responseCache) { [weak self] date in
+        AltimClient(baseURL: url, credentials: credentials, sessionCookie: cookie, cache: responseCache, local: local) { [weak self] date in
             Task { @MainActor in self?.offlineSince = date }
         }
+    }
+
+    /// The markets read and judged on this iPhone, shared by every client (its short caches survive a reconnection).
+    @ObservationIgnored private let local = LocalBackend()
+
+    /// No server: Altim on its own, nothing to type, nothing sent anywhere but the market data providers.
+    var isStandalone: Bool { client?.isStandalone ?? true }
+
+    /// `lock`: at launch, Face ID is asked like for a restored session; from the login screen the app opens directly.
+    func useStandalone(lock: Bool = false) {
+        client = AltimClient.standalone(local: local, cache: responseCache) { [weak self] date in
+            Task { @MainActor in self?.offlineSince = date }
+        }
+        serverURL = nil
+        user = nil
+        phase = lock && faceIDLock ? .locked : .ready
+    }
+
+    /// Réglages → « Connecter un serveur Altim »: the login screen, which can come back to the standalone mode.
+    func showServerSetup() {
+        live.stop()
+        phase = .setup
     }
 
     /// Checks the server and returns what it asks for (user/password, 2FA code, or nothing for a local server).
@@ -301,9 +325,10 @@ final class AppModel {
         responseCache.clear()
         offlineSince = nil
         defaults.removeObject(forKey: "openServer")
-        client = nil
-        user = nil
+        defaults.removeObject(forKey: "server")
+        // Back to Altim on its own (not to a login screen).
         phase = .setup
+        useStandalone()
         WatchBridge.shared.sendLink()
     }
 
@@ -325,7 +350,6 @@ final class AppModel {
         live.stop()
         // The dead cookie is dropped: the next launch asks to log in instead of failing silently again.
         KeychainStore.setString(nil, for: .session)
-        client = nil
         phase = .setup
         WatchBridge.shared.sendLink()
     }
@@ -421,7 +445,9 @@ final class AppModel {
             reached = result.fired
             if !reached.isEmpty { priceTargets = result.targets }
         }
-        let fresh = try await checkBuyAlerts(client)
+        // Without a server the buy alerts are not computed yet: the price alerts reached above are still notified.
+        let fresh: [BuyAlert]
+        do { fresh = try await checkBuyAlerts(client) } catch AltimError.needsServer { fresh = [] }
         let entries = (alertsEnabled ? fresh : []).compactMap { a in
             a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) }
         } + reached.map { t, p in JournalEntry(asset: t.asset, source: .target, title: "\(t.asset.symbol) : \(t.label.lowercased())", price: p, date: now) }
