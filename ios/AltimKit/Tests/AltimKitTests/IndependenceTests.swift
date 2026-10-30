@@ -80,4 +80,20 @@ final class IndependenceTests: XCTestCase {
         XCTAssertGreaterThan(files, 20, "sources de l'app introuvables depuis \(ios.path)")
         XCTAssertEqual(found, [], "appels au serveur : \(found)")
     }
+
+    /// App Store Connect refuses (ITMS-90626) an App Intent whose title, description or phrases name an Apple device.
+    func testSiriTextsNameNoAppleDevice() throws {
+        let ios = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let marker = try NSRegularExpression(pattern: "(IntentDescription\\(|LocalizedStringResource|@Parameter\\(|shortTitle:|phrases:|requestValueDialog:)")
+        let device = try NSRegularExpression(pattern: "iphone|ipad|ipod|apple watch|mac\\b", options: .caseInsensitive)
+        var found: [String] = []
+        for file in ["Altim/App/AltimApp.swift", "AltimWidgets/AltimWidgets.swift"] {
+            let text = try String(contentsOf: ios.appendingPathComponent(file), encoding: .utf8)
+            for line in text.split(separator: "\n").map(String.init) {
+                let r = NSRange(line.startIndex..., in: line)
+                if marker.firstMatch(in: line, range: r) != nil, device.firstMatch(in: line, range: r) != nil { found.append(line.trimmingCharacters(in: .whitespaces)) }
+            }
+        }
+        XCTAssertEqual(found, [], "textes Siri refusés par Apple : \(found)")
+    }
 }
