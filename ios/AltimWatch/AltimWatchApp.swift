@@ -56,6 +56,8 @@ final class WatchStore: NSObject, WCSessionDelegate {
     private(set) var refreshing = false
     private(set) var message: String? = nil
     private(set) var link: WatchLink? = nil
+    /// Altim without a server: the markets read and judged on the Watch (kept for its short caches).
+    private let standalone = AltimClient.standalone(local: LocalBackend(fetcher: URLSessionFetcher(timeout: WatchLink.timeout)))
 
     override init() {
         super.init()
@@ -71,13 +73,11 @@ final class WatchStore: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Reads the alerts and the prices from the server now (15 s at most), whether or not the iPhone is nearby.
+    /// Reads the alerts and the prices now (15 s at most), whether or not the iPhone is nearby: from the server the
+    /// iPhone is linked to, else computed on the Watch itself (AltimKit's on-device engines, the same as the iPhone's).
     func refresh() async {
         guard !refreshing else { return }
-        guard let client = link?.client() else {
-            message = WatchLink.notLinked
-            return
-        }
+        let client = link?.client() ?? standalone
         let assets = alerts.map(\.asset)
         guard !assets.isEmpty else {
             message = "Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois."
@@ -151,11 +151,9 @@ struct AlertsList: View {
 
     var body: some View {
         List {
-            if store.link == nil {
-                Text(WatchLink.notLinked).font(.footnote).foregroundStyle(.orange)
-            }
+            // Without a server the Watch computes its alerts itself: only an empty list needs the iPhone (its Radar).
             let buyable = store.alerts.filter(\.buy)
-            if store.alerts.isEmpty && store.link != nil {
+            if store.alerts.isEmpty {
                 Text("Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois.").font(.footnote).foregroundStyle(.secondary)
             }
             if !buyable.isEmpty {
