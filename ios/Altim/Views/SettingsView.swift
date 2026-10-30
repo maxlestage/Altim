@@ -3,28 +3,11 @@ import AltimKit
 
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
-    @State private var confirmLogout = false
     @State private var denied = false
 
     var body: some View {
         @Bindable var model = model
         Form {
-            if model.isStandalone {
-                Section {
-                    KeyValue(key: "Mode", value: "Autonome (sur cet iPhone)")
-                    Button("Connecter un serveur Altim") { model.showServerSetup() }
-                } header: {
-                    Text("Données")
-                } footer: {
-                    Text("Altim lit lui-même les cours sur les bourses crypto (Coinbase, Kraken, OKX, KuCoin, Gate.io, Bitstamp, Bitfinex, Binance) et les données boursières (Yahoo Finance, Nasdaq, Robinhood), puis calcule sur l'iPhone les signaux, la fiabilité, le Radar, les zones d'achat Fibonacci, l'historique du portefeuille et la machine à remonter le temps. Aucun compte, aucun serveur. Un serveur Altim reste facultatif pour les analyses pas encore portées sur l'iPhone.")
-                }
-            } else {
-                Section("Serveur (facultatif)") {
-                    KeyValue(key: "Adresse", value: model.serverURL?.host ?? "—")
-                    KeyValue(key: "Identifiant", value: model.user ?? "accès ouvert")
-                    Button("Se déconnecter (mode autonome)", role: .destructive) { confirmLogout = true }
-                }
-            }
             Section {
                 FittingPicker(title: "Devise d'affichage", selection: $model.currency) {
                     Text("Euro (€)").tag(Currency.eur)
@@ -51,7 +34,7 @@ struct SettingsView: View {
                         }
                     }
                 ))
-                Toggle("Seulement les achats conseillés (signal + zone)", isOn: $model.alertsStrongOnly)
+                Toggle("Seulement les achats conseillés (repli ou zone)", isOn: $model.alertsStrongOnly)
                     .disabled(!model.alertsEnabled)
                 if denied {
                     Text("Notifications refusées : autorisez-les dans Réglages de l'iPhone → Notifications → Altim.").foregroundStyle(Theme.warning)
@@ -63,7 +46,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications d'achat")
             } footer: {
-                Text("Votre serveur vérifie le radar et vos avoirs : achetable seulement si la décision complète de l'actif dit ACHETER ou ZONE D'ACHAT (signal 4 h quelle que soit l'unité choisie sur le Radar, ou zone Fibonacci, sans source en désaccord, choc ni zone cassée). Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit quand l'iPhone est verrouillé. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("L'iPhone vérifie lui-même votre radar et vos avoirs : achetable seulement en tendance de fond haussière avec un momentum positif, sans source en désaccord ni choc de marché ; « conseillé » sur un repli dans cette tendance ou dans une zone d'achat Fibonacci. Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit aussi. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
             }
             Section {
                 Toggle("Me prévenir des actualités importantes", isOn: Binding(
@@ -153,62 +136,29 @@ struct SettingsView: View {
             } footer: {
                 Text("Ces limites servent à Mes avoirs : la part de votre patrimoine qu'une ligne peut perdre si son stop est touché, la taille maximale d'une ligne, la perte max du jour et la part crypto max. Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.\n\nPerte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui. Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).")
             }
-            // Server-only: the composite score of the Décision card.
-            if !model.isStandalone {
-            Section {
-                ForEach(ScoreWeights.factors, id: \.key) { f in
-                    ScoreWeightSlider(factor: f, weights: $model.scoreWeights)
-                }
-                Text("Total : \(model.scoreWeights.total) (ramené à 100 %)." + (model.scoreWeights.total == 0 ? " Tous à 0 : les poids par défaut sont utilisés." : ""))
-                    .font(.footnote).foregroundStyle(Theme.textSecondary)
-                Button("Poids par défaut (32 / 18 / 20 / 10 / 10 / 10)") { model.scoreWeights = .defaults }
-                    .disabled(model.scoreWeights == .defaults)
-            } header: {
-                Text("Score composite")
-            } footer: {
-                Text("Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.")
-            }
-            }
             Section {
                 Toggle("Verrouiller avec Face ID", isOn: $model.faceIDLock)
             } header: {
                 Text("Sécurité")
             } footer: {
-                Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés dans le trousseau de cet iPhone, jamais sauvegardés dans iCloud.")
-            }
-            // Server-only: the validation and the bot are computed by the Altim server.
-            if !model.isStandalone {
-            Section {
-                NavigationLink("Voir la validation") { ValidationView() }
-            } header: {
-                Text("Validation du modèle")
-            } footer: {
-                Text("Le signal testé sur 34 actions, cryptos et ETF choisis à l'avance, par classe d'actifs et par régime de marché, avec ses biais et limites.")
+                Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Vos avoirs et réglages restent sur cet iPhone, dans un stockage protégé.")
             }
             Section {
-                NavigationLink("Voir le bot") { BotScreen() }
-            } header: {
-                Text("Bot Altim")
-            } footer: {
-                Text(ModelBot.settingsText)
-            }
-            }
-            if model.isStandalone {
-                Section {
-                    Text("Le verdict sur l'iPhone suit une règle choisie sur des résultats mesurés : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif. Elle a été comparée à « tout garder » sur 26 actifs, avec chaque historique coupé en deux moitiés, puis sur une seconde liste d'actifs. Elle protège surtout dans les marchés baissiers. La machine à remonter le temps de chaque actif montre son résultat réel.")
-                        .font(.footnote).foregroundStyle(Theme.textSecondary)
-                } header: {
-                    Text("Comment Altim décide")
-                }
-            }
-            Section("Comprendre") {
-                NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
-            }
-            Section("Données") {
-                KeyValue(key: "Sources lues par l'iPhone", value: "8 crypto, 3 actions")
-                KeyValue(key: "Prix en direct", value: "crypto toutes les 5 s, actions 15 s")
-                Text("Chaque prix est la médiane des sources qui s'accordent ; une source qui s'écarte est écartée. Les cours, les bougies, les signaux, la fiabilité et le Radar sont calculés sur cet iPhone, avec ou sans serveur.")
+                Text("Le verdict sur l'iPhone suit une règle choisie sur des résultats mesurés : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif. Elle a été comparée à « tout garder » sur 26 actifs, avec chaque historique coupé en deux moitiés, puis sur une seconde liste d'actifs. Elle protège surtout dans les marchés baissiers. La machine à remonter le temps de chaque actif montre son résultat réel.")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
+                NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
+            } header: {
+                Text("Comment Altim décide")
+            }
+            Section {
+                KeyValue(key: "Calculs", value: "sur cet iPhone, sans serveur")
+                KeyValue(key: "Sources crypto", value: "8 bourses")
+                KeyValue(key: "Sources actions", value: "Yahoo, Nasdaq, Robinhood")
+                KeyValue(key: "Prix en direct", value: "crypto 5 s, actions 15 s")
+            } header: {
+                Text("Données")
+            } footer: {
+                Text("Altim lit lui-même les cours publics des bourses crypto (Coinbase, Kraken, OKX, KuCoin, Gate.io, Bitstamp, Bitfinex, Binance), les données boursières (Yahoo Finance, Nasdaq, Robinhood), l'actualité (flux RSS publics), le Fear & Greed et le financement OKX. Chaque prix est la médiane des sources qui s'accordent ; une source qui s'écarte est écartée. Tout est calculé sur cet iPhone : aucun compte, aucun serveur Altim, vos avoirs ne quittent pas l'iPhone.")
             }
             Section("À savoir") {
                 Text("Altim est un conseiller : il ne passe aucun ordre et n'a accès à aucun de vos comptes. Les signaux sont des probabilités mesurées sur l'historique, jamais des certitudes ; investir comporte un risque de perte en capital.")
@@ -218,36 +168,6 @@ struct SettingsView: View {
         }
         .altimScreen()
         .navigationTitle("Réglages")
-        .confirmationDialog("Se déconnecter ?", isPresented: $confirmLogout, titleVisibility: .visible) {
-            Button("Se déconnecter", role: .destructive) { Task { await model.logout() } }
-        } message: {
-            Text("Le mot de passe enregistré sur cet iPhone sera effacé. Altim continue en mode autonome ; vos avoirs et votre radar restent.")
-        }
-    }
-}
-
-/// Weight of one factor of the composite score, 0 – 100 %.
-private struct ScoreWeightSlider: View {
-    let factor: ScoreWeights.Factor
-    @Binding var weights: ScoreWeights
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(factor.label).font(.subheadline.weight(.semibold))
-                    Text(factor.hint).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text("\(weights[keyPath: factor.path])\u{202F}%").font(Theme.mono(14))
-            }
-            Slider(value: Binding(
-                get: { Double(weights[keyPath: factor.path]) },
-                set: { weights[keyPath: factor.path] = Int(min(100, max(0, $0.rounded()))) }
-            ), in: 0...100, step: 1)
-            .accessibilityLabel("Poids \(factor.label)")
-            .accessibilityValue("\(weights[keyPath: factor.path]) %")
-        }
     }
 }
 

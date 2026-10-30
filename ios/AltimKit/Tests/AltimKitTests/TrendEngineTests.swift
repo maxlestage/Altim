@@ -76,3 +76,22 @@ extension TrendEngineTests {
         print(String(decoding: v.0, as: UTF8.self))
     }
 }
+
+extension TrendEngineTests {
+    func testVerdictChangesAreConfigurationTransitions() {
+        Money.setDisplay(.usd, nil)
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        func v(_ s: TrendEngine.State) -> TrendEngine.Verdict {
+            .init(state: s, action: s == .down ? .sell : s == .mixed ? .hold : .buy, score: 0, confidence: 0, momentum: 0, lookback: 60, ema200: 100, rsi2: 50, text: "")
+        }
+        var (s, t) = ConfigChanges.apply(ConfigState(), verdict: v(.trend), asset: a, now: 1)
+        XCTAssertNil(t) // first sight: a baseline, no change
+        (s, t) = ConfigChanges.apply(s, verdict: v(.pullback), asset: a, now: 2)
+        XCTAssertNil(t) // a pull-back is the same picture
+        (s, t) = ConfigChanges.apply(s, verdict: v(.down), asset: a, now: 3)
+        XCTAssertEqual(t?.change, "ACHETER / CONSERVER → RESTER À L'ÉCART")
+        XCTAssertEqual(t?.triggers.first, "Retour à l'achat quand le prix repasse au-dessus de 100,00\u{a0}$ (moyenne 200 jours) avec un momentum positif")
+        XCTAssertEqual(s.transitions.count, 1)
+        XCTAssertNil(ConfigChanges.apply(s, verdict: v(.unknown), asset: a, now: 4).transition)
+    }
+}

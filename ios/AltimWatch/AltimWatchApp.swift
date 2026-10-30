@@ -3,11 +3,10 @@ import SwiftUI
 import WatchConnectivity
 import AltimKit
 
-/// Apple Watch app: which assets can be bought now and their current prices. The Watch reads them itself from the
-/// server over HTTPS (`/api/alerts` and `/api/tickers`, through the iPhone's connection or Wi-Fi / cellular) when it
-/// opens and every 30 s while it stays on screen, with the session the iPhone gave it (`WatchLink`, kept in the Watch's
-/// Keychain; never the password). watchOS does not allow a WebSocket for an ordinary app (Apple TN3135), hence these
-/// HTTPS readings. While the iPhone app is open, every change it receives on its live socket also lands here.
+/// Apple Watch app: which assets can be bought now and their current prices. The Watch computes them itself from the
+/// public market sources (AltimKit's on-device engines, through the iPhone's connection or Wi-Fi / cellular) when it
+/// opens and every 30 s while it stays on screen. The iPhone gives it the list of assets (its last check), the display
+/// currency and the EUR/USD rate. No server, no account.
 @main
 struct AltimWatchApp: App {
     @State private var store = WatchStore()
@@ -21,30 +20,12 @@ struct AltimWatchApp: App {
     }
 }
 
-/// The session given by the iPhone, in the Watch's Keychain (readable after the first unlock, this device only).
+/// Older versions kept a server session in the Watch's Keychain: forgotten once.
 enum WatchKeychain {
-    private static let base: [String: Any] = [
-        kSecClass as String: kSecClassGenericPassword,
-        kSecAttrService as String: "com.maxlestage.altim.watch",
-        kSecAttrAccount as String: "link",
-    ]
-
-    static func save(_ link: WatchLink?) {
-        SecItemDelete(base as CFDictionary)
-        guard let link, let data = try? JSONEncoder().encode(link) else { return }
-        var attributes = base
-        attributes[kSecValueData as String] = data
-        attributes[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        SecItemAdd(attributes as CFDictionary, nil)
-    }
-
-    static func load() -> WatchLink? {
-        var query = base
-        query[kSecReturnData as String] = true
-        query[kSecMatchLimit as String] = kSecMatchLimitOne
-        var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-        return try? JSONDecoder().decode(WatchLink.self, from: data)
+    static func forgetServerSession() {
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "com.maxlestage.altim.watch",
+                                    kSecAttrAccount as String: "link"]
+        SecItemDelete(query as CFDictionary)
     }
 }
 
@@ -55,7 +36,6 @@ final class WatchStore: NSObject, WCSessionDelegate {
     private(set) var checked: Date? = nil
     private(set) var refreshing = false
     private(set) var message: String? = nil
-    private(set) var link: WatchLink? = nil
     /// Altim without a server: the markets read and judged on the Watch (kept for its short caches).
     private let standalone = AltimClient.standalone(local: LocalBackend(fetcher: URLSessionFetcher(timeout: WatchLink.timeout)))
 
@@ -65,7 +45,7 @@ final class WatchStore: NSObject, WCSessionDelegate {
             alerts = saved
             checked = UserDefaults.standard.object(forKey: "checked") as? Date
         }
-        link = WatchKeychain.load()
+        WatchKeychain.forgetServerSession()
         Self.applyDisplay(currency: UserDefaults.standard.string(forKey: "currency"), fx: UserDefaults.standard.data(forKey: "fx"))
         if WCSession.isSupported() {
             WCSession.default.delegate = self
@@ -73,11 +53,11 @@ final class WatchStore: NSObject, WCSessionDelegate {
         }
     }
 
-    /// Reads the alerts and the prices now (15 s at most), whether or not the iPhone is nearby: from the server the
-    /// iPhone is linked to, else computed on the Watch itself (AltimKit's on-device engines, the same as the iPhone's).
+    /// Reads the alerts and the prices now (15 s at most), whether or not the iPhone is nearby, computed on the Watch
+    /// itself from the public market sources (AltimKit's on-device engines, the same as the iPhone's). No server.
     func refresh() async {
         guard !refreshing else { return }
-        let client = link?.client() ?? standalone
+        let client = standalone
         let assets = alerts.map(\.asset)
         guard !assets.isEmpty else {
             message = "Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois."
@@ -116,15 +96,6 @@ final class WatchStore: NSObject, WCSessionDelegate {
             Self.applyDisplay(currency: currency, fx: fx)
             UserDefaults.standard.set(currency, forKey: "currency")
             UserDefaults.standard.set(fx, forKey: "fx")
-        }
-        if let data = context["link"] as? Data {
-            // Empty: the iPhone logged out, the Watch forgets the session.
-            let next = data.isEmpty ? nil : try? JSONDecoder().decode(WatchLink.self, from: data)
-            if next != link {
-                link = next
-                WatchKeychain.save(next)
-                if next != nil, message == WatchLink.notLinked { message = nil }
-            }
         }
         guard let data = context["alerts"] as? Data, let items = try? JSONDecoder().decode([BuyAlert].self, from: data) else { return }
         let at = context["checked"] as? Date

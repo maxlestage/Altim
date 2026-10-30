@@ -85,8 +85,6 @@ struct JournalView: View {
                 let c = try await client.candles(asset, interval: "1d").candles
                 candles[key] = c
                 failed.remove(key)
-            } catch AltimError.unauthorized {
-                return model.sessionLost()
             } catch is CancellationError {
                 return
             } catch {

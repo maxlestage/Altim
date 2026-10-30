@@ -7,12 +7,10 @@ import AltimKit
 @MainActor
 @Observable
 final class AppModel {
-    enum Phase: Equatable { case setup, locked, ready }
+    enum Phase: Equatable { case locked, ready }
 
-    private(set) var phase: Phase = .setup
+    private(set) var phase: Phase = .locked
     private(set) var client: AltimClient? = nil
-    private(set) var serverURL: URL? = nil
-    private(set) var user: String? = nil
 
     var acceptedDisclaimer: Bool { didSet { defaults.set(acceptedDisclaimer, forKey: "acceptedDisclaimer") } }
     var faceIDLock: Bool { didSet { defaults.set(faceIDLock, forKey: "faceIDLock") } }
@@ -63,8 +61,6 @@ final class AppModel {
     var tradeJournal: TradeJournalState { didSet { saveTradeJournal() } }
     /// The saved trading journal could not be read: ignored, kept aside at the next write.
     var tradeJournalError: String?
-    /// Decisions received during this session: the one "of the moment" for a journal entry.
-    @ObservationIgnored private var recentDecisions: [String: (decision: Decision, at: Date)] = [:]
     /// Positions just closed by the automatic check (stop / target), shown once in the Simulation view.
     var paperJustClosed: [PaperTrade] = []
     @ObservationIgnored private var checkingPaper = false
@@ -80,12 +76,8 @@ final class AppModel {
     var selectionHorizon: Horizon { didSet { defaults.set(selectionHorizon.rawValue, forKey: "selectionHorizon") } }
     /// Risk limits (Réglages → Prudence des conseils), checked on Mes avoirs.
     var risk: RiskSettings { didSet { defaults.set(try? JSONEncoder().encode(risk), forKey: "riskSettings") } }
-    /// Weights of the decision's composite score (Réglages), sent as `w=` only when not the defaults.
-    var scoreWeights: ScoreWeights { didSet { defaults.set(try? JSONEncoder().encode(scoreWeights), forKey: "scoreWeights") } }
     /// Last decision seen per asset and the configuration changes (Radar), stored on the iPhone only.
     var configChanges: ConfigState { didSet { LocalStore.save(configChanges, "configChanges") } }
-    /// The last decision seen for each asset (its page or the Radar's re-reading): the Radar's verdict.
-    var decisionDigests: [String: DecisionDigest] { didSet { LocalStore.save(decisionDigests, "decisionDigests") } }
     /// Positions that became dangerous, last measured on Mes avoirs (shown again on the Radar with their time).
     var dangers: DangerState? { didSet { LocalStore.save(dangers, "dangers") } }
 
@@ -143,24 +135,12 @@ final class AppModel {
         selectionMarket = Kind(rawValue: defaults.string(forKey: "selectionMarket") ?? "") ?? .stock
         selectionHorizon = Horizon(rawValue: defaults.string(forKey: "selectionHorizon") ?? "") ?? .mo1
         risk = defaults.data(forKey: "riskSettings").flatMap { try? JSONDecoder().decode(RiskSettings.self, from: $0) } ?? .defaults
-        scoreWeights = defaults.data(forKey: "scoreWeights").flatMap { try? JSONDecoder().decode(ScoreWeights.self, from: $0) } ?? .defaults
         // Damaged or older entries are dropped on reading (ConfigState validates each one).
         configChanges = LocalStore.load(ConfigState.self, "configChanges") ?? ConfigState()
-        decisionDigests = LocalStore.load([String: DecisionDigest].self, "decisionDigests") ?? [:]
         dangers = LocalStore.load(DangerState.self, "dangers")
         applyMoney()
         moneyStamp = Money.displayCurrency
-        restore()
-        // What the live socket pushes while the app is open.
-        live.onAlerts = { [weak self] items, at in
-            guard let self else { return }
-            Task { await self.applyPushedAlerts(items, checkedAt: at) }
-        }
-        live.onVerdict = { [weak self] v in self?.applyPushedVerdict(v) }
-        live.onFx = { [weak self] rate in
-            guard let self, self.fx?.rate != rate else { return }
-            Task { await self.refreshFx() }
-        }
+        start()
     }
 
     // MARK: Display currency
@@ -221,8 +201,6 @@ final class AppModel {
                 fxError = r.response.error ?? "taux indisponible"
                 if let f = fx, Date().timeIntervalSince1970 * 1000 - f.fetchedAt >= 7 * 86_400_000 { fx = nil }
             }
-        } catch AltimError.unauthorized {
-            fxError = "taux indisponible (session expirée)"
         } catch {
             fxError = "taux indisponible (\(error.localizedDescription))"
         }
@@ -232,127 +210,29 @@ final class AppModel {
 
     // MARK: Access
 
-    /// Reopens the saved access (server + Keychain) without asking anything, apart from Face ID. Without a server,
-    /// Altim works on its own: the markets are read and judged on the iPhone.
-    private func restore() {
-        guard let s = defaults.string(forKey: "server"), let url = AltimClient.normalize(s) else { return useStandalone(lock: true) }
-        let creds = KeychainStore.get(.credentials).flatMap { try? JSONDecoder().decode(Credentials.self, from: $0) }
-        let cookie = KeychainStore.string(.session)
-        let open = defaults.bool(forKey: "openServer")
-        // Launched in the background while the iPhone is locked: the password is unreadable, the session is enough.
-        guard creds != nil || cookie != nil || open else { return useStandalone(lock: true) }
-        serverURL = url
-        user = creds?.user ?? defaults.string(forKey: "user")
-        // Empty password = 2FA account: no silent re-login (a wrong attempt would count towards the lockout).
-        let usable = creds.flatMap { $0.password.isEmpty ? nil : $0 }
-        client = makeClient(url, credentials: usable, cookie: cookie)
-        phase = faceIDLock ? .locked : .ready
-    }
-
-    /// Client with the offline cache: the last good answers are shown, dated, when the network or the server fails.
-    /// Prices, candles, the Radar, the search and EUR/USD are always computed on the iPhone (`local`), server or not.
-    private func makeClient(_ url: URL, credentials: Credentials?, cookie: String?) -> AltimClient {
-        AltimClient(baseURL: url, credentials: credentials, sessionCookie: cookie, cache: responseCache, local: local) { [weak self] date in
-            Task { @MainActor in self?.offlineSince = date }
+    /// Altim on its own: every figure is read from the public market sources and computed on this iPhone; no server,
+    /// no account. A connection to an Altim server saved by an older version is forgotten once (address, user,
+    /// password and session in the Keychain, the server's saved answers and decisions).
+    private func start() {
+        if defaults.object(forKey: "server") != nil || defaults.object(forKey: "openServer") != nil || KeychainStore.string(.session) != nil {
+            for key in ["server", "openServer", "user"] { defaults.removeObject(forKey: key) }
+            KeychainStore.clear()
+            responseCache.clear()
+            LocalStore.remove("alertTracker")
+            LocalStore.remove("lastAlerts")
+            lastAlerts = []
+            configChanges = ConfigState()
         }
-    }
-
-    /// The markets read and judged on this iPhone, shared by every client (its short caches survive a reconnection).
-    @ObservationIgnored private let local = LocalBackend()
-
-    /// No server: Altim on its own, nothing to type, nothing sent anywhere but the market data providers.
-    var isStandalone: Bool { client?.isStandalone ?? true }
-
-    /// `lock`: at launch, Face ID is asked like for a restored session; from the login screen the app opens directly.
-    func useStandalone(lock: Bool = false) {
+        for key in ["scoreWeights"] { defaults.removeObject(forKey: key) }
+        LocalStore.remove("decisionDigests")
         client = AltimClient.standalone(local: local, cache: responseCache) { [weak self] date in
             Task { @MainActor in self?.offlineSince = date }
         }
-        serverURL = nil
-        user = nil
-        phase = lock && faceIDLock ? .locked : .ready
+        phase = faceIDLock ? .locked : .ready
     }
 
-    /// Réglages → « Connecter un serveur Altim »: the login screen, which can come back to the standalone mode.
-    func showServerSetup() {
-        live.stop()
-        phase = .setup
-    }
-
-    /// Checks the server and returns what it asks for (user/password, 2FA code, or nothing for a local server).
-    func probe(_ server: String) async throws -> (URL, AccessMode) {
-        guard let url = AltimClient.normalize(server) else { throw AltimError.invalidServer }
-        let mode = try await AltimClient(baseURL: url, credentials: nil).accessMode()
-        return (url, mode)
-    }
-
-    func connect(url: URL, mode: AccessMode, user: String, password: String, code: String) async throws {
-        var creds: Credentials?
-        if case .login = mode {
-            let c = Credentials(user: user.trimmingCharacters(in: .whitespaces), password: password)
-            let c1 = AltimClient(baseURL: url, credentials: nil)
-            try await c1.login(c, code: code.trimmingCharacters(in: .whitespaces))
-            creds = c
-            KeychainStore.setString(c1.sessionCookie, for: .session)
-            // With 2FA, a silent re-login is impossible (the code changes): the password is kept only without 2FA.
-            if case .login(needsCode: false) = mode {
-                KeychainStore.set(try JSONEncoder().encode(c), for: .credentials)
-            } else {
-                KeychainStore.set(try JSONEncoder().encode(Credentials(user: c.user, password: "")), for: .credentials)
-            }
-            client = makeClient(url, credentials: mode == .login(needsCode: false) ? c : nil, cookie: c1.sessionCookie)
-        } else {
-            client = makeClient(url, credentials: nil, cookie: nil)
-        }
-        defaults.set(url.absoluteString, forKey: "server")
-        defaults.set(mode == .open, forKey: "openServer")
-        defaults.set(creds?.user, forKey: "user")
-        serverURL = url
-        self.user = creds?.user
-        phase = .ready
-    }
-
-    func logout() async {
-        live.stop()
-        LocalStore.remove("alertTracker")
-        LocalStore.remove("lastAlerts")
-        LocalStore.remove("newsTracker")
-        lastAlerts = []
-        // Decisions of this server: another server would show them as its own.
-        decisionDigests = [:]
-        await client?.logout()
-        KeychainStore.clear()
-        responseCache.clear()
-        offlineSince = nil
-        defaults.removeObject(forKey: "openServer")
-        defaults.removeObject(forKey: "server")
-        // Back to Altim on its own (not to a login screen).
-        phase = .setup
-        useStandalone()
-        WatchBridge.shared.sendLink()
-    }
-
-    /// Called after each API call: keeps the (possibly renewed) session cookie for the next launch.
-    func persistSession() {
-        guard let cookie = client?.sessionCookie, cookie != KeychainStore.string(.session) else { return }
-        KeychainStore.setString(cookie, for: .session)
-        WatchBridge.shared.sendLink()
-    }
-
-    /// The server and the session given to the Apple Watch for its own HTTPS readings (never the password).
-    var watchLink: WatchLink? {
-        guard let client, let cookie = client.sessionCookie, !cookie.isEmpty else { return nil }
-        return WatchLink(server: client.baseURL.absoluteString, session: cookie)
-    }
-
-    /// The session expired and could not be renewed (2FA on, or password changed): back to the login screen.
-    func sessionLost() {
-        live.stop()
-        // The dead cookie is dropped: the next launch asks to log in instead of failing silently again.
-        KeychainStore.setString(nil, for: .session)
-        phase = .setup
-        WatchBridge.shared.sendLink()
-    }
+    /// The markets read and judged on this iPhone (its short caches are shared by every screen).
+    @ObservationIgnored private let local = LocalBackend()
 
     // MARK: Lock (Face ID / code of the iPhone)
 
@@ -445,9 +325,8 @@ final class AppModel {
             reached = result.fired
             if !reached.isEmpty { priceTargets = result.targets }
         }
-        // Without a server the buy alerts are not computed yet: the price alerts reached above are still notified.
-        let fresh: [BuyAlert]
-        do { fresh = try await checkBuyAlerts(client) } catch AltimError.needsServer { fresh = [] }
+        // A failed reading of the buy alerts must not swallow the price alerts reached above (already marked).
+        let fresh = (try? await checkBuyAlerts(client)) ?? []
         let entries = (alertsEnabled ? fresh : []).compactMap { a in
             a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) }
         } + reached.map { t, p in JournalEntry(asset: t.asset, source: .target, title: "\(t.asset.symbol) : \(t.label.lowercased())", price: p, date: now) }
@@ -460,14 +339,7 @@ final class AppModel {
     private func checkNews(_ client: AltimClient, now: Date) async throws -> [NewsItem] {
         var seen = Set<String>()
         let mine = (watchlist + holdings.map(\.asset)).filter { seen.insert($0.id).inserted }
-        let report: NewsReport
-        do {
-            report = try await client.news(mine)
-        } catch AltimError.unauthorized {
-            throw AltimError.unauthorized
-        } catch {
-            return []
-        }
+        guard let report = try? await client.news(mine) else { return [] }
         var tracker = LocalStore.load(NewsAlertTracker.self, "newsTracker") ?? NewsAlertTracker()
         let fresh = tracker.newAlerts(report.items, owned: Set(mine.map(\.id)), now: now)
         LocalStore.save(tracker, "newsTracker")
@@ -486,118 +358,60 @@ final class AppModel {
         LocalStore.save(lastAlerts, "lastAlerts")
         lastAlertCheck = Date()
         defaults.set(lastAlertCheck, forKey: "lastAlertCheck")
-        persistSession()
         return fresh
-    }
-
-    /// Alerts pushed by the live socket while the app is open. The same tracker as the background check decides what
-    /// to notify, so a situation is notified once whichever found it first; merged into the last alerts (a socket
-    /// covers the followed assets only), then sent to the Watch and the Live Activity at once.
-    func applyPushedAlerts(_ items: [BuyAlert], checkedAt: Date) async {
-        guard !items.isEmpty else { return }
-        var tracker = LocalStore.load(AlertTracker.self, "alertTracker") ?? AlertTracker()
-        let fresh = tracker.newAlerts(items, onlyStrong: alertsStrongOnly)
-        LocalStore.save(tracker, "alertTracker")
-        var byId = Dictionary(lastAlerts.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
-        for a in items { byId[a.id] = a }
-        lastAlerts = byId.values.sorted { ($0.buy ? 0 : 1, $0.symbol) < ($1.buy ? 0 : 1, $1.symbol) }
-        LocalStore.save(lastAlerts, "lastAlerts")
-        lastAlertCheck = checkedAt
-        defaults.set(lastAlertCheck, forKey: "lastAlertCheck")
-        WatchBridge.shared.send(lastAlerts, checked: checkedAt)
-        LiveActivities.shared.refresh(with: lastAlerts)
-        guard alertsEnabled, !fresh.isEmpty else { return }
-        let now = Date()
-        let entries = fresh.compactMap { a in a.price.map { JournalEntry(asset: a.asset, source: a.strong ? .strongBuy : .buy, title: a.title, price: $0, date: now) } }
-        if !entries.isEmpty { journal = AlertJournal.add(entries, to: journal) }
-        await BuyNotifications.post(fresh)
-    }
-
-    /// Verdicts already re-read after a push (one reading per pushed change).
-    @ObservationIgnored private var pushedVerdicts: Set<String> = []
-
-    /// A Radar verdict pushed by the live socket that differs from the last decision seen: that decision is re-read at
-    /// once (configuration diff, chip, note) instead of at the next 15-minute round. An asset never read yet, or seen
-    /// last in personal mode, is left to the Radar's own reading.
-    func applyPushedVerdict(_ v: VerdictPush) {
-        guard let client, let old = decisionDigests[DecisionDigests.key(kind: v.kind, symbol: v.symbol)], !old.personal else { return }
-        if old.verdict.rawValue == v.verdict && (old.note ?? "") == (v.chipNote ?? "") { return }
-        guard pushedVerdicts.insert("\(v.key)|\(v.verdict)|\(v.chipNote ?? "")").inserted else { return }
-        let asset = watchlist.first { $0.id == v.key } ?? Asset(symbol: v.symbol, kind: v.kind, name: v.symbol)
-        Task { [weak self] in
-            if let d = try? await client.decision(asset: asset) { self?.recordDecision(d, personal: false) }
-        }
     }
 
     func clearJournal() { journal = [] }
 
     // MARK: Configuration changes
 
-    /// Every decision received goes through the configuration diff (verdict or level changed since the last one seen).
-    /// An answer more than an hour old (served from the offline cache) is not compared: it would tell a false change.
+    /// Every verdict seen (its page, the background check) goes through the configuration diff.
     @discardableResult
-    func recordDecision(_ d: Decision, personal: Bool, now: Date = Date()) -> ConfigTransition? {
-        let ms = now.timeIntervalSince1970 * 1000
-        recentDecisions["\(d.kind.rawValue):\(d.symbol)"] = (d, now)
-        let digests = DecisionDigests.record(decisionDigests, d, personal: personal, now: ms)
-        if digests != decisionDigests { decisionDigests = digests }
-        guard ms - d.asOf < 3_600_000 else { return nil }
-        let r = ConfigChanges.apply(configChanges, d, personal: personal, now: ms)
-        configChanges = r.state
+    func recordVerdict(_ v: TrendEngine.Verdict, asset: Asset, now: Date = Date()) -> ConfigTransition? {
+        let r = ConfigChanges.apply(configChanges, verdict: v, asset: asset, now: now.timeIntervalSince1970 * 1000)
+        if r.state != configChanges { configChanges = r.state }
         return r.transition
     }
 
     func clearTransitions() { configChanges.transitions = [] }
 
-    /// When the informational decision of this asset was last compared (nil: never).
+    /// When the verdict of this asset was last compared (nil: never).
     func lastDecisionCheck(_ a: Asset) -> Date? {
         configChanges.last[ConfigChanges.key(kind: a.kind, symbol: a.symbol, personal: false)].map { Date(timeIntervalSince1970: $0.at / 1000) }
     }
 
     // MARK: Background notifications of the configuration changes and dangerous positions
 
-    /// Background re-reading of the radar decisions, with the Radar's rule: the first 20 watched assets, 2 at a time,
-    /// those not compared in the last 15 minutes (here, on the Radar or on their page), the oldest first, until
-    /// `deadline`. Each one goes through the same configuration diff; returns the changes found. Stops at an expired
-    /// session; a failed asset is compared next time.
+    /// Background re-reading of the radar verdicts (computed on the iPhone): the first 20 watched assets, 2 at a time,
+    /// those not compared in the last 15 minutes, the oldest first, until `deadline`. Each one goes through the
+    /// configuration diff; returns the changes found. A failed asset is compared next time.
     func checkConfigChanges(until deadline: Date) async -> [ConfigTransition] {
         guard let client else { return [] }
         let now = Date()
         let due = watchlist.prefix(20)
             .map { (asset: $0, last: lastDecisionCheck($0)) }
-            .filter { x in x.last.map { now.timeIntervalSince($0) >= RadarView.decisionEvery } ?? true }
+            .filter { x in x.last.map { now.timeIntervalSince($0) >= Self.verdictEvery } ?? true }
             .sorted { ($0.last ?? .distantPast) < ($1.last ?? .distantPast) }
             .map { $0.asset }
         var found: [ConfigTransition] = []
         var i = 0
         while i < due.count && !Task.isCancelled && Date() < deadline {
             let pair = Array(due[i..<min(i + 2, due.count)])
-            let got = await withTaskGroup(of: (decision: Decision?, unauthorized: Bool).self) { group in
-                for a in pair {
-                    group.addTask {
-                        do {
-                            return (try await client.decision(asset: a), false)
-                        } catch AltimError.unauthorized {
-                            return (nil, true)
-                        } catch {
-                            return (nil, false)
-                        }
-                    }
-                }
-                var out: [(decision: Decision?, unauthorized: Bool)] = []
+            let got = await withTaskGroup(of: (Asset, TrendEngine.Verdict?).self) { group in
+                for a in pair { group.addTask { (a, try? await client.verdict(a)) } }
+                var out: [(Asset, TrendEngine.Verdict?)] = []
                 for await r in group { out.append(r) }
                 return out
             }
             guard !Task.isCancelled else { break }
-            for r in got {
-                if let d = r.decision, let t = recordDecision(d, personal: false) { found.append(t) }
-            }
-            if got.contains(where: { $0.unauthorized }) { break }
+            for (a, v) in got { if let v, let t = recordVerdict(v, asset: a) { found.append(t) } }
             i += 2
         }
-        persistSession()
         return found
     }
+
+    /// The verdicts are compared at most this often (the daily candles change once a day; prices every few seconds).
+    static let verdictEvery: Double = 15 * 60
 
     /// Dangerous positions measured in the background like on Mes avoirs: quotes of the held assets and daily candles
     /// of the lines that have a stop (the ATR of "near the stop"), 2 at a time, 20 assets at most. nil when the quotes
@@ -630,7 +444,6 @@ final class AppModel {
         await Task.yield()
         // Candles served from the offline cache are old: the near-stop state is then unknown rather than wrong.
         if offlineSince != nil { daily = [:] }
-        persistSession()
         let p = RiskPortfolio(holdings: holdings, prices: prices, daily: daily)
         let unknown = Set(holdings.filter { $0.stop != nil && daily[$0.asset.id] == nil }.map(\.id.uuidString))
         return (RiskEngine.dangerousPositions(p, risk, daily: daily), unknown)
@@ -638,15 +451,8 @@ final class AppModel {
 
     // MARK: Trading journal
 
-    /// The decision seen on this iPhone for this asset, when recent enough to be "the one of the moment".
-    func recentDecision(_ a: Asset, now: Date = Date()) -> Decision? {
-        guard let c = recentDecisions[a.id] else { return nil }
-        let max = TradeJournal.decisionMaxAge
-        return now.timeIntervalSince(c.at) * 1000 <= max && now.timeIntervalSince1970 * 1000 - c.decision.asOf <= max ? c.decision : nil
-    }
-
     /// Writes an entry and completes it in the background with the market data of that moment (macro stress, ATR,
-    /// relative volume, and the decision when none was loaded yet); a failed fetch only leaves the field unknown.
+    /// relative volume); a failed fetch only leaves the field unknown.
     @discardableResult
     func recordTrade(source: TradeJournalSource, side: TradeSide, asset: Asset, price: Double, quantity: Double?, amount: Double? = nil,
                      stop: Double? = nil, targets: [Double?] = [], note: String = "", refId: String? = nil, decision: Decision? = nil) -> String? {
@@ -654,18 +460,18 @@ final class AppModel {
         let now = nowMs
         let e = TradeJournal.create(.init(id: UUID().uuidString, now: now, source: source, side: side, symbol: asset.symbol, kind: asset.kind,
                                           name: asset.name, price: price, quantity: quantity, amount: amount ?? quantity.map { $0 * price },
-                                          stop: stop, targets: targets, note: note, refId: refId, decision: decision ?? recentDecision(asset)))
+                                          stop: stop, targets: targets, note: note, refId: refId, decision: decision))
         tradeJournal = TradeJournal.add(tradeJournal, e)
-        Task { await enrichTrade(id: e.id, asset: asset, at: e.createdAt, hasDecision: e.decision != nil) }
+        Task { await enrichTrade(id: e.id, asset: asset, at: e.createdAt) }
         return e.id
     }
 
-    private func enrichTrade(id: String, asset: Asset, at: Double, hasDecision: Bool) async {
+    private func enrichTrade(id: String, asset: Asset, at: Double) async {
         guard let client else { return }
         let macro = try? await client.macro()
         let candles = try? await client.candles(asset, interval: "1d")
-        var decision: Decision?
-        if !hasDecision { decision = try? await client.decision(asset: asset) }
+        // No full decision on the iPhone: the entry keeps the one it was written with, if any.
+        let decision: Decision? = nil
         guard let entry = tradeJournal.entries.first(where: { $0.id == id }) else { return }
         var market = JournalMarket()
         if let macro {
@@ -733,13 +539,10 @@ final class AppModel {
         for a in assets {
             do {
                 candles[a.id] = try await client.candles(a, interval: "1d").candles
-            } catch AltimError.unauthorized {
-                return sessionLost()
             } catch {
                 continue
             }
         }
-        persistSession()
         // Applied to the state as it is now (a position may have been sold meanwhile).
         let r = Paper.checkExits(paper, candles: candles)
         guard !r.closed.isEmpty else { return }

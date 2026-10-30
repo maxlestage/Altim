@@ -1,4 +1,5 @@
-# Envoi sur TestFlight sans Mac : lancez ce workflow depuis l'onglet Actions de GitHub (même sur iPhone).
+# Envoi sur TestFlight sans Mac : automatique à chaque fusion dans master touchant ios/, ou à la main depuis l'onglet
+# Actions de GitHub (même sur iPhone).
 # Prérequis (voir DEPLOIEMENT.md) : compte Apple Developer, secrets APPLE_TEAM_ID, ASC_KEY_ID, ASC_ISSUER_ID,
 # ASC_KEY_P8 (contenu du fichier .p8). Premier lancement : le workflow enregistre lui-même les identifiants de lot
 # (com.maxlestage.altim, .widgets, .watchkitapp) ; s'il n'y a pas encore d'app dans App Store Connect, il s'arrête en le
@@ -7,6 +8,15 @@ name: TestFlight
 
 on:
   workflow_dispatch:
+  # Every merge into master that touches the iPhone app goes to TestFlight by itself (build number = run number).
+  push:
+    branches: [master]
+    paths: ["ios/**", ".github/workflows/testflight.yml"]
+
+# One upload at a time; a newer merge waits for the running one instead of racing it.
+concurrency:
+  group: testflight
+  cancel-in-progress: false
 
 # Least privilege: the jobs only read the repository.
 permissions:

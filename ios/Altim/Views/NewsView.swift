@@ -8,8 +8,6 @@ struct NewsView: View {
     @State private var error: String?
     @AppStorage("news.filter") private var filter = "all"
     @AppStorage("news.frenchOnly") private var frenchOnly = false
-    /// "articles" or "agenda", remembered like the web's Actu sub-tab.
-    @AppStorage("news.view") private var view = "articles"
     /// Asset opened from the summary's chips.
     @State private var opened: Asset?
 
@@ -27,12 +25,7 @@ struct NewsView: View {
 
     var body: some View {
         Group {
-            // The agenda (earnings, central banks, macro releases) is computed by the Altim server.
-            if view == "agenda" && !model.isStandalone {
-                AgendaView(view: $view)
-            } else {
-                articles
-            }
+            articles
         }
         .altimScreen()
         .navigationTitle("Actualités")
@@ -41,7 +34,6 @@ struct NewsView: View {
 
     private var articles: some View {
         List {
-            if !model.isStandalone { Section { NewsViewPicker(view: $view) }.listRowBackground(Color.clear) }
             Section {
                 Text(report.map { r in "\(r.items.count) articles de \(r.sources.filter(\.ok).count) sources sur 48 h, mis à jour \(NewsItem.ago(r.asOf))." } ?? "Chargement des sources…")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
@@ -119,9 +111,6 @@ struct NewsView: View {
         do {
             report = try await client.news(assets)
             error = nil
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
@@ -130,16 +119,6 @@ struct NewsView: View {
 }
 
 /// "Articles / Agenda" at the top of the Actu tab.
-struct NewsViewPicker: View {
-    @Binding var view: String
-
-    var body: some View {
-        FittingPicker(title: "Vue", selection: $view) {
-            Text("Articles").tag("articles")
-            Text("Agenda").tag("agenda")
-        }
-    }
-}
 
 private struct StoryRow: View {
     var item: NewsItem
