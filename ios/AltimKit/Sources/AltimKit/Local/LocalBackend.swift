@@ -11,11 +11,12 @@ public actor LocalBackend {
     private var longCache: [String: (at: Double, bars: [Bar])] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
     var macroCache: (at: Double, info: MacroInfo)?
+    var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
 
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict", "/api/sectors", "/api/macro"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict", "/api/sectors", "/api/macro", "/api/earnings"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -39,6 +40,9 @@ public actor LocalBackend {
                 return (try Self.encode(await fx()), 200)
             case "/api/zones":
                 return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/earnings":
+                let symbols = (query["symbols"] ?? "").split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                return (try Self.encode(await earnings(Array(symbols.prefix(30)))), 200)
             case "/api/macro":
                 return (try Self.encode(try await macroReport()), 200)
             case "/api/sectors":
