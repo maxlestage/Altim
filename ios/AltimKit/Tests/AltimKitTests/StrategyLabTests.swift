@@ -256,3 +256,32 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Variants of the per-asset verdict on both lists (lab and the app's universe), cut in two halves.
+    func testVerdictVariants() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let rules = [
+            LabRule(name: "actuel", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }),
+            LabRule(name: "tampon 2%", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) * 1.02 && (s.ret(i, n(s)) ?? -1) > 0.02 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) * 0.98 || (s.ret(i, n(s)) ?? 0) < -0.02 }),
+            LabRule(name: "sortie tendance seule", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) }),
+            LabRule(name: "sortie 2 conditions", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? 0) < 0 }),
+            LabRule(name: "confirmation 3 j", enter: { s, i in i > 3 && (0..<3).allSatisfy { k in s.close[i - k] > Self.v(s.ema200[i - k]) && (s.ret(i - k, n(s)) ?? -1) > 0 } },
+                    exit: { s, i in i > 3 && (0..<3).allSatisfy { k in s.close[i - k] < Self.v(s.ema200[i - k]) || (s.ret(i - k, n(s)) ?? 0) < 0 } }),
+        ]
+        print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
+        print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+}
