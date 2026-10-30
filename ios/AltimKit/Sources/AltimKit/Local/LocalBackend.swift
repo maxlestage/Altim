@@ -10,11 +10,12 @@ public actor LocalBackend {
     private var fxCache: (at: Double, value: Fx.Response)?
     private var longCache: [String: (at: Double, bars: [Bar])] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
+    var macroCache: (at: Double, info: MacroInfo)?
 
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict", "/api/sectors"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict", "/api/sectors", "/api/macro"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -38,6 +39,8 @@ public actor LocalBackend {
                 return (try Self.encode(await fx()), 200)
             case "/api/zones":
                 return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/macro":
+                return (try Self.encode(try await macroReport()), 200)
             case "/api/sectors":
                 return (await LocalSectors.report((query["symbols"] ?? "").split(separator: ",").map(String.init), fetcher: fetcher), 200)
             case "/api/verdict":
@@ -178,7 +181,7 @@ public actor LocalBackend {
         guard s4 != nil || sd != nil || sw != nil else { throw MarketError("Toutes les sources ont échoué") }
         let price = await q.first?.price ?? s4?.candles.last?.close ?? sd?.candles.last?.close
         let zones = FibEngine.zones(h4: s4?.candles ?? [], daily: sd?.candles ?? [], weekly: sw?.candles ?? [], price: price)
-        return ZonesReport(symbol: a.symbol, kind: a.kind, price: price, asOf: nowMs(), zones: zones, macro: nil)
+        return ZonesReport(symbol: a.symbol, kind: a.kind, price: price, asOf: nowMs(), zones: zones, macro: try? await macroReport())
     }
 
     // MARK: Backtest

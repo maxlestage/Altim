@@ -375,3 +375,44 @@ public enum Rotation {
         "La liste d'actifs est fixée à l'avance, mais ce sont des actifs connus aujourd'hui : un test sur le passé ne garantit rien pour la suite. Altim ne passe aucun ordre.",
     ]
 }
+
+extension TrendEngine.Verdict {
+    /// The verdict as the app says it.
+    public var label: String {
+        switch state {
+        case .pullback: return action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
+        case .trend: return action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
+        case .mixed: return "CONSERVER SANS RENFORCER"
+        case .down: return "RESTER À L'ÉCART"
+        case .unknown: return "PAS DE VERDICT"
+        }
+    }
+}
+
+extension ConfigChanges {
+    /// The verdict seen on the iPhone through the same "changement de configuration" diff as the server's decisions.
+    /// A pull-back and the trend are one configuration (a short pull-back comes and goes within days, and the buy
+    /// alerts already tell it): only a change of the background picture is a transition. Unknown verdicts are ignored.
+    public static func apply(_ state: ConfigState, verdict v: TrendEngine.Verdict, asset: Asset, now: Double) -> (state: ConfigState, transition: ConfigTransition?) {
+        let side: (Decision.Verdict, Decision.Level, String, String)
+        switch v.action == .hold && (v.state == .trend || v.state == .pullback) ? .mixed : v.state {
+        case .pullback, .trend: side = (.buyZone, .moderate, "ACHETER / CONSERVER", "Tendance haussière")
+        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", "Signaux contraires")
+        case .down: side = (.noPosition, .exit, "RESTER À L'ÉCART", "Tendance baissière")
+        case .unknown: return (state, nil)
+        }
+        let trigger = v.ema200.map { e -> String in
+            side.0 == .buyZone ? "Sortie si le prix repasse sous \(Money.money(e)) (moyenne 200 jours) ou si le momentum devient négatif"
+                : "Retour à l'achat quand le prix repasse au-dessus de \(Money.money(e)) (moyenne 200 jours) avec un momentum positif"
+        }
+        let next = ConfigSnapshot(verdict: side.0, level: side.1, label: side.2, levelLabel: side.3, missing: [], triggers: trigger.map { [$0] } ?? [],
+                                  at: now, rating: nil, ratingLabel: nil, metrics: nil)
+        let k = key(kind: asset.kind, symbol: asset.symbol, personal: false)
+        let t = diff(state.last[k], next, symbol: asset.symbol, kind: asset.kind, name: asset.name, personal: false)
+        var s = state
+        s.version = stateVersion
+        s.last[k] = next
+        if let t { s.transitions = Array(([t] + s.transitions).prefix(maxTransitions)) }
+        return (s, t)
+    }
+}
