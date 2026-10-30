@@ -39,6 +39,8 @@ public enum TrendEngine {
         public var ema200: Double?
         public var rsi2: Double?
         public var text: String
+        /// Last daily close the verdict was computed on.
+        public var price: Double? = nil
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.
@@ -106,7 +108,7 @@ public enum TrendEngine {
             text = "Pas de verdict."
         }
         return Verdict(state: st, action: action, score: score, confidence: confidence, momentum: m, lookback: n, ema200: s.ema200[i],
-                       rsi2: s.rsi2[i], text: text)
+                       rsi2: s.rsi2[i], text: text, price: s.close[i])
     }
 
     // MARK: Backtest of the per-asset rule

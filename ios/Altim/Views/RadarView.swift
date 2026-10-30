@@ -174,6 +174,9 @@ struct RadarView: View {
             let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)
             rows = Dictionary(r.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
             error = nil
+            // The verdicts just computed (their daily candles are in the cache) go through the configuration diff and the
+            // track record (Alertes → Bilan des verdicts), at most every 15 minutes per asset.
+            _ = await model.checkConfigChanges(until: Date().addingTimeInterval(20))
         } catch {
             self.error = error.localizedDescription
         }
