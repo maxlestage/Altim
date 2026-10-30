@@ -153,6 +153,8 @@ struct SettingsView: View {
             } footer: {
                 Text("Ces limites servent à Mes avoirs : la part de votre patrimoine qu'une ligne peut perdre si son stop est touché, la taille maximale d'une ligne, la perte max du jour et la part crypto max. Règle professionnelle : ne jamais risquer plus de 1 à 2 % de son patrimoine sur une seule idée.\n\nPerte max du jour : si votre patrimoine a déjà perdu ce pourcentage depuis la clôture de la veille, Mes avoirs vous conseille de ne plus ouvrir de position aujourd'hui. Part crypto max : au-delà, Mes avoirs signale une surexposition aux cryptos, qui peuvent perdre 50 % ou plus ensemble (60 % par défaut ; 10 à 30 % est plus courant pour un patrimoine prudent).")
             }
+            // Server-only: the composite score of the Décision card.
+            if !model.isStandalone {
             Section {
                 ForEach(ScoreWeights.factors, id: \.key) { f in
                     ScoreWeightSlider(factor: f, weights: $model.scoreWeights)
@@ -166,6 +168,7 @@ struct SettingsView: View {
             } footer: {
                 Text("Poids de chaque famille dans le score de −100 à +100 de la carte Décision. Seuls les facteurs mesurés comptent : leurs poids sont ramenés à 100 %. Le verdict, lui, ne change pas.")
             }
+            }
             Section {
                 Toggle("Verrouiller avec Face ID", isOn: $model.faceIDLock)
             } header: {
@@ -173,6 +176,8 @@ struct SettingsView: View {
             } footer: {
                 Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Le mot de passe et la session sont chiffrés dans le trousseau de cet iPhone, jamais sauvegardés dans iCloud.")
             }
+            // Server-only: the validation and the bot are computed by the Altim server.
+            if !model.isStandalone {
             Section {
                 NavigationLink("Voir la validation") { ValidationView() }
             } header: {
@@ -186,6 +191,15 @@ struct SettingsView: View {
                 Text("Bot Altim")
             } footer: {
                 Text(ModelBot.settingsText)
+            }
+            }
+            if model.isStandalone {
+                Section {
+                    Text("Le verdict sur l'iPhone suit une règle choisie sur des résultats mesurés : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif. Elle a été comparée à « tout garder » sur 26 actifs, avec chaque historique coupé en deux moitiés, puis sur une seconde liste d'actifs. Elle protège surtout dans les marchés baissiers. La machine à remonter le temps de chaque actif montre son résultat réel.")
+                        .font(.footnote).foregroundStyle(Theme.textSecondary)
+                } header: {
+                    Text("Comment Altim décide")
+                }
             }
             Section("Comprendre") {
                 NavigationLink("Lexique : signal, zone d'achat, stop, flat tax…") { GlossaryView() }
