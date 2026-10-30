@@ -2,7 +2,7 @@
 
 > **Logiciel propriétaire, tous droits réservés** (voir `LICENSE`). Ce dépôt n'est pas open source : aucune copie, réutilisation ni déploiement n'est autorisé.
 
-Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application web (`/app`) en **Rust + Yew** (WebAssembly, `frontend/`), serveur **Rust + Axum** et moteurs partagés (`core/`) : tout en Rust, déployé sur Heroku (buildpacks Rust puis Node.js, ce dernier sans aucune dépendance JavaScript, ou image Docker), et deux **applications natives**, iPhone (SwiftUI) et Android (Kotlin, Jetpack Compose), qui se connectent à ce même serveur privé.
+Application web de **conseil** pour la crypto et les actions : quand acheter, attendre, alléger ou protéger, en tenant compte de **ce que vous possédez déjà**. Altim **ne passe aucun ordre** et ne demande aucun accès à vos comptes : vous suivez ou non ses conseils chez votre courtier habituel. Site de présentation et application web (`/app`) en **Rust + Yew** (WebAssembly, `frontend/`), serveur **Rust + Axum** et moteurs partagés (`core/`) : tout en Rust, déployé sur Heroku (buildpacks Rust puis Node.js, ce dernier sans aucune dépendance JavaScript, ou image Docker), et deux **applications natives** : iPhone (SwiftUI), autonome, qui calcule tout elle-même à partir des sources publiques, et Android (Kotlin, Jetpack Compose), qui se connecte à ce même serveur privé.
 
 > ⚠️ Altim est un outil d'aide à la décision, pas un conseil en investissement. Aucun algorithme ne garantit de gain.
 
@@ -14,8 +14,8 @@ Application web de **conseil** pour la crypto et les actions : quand acheter, at
 | `core` | Logique pure partagée serveur / navigateur : moteurs, formats, contrats JSON (testée par `cargo test`) |
 | `web` | Ce que le serveur sert : `web/public` (icônes, logo) et `web/dist` (front construit, non versionné) |
 | `backend` | Serveur **Rust + Axum** : API **multi-source**, prix en direct, accès privé, **API garde-fou pour bots**, sert le site |
-| `ios` | **Application iPhone native** (SwiftUI, iOS 17+) : client du serveur Heroku, projet généré par XcodeGen |
-| `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : modèles de l'API, connexion privée, flux des prix en direct, formats français |
+| `ios` | **Application iPhone native** (SwiftUI, iOS 17+), **autonome** : aucune donnée prise sur le serveur web, tout est calculé sur l'iPhone ; projet généré par XcodeGen |
+| `ios/AltimKit` | Noyau Swift testé sur Linux et macOS : sources de marché publiques, consensus, moteurs (verdict, zones, garde-fou, macro, actualités), formats français |
 | `android` | **Application Android native** (Kotlin, Jetpack Compose, Android 11+), à parité avec l'iPhone |
 | `android/kit` | Noyau Kotlin testé sur la JVM, équivalent d'AltimKit (mêmes réponses réelles du serveur en tests) |
 | `.github/workflows` | CI web, CI iOS (build + tests), envoi TestFlight, déploiement Heroku, santé quotidienne des sources |
@@ -42,24 +42,21 @@ Le moteur (signal, confirmation par l'unité supérieure, avertissements, garde-
 
 ## Application iPhone native (`ios`)
 
-L'app SwiftUI affiche les mêmes analyses que le site, **calculées par votre serveur Heroku** (40 sources, sélection sur 8 durées, zones de Fibonacci, garde-fou, macro) : rien n'est recalculé ni simplifié sur le téléphone, donc les deux donnent toujours les mêmes chiffres.
+L'app SwiftUI est **autonome** : elle ne prend aucune donnée sur le serveur web Altim, n'a ni compte ni mot de passe, et vos avoirs ne quittent jamais l'iPhone. Le noyau `AltimKit` lit lui-même les sources publiques (8 bourses crypto, Yahoo Finance, Nasdaq et Robinhood pour les actions, flux RSS d'actualité, Fear & Greed, financement OKX), compare les sources entre elles (médiane, une source qui s'écarte est écartée) et calcule tout sur le téléphone. Un test (`IndependenceTests`) échoue si une route sort de ces sources publiques ou si le code de l'app appelle une route du serveur.
 
-- **Connexion** : adresse du serveur, identifiant et mot de passe (le même formulaire que le site, protégé contre le CSRF ; code à 6 chiffres seulement si la 2FA est activée sur le serveur). Le mot de passe et la session (cookie de 7 jours) sont chiffrés dans le **trousseau iOS** (« cet appareil uniquement », jamais dans iCloud) ; à l'expiration, l'app se reconnecte seule. HTTPS obligatoire (HTTP seulement pour un serveur local).
+- **Verdict Altim** : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (60 jours crypto, 3 mois actions) ; meilleur moment d'entrée sur un repli de quelques jours. Règle choisie sur des résultats mesurés (laboratoire `StrategyLab*` : 26 actifs, deux moitiés indépendantes, deux listes d'actifs) ; une protection plus qu'une promesse de gain.
 - **Face ID** (ou code de l'iPhone) à l'ouverture et après 2 minutes en arrière-plan, désactivable dans Réglages.
-- **Radar** : prix, alertes et verdicts en direct ([WebSocket](#temps-réel-websocket), reconnexion automatique), signal technique sur l'unité choisie (4 h par défaut, 1 j, 4 j, 1 sem. ; aussi 1 h sur le web, mémorisée et partagée avec la fiche ; le verdict reste la décision complète et les notifications le signal 4 h), fiabilité, mini-graphique, contexte macro ; recherche pour ajouter un actif.
-- **Fiche d'un actif** : prix en direct et nombre de sources en accord, graphique 1 h / 4 h / 1 j / 4 j / 1 sem. avec la zone d'achat dessinée, signal, zones court / moyen / long terme avec leur vérification historique, garde-fou marché, macro, actualités.
-- **Sélection** : actions ou cryptos, 8 durées (30 min à 6 mois), méthode, résultat rejoué avec ses limites, plan (entrée, stop, objectif) et montant pour votre budget.
-- **Mes avoirs** : lignes gardées sur l'iPhone (fichier protégé, exclu des sauvegardes), valeur en direct, plus-values, répartition, concentration et signal 1 jour de chaque ligne, et l'[historique](#historique-du-portefeuille) de ces lignes face au Bitcoin et au S&P 500.
-- **Notifications « achat possible »** : vérification en arrière-plan (iOS en décide le rythme, au mieux toutes les 15 min) et à chaque ouverture ; une notification seulement quand un actif devient achetable ou que la raison change ; option « seulement les achats conseillés » (signal + zone).
-- **Live Activity et Dynamic Island** : sur la fiche d'un actif, « Suivre » affiche son prix et le verdict d'achat sur l'écran verrouillé et dans la Dynamic Island (en direct quand l'app tourne, à chaque vérification en arrière-plan sinon) ; activable dans Réglages.
-- **Onglet Alertes** : les actifs achetables maintenant (même règle que les notifications), vos **alertes de prix** (« préviens-moi si BTC passe sous 80 000 $ », une notification puis réarmable, bouton cloche sur la fiche) et le **journal des alertes** : chaque notification reçue avec son prix et ce qu'elle a donné depuis, et un résumé honnête (part des alertes d'achat en hausse, variation moyenne, sans frais ni règle de sortie).
-- **Apple Watch** : les actifs achetables, leurs raisons et leur prix actuel, lus par la montre elle-même sur le serveur en HTTPS à l'ouverture puis toutes les 30 s à l'écran, avec la session transmise par l'iPhone (jamais le mot de passe) ; « Vérifié il y a X s » ; voir [Temps réel](#temps-réel-websocket). Les notifications de l'iPhone arrivent au poignet.
-- **Point du jour** (en tête du Radar) et **simulateur d'investissement programmé** (fiche d'un actif) : voir [plus bas](#point-du-jour-et-investissement-programmé).
-- **Alertes actualité** (Réglages) : voir [Actualités](#actualités-onglet-actu). Une notification ouvre l'onglet Actu.
-- **Onglet Actu** : la même section Actualités que le site (à la une, ce qui domine, rubriques, articles en français seulement) ; un article s'ouvre chez sa source. Les Réglages passent sous la roue dentée du Radar.
-- **Hors ligne** : voir [Solidité](#solidité-réseau-coupé-serveur-en-panne).
+- **Radar** : prix en direct (consensus relu toutes les 5 s en crypto, 15 s en bourse), verdict, fiabilité des sources, mini-graphique, carte de chaleur, contexte macro ; recherche pour ajouter un actif.
+- **Fiche d'un actif** : prix et nombre de sources en accord, verdict expliqué, graphique 1 h à 1 sem., **machine à remonter le temps** (la règle rejouée sur l'historique contre « garder »), zones de Fibonacci vérifiées sur l'historique, garde-fou (choc, retournement), macro, actualités de l'actif, note, position, investissement programmé.
+- **Sélection** : une liste fixe d'actions ou de cryptos ; celles en tendance sont à détenir pour une part fixe chacune, le reste en liquidités ; la règle rejouée sur ces actifs contre tout garder.
+- **Mes avoirs** : lignes gardées sur l'iPhone, valeur en direct, plus-values, répartition, secteurs, risque, verdict de chaque ligne et historique face au Bitcoin et au S&P 500.
+- **Notifications** : achat possible, alertes de prix, positions devenues dangereuses, changements de verdict, actualité ; vérifiées en arrière-plan et à chaque ouverture, sans répétition.
+- **Live Activity et Dynamic Island**, **Siri et Raccourcis** (« Que dit le radar Altim », « Cours avec Altim »).
+- **Onglet Actu** : 18 flux publics, histoires fusionnées, à la une, thèmes, ton, vos actifs cités.
+- **Apple Watch** : calcule elle-même les actifs achetables et leurs prix avec les mêmes moteurs, toutes les 30 s à l'écran.
+- **Hors ligne** : les dernières réponses restent affichées, datées.
 
-Le noyau `AltimKit` est testé sur les vraies réponses du serveur (`swift test`) ; avec `ALTIM_SERVER`, `ALTIM_USER` et `ALTIM_PASSWORD`, le test de bout en bout se connecte à un serveur réel (mauvais mot de passe refusé, API fermée sans session, reconnexion automatique, flux en direct). La CI compile l'app en Debug et en Release sur macOS ; l'envoi sur TestFlight se lance depuis l'onglet Actions (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
+Le noyau `AltimKit` est testé sous Linux et macOS (`swift test`, faux réseau `FakeFetcher`) ; `ALTIM_LIVE=1` lance les essais sur les vraies sources. La CI compile l'app en Debug et en Release sur macOS ; chaque fusion dans `master` qui touche `ios/` part sur TestFlight (voir [DEPLOIEMENT.md](DEPLOIEMENT.md)).
 
 ## Application Android native (`android`)
 

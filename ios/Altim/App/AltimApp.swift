@@ -17,7 +17,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         notifications.openNews = { model.pendingNews = true }
         UNUserNotificationCenter.current().delegate = notifications
         WatchBridge.shared.refresh = { await BuyNotifications.run(model) }
-        WatchBridge.shared.link = { model.watchLink }
         WatchBridge.shared.activate()
         model.activityAsset = LiveActivities.shared.current
         return true
@@ -54,7 +53,7 @@ struct RootView: View {
     @Environment(AppModel.self) private var model
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The logo traced at launch, and again right after the login (none with Reduce Motion).
+    /// The logo traced at launch (none with Reduce Motion).
     @State private var trace = true
 
     var body: some View {
@@ -63,7 +62,6 @@ struct RootView: View {
                 DisclaimerView()
             } else {
                 switch model.phase {
-                case .setup: LoginView()
                 case .locked: LockView()
                 case .ready: MainTabs()
                 }
@@ -73,9 +71,6 @@ struct RootView: View {
             if trace && !reduceMotion {
                 LaunchTraceView { trace = false }
             }
-        }
-        .onChange(of: model.phase) { old, new in
-            if old == .setup && new == .ready { trace = true }
         }
         // App switcher snapshot: the holdings are hidden as soon as the app is not in the foreground.
         .overlay {
@@ -90,9 +85,7 @@ struct RootView: View {
         // Live prices of everything visible: watch list, holdings and the open asset.
         .task(id: followKey) {
             guard model.phase == .ready, scenePhase == .active else { return model.live.stop() }
-            model.live.follow(followed, client: model.client, onRenewed: { model.persistSession() }) {
-                model.sessionLost()
-            }
+            model.live.follow(followed, client: model.client)
         }
     }
 
@@ -115,7 +108,7 @@ struct MainTabs: View {
         TabView(selection: $tab) {
             NavigationStack { RadarView() }
                 .tabItem { Label("Radar", systemImage: "dot.radiowaves.left.and.right") }.tag(0)
-            NavigationStack { if model.isStandalone { RotationView() } else { SelectionView() } }
+            NavigationStack { RotationView() }
                 .tabItem { Label("Sélection", systemImage: "list.number") }.tag(1)
             NavigationStack { HoldingsView() }
                 .tabItem { Label("Mes avoirs", systemImage: "briefcase") }.tag(2)

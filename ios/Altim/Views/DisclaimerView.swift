@@ -23,7 +23,7 @@ struct DisclaimerView: View {
                         point("waveform.path.ecg", "Les signaux sont des probabilités calculées sur l'historique, jamais des certitudes. Aucun outil ne garantit un gain.")
                         point("exclamationmark.triangle", "Investir en crypto-actifs et en actions comporte un risque de perte totale du capital investi.")
                         point("lightbulb", "Altim est un conseiller : il ne passe aucun ordre et ne demande aucun accès à vos comptes. Vous décidez, chez votre courtier habituel.")
-                        point("lock.shield", "Vos avoirs restent sur cet iPhone, jamais envoyés au serveur. Les analyses viennent de votre serveur Altim privé (40 sources de prix).")
+                        point("lock.shield", "Vos avoirs restent sur cet iPhone, jamais envoyés nulle part. Les analyses sont calculées sur l'iPhone à partir des cours publics de plusieurs bourses et sources boursières, comparés entre eux.")
                     }
                     .glassCard(glow: Theme.warning)
 
