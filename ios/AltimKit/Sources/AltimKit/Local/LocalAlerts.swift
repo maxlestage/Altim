@@ -5,7 +5,7 @@ import Foundation
 ///
 /// The server also waits for its full decision before announcing a buy; that decision is not computed on the iPhone
 /// yet, so the standalone rule is stricter instead: the data must be highly reliable (3 independent sources at least),
-/// and the alert says that the market guard was not checked.
+/// and the alert says so. The market guard is computed on the iPhone: a shock blocks, an agitated market warns.
 enum LocalAlertRule {
     struct Input {
         var asset: Asset
@@ -13,6 +13,9 @@ enum LocalAlertRule {
         var signal: LocalSignal?
         var reliability: Reliability?
         var zones: [FibZone]
+        /// The guard's shock level ("calm", "agitated", "shock") and background trend ("up", "down", "range").
+        var shock: String? = nil
+        var trend: String? = nil
     }
 
     struct Output: Equatable {
@@ -21,7 +24,7 @@ enum LocalAlertRule {
         var key: String, title: String, body: String
     }
 
-    static let noGuard = "Garde-fou et décision complète pas encore calculés sur l'iPhone : taille prudente."
+    static let noGuard = "Décision complète pas encore calculée sur l'iPhone : taille prudente."
 
     static func evaluate(_ a: Input) -> Output {
         var reasons: [String] = [], blockers: [String] = [], cautions: [String] = [], parts: [String] = []
@@ -44,12 +47,14 @@ enum LocalAlertRule {
         case "medium": blockers.append("Fiabilité moyenne des données : sans serveur, Altim n'annonce un achat que sur des données très fiables.")
         default: break
         }
+        if a.shock == "shock" { blockers.append("Garde-fou : risque de choc élevé, mieux vaut attendre.") }
         if let hit, let price = a.price, let inv = hit.invalidation, price < inv {
             blockers.append("Le plus bas du mouvement est cassé : zone invalidée.")
         }
-        if let higher = a.signal?.factors.first(where: { $0.name == "UT supérieure" }), higher.score < 0 {
+        if a.trend == "down" || (a.trend == nil && (a.signal?.factors.first { $0.name == "UT supérieure" }?.score ?? 0) < 0) {
             cautions.append("Tendance de fond baissière : taille réduite.")
         }
+        if a.shock == "agitated" { cautions.append("Marché agité : stop plus large.") }
         cautions.append(noGuard)
         let buy = !reasons.isEmpty && blockers.isEmpty
         let strong = buy && signalBuy && hit != nil
@@ -95,9 +100,12 @@ extension LocalBackend {
                         async let h4 = self.snapshot(a, .h4)
                         async let d1 = try? self.snapshot(a, .d1)
                         async let z = try? self.zones(a)
+                        async let g = try? self.guardReport(a)
                         let s = try await h4
+                        let guardReport = await g
                         let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, signal: s.signal(higher: await d1?.candles),
-                                                         reliability: s.reliability, zones: await z?.zones ?? [])
+                                                         reliability: s.reliability, zones: await z?.zones ?? [],
+                                                         shock: guardReport?.shock.level, trend: guardReport?.regime.trend)
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))
                     } catch {
                         return (i, LocalAlertRule.json(a, nil, price: nil, asOf: nowMs(), error: (error as? MarketError)?.message ?? error.localizedDescription))
