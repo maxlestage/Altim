@@ -92,7 +92,7 @@ public struct SectorsReport: Decodable, Sendable {
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         asOf = (try? c.decodeIfPresent(Double.self, forKey: .asOf)) ?? nil
-        // An unreadable item is dropped (its stock then reads "absent de la réponse du serveur"), not the whole answer.
+        // An unreadable item is dropped (its stock then reads "secteur introuvable dans les sources"), not the whole answer.
         items = (((try? c.decodeIfPresent([Lossy<SectorItem>].self, forKey: .items)) ?? nil) ?? []).compactMap(\.value).filter { !$0.symbol.isEmpty }
         sources = (((try? c.decodeIfPresent([Lossy<SourceState>].self, forKey: .sources)) ?? nil) ?? []).compactMap(\.value)
     }
@@ -211,7 +211,7 @@ public enum Sectors {
                 else { add("\(cls.rawValue):\(sector)", cls == .sec ? "\(sector) (SIC)" : sector, .sector, value, l.symbol) }
             } else {
                 add("unknown", unknownLabel, .unknown, value, l.symbol)
-                let reason = s?.reason ?? (sectors != nil ? "absent de la réponse du serveur" : failure)
+                let reason = s?.reason ?? (sectors != nil ? "secteur introuvable dans les sources" : failure)
                 // A Map on the web: the last reason of a symbol wins, at the place of its first insertion.
                 if let i = unknown.firstIndex(where: { $0.symbol == l.symbol }) { unknown[i].reason = reason } else { unknown.append((l.symbol, reason)) }
             }
