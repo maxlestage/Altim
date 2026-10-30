@@ -41,8 +41,8 @@ enum QuoteSources {
             let d = try await f.json("https://api.kraken.com/0/public/Ticker?pair=\(krakenBase(b))USD")
             if let e = at(d, "error") as? [Any], !e.isEmpty { throw MarketError("non coté") }
             let t = obj(obj(at(d, "result"))?.values.first)
-            let last = num(arr(t?["c"])?.first), open = num(t?["o"])
-            return try quote(last, open > 0 ? (last / open - 1) * 100 : nil)
+            // Kraken's "o" is today's opening price (midnight UTC), not 24 h ago: its price counts, not its change.
+            return try quote(num(arr(t?["c"])?.first), nil)
         },
         QuoteSource(name: "KuCoin", kind: .crypto) { f, b in
             let d = try await f.json("https://api.kucoin.com/api/v1/market/stats?symbol=\(b)-USDT")
@@ -63,10 +63,12 @@ enum QuoteSources {
     static let stock: [QuoteSource] = [
         QuoteSource(name: "Yahoo Finance", kind: .stock) { f, s in
             let d = try await f.json("https://query1.finance.yahoo.com/v8/finance/chart/\(Sources.enc(s))?interval=1d&range=5d")
-            let meta = obj(at(obj(arr(at(d, "chart", "result"))?.first), "meta"))
-            let price = num(meta?["regularMarketPrice"])
-            var prev = num(meta?["previousClose"])
-            if !prev.isFinite { prev = num(meta?["chartPreviousClose"]) }
+            let r = obj(arr(at(d, "chart", "result"))?.first)
+            let price = num(at(r, "meta", "regularMarketPrice"))
+            // The previous session's close is the second-to-last daily close (as the server reads it): the meta's
+            // `chartPreviousClose` is the close before the 5-day range, a 5-day change.
+            let closes = (arr(at(obj(arr(at(r, "indicators", "quote"))?.first), "close")) ?? []).map { num($0) }.filter(\.isFinite)
+            let prev = closes.count > 1 ? closes[closes.count - 2] : .nan
             return try quote(price, prev > 0 ? (price / prev - 1) * 100 : nil)
         },
         QuoteSource(name: "Nasdaq", kind: .stock) { f, s in

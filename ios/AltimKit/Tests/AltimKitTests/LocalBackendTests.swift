@@ -217,3 +217,54 @@ final class LocalBackendTests: XCTestCase {
         print(String(decoding: search.0, as: UTF8.self).prefix(300))
     }
 }
+
+extension LocalBackendTests {
+    func testSectorsFromTheTableThenYahoo() async throws {
+        let yahoo = #"{"quotes":[{"symbol":"ZZZ","quoteType":"EQUITY","sector":"Financial Services"}]}"#
+        let backend = LocalBackend(fetcher: FakeFetcher(routes: [("https://query1.finance.yahoo.com/v1/finance/search?q=ZZZ", yahoo)]))
+        let r = await backend.answer(path: "/api/sectors", query: ["symbols": "AAPL,spy,ZZZ,QQQQ"])!
+        let rep = try JSONDecoder().decode(SectorsReport.self, from: r.0)
+        let by = rep.bySymbol
+        XCTAssertEqual(by["AAPL"]?.sector, "Technologie")
+        XCTAssertEqual(by["AAPL"]?.classification, .nasdaq)
+        XCTAssertEqual(by["SPY"]?.etf, true)
+        XCTAssertEqual(by["ZZZ"]?.sector, "Finance")
+        XCTAssertNil(by["QQQQ"]?.sector)
+        XCTAssertNotNil(by["QQQQ"]?.reason)
+        XCTAssertEqual(rep.sources.first { $0.name == "Yahoo Finance" }?.ok, false)
+    }
+}
+
+extension LocalBackendTests {
+    /// Yahoo's 5-day chart: the day's change is against the previous daily close, not `chartPreviousClose` (5 days ago).
+    func testYahooQuoteChangeIsOneDay() async throws {
+        let body = #"{"chart":{"result":[{"meta":{"regularMarketPrice":110,"chartPreviousClose":80},"timestamp":[1,2,3],"indicators":{"quote":[{"close":[90,100,110]}]}}]}}"#
+        let yahoo = QuoteSources.stock.first { $0.name == "Yahoo Finance" }!
+        let q = try await yahoo.fetch(FakeFetcher(routes: [("https://query1.finance.yahoo.com/v8/finance/chart/AAPL", body)]), "AAPL")
+        XCTAssertEqual(q.price, 110)
+        XCTAssertEqual(q.change!, 10, accuracy: 1e-9)
+    }
+}
+
+extension LocalBackendTests {
+    func testLiveTimings() async throws {
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["ALTIM_LIVE"] == "1", "réseau réel non demandé")
+        /// Times each source of the BTC 1 d candles and of the AAPL quote.
+        struct Timed: MarketFetcher {
+            let inner = URLSessionFetcher()
+            func data(_ url: String, method: String, body: Data?) async throws -> Data {
+                let t = Date()
+                defer { print(String(format: "  %.2f s  ", Date().timeIntervalSince(t)) + String(url.prefix(70))) }
+                return try await inner.data(url, method: method, body: body)
+            }
+        }
+        _ = try await LocalSnapshot.build(Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), .d1, fetcher: Timed())
+        let backend = LocalBackend()
+        let t = Date()
+        let r = await backend.answer(path: "/api/radar", query: ["symbols": Asset.defaults.map { "\($0.symbol):\($0.kind.rawValue)" }.joined(separator: ","), "interval": "4h"])!
+        print(String(format: "radar 8 actifs à froid : %.1f s", Date().timeIntervalSince(t)), r.1)
+        let t2 = Date()
+        _ = await backend.answer(path: "/api/radar", query: ["symbols": Asset.defaults.map { "\($0.symbol):\($0.kind.rawValue)" }.joined(separator: ","), "interval": "4h"])!
+        print(String(format: "radar en cache : %.2f s", Date().timeIntervalSince(t2)))
+    }
+}

@@ -27,7 +27,8 @@ struct NewsView: View {
 
     var body: some View {
         Group {
-            if view == "agenda" {
+            // The agenda (earnings, central banks, macro releases) is computed by the Altim server.
+            if view == "agenda" && !model.isStandalone {
                 AgendaView(view: $view)
             } else {
                 articles
@@ -40,7 +41,7 @@ struct NewsView: View {
 
     private var articles: some View {
         List {
-            Section { NewsViewPicker(view: $view) }.listRowBackground(Color.clear)
+            if !model.isStandalone { Section { NewsViewPicker(view: $view) }.listRowBackground(Color.clear) }
             Section {
                 Text(report.map { r in "\(r.items.count) articles de \(r.sources.filter(\.ok).count) sources sur 48 h, mis à jour \(NewsItem.ago(r.asOf))." } ?? "Chargement des sources…")
                     .font(.footnote).foregroundStyle(Theme.textSecondary)
