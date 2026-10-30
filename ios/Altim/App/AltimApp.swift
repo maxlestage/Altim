@@ -185,7 +185,7 @@ struct LockView: View {
 /// account). The watch list is personal: the iPhone must be unlocked.
 struct RadarSummaryIntent: AppIntent {
     static var title: LocalizedStringResource = "Résumé du radar"
-    static var description = IntentDescription("Les signaux des actifs de votre radar, calculés par Altim sur l'iPhone.")
+    static var description = IntentDescription("Les signaux des actifs de votre radar, calculés par Altim sur l'appareil, sans serveur.")
     static var authenticationPolicy: IntentAuthenticationPolicy = .requiresAuthentication
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
@@ -199,7 +199,7 @@ struct RadarSummaryIntent: AppIntent {
 /// « Cours avec Altim » : the consensus price of one asset, its 24 h move and its 4 h signal.
 struct AssetPriceIntent: AppIntent {
     static var title: LocalizedStringResource = "Cours d'un actif"
-    static var description = IntentDescription("Le prix médian des sources qui s'accordent, la variation sur 24 h et le signal technique, calculés par Altim sur l'iPhone.")
+    static var description = IntentDescription("Le prix médian des sources qui s'accordent, la variation sur 24 h et le signal technique, calculés par Altim sur l'appareil, sans serveur.")
 
     @Parameter(title: "Actif", requestValueDialog: "Quel actif ? Par exemple Bitcoin ou Apple.")
     var name: String
