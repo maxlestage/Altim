@@ -26,9 +26,9 @@ struct AssetDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
                 // Without a server, only what the iPhone computes itself is shown (no card stuck on an error).
-                if !model.isStandalone { decisionCard }
+                if model.isStandalone { VerdictCard(asset: asset) } else { decisionCard }
                 chartCard
-                signalCard
+                if !model.isStandalone { signalCard }
                 TimeMachineCard(asset: asset)
                 zonesCard
                 guardCard
@@ -475,7 +475,7 @@ struct TimeMachineCard: View {
 
     var body: some View {
         Card(title: "Machine à remonter le temps", glow: Theme.magenta) {
-            Text("Et si vous aviez suivi le signal d'Altim sur \(asset.symbol) ? Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
+            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, sorti sinon. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             switch report {
             case .idle, .loading:
@@ -520,7 +520,7 @@ struct TimeMachineCard: View {
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            Text("Le passé ne garantit rien : ce test montre comment le signal technique seul s'est comporté, pas ce qu'il fera.")
+            Text("Le passé ne garantit rien. La règle protège surtout dans les marchés baissiers ; en forte hausse, garder peut faire mieux.")
                 .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -632,5 +632,56 @@ struct TimeMachineChart: View {
                 if Task.isCancelled { return shown = 1 }
             }
         }
+    }
+}
+
+/// « Verdict Altim » (standalone): the daily rule chosen on measured results (AltimKit TrendEngine) — in only while the
+/// background trend is up and the momentum positive, best entered on a short pull-back.
+struct VerdictCard: View {
+    @Environment(AppModel.self) private var model
+    let asset: Asset
+    @State private var verdict: Loadable<TrendEngine.Verdict> = .idle
+
+    var body: some View {
+        Card(title: "Verdict Altim", glow: tone.map { Theme.color($0) } ?? Theme.cyan) {
+            switch verdict {
+            case .idle, .loading:
+                ProgressView().frame(maxWidth: .infinity, minHeight: 60)
+            case let .failed(m):
+                ErrorView(message: m) { Task { await load() } }
+            case let .loaded(v):
+                HStack(spacing: 8) {
+                    Badge(text: Self.label(v), tone: v.action.tone)
+                    if let m = v.momentum {
+                        Text("momentum \(m >= 0 ? "+" : "−")\(Format.plain(abs(m) * 100, digits: 1)) %").font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+                    }
+                }
+                Text(v.text).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                if let e = v.ema200 {
+                    KeyValue(key: "Moyenne 200 jours", value: Format.price(e))
+                }
+                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; le meilleur moment d'entrée est un repli de quelques jours. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
+                    .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .task(id: asset.id) { await load() }
+    }
+
+    private var tone: Tone? { verdict.value.map { $0.action.tone } }
+
+    static func label(_ v: TrendEngine.Verdict) -> String {
+        switch v.state {
+        case .pullback: return v.action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
+        case .trend: return v.action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
+        case .mixed: return "CONSERVER SANS RENFORCER"
+        case .down: return "RESTER À L'ÉCART"
+        case .unknown: return "PAS DE VERDICT"
+        }
+    }
+
+    private func load() async {
+        guard let client = model.client else { return }
+        if verdict.value == nil { verdict = .loading }
+        do { verdict = .loaded(try await client.verdict(asset)) } catch { verdict = .failed(error.localizedDescription) }
     }
 }
