@@ -16,7 +16,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Données")
                 } footer: {
-                    Text("Altim lit lui-même les cours sur les bourses crypto (Coinbase, Kraken, OKX, KuCoin, Gate.io, Bitstamp, Bitfinex, Binance) et les données boursières (Yahoo Finance, Nasdaq, Robinhood), puis calcule sur l'iPhone les signaux, la fiabilité et le Radar. Aucun compte, aucun serveur. Un serveur Altim reste facultatif pour les analyses pas encore portées sur l'iPhone.")
+                    Text("Altim lit lui-même les cours sur les bourses crypto (Coinbase, Kraken, OKX, KuCoin, Gate.io, Bitstamp, Bitfinex, Binance) et les données boursières (Yahoo Finance, Nasdaq, Robinhood), puis calcule sur l'iPhone les signaux, la fiabilité, le Radar, les zones d'achat Fibonacci, l'historique du portefeuille et la machine à remonter le temps. Aucun compte, aucun serveur. Un serveur Altim reste facultatif pour les analyses pas encore portées sur l'iPhone.")
                 }
             } else {
                 Section("Serveur (facultatif)") {
