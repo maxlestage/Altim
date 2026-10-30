@@ -12,6 +12,9 @@ enum LocalAlertRule {
         var zones: [FibZone]
         /// The guard's shock level ("calm", "agitated", "shock").
         var shock: String? = nil
+        /// The stock's next quarterly results, when known.
+        var earnings: EarningsEvent? = nil
+        var now: Date = Date()
     }
 
     struct Output: Equatable {
@@ -50,6 +53,10 @@ enum LocalAlertRule {
         }
         if a.shock == "agitated" { cautions.append("Marché agité : taille réduite, stop plus large.") }
         if a.reliability?.level == "medium" { cautions.append("Fiabilité moyenne des données : taille réduite.") }
+        if let e = a.earnings, (0...7).contains(e.daysAway(now: a.now)) {
+            let d = e.daysAway(now: a.now)
+            cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText)) : le cours peut bouger fortement, taille prudente.")
+        }
         if state == .trend && hit == nil { cautions.append("Pas de repli en cours : entrer en plusieurs fois.") }
         let buy = inTrend && blockers.isEmpty
         let strong = buy && (state == .pullback || hit != nil)
@@ -87,6 +94,7 @@ extension LocalBackend {
     /// The rule on each asset: daily verdict (trend + momentum), zones, guard, reliability, consensus price.
     func alerts(_ list: [Asset]) async -> Data {
         let prices = await quotes(list)
+        let results = await earnings(list.filter { $0.kind == .stock }.map(\.symbol))
         let items: [[String: Any]] = await withTaskGroup(of: (Int, [String: Any]).self) { g in
             for (i, a) in list.enumerated() {
                 g.addTask {
@@ -97,7 +105,8 @@ extension LocalBackend {
                         async let g = try? self.guardReport(a)
                         let s = try await d1
                         let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: TrendEngine.verdict(s.candles, kind: a.kind),
-                                                         reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level)
+                                                         reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level,
+                                                         earnings: results.first { $0.symbol == a.symbol && a.kind == .stock })
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))
                     } catch {
                         return (i, LocalAlertRule.json(a, nil, price: nil, asOf: nowMs(), error: (error as? MarketError)?.message ?? error.localizedDescription))

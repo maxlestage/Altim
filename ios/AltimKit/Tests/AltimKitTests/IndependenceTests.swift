@@ -35,6 +35,7 @@ final class IndependenceTests: XCTestCase {
             ("/api/zones", stock), ("/api/backtest", one), ("/api/history", ["days": "90", "symbols": "ETH:crypto"]),
             ("/api/news", ["symbols": "AAPL:stock"]), ("/api/alerts", ["symbols": "BTC:crypto"]), ("/api/guard", one),
             ("/api/rotation", ["kind": "crypto"]), ("/api/verdict", stock), ("/api/sectors", ["symbols": "ZZZZ"]), ("/api/macro", [:]),
+            ("/api/earnings", ["symbols": "AAPL"]),
         ]
         XCTAssertEqual(Set(calls.map(\.0)), LocalBackend.routes, "chaque route calculée sur l'iPhone est vérifiée ici")
         for (path, q) in calls {

@@ -95,6 +95,10 @@ struct HoldingsView: View {
                 if let risk, !risk.dangers.isEmpty {
                     Section { DangerNotice(dangers: risk.dangers) }.listRowBackground(Color.clear)
                 }
+                let heldStocks = Array(Set(model.holdings.filter { $0.asset.kind == .stock }.map(\.asset.symbol))).sorted()
+                if !heldStocks.isEmpty {
+                    Section { EarningsCard(symbols: heldStocks) }.listRowBackground(Color.clear)
+                }
                 Section { HistoryCard() }.listRowBackground(Color.clear)
                 Section { RebalanceCard(portfolio: portfolio) }.listRowBackground(Color.clear)
                 Section { SaleCard(portfolio: portfolio) }.listRowBackground(Color.clear)
