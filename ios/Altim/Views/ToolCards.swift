@@ -54,8 +54,6 @@ struct CompareCard: View {
             do {
                 data = try await client.history(model.watchlist.filter { picked.contains($0.id) }, days: days).byId
                 error = nil
-            } catch AltimError.unauthorized {
-                model.sessionLost()
             } catch is CancellationError {
             } catch {
                 self.error = error.localizedDescription

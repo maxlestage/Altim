@@ -136,8 +136,6 @@ struct WhatIfCard: View {
         do {
             let c = try await client.candles(a, interval: "1d").candles
             if c.isEmpty { failed.insert(a.id) } else { fetched[a.id] = c }
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch is CancellationError {
         } catch {
             failed.insert(a.id)

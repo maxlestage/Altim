@@ -108,9 +108,6 @@ struct AlertsView: View {
         do {
             alerts = try await client.alerts(unique(mine))
             error = nil
-            model.persistSession()
-        } catch AltimError.unauthorized {
-            model.sessionLost()
         } catch {
             self.error = error.localizedDescription
         }

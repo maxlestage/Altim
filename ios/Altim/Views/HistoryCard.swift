@@ -43,8 +43,6 @@ struct HistoryCard: View {
             do {
                 data = try await client.history(assets, days: days)
                 error = nil
-            } catch AltimError.unauthorized {
-                model.sessionLost()
             } catch is CancellationError {
             } catch {
                 self.error = error.localizedDescription

@@ -28,11 +28,6 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Face ID protège l'accès à Altim et à vos avoirs.</string>
 	<key>NSSupportsLiveActivities</key>
