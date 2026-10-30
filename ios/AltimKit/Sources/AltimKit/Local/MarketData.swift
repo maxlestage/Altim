@@ -215,10 +215,19 @@ enum Parse {
 // MARK: - Candle helpers
 
 enum Candles {
-    /// Only closed candles, sorted. Stock daily sessions last 6 h 30, not 24 h.
+    /// Only closed candles, sorted, one per time (the last one sent wins). Stock daily sessions last 6 h 30, not 24 h.
+    /// A missing or broken open / high / low (null, zero) falls back to the close, and the high and low always frame
+    /// the open and the close: a single bad field must not distort the ranges, zones or stops computed from them.
     static func closed(_ c: [Bar], _ tf: Timeframe, kind: Kind, now: Double = nowMs()) -> [Bar] {
         let duration = kind == .stock && tf == .d1 ? 23_400_000 : tf.stepMs
-        return c.filter { $0.time + duration <= now && $0.close.isFinite && $0.close > 0 }.sorted { $0.time < $1.time }
+        var byTime: [Double: Bar] = [:]
+        for b in c where b.time.isFinite && b.time + duration <= now && b.close.isFinite && b.close > 0 {
+            let open = finitePositive(b.open) ?? b.close
+            let high = max(finitePositive(b.high) ?? b.close, open, b.close)
+            let low = min(finitePositive(b.low) ?? b.close, open, b.close)
+            byTime[b.time] = Bar(time: b.time, open: open, high: high, low: low, close: b.close, volume: b.volume.isFinite && b.volume > 0 ? b.volume : 0)
+        }
+        return byTime.values.sorted { $0.time < $1.time }
     }
 
     /// Candles of `from` ms grouped into complete candles of `to` ms (UTC-aligned).
