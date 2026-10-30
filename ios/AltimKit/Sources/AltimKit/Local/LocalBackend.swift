@@ -14,7 +14,7 @@ public actor LocalBackend {
     public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
 
     /// Routes answered here.
-    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard"]
+    public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict"]
 
     /// JSON body and status of a route, nil when it is not one of `routes`.
     public func answer(path: String, query: [String: String]) async -> (Data, Int)? {
@@ -38,6 +38,18 @@ public actor LocalBackend {
                 return (try Self.encode(await fx()), 200)
             case "/api/zones":
                 return (try Self.encode(try await zones(try Self.asset(query["symbol"], query["kind"]))), 200)
+            case "/api/verdict":
+                let a = try Self.asset(query["symbol"], query["kind"])
+                let d = try await snapshot(a, .d1)
+                var v = TrendEngine.verdict(d.candles, kind: a.kind)
+                if d.reliability.level == "low" && v.action != .hold {
+                    v.action = .hold
+                    v.text = "Données insuffisamment fiables (sources en désaccord) : verdict suspendu. " + v.text
+                }
+                return (try Self.encode(v), 200)
+            case "/api/rotation":
+                guard let kind = Kind(rawValue: query["kind"] ?? "") else { throw MarketError("Paramètre kind invalide") }
+                return (try Self.encode(await rotation(kind)), 200)
             case "/api/guard":
                 return (try Self.encode(try await guardReport(try Self.asset(query["symbol"], query["kind"]))), 200)
             case "/api/alerts":
@@ -109,20 +121,47 @@ public actor LocalBackend {
         }
     }
 
+    /// A radar row: the verdict of the daily trend engine (whatever the chosen timeframe, which only draws the
+    /// sparkline), suspended to ATTENDRE when the data is unreliable.
     func radarRow(_ a: Asset, _ tf: Timeframe) async -> RadarRow {
-        async let higher: LocalSnapshot? = { if let h = tf.higher { return try? await self.snapshot(a, h) } else { return nil } }()
+        async let chart = try? snapshot(a, tf)
         do {
-            let s = try await snapshot(a, tf)
-            let signal = s.signal(higher: await higher?.candles)
+            let d = try await snapshot(a, .d1)
+            var v = TrendEngine.verdict(d.candles, kind: a.kind)
+            if d.reliability.level == "low" { v.action = .hold }
+            let s = await chart ?? d
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: s.candles.last?.close, change: nil, priceSources: nil,
-                            signal: signal.map { SignalSummary(action: $0.action, score: $0.score, confidence: $0.confidence) },
-                            reliability: s.reliability, agreeing: s.agreeing, sources: s.sources.count,
+                            signal: v.state == .unknown ? nil : SignalSummary(action: v.action, score: v.score, confidence: v.confidence * d.reliability.score / 100),
+                            reliability: d.reliability, agreeing: d.agreeing, sources: d.sources.count,
                             sparkline: s.candles.suffix(48).map(\.close), error: nil)
         } catch {
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: nil, change: nil, priceSources: nil, signal: nil,
                             reliability: nil, agreeing: nil, sources: nil, sparkline: nil,
                             error: (error as? MarketError)?.message ?? error.localizedDescription)
         }
+    }
+
+    // MARK: Rotation
+
+    private var rotationCache: [Kind: (at: Double, report: RotationReport)] = [:]
+
+    /// « Sélection Altim » of a market: this week's picks and the rule replayed on the same assets (kept 6 hours).
+    func rotation(_ kind: Kind) async -> RotationReport {
+        if let c = rotationCache[kind], nowMs() - c.at < 6 * 3_600_000 { return c.report }
+        let list = Rotation.universe[kind] ?? []
+        async let prices = quotes(list)
+        let data: [(Asset, [Bar])] = await withTaskGroup(of: (Int, Asset, [Bar]?).self) { g in
+            for (i, a) in list.enumerated() { g.addTask { (i, a, try? await self.longDaily(a)) } }
+            var out: [(Int, Asset, [Bar]?)] = []
+            for await r in g { out.append(r) }
+            return out.sorted { $0.0 < $1.0 }.compactMap { r in r.2.map { (r.1, $0) } }
+        }
+        let p = Dictionary((await prices).map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
+        let r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
+                               picks: Rotation.picks(data, kind: kind, prices: p), scanned: data.count, test: Rotation.sleeves(data, kind: kind),
+                               notes: Rotation.notes)
+        if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
+        return r
     }
 
     // MARK: Zones
@@ -145,18 +184,18 @@ public actor LocalBackend {
     /// The signal replayed on two years of daily candles (`Backtest.run`).
     func backtest(_ a: Asset) async throws -> BacktestReport {
         let s = try await snapshot(a, .d1)
-        return Backtest.run(try await longDaily(a), asset: a, reliability: s.reliability)
+        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability)
     }
 
     /// Longest daily history: for cryptos the exchanges' ≈ 1 000 days when they agree, else the usual daily candles
-    /// (stocks: Yahoo's 2 years, Nasdaq's and Robinhood's 5).
+    /// (stocks: Nasdaq's ≈ 5 years, checked against Robinhood's and Yahoo's).
     func longDaily(_ a: Asset) async throws -> [Bar] {
         let key = "long:\(a.id)"
         if let c = longCache[key], nowMs() - c.at < 3_600_000 { return c.bars }
         let s = try await snapshot(a, .d1)
         var bars = s.candles
-        if a.kind == .crypto,
-           let long = try? await Consensus.candles(a.symbol, kind: .crypto, .d1, sources: Sources.cryptoLongDaily, fetcher: fetcher, tolerance: 0.5),
+        let longSources = a.kind == .crypto ? Sources.cryptoLongDaily : Sources.stockLongDaily
+        if let long = try? await Consensus.candles(a.symbol, kind: a.kind, .d1, sources: longSources, fetcher: fetcher, tolerance: a.kind == .crypto ? 0.5 : 1.0),
            long.candles.count > bars.count {
             bars = long.candles
         }

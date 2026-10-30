@@ -431,6 +431,14 @@ enum Sources {
     }
 
     static let stock: [CandleSource] = [yahoo, nasdaq, robinhood, nasdaq.fromDaily(), robinhood.fromDaily()]
+    /// ≈ 5 years of sessions, deepest first (the first agreeing source gives the candles).
+    static let stockLongDaily: [CandleSource] = [
+        nasdaq,
+        robinhood,
+        CandleSource("Yahoo Finance", supports: { $0 == .d1 }) { f, s, _ in
+            try Parse.yahoo(try await f.json("https://query1.finance.yahoo.com/v8/finance/chart/\(enc(s))?interval=1d&range=5y&includePrePost=false"))
+        },
+    ]
 
     static func candles(_ kind: Kind, _ tf: Timeframe) -> [CandleSource] {
         switch kind {

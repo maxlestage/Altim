@@ -4,45 +4,45 @@ import XCTest
 
 final class LocalAlertsTests: XCTestCase {
     let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+    let high = SignalEngine.reliability(quality: 100, independent: 4, conflict: false)
 
-    func signal(_ a: Action, higher: Double = 1) -> LocalSignal {
-        LocalSignal(action: a, score: 60, confidence: 72.4, price: 100, time: 0,
-                    factors: [SignalFactor(name: "UT supérieure", score: higher, weight: 1.5, detail: "")],
-                    stopLoss: 90, takeProfit: 120, hasPlan: true, warnings: [])
+    func verdict(_ s: TrendEngine.State) -> TrendEngine.Verdict {
+        TrendEngine.Verdict(state: s, action: s == .pullback ? .strongBuy : s == .trend ? .buy : s == .down ? .sell : .hold, score: 40,
+                            confidence: 100, momentum: 0.2, lookback: 60, ema200: 70, rsi2: 5, text: "Tendance de fond haussière.")
     }
 
     func zone(_ status: String) -> FibZone {
         FibZone(horizon: "medium", label: "Moyen terme", unit: "1 j", holding: "", status: status, levels: [],
-                zone: Band(from: 80, to: 95), golden: Band(from: 80, to: 83), invalidation: 70, targets: [120], distance: nil,
+                zone: Band(from: 80, to: 95), golden: Band(from: 80, to: 83), invalidation: 75, targets: [120], distance: nil,
                 evidence: nil, text: "", macroNote: nil)
     }
 
-    func testStrongBuyNeedsSignalZoneAndReliableData() {
+    func testBuyNeedsTheTrend() {
         Money.setDisplay(.usd, nil)
-        let high = SignalEngine.reliability(quality: 100, independent: 4, conflict: false)
-        let o = LocalAlertRule.evaluate(.init(asset: btc, price: 90, signal: signal(.buy), reliability: high, zones: [zone("inZone")]))
-        XCTAssertTrue(o.buy && o.strong)
-        XCTAssertEqual(o.key, "signal+zone:medium")
-        XCTAssertTrue(o.title.hasPrefix("BTC : achat conseillé à 90"))
-        XCTAssertTrue(o.body.contains(LocalAlertRule.noGuard))
-        XCTAssertTrue(o.body.hasSuffix("Invalidé sous 70,00\u{a0}$."))
-        // A zone alone: possible, not advised.
-        let z = LocalAlertRule.evaluate(.init(asset: btc, price: 90, signal: signal(.hold), reliability: high, zones: [zone("golden")]))
-        XCTAssertTrue(z.buy && !z.strong)
-        XCTAssertTrue(z.reasons[0].hasPrefix("Prix dans la zone d'or moyen terme"))
+        let p = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.pullback), reliability: high, zones: []))
+        XCTAssertTrue(p.buy && p.strong)
+        XCTAssertEqual(p.key, "repli")
+        XCTAssertTrue(p.title.hasPrefix("BTC : achat conseillé à 90"))
+        XCTAssertTrue(p.body.hasSuffix("Sortie si le prix repasse sous 70,00\u{a0}$ (moyenne 200 jours) ou si le momentum devient négatif."))
+        let t = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: []))
+        XCTAssertTrue(t.buy && !t.strong)
+        XCTAssertTrue(t.cautions.contains("Pas de repli en cours : entrer en plusieurs fois."))
+        // A buy zone makes it advised, only inside the trend.
+        let tz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: [zone("inZone")]))
+        XCTAssertTrue(tz.strong)
+        XCTAssertEqual(tz.key, "tendance+zone:medium")
+        let dz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.down), reliability: high, zones: [zone("golden")]))
+        XCTAssertFalse(dz.buy)
+        XCTAssertTrue(dz.body.hasPrefix("Tendance de fond baissière"))
     }
 
-    func testBlockersWithoutTheServer() {
-        let medium = SignalEngine.reliability(quality: 100, independent: 2, conflict: false)
-        let m = LocalAlertRule.evaluate(.init(asset: btc, price: 90, signal: signal(.strongBuy), reliability: medium, zones: []))
-        XCTAssertFalse(m.buy)
-        XCTAssertTrue(m.body.hasPrefix("Fiabilité moyenne"))
-        XCTAssertEqual(m.title, "BTC : pas d'achat pour l'instant")
-        let high = SignalEngine.reliability(quality: 100, independent: 5, conflict: false)
-        let down = LocalAlertRule.evaluate(.init(asset: btc, price: 90, signal: signal(.buy, higher: -1), reliability: high, zones: []))
-        XCTAssertTrue(down.cautions.contains("Tendance de fond baissière : taille réduite."))
-        let nothing = LocalAlertRule.evaluate(.init(asset: btc, price: 120, signal: signal(.hold), reliability: high, zones: [zone("above")]))
-        XCTAssertEqual(nothing.body, "Ni signal d'achat ni prix dans une zone d'achat.")
+    func testBlockers() {
+        let low = SignalEngine.reliability(quality: 100, independent: 1, conflict: false)
+        XCTAssertFalse(LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: low, zones: [])).buy)
+        XCTAssertFalse(LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: [], shock: "shock")).buy)
+        XCTAssertFalse(LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.mixed), reliability: high, zones: [])).buy)
+        let ag = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: [], shock: "agitated"))
+        XCTAssertTrue(ag.buy && ag.cautions.contains("Marché agité : taille réduite, stop plus large."))
     }
 
     func testRouteJsonIsWhatTheAppDecodes() async throws {
@@ -50,10 +50,9 @@ final class LocalAlertsTests: XCTestCase {
         let items = try JSONDecoder().decode([BuyAlert].self, from: r.0)
         XCTAssertEqual(items.count, 1)
         XCTAssertFalse(items[0].buy)
-        let o = LocalAlertRule.evaluate(.init(asset: btc, price: 90, signal: signal(.buy), reliability: SignalEngine.reliability(quality: 100, independent: 3, conflict: false), zones: []))
-        let data = try JSONSerialization.data(withJSONObject: [LocalAlertRule.json(btc, o, price: 90, asOf: 1)])
-        let decoded = try JSONDecoder().decode([BuyAlert].self, from: data)
-        XCTAssertEqual(decoded.first?.key, "signal")
+        let o = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: []))
+        let decoded = try JSONDecoder().decode([BuyAlert].self, from: JSONSerialization.data(withJSONObject: [LocalAlertRule.json(btc, o, price: 90, asOf: 1)]))
+        XCTAssertEqual(decoded.first?.key, "tendance")
         XCTAssertEqual(decoded.first?.buy, true)
     }
 }
