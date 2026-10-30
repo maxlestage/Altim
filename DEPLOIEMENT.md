@@ -72,7 +72,7 @@ Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depui
 2. **Utilisateurs et accès** → **Intégrations** → **Clés App Store Connect** → **+** → rôle **Admin** → téléchargez le fichier `.p8` (ouvrez-le dans l'app Fichiers et copiez son contenu).
 3. Notez l'**Issuer ID**, le **Key ID** et votre **Team ID** (developer.apple.com → Account → Membership).
 4. Ajoutez sur GitHub (**Settings** → **Secrets and variables** → **Actions**) les secrets `APPLE_TEAM_ID`, `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8` (contenu complet du .p8, lignes BEGIN/END comprises).
-5. Onglet **Actions** → **TestFlight** → **Run workflow**. Environ 15 min plus tard, le build apparaît dans l'app **TestFlight** : installez-le.
+5. Onglet **Actions** → **TestFlight** → **Run workflow** pour le premier envoi. Ensuite, chaque fusion dans `master` qui modifie `ios/` envoie un nouveau build toute seule. Environ 15 min plus tard, le build apparaît dans l'app **TestFlight** : installez-le.
 
 ### Premier lancement
 1. Acceptez l'avertissement, puis saisissez l'adresse du serveur (par exemple `mon-app.herokuapp.com`, sans `https://`) → **Continuer**.
