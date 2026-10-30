@@ -30,6 +30,7 @@ struct AssetDetailView: View {
                 TimeMachineCard(asset: asset)
                 zonesCard
                 guardCard
+                if asset.kind == .stock { EarningsCard(symbols: [asset.symbol], showsEmpty: true) }
                 if let macro = guardReport.value?.macro ?? zones.value?.macro { MacroCard(macro: macro) }
                 if let news = guardReport.value?.inputs?.headlines, !news.isEmpty { newsCard(news) }
                 NoteCard(asset: asset)
@@ -594,6 +595,59 @@ struct VerdictCard: View {
             model.recordVerdict(v, asset: asset)
         } catch {
             verdict = .failed(error.localizedDescription)
+        }
+    }
+}
+
+/// « Prochains résultats »: the quarterly results of these stocks within 3 weeks (Nasdaq's public calendar, read by
+/// the iPhone). Around results the price often moves a lot, both ways: said plainly, never a reason to buy.
+struct EarningsCard: View {
+    @Environment(AppModel.self) private var model
+    let symbols: [String]
+    /// The asset page says when nothing is announced; Mes avoirs shows nothing then.
+    var showsEmpty = false
+    @State private var events: [EarningsEvent]?
+
+    var body: some View {
+        Group {
+            if let events, !events.isEmpty {
+                Card(title: "Prochains résultats", glow: Theme.warning) {
+                    ForEach(events) { e in
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(e.symbol).font(Theme.mono(14, weight: .bold))
+                                Text(e.dayText).font(.subheadline)
+                                Spacer(minLength: 4)
+                                Badge(text: Self.when(e), tone: e.daysAway() <= 3 ? .warn : .neutral)
+                            }
+                            if let f = e.epsForecast {
+                                Text("Bénéfice par action attendu \(f)\(e.lastYearEPS.map { " (un an plus tôt : \($0))" } ?? "")")
+                                    .font(.caption).foregroundStyle(Theme.textSecondary)
+                            }
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                    Text("Le cours bouge souvent fortement le lendemain des résultats, dans un sens ou dans l'autre : taille prudente autour de ces dates.")
+                        .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+            } else if showsEmpty, events != nil {
+                Card(title: "Prochains résultats") {
+                    Text("Aucun résultat annoncé dans les 3 prochaines semaines (calendrier Nasdaq).")
+                        .font(.caption).foregroundStyle(Theme.textSecondary)
+                }
+            }
+        }
+        .task(id: symbols.joined(separator: ",")) {
+            guard let client = model.client, !symbols.isEmpty else { return }
+            events = (try? await client.earnings(symbols)) ?? []
+        }
+    }
+
+    static func when(_ e: EarningsEvent) -> String {
+        switch e.daysAway() {
+        case ..<1: return "AUJOURD'HUI"
+        case 1: return "DEMAIN"
+        case let d: return "DANS \(d) J"
         }
     }
 }
