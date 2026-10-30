@@ -59,8 +59,6 @@ struct DcaCard: View {
             do {
                 closes = try await client.history([asset], days: days == 730 ? 730 : 365).byId[asset.id] ?? []
                 error = nil
-            } catch AltimError.unauthorized {
-                model.sessionLost()
             } catch is CancellationError {
             } catch {
                 self.error = error.localizedDescription
