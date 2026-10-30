@@ -55,8 +55,13 @@ struct RadarView: View {
             if !query.isEmpty {
                 searchSection
             } else {
-                Section { BriefCard() }.listRowBackground(Color.clear)
-                Section { BotRadarCard() }.listRowBackground(Color.clear)
+                if !model.isStandalone {
+                    Section { BriefCard() }.listRowBackground(Color.clear)
+                    Section { BotRadarCard() }.listRowBackground(Color.clear)
+                }
+                if model.watchlist.count >= 3 {
+                    Section { MarketHeatmap(assets: model.watchlist, rows: rows) }.listRowBackground(Color.clear)
+                }
                 if let macro, macro.level != "calm" {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
                 }
@@ -113,12 +118,14 @@ struct RadarView: View {
                     .onMove(perform: sort == .mine ? moveRows : nil)
                 } header: {
                     HStack {
-                        Text("Décision · prix médian de 40 sources")
+                        Text(model.isStandalone ? "Signal · prix médian des sources" : "Décision · prix médian de 40 sources")
                         Spacer()
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique \(timeframe.label) (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text(model.isStandalone
+                         ? "Le signal technique \(timeframe.label) est calculé sur cet iPhone à partir des bourses et sources qui s'accordent ; il est suspendu (ATTENDRE) quand les données ne sont pas assez fiables. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif."
+                         : "Le verdict est la décision complète de l'actif (la même que sur sa page), relue toutes les 15 minutes ; la tendance technique \(timeframe.label) (unité choisie ci-dessus) n'en est qu'un indice. Une probabilité mesurée sur l'historique, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -190,7 +197,7 @@ struct RadarView: View {
     /// Two at a time (the server fetches fundamentals and order books for each one), 20 assets at most; an asset
     /// compared less than 15 minutes ago (here or on its page) waits. A failed one is compared at the next round.
     private func checkDecisions() async {
-        guard let client = model.client else { return }
+        guard let client = model.client, !client.isStandalone else { return }
         let due = model.watchlist.prefix(20).filter { a in
             model.lastDecisionCheck(a).map { Date().timeIntervalSince($0) >= Self.decisionEvery } ?? true
         }
@@ -277,11 +284,29 @@ struct RadarRowView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// The verdict: the full decision, never the technical signal alone.
-    private var verdict: some View { DecisionBadge(asset: asset) }
+    /// The verdict: the full decision, never the technical signal alone. Without a server, the signal computed on the
+    /// iPhone (already suspended to ATTENDRE on doubtful data) is the verdict, said as such.
+    @ViewBuilder private var verdict: some View {
+        if model.isStandalone {
+            if let s = row?.signal {
+                Badge(text: s.action.label, tone: s.action.tone)
+                    .accessibilityLabel("Signal \(timeframe.label) : \(s.action.label)")
+            } else if row == nil {
+                Badge(text: "ANALYSE…", tone: .neutral).opacity(0.7)
+            }
+        } else {
+            DecisionBadge(asset: asset)
+        }
+    }
 
     @ViewBuilder private var technical: some View {
-        if let s = row?.signal {
+        if model.isStandalone {
+            if let s = row?.signal {
+                Text("confiance \(Int(s.confidence.rounded()))").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            } else if row?.error != nil {
+                Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            }
+        } else if let s = row?.signal {
             TechnicalLine(action: s.action, interval: timeframe.label)
         } else if row?.error != nil {
             Text("signal technique indisponible").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
@@ -313,5 +338,61 @@ struct MacroBanner: View {
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 14).fill(Theme.color(macro.tone).opacity(0.1)))
         .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.color(macro.tone).opacity(0.5)))
+    }
+}
+
+/// « Carte de chaleur » : every watched asset as a tile coloured by its 24 h move (live prices), brighter the bigger the
+/// move, its signal in the corner. A tap opens the asset. Tiles wrap (2 to 4 per line), nothing scrolls sideways.
+struct MarketHeatmap: View {
+    @Environment(AppModel.self) private var model
+    var assets: [Asset]
+    var rows: [String: RadarRow]
+
+    var body: some View {
+        let changes = assets.map { model.live.price($0)?.change ?? rows[$0.id]?.change }
+        let scale = max(2, changes.compactMap { $0.map(abs) }.max() ?? 2)
+        let up = changes.compactMap { $0 }.filter { $0 > 0 }.count
+        let down = changes.compactMap { $0 }.filter { $0 < 0 }.count
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Carte de chaleur").font(.headline)
+                Spacer()
+                Text("\(up) ▲ · \(down) ▼").font(Theme.mono(12)).foregroundStyle(Theme.textSecondary)
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 8)], spacing: 8) {
+                ForEach(Array(assets.enumerated()), id: \.element.id) { i, a in
+                    NavigationLink(value: a) { tile(a, change: changes[i], scale: scale) }
+                        .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(12)
+        .glassCard()
+    }
+
+    private func tile(_ a: Asset, change: Double?, scale: Double) -> some View {
+        let c = change ?? 0
+        let strength = change == nil ? 0.05 : 0.15 + 0.55 * min(1, abs(c) / scale)
+        let color = change == nil ? Color.white : c >= 0 ? Theme.buy : Theme.sell
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 4) {
+                Text(a.symbol).font(Theme.mono(14, weight: .bold)).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 0)
+                if let s = rows[a.id]?.signal, s.action != .hold {
+                    Circle().fill(Theme.color(s.action.tone)).frame(width: 7, height: 7)
+                        .accessibilityLabel(s.action.label)
+                }
+            }
+            Text(Format.percent(change))
+                .font(Theme.mono(13)).foregroundStyle(.white.opacity(0.9))
+                .contentTransition(.numericText(value: c))
+                .animation(.snappy, value: c)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, minHeight: 58, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(color.opacity(strength)))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(color.opacity(strength + 0.15), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(a.name), \(change.map { Format.percent($0) } ?? "variation inconnue")")
     }
 }
