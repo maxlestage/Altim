@@ -94,4 +94,22 @@ final class LocalEnginesTests: XCTestCase {
             print("\(s) backtest \(br.days) j : signal \(Int(br.strategyReturn)) % (creux \(Int(br.strategyDrawdown)) %) vs garder \(Int(br.holdReturn)) % (creux \(Int(br.holdDrawdown)) %), \(br.trades.count) trades, réussite \(Int(br.winRate ?? 0)) %, investi \(Int(br.exposure)) % — \(br.verdict)")
         }
     }
+
+    /// Broken fields from a source (null open, zero low, high under the close, a candle sent twice) are repaired or
+    /// dropped before any computation.
+    func testClosedCandlesRepairBrokenFields() {
+        let day = 86_400_000.0
+        let raw = [
+            Bar(time: 2 * day, open: 101, high: 99, low: 0, close: 102, volume: .nan),
+            Bar(time: 1 * day, open: .nan, high: 105, low: 95, close: 100, volume: 10),
+            Bar(time: 2 * day, open: 101, high: 104, low: 98, close: 103, volume: 5),
+            Bar(time: 3 * day, open: 100, high: 101, low: 99, close: 0, volume: 1),
+        ]
+        let c = Candles.closed(raw, .d1, kind: .crypto, now: 10 * day)
+        XCTAssertEqual(c.map(\.time), [1 * day, 2 * day], "triées, une par jour, sans clôture nulle")
+        XCTAssertEqual(c[0], Bar(time: 1 * day, open: 100, high: 105, low: 95, close: 100, volume: 10), "ouverture absente : la clôture")
+        XCTAssertEqual(c[1], Bar(time: 2 * day, open: 101, high: 104, low: 98, close: 103, volume: 5), "la dernière bougie envoyée gagne")
+        let lone = Candles.closed([Bar(time: day, open: 101, high: 99, low: 0, close: 102, volume: .nan)], .d1, kind: .crypto, now: 10 * day)
+        XCTAssertEqual(lone, [Bar(time: day, open: 101, high: 102, low: 101, close: 102, volume: 0)], "plus haut et plus bas encadrent ouverture et clôture")
+    }
 }
