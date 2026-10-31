@@ -26,7 +26,9 @@ enum LocalAlertRule {
     static func evaluate(_ a: Input) -> Output {
         var reasons: [String] = [], blockers: [String] = [], cautions: [String] = [], parts: [String] = []
         let state = a.verdict?.state ?? .unknown
-        let inTrend = state == .trend || state == .pullback
+        // The trained bot's veto (BotEngine.apply) turns an up-trend verdict into ATTENDRE or VENTE: no purchase then.
+        let vetoed = a.verdict.map { $0.action != .buy && $0.action != .strongBuy } ?? false
+        let inTrend = (state == .trend || state == .pullback) && !vetoed
         if let v = a.verdict, inTrend {
             reasons.append(v.text)
             parts.append(state == .pullback ? "repli" : "tendance")
@@ -44,7 +46,10 @@ enum LocalAlertRule {
         case .down: blockers.append("Tendance de fond baissière et momentum négatif : rester à l'écart.")
         case .mixed: blockers.append("Signaux contraires (tendance de fond et momentum ne s'accordent pas) : ne pas ouvrir de position.")
         case .unknown: blockers.append("Historique trop court pour juger la tendance de fond.")
-        default: break
+        default:
+            if vetoed, let p = a.verdict?.bot {
+                blockers.append("Tendance haussière, mais le bot entraîné prévoit \(p >= 0 ? "+" : "−")\(JSFormat.fr(abs(p) * 100, min: 1, max: 1)) % sur 20 jours : pas d'achat.")
+            }
         }
         if a.reliability?.level == "low" { blockers.append("Sources de prix en désaccord : données peu fiables.") }
         if a.shock == "shock" { blockers.append("Garde-fou : risque de choc élevé, mieux vaut attendre.") }
@@ -104,7 +109,7 @@ extension LocalBackend {
                         async let z = try? self.zones(a)
                         async let g = try? self.guardReport(a)
                         let s = try await d1
-                        let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: TrendEngine.verdict(s.candles, kind: a.kind),
+                        let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: await self.botVerdict(a, s.candles),
                                                          reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level,
                                                          earnings: results.first { $0.symbol == a.symbol && a.kind == .stock })
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))

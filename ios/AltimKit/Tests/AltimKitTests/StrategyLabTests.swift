@@ -359,6 +359,11 @@ extension StrategyLabTests {
                 LabRule(name: "bot seul (marge 1%)", enter: { s, i in (p(s, i) ?? -1) > 0.01 }, exit: { s, i in (p(s, i) ?? 0) < -0.01 }),
                 LabRule(name: "règle + bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? -1) > 0 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < 0 }),
                 LabRule(name: "règle, veto bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.03 }),
+                LabRule(name: "veto 0 / -2%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > 0 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.02 }),
+                LabRule(name: "veto -2 / -4%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.02 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.04 }),
+                LabRule(name: "veto -1 / -5%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.05 }),
+                LabRule(name: "veto entrée seule -1%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: ruleOut),
+                LabRule(name: "veto sortie seule -3%", enter: ruleIn, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.03 }),
             ]
             print("== \(name)"); print(Lab.report(data, rules)); print(Lab.full(data, rules))
         }

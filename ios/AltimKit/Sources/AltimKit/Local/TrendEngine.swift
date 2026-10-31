@@ -41,6 +41,8 @@ public enum TrendEngine {
         public var text: String
         /// Last daily close the verdict was computed on.
         public var price: Double? = nil
+        /// Return over the next 20 days predicted by the trained bot (BotEngine), when it could be trained.
+        public var bot: Double? = nil
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.

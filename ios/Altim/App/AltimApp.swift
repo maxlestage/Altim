@@ -191,7 +191,7 @@ struct RadarSummaryIntent: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog {
         let watchlist = Array((LocalStore.load([Asset].self, "watchlist") ?? Asset.defaults).prefix(8))
         guard !watchlist.isEmpty else { return .result(dialog: "Votre radar est vide.") }
-        let rows = try await AltimClient.standalone().radar(watchlist, interval: Timeframe.standard.rawValue)
+        let rows = try await AltimClient.standalone(local: LocalBackend(bot: false)).radar(watchlist, interval: Timeframe.standard.rawValue)
         return .result(dialog: "\(SiriText.radar(rows))")
     }
 }
@@ -205,7 +205,7 @@ struct AssetPriceIntent: AppIntent {
     var name: String
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        let client = AltimClient.standalone()
+        let client = AltimClient.standalone(local: LocalBackend(bot: false))
         let wanted = name.trimmingCharacters(in: .whitespaces)
         let found = try await client.search(wanted, limit: 5)
         guard let item = found.first(where: { $0.symbol == wanted.uppercased() }) ?? found.first else {
