@@ -369,3 +369,71 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Several trained bots, each with its own job, measured out of sample (walk-forward) on both lists and halves:
+    /// how far apart the outcomes of their 20 % highest and 20 % lowest predictions were, then as a filter of the rule.
+    func testBots() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        let bots: [(String, BotEngine.Target)] = [("Tendance 20 j", .gain(days: 20)), ("Court terme 5 j", .gain(days: 5)), ("Risque 20 j", .fall(days: 20))]
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var preds: [String: [String: [Double?]]] = [:]
+            for (bot, target) in bots {
+                for kind in [Kind.crypto, .stock] {
+                    let group = list.filter { $0.0.kind == kind }
+                    let p = BotEngine.walkForwardTrees(group.map(\.1), target: target)
+                    for (k, (_, bars)) in group.enumerated() { preds[bot, default: [:]][key(LabSeries(bars))] = p[k] }
+                }
+            }
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            print("== \(name) : écart entre les 20 % de prévisions les plus hautes et les plus basses (réalisé)")
+            for (bot, target) in bots {
+                var line = bot.padding(toLength: 16, withPad: " ", startingAt: 0)
+                for kind in [Kind.crypto, .stock] {
+                    for half in 0..<2 {
+                        var pairs: [(Double, Double)] = []
+                        for (a, s) in data where a.kind == kind {
+                            guard let p = preds[bot]?[key(s)] else { continue }
+                            let bs = BotEngine.Series(s.c), mid = s.c.count / 2
+                            for i in (half == 0 ? 200..<mid : mid..<s.c.count) {
+                                if let x = p[i], let y = BotEngine.label(bs, i, target) { pairs.append((x, y)) }
+                            }
+                        }
+                        pairs.sort { $0.0 < $1.0 }
+                        let q = pairs.count / 5
+                        guard q > 10 else { line += " | –"; continue }
+                        func mean(_ v: ArraySlice<(Double, Double)>) -> Double { v.map(\.1).reduce(0, +) / Double(v.count) }
+                        let lo = mean(pairs[..<q]), hi = mean(pairs[(pairs.count - q)...])
+                        line += String(format: " | %@%d haut %+.1f%% bas %+.1f%%", kind == .crypto ? "C" : "A", half + 1, hi * 100, lo * 100)
+                    }
+                }
+                print(line)
+            }
+            func p(_ bot: String, _ s: LabSeries, _ i: Int) -> Double? { preds[bot]?[key(s)]?[i] ?? nil }
+            let n = { (s: LabSeries) in Self.lb(s) }
+            let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+            let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
+            let veto = { (s: LabSeries, i: Int) in (p("Tendance 20 j", s, i) ?? 0) > BotEngine.entryBelow }
+            let vetoOut = { (s: LabSeries, i: Int) in (p("Tendance 20 j", s, i) ?? 0) < BotEngine.exitBelow }
+            let rules = [
+                LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+                LabRule(name: "veto tendance", enter: { s, i in ruleIn(s, i) && veto(s, i) }, exit: { s, i in ruleOut(s, i) || vetoOut(s, i) }),
+                LabRule(name: "+ court terme > 0", enter: { s, i in ruleIn(s, i) && veto(s, i) && (p("Court terme 5 j", s, i) ?? 1) > 0 },
+                        exit: { s, i in ruleOut(s, i) || vetoOut(s, i) }),
+                LabRule(name: "+ risque > −15 %", enter: { s, i in ruleIn(s, i) && veto(s, i) && (p("Risque 20 j", s, i) ?? 0) > -0.15 },
+                        exit: { s, i in ruleOut(s, i) || vetoOut(s, i) }),
+                LabRule(name: "+ sortie risque < −25 %", enter: { s, i in ruleIn(s, i) && veto(s, i) },
+                        exit: { s, i in ruleOut(s, i) || vetoOut(s, i) || (p("Risque 20 j", s, i) ?? 0) < -0.25 }),
+            ]
+            print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}
