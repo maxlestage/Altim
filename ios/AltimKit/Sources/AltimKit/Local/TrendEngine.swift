@@ -244,18 +244,22 @@ public enum Rotation {
     ]
 
     /// Ranking on the last candle of each history.
-    public static func picks(_ data: [(Asset, [Bar])], kind: Kind, prices: [String: Double] = [:]) -> [RotationReport.Pick] {
+    /// `verdicts` (by asset id): the app's verdicts with the trend bot's veto, so the Selection never holds an asset
+    /// its own page tells to leave; the rule alone for an asset without one.
+    public static func picks(_ data: [(Asset, [Bar])], kind: Kind, prices: [String: Double] = [:],
+                             verdicts: [String: TrendEngine.Verdict] = [:]) -> [RotationReport.Pick] {
         let n = TrendEngine.lookback(kind)
         let rows = data.map { a, bars -> (Asset, TrendEngine.Verdict, Double?) in
-            let v = TrendEngine.verdict(bars, kind: kind)
+            let v = verdicts[a.id] ?? TrendEngine.verdict(bars, kind: kind)
             let last = Indicators.sanitize(bars).last?.close
             return (a, v, v.ema200.flatMap { e in last.map { ($0 / e - 1) * 100 } })
         }
         // Every asset in its up trend is held (fixed share each): picking only the strongest concentrated the money and did
         // not hold up when the list of assets changed (StrategyLabTests.testReviewFrequency).
-        let chosen = Set(rows.filter { $0.1.state == .trend || $0.1.state == .pullback }.map(\.0.id))
+        let chosen = Set(rows.filter { $0.1.effectiveState == .trend || $0.1.effectiveState == .pullback }.map(\.0.id))
         let ranked = rows.sorted { a, b in
-            let ea = a.1.state == .trend || a.1.state == .pullback, eb = b.1.state == .trend || b.1.state == .pullback
+            let ea = a.1.effectiveState == .trend || a.1.effectiveState == .pullback
+            let eb = b.1.effectiveState == .trend || b.1.effectiveState == .pullback
             if ea != eb { return ea }
             return (a.1.momentum ?? -.infinity) > (b.1.momentum ?? -.infinity)
         }
@@ -265,7 +269,13 @@ public enum Rotation {
             let selected = chosen.contains(a.id)
             let mom = v.momentum.map { "\($0 >= 0 ? "+" : "−")\(JSFormat.fr(abs($0) * 100, min: 0, max: 0)) % sur \(days)" } ?? "momentum inconnu"
             let reason: String
-            switch v.state {
+            let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
+            let bot = v.bot.map { "\($0 >= 0 ? "+" : "−")\(JSFormat.fr(abs($0) * 100, min: 1, max: 1)) %" } ?? ""
+            switch vetoed ? .unknown : v.state {
+            case .unknown where vetoed:
+                reason = v.effectiveState == .down
+                    ? "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : à sortir."
+                    : "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : pas de nouvel achat."
             case .pullback, .trend:
                 reason = v.state == .pullback ? "Tendance de fond haussière (\(mom)) et léger repli : bon moment pour entrer." : "Tendance de fond haussière (\(mom)) : à détenir."
             case .mixed: reason = "Signaux contraires (\(mom)) : pas retenu."
