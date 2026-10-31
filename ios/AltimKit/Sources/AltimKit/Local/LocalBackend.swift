@@ -160,7 +160,7 @@ public actor LocalBackend {
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: s.candles.last?.close, change: nil, priceSources: nil,
                             signal: v.state == .unknown ? nil : SignalSummary(action: v.action, score: v.score, confidence: v.confidence * d.reliability.score / 100),
                             reliability: d.reliability, agreeing: d.agreeing, sources: d.sources.count,
-                            sparkline: s.candles.suffix(48).map(\.close), error: nil)
+                            sparkline: s.candles.suffix(48).map(\.close), error: nil, botRisk: v.botRisk)
         } catch {
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: nil, change: nil, priceSources: nil, signal: nil,
                             reliability: nil, agreeing: nil, sources: nil, sparkline: nil,

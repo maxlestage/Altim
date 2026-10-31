@@ -82,6 +82,8 @@ public struct RadarRow: Codable, Sendable, Identifiable {
     public var sources: Int?
     public var sparkline: [Double]?
     public var error: String?
+    /// Worst fall within 20 days predicted by the risk bot (≤ 0), when the app's bots are trained.
+    public var botRisk: Double? = nil
     public var id: String { "\(kind.rawValue):\(symbol)" }
 }
 
