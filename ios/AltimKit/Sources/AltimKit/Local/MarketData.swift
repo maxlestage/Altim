@@ -321,16 +321,27 @@ enum Candles {
     }
 
     /// Consensus candles: for each candle of the primary source, the median of every agreeing source with that time.
-    static func blend(_ primary: [Bar], _ others: [[Bar]]) -> [Bar] {
+    /// Two sources only, far apart on one candle (one bad print): the median of two is their mean, wrong by half the
+    /// error, so the candle of the source closest to the previous consensus close is kept as it is.
+    static func blend(_ primary: [Bar], _ others: [[Bar]], split: Double = 0.03) -> [Bar] {
         guard !others.isEmpty else { return primary }
         let maps = others.map { o in Dictionary(o.map { ($0.time, $0) }, uniquingKeysWith: { a, _ in a }) }
-        return primary.map { c in
+        var out: [Bar] = []
+        out.reserveCapacity(primary.count)
+        for c in primary {
             let same = [c] + maps.compactMap { $0[c.time] }
-            guard same.count >= 2 else { return c }
+            guard same.count >= 2 else { out.append(c); continue }
+            if same.count == 2, abs(same[0].close / same[1].close - 1) > split {
+                let ref = out.last?.close ?? c.close
+                let kept = abs(same[1].close / ref - 1) < abs(same[0].close / ref - 1) ? same[1] : same[0]
+                out.append(Bar(time: c.time, open: kept.open, high: kept.high, low: kept.low, close: kept.close, volume: c.volume))
+                continue
+            }
             func pick(_ f: (Bar) -> Double) -> Double { Indicators.median(same.map(f)) }
             let open = pick(\.open), close = pick(\.close)
-            return Bar(time: c.time, open: open, high: max(pick(\.high), open, close), low: min(pick(\.low), open, close), close: close, volume: c.volume)
+            out.append(Bar(time: c.time, open: open, high: max(pick(\.high), open, close), low: min(pick(\.low), open, close), close: close, volume: c.volume))
         }
+        return out
     }
 }
 
