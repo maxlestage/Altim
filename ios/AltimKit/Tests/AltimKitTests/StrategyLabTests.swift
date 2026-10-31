@@ -280,6 +280,14 @@ extension StrategyLabTests {
                     exit: { s, i in s.close[i] < Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? 0) < 0 }),
             LabRule(name: "confirmation 3 j", enter: { s, i in i > 3 && (0..<3).allSatisfy { k in s.close[i - k] > Self.v(s.ema200[i - k]) && (s.ret(i - k, n(s)) ?? -1) > 0 } },
                     exit: { s, i in i > 3 && (0..<3).allSatisfy { k in s.close[i - k] < Self.v(s.ema200[i - k]) || (s.ret(i - k, n(s)) ?? 0) < 0 } }),
+            LabRule(name: "momentum court", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s) / 2) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s) / 2) ?? 0) < 0 }),
+            LabRule(name: "momentum long", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s) * 2) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s) * 2) ?? 0) < 0 }),
+            LabRule(name: "EMA 100", enter: { s, i in s.close[i] > Self.v(s.ema100[i]) && (s.ret(i, n(s)) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema100[i]) || (s.ret(i, n(s)) ?? 0) < 0 }),
+            LabRule(name: "stop suiveur 3 ATR", enter: { s, i in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 },
+                    exit: { s, i in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }, trail: 3),
         ]
         print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
