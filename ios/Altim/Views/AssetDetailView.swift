@@ -577,10 +577,8 @@ struct VerdictCard: View {
                 if let e = v.ema200 {
                     KeyValue(key: "Moyenne 200 jours", value: Format.price(e))
                 }
-                if let b = v.bot {
-                    KeyValue(key: "Bot entraîné · 20 jours", value: "\(b >= 0 ? "+" : "−")\(Format.plain(abs(b) * 100, digits: 1)) %")
-                    Text("Le bot apprend sur l'iPhone, à partir de l'historique des actifs de son marché, le rendement des 20 jours suivants. Il sert de veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %. Mesuré sur les deux listes du laboratoire, ce veto a amélioré la règle seule (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto ; sur les actions il ne change presque rien. Une prévision moyenne, jamais une certitude.")
-                        .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                if v.bot != nil || v.botRisk != nil {
+                    BotsBlock(verdict: v)
                 }
                 Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
                     .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
@@ -663,5 +661,47 @@ struct EarningsCard: View {
         case 1: return "DEMAIN"
         case let d: return "DANS \(d) J"
         }
+    }
+}
+
+/// The trained bots' readings for this asset, each with what the lab measured about it.
+struct BotsBlock: View {
+    let verdict: TrendEngine.Verdict
+    @State private var details = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Bots entraînés sur l'iPhone").font(.subheadline.weight(.semibold))
+            if let b = verdict.bot {
+                KeyValue(key: "Bot Tendance · 20 jours", value: pct(b))
+            }
+            if let r = verdict.botRisk {
+                KeyValue(key: "Bot Risque · pire baisse 20 jours", value: pct(r))
+                Text(riskText(r)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            }
+            DisclosureGroup(isExpanded: $details) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(BotEngine.bots, id: \.name) { bot in
+                        Text("\(bot.name) — prévoit \(bot.predicts). Rôle : \(bot.use). Mesuré sans regarder le futur : \(bot.measured).")
+                            .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                    }
+                    Text("Ils apprennent, sur l'historique des actifs de leur marché, ce qui a suivi chaque journée, et sont réentraînés toutes les 12 heures. Testés et écartés : un bot linéaire et un bot à 5 jours, sans avantage démontré. Des prévisions moyennes, jamais des certitudes.")
+                        .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.top, 4)
+            } label: {
+                Text("Comment ils sont entraînés et ce qu'ils valent").font(.caption)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func pct(_ x: Double) -> String { "\(x >= 0 ? "+" : "−")\(Format.plain(abs(x) * 100, digits: 1)) %" }
+
+    /// Size that keeps the typical fall near 5 % of the amount invested in a full position.
+    private func riskText(_ r: Double) -> String {
+        let fall = max(abs(r), 0.01)
+        let size = min(100, (0.05 / fall * 100).rounded())
+        return "Baisse typique attendue au pire moment des 20 prochains jours. Pour ne risquer qu'environ 5 % de la somme prévue, n'en engager qu'environ \(Int(size)) %."
     }
 }

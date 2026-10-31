@@ -235,7 +235,7 @@ final class AppModel {
     }
 
     /// The markets read and judged on this iPhone (its short caches are shared by every screen).
-    @ObservationIgnored private let local = LocalBackend()
+    @ObservationIgnored private let local = LocalBackend(botStore: LocalBackend.defaultBotStore)
 
     // MARK: Lock (Face ID / code of the iPhone)
 

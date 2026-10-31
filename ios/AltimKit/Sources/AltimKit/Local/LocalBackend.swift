@@ -12,15 +12,25 @@ public actor LocalBackend {
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
-    private var botModels: [Kind: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
+    private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
+    private var botHistories: [Kind: (at: Double, task: Task<[[Bar]], Never>)] = [:]
 
     /// False for the widget, the Watch and Siri (little time and memory): the verdict is then the rule alone, without
     /// training the bot.
     let botEnabled: Bool
 
-    public init(fetcher: MarketFetcher = URLSessionFetcher(), bot: Bool = true) {
+    /// Folder where the trained bots are kept between launches (nil: memory only).
+    let botStore: URL?
+
+    public init(fetcher: MarketFetcher = URLSessionFetcher(), bot: Bool = true, botStore: URL? = nil) {
         self.fetcher = fetcher
         botEnabled = bot
+        self.botStore = botStore
+    }
+
+    /// The app's folder for the trained bots (Caches: iOS may empty it, the bots are then trained again).
+    public static var defaultBotStore: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("altim-bots", isDirectory: true)
     }
 
     /// Routes answered here.
@@ -185,31 +195,64 @@ public actor LocalBackend {
 
     /// The trained bot of a market, learned on the long histories of its universe (Rotation.universe), kept 12 hours;
     /// one training at a time, shared by every caller. Nil when too few histories could be read.
-    func botModel(_ kind: Kind) async -> BotEngine.Model? {
-        if let c = botModels[kind], nowMs() - c.at < 12 * 3_600_000 {
+    func botModel(_ kind: Kind, _ target: BotEngine.Target = .gain(days: BotEngine.horizon)) async -> BotEngine.Model? {
+        let key = "\(kind.rawValue):\(target)"
+        if let c = botModels[key], nowMs() - c.at < 12 * 3_600_000 {
             if let m = await c.task.value { return m }
             if nowMs() - c.at < 600_000 { return nil }
+            // Failed 10 minutes ago or more (network): the histories are read again.
+            botHistories[kind] = nil
         }
-        let list = Rotation.universe[kind] ?? []
+        // A bot trained less than 12 hours ago at a previous launch: no download, no training.
+        if botModels[key] == nil, let file = botStore?.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"),
+           let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(BotEngine.Model.self, from: data),
+           nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
+            botModels[key] = (saved.trainedAt, Task { saved })
+            return saved
+        }
+        let histories = universeHistories(kind)
+        let store = botStore
         let task = Task<BotEngine.Model?, Never> {
-            let histories: [[Bar]] = await withTaskGroup(of: [Bar]?.self) { g in
+            let h = await histories.value
+            guard h.count >= 5 else { return nil }
+            // Off the actor: the other routes keep answering while the bot learns.
+            let model = await Task.detached(priority: .utility) { BotEngine.Model.train(h, target: target) }.value
+            if let model, let store, let data = try? JSONEncoder().encode(model) {
+                try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
+                try? data.write(to: store.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"), options: .atomic)
+            }
+            return model
+        }
+        botModels[key] = (nowMs(), task)
+        return await task.value
+    }
+
+    /// Long daily histories of a market's universe, read once for all its bots (kept as long as the bots).
+    private func universeHistories(_ kind: Kind) -> Task<[[Bar]], Never> {
+        if let c = botHistories[kind], nowMs() - c.at < 12 * 3_600_000 { return c.task }
+        let list = Rotation.universe[kind] ?? []
+        let task = Task<[[Bar]], Never> {
+            await withTaskGroup(of: [Bar]?.self) { g in
                 for a in list { g.addTask { try? await self.longDaily(a) } }
                 var out: [[Bar]] = []
                 for await r in g { if let r, r.count > 400 { out.append(r) } }
                 return out
             }
-            guard histories.count >= 5 else { return nil }
-            return BotEngine.Model.train(histories)
         }
-        botModels[kind] = (nowMs(), task)
-        return await task.value
+        botHistories[kind] = (nowMs(), task)
+        return task
     }
 
-    /// The daily verdict with the trained bot's veto (the rule alone when the bot is unavailable).
+    /// The daily verdict with the bots: the trend bot's veto, the risk bot's expected fall (the rule alone when the
+    /// bots are unavailable).
     func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
-        let v = TrendEngine.verdict(candles, kind: a.kind)
-        guard botEnabled, v.state != .unknown, let model = await botModel(a.kind) else { return v }
-        return BotEngine.apply(model.predict(candles), to: v)
+        var v = TrendEngine.verdict(candles, kind: a.kind)
+        guard botEnabled, v.state != .unknown else { return v }
+        async let trend = botModel(a.kind)
+        async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
+        if let m = await trend { v = BotEngine.apply(m.predict(candles), to: v) }
+        v.botRisk = await risk?.predict(candles)
+        return v
     }
 
     // MARK: Zones
