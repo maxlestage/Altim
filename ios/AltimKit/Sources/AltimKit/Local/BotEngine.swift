@@ -192,15 +192,23 @@ public enum BotEngine {
     /// already known, at most the last `window` of them).
     public static func walkForwardTrees(_ histories: [[Bar]], target: Target = .gain(days: horizon), every: Double = 90 * 86_400_000,
                                         window: Int = 60_000) -> [[Double?]] {
-        let series = histories.map(Series.init)
+        walkForwardTrees(train: histories, predict: histories, target: target, every: every, window: window)
+    }
+
+    /// Walk-forward predictions for `predict`, learned on the examples of `train` only (as the app does: trained on
+    /// its universe, applied to any asset of the same market).
+    public static func walkForwardTrees(train: [[Bar]], predict: [[Bar]], target: Target = .gain(days: horizon),
+                                        every: Double = 90 * 86_400_000, window: Int = 60_000) -> [[Double?]] {
         var examples: [(known: Double, f: [Double], y: Double)] = []
+        for s in train.map(Series.init) {
+            for i in 0..<s.c.count {
+                if let f = features(s, i), let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y)) }
+            }
+        }
+        let series = predict.map(Series.init)
         var days: [(t: Double, h: Int, i: Int, f: [Double])] = []
         for (h, s) in series.enumerated() {
-            for i in 0..<s.c.count {
-                guard let f = features(s, i) else { continue }
-                days.append((s.c[i].time, h, i, f))
-                if let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y)) }
-            }
+            for i in 0..<s.c.count { if let f = features(s, i) { days.append((s.c[i].time, h, i, f)) } }
         }
         examples.sort { $0.known < $1.known }
         days.sort { $0.t < $1.t }
@@ -231,7 +239,7 @@ public enum BotEngine {
     public static let bots: [Info] = [
         Info(name: "Bot Tendance", predicts: "le rendement des 20 jours suivants",
              use: "veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %",
-             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
+             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
              measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; régler la taille sur sa prévision a réduit la pire baisse de la règle (crypto −33 % contre −48 % pour +43 % contre +47 % de rendement, et −11 % contre −24 % en marché baissier), avec un rendement presque identique sur les actions"),
@@ -248,6 +256,11 @@ public enum BotEngine {
         /// Assets and examples it learned from.
         public let assets: Int, examples: Int
         public let trainedAt: Double
+        /// Measures it was trained on (a bot saved by an older version with other measures is not reused).
+        public var featureCount: Int? = BotEngine.featureNames.count
+
+        /// Usable with today's measures: a bot saved by a version with other measures would read the wrong ones.
+        public var isCurrent: Bool { featureCount == BotEngine.featureNames.count && trees.stumps.allSatisfy { $0.f < BotEngine.featureNames.count } }
 
         /// Trained on every example whose 20 days are over (the most recent 60 000 at most).
         public static func train(_ histories: [[Bar]], target: Target = .gain(days: horizon), now: Double = Date().timeIntervalSince1970 * 1000) -> Model? {
@@ -265,7 +278,7 @@ public enum BotEngine {
         /// Predicted return over the next 20 days for the last closed candle of `bars`; nil under 200 days.
         public func predict(_ bars: [Bar]) -> Double? {
             let s = Series(bars)
-            guard let f = features(s, s.c.count - 1) else { return nil }
+            guard isCurrent, let f = features(s, s.c.count - 1) else { return nil }
             return trees.predict(f)
         }
     }

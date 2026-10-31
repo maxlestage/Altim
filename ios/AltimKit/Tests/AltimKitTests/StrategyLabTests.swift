@@ -584,3 +584,58 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// The app trains its bots on its universe and applies them to any asset of the same market. Does the veto still
+    /// help on assets the bot never learned from? Lab assets absent from the universe, bot trained on the universe only.
+    func testVetoOutsideUniverse() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 400 }
+        let inUniverse = Set(uni.map { $0.0.id })
+        let outside = Self.load(l).filter { $0.1.count > 600 && !inUniverse.contains($0.0.id) }
+        print("== hors univers : \(outside.map(\.0.symbol).joined(separator: ", "))")
+        var preds: [String: [Double?]] = [:]
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        for kind in [Kind.crypto, .stock] {
+            let targets = outside.filter { $0.0.kind == kind }
+            guard !targets.isEmpty else { continue }
+            let p = BotEngine.walkForwardTrees(train: uni.filter { $0.0.kind == kind }.map(\.1), predict: targets.map(\.1))
+            for (k, (_, bars)) in targets.enumerated() { preds[key(LabSeries(bars))] = p[k] }
+        }
+        let data = outside.map { ($0.0, LabSeries($0.1)) }
+        func p(_ s: LabSeries, _ i: Int) -> Double? { preds[key(s)]?[i] ?? nil }
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
+        let rules = [
+            LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+            LabRule(name: "veto (bot de l'univers)", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > BotEngine.entryBelow },
+                    exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < BotEngine.exitBelow }),
+        ]
+        print(Lab.report(data, rules)); print(Lab.full(data, rules))
+
+        // Leave-one-out on the universe: each asset predicted by a bot that never saw it.
+        var loo: [String: [Double?]] = [:]
+        for kind in [Kind.crypto, .stock] {
+            let group = uni.filter { $0.0.kind == kind }
+            for (k, (_, bars)) in group.enumerated() {
+                let others = group.enumerated().filter { $0.offset != k }.map(\.element.1)
+                loo[key(LabSeries(bars))] = BotEngine.walkForwardTrees(train: others, predict: [bars])[0]
+            }
+        }
+        let uData = uni.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        func q(_ s: LabSeries, _ i: Int) -> Double? { loo[key(s)]?[i] ?? nil }
+        let looRules = [
+            LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+            LabRule(name: "veto (actif jamais vu)", enter: { s, i in ruleIn(s, i) && (q(s, i) ?? 0) > BotEngine.entryBelow },
+                    exit: { s, i in ruleOut(s, i) || (q(s, i) ?? 0) < BotEngine.exitBelow }),
+        ]
+        print("== univers, chaque actif exclu de l'entraînement")
+        print(Lab.report(uData, looRules)); print(Lab.full(uData, looRules))
+    }
+}
