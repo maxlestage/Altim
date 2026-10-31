@@ -85,4 +85,12 @@ final class BotEngineTests: XCTestCase {
         XCTAssertTrue(o.buy)
         XCTAssertTrue(o.cautions.contains("Bot Risque : pire baisse prévue −25 % sur 20 jours, engager environ 20 % de la somme prévue."), "\(o.cautions)")
     }
+
+    /// The radar row carries the risk bot's fall; an older cached row without it still reads.
+    func testRadarRowCarriesTheRisk() throws {
+        let old = try JSONDecoder().decode(RadarRow.self, from: Data(#"{"symbol":"BTC","kind":"crypto"}"#.utf8))
+        XCTAssertNil(old.botRisk)
+        let row = try JSONDecoder().decode(RadarRow.self, from: Data(#"{"symbol":"BTC","kind":"crypto","botRisk":-0.18}"#.utf8))
+        XCTAssertEqual(row.botRisk, -0.18)
+    }
 }
