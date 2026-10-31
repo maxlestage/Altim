@@ -45,4 +45,23 @@ final class BotEngineTests: XCTestCase {
         XCTAssertFalse(o.buy)
         XCTAssertEqual(o.blockers.first, "Tendance haussière, mais le bot entraîné prévoit −2,0 % sur 20 jours : pas d'achat.")
     }
+
+    /// The risk bot learns the worst fall ahead: a calm rise must look less risky than a jumpy fall.
+    func testRiskBotLearnsTheFall() throws {
+        func jumpy(_ seed: Double) -> [Bar] {
+            var p = 100.0
+            return (0..<700).map { i in
+                p *= 1 - 0.001 + 0.05 * sin(Double(i) * 1.7 + seed)
+                return Bar(time: Double(i) * 86_400_000, open: p, high: p * 1.04, low: p * 0.94, close: p, volume: 1000)
+            }
+        }
+        let calm = (0..<4).map { Self.series(drift: 0.001, seed: Double($0)) }
+        let wild = (0..<4).map { jumpy(Double($0)) }
+        let model = try XCTUnwrap(BotEngine.Model.train(calm + wild, target: .fall(days: 20)))
+        let quiet = try XCTUnwrap(model.predict(Self.series(drift: 0.001, seed: 2.2)))
+        let risky = try XCTUnwrap(model.predict(jumpy(9)))
+        XCTAssertLessThanOrEqual(quiet, 0)
+        XCTAssertLessThan(risky, quiet, "une série agitée doit annoncer une baisse plus forte")
+        XCTAssertEqual(BotEngine.bots.map(\.name), ["Bot Tendance", "Bot Risque"])
+    }
 }

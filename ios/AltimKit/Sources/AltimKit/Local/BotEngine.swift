@@ -45,10 +45,23 @@ public enum BotEngine {
         ]
     }
 
-    /// Return from the next open to the close `horizon` days later (what a buyer tonight would have earned), capped.
-    static func label(_ s: Series, _ i: Int) -> Double? {
-        guard i + horizon < s.c.count, s.c[i + 1].open > 0 else { return nil }
-        return max(-0.5, min(0.5, s.close[i + horizon] / s.c[i + 1].open - 1))
+    /// What a bot learns to predict.
+    public enum Target: Sendable, Equatable {
+        /// Return from the next open to the close `days` later (what a buyer tonight would have earned), capped.
+        case gain(days: Int)
+        /// Worst fall from the next open within the next `days` (≤ 0): the risk a buyer tonight would have lived.
+        case fall(days: Int)
+        var days: Int { switch self { case let .gain(d), let .fall(d): return d } }
+    }
+
+    static func label(_ s: Series, _ i: Int, _ target: Target = .gain(days: horizon)) -> Double? {
+        let d = target.days
+        guard i + d < s.c.count, s.c[i + 1].open > 0 else { return nil }
+        let entry = s.c[i + 1].open
+        switch target {
+        case .gain: return max(-0.5, min(0.5, s.close[i + d] / entry - 1))
+        case .fall: return max(-0.9, min(0, (s.c[(i + 1)...(i + d)].map(\.low).min() ?? entry) / entry - 1))
+        }
     }
 
     /// Ridge regression grown example by example (normal equations), so retraining costs nothing.
@@ -176,7 +189,8 @@ public enum BotEngine {
 
     /// Walk-forward predictions of the boosted trees (retrained every `every` of calendar time on the examples
     /// already known, at most the last `window` of them).
-    public static func walkForwardTrees(_ histories: [[Bar]], every: Double = 90 * 86_400_000, window: Int = 60_000) -> [[Double?]] {
+    public static func walkForwardTrees(_ histories: [[Bar]], target: Target = .gain(days: horizon), every: Double = 90 * 86_400_000,
+                                        window: Int = 60_000) -> [[Double?]] {
         let series = histories.map(Series.init)
         var examples: [(known: Double, f: [Double], y: Double)] = []
         var days: [(t: Double, h: Int, i: Int, f: [Double])] = []
@@ -184,7 +198,7 @@ public enum BotEngine {
             for i in 0..<s.c.count {
                 guard let f = features(s, i) else { continue }
                 days.append((s.c[i].time, h, i, f))
-                if let y = label(s, i) { examples.append((s.c[i + horizon].time, f, y)) }
+                if let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y)) }
             }
         }
         examples.sort { $0.known < $1.known }
@@ -204,7 +218,23 @@ public enum BotEngine {
         return out
     }
 
-    // MARK: - The bot used by the app
+    // MARK: - The bots used by the app
+
+    /// A bot of the app, what it predicts and what the lab measured about it (walk-forward, two lists × two halves).
+    public struct Info: Sendable {
+        public let name: String, predicts: String, use: String, measured: String
+    }
+
+    /// The bots shown in the app. Tested and left out: a linear bot (worse than the rule), a 5-day bot (its
+    /// predictions did not separate good and bad days consistently).
+    public static let bots: [Info] = [
+        Info(name: "Bot Tendance", predicts: "le rendement des 20 jours suivants",
+             use: "veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %",
+             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
+        Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
+             use: "information de risque, pour régler la taille d'une position",
+             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne)"),
+    ]
 
     /// Entry blocked under this predicted 20-day return, exit under `exitBelow` (chosen once, before the test; the
     /// lab checked that nearby values give the same result: −2 / −4 %, −1 / −5 %, entry only).
@@ -219,11 +249,11 @@ public enum BotEngine {
         public let trainedAt: Double
 
         /// Trained on every example whose 20 days are over (the most recent 60 000 at most).
-        public static func train(_ histories: [[Bar]], now: Double = Date().timeIntervalSince1970 * 1000) -> Model? {
+        public static func train(_ histories: [[Bar]], target: Target = .gain(days: horizon), now: Double = Date().timeIntervalSince1970 * 1000) -> Model? {
             var x: [[Double]] = [], y: [Double] = []
             for bars in histories {
                 let s = Series(bars)
-                for i in 0..<s.c.count { if let f = features(s, i), let l = label(s, i) { x.append(f); y.append(l) } }
+                for i in 0..<s.c.count { if let f = features(s, i), let l = label(s, i, target) { x.append(f); y.append(l) } }
             }
             let keep = max(0, x.count - 60_000)
             let t = Stumps.train(Array(x[keep...]), Array(y[keep...]))
