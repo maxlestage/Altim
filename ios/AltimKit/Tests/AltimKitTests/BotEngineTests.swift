@@ -153,4 +153,17 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(pick?.selected, false)
         XCTAssertTrue(pick?.reason.contains("le bot Tendance prévoit −5,0 % sur 20 jours : à sortir") ?? false, pick?.reason ?? "")
     }
+
+    /// The bot's real exits are followed apart in the summary of the verdicts.
+    func testBotExitsAreFollowedApart() {
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        var v = BotEngine.apply(-0.05, to: TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto))
+        v.price = 100
+        let log = VerdictLog.record([], v, asset: a, now: 1)
+        XCTAssertEqual(log.last?.label, VerdictLog.botExitLabel)
+        let s = VerdictLog.summary(VerdictLog.outcomes(log, prices: ["crypto:BTC": 90]))
+        XCTAssertEqual(s.botExitCount, 1)
+        XCTAssertEqual(s.botExitMean ?? 0, -10, accuracy: 1e-9)
+        XCTAssertTrue(s.text.contains("Dont sorties décidées par le bot Tendance : −10,0 % en moyenne ensuite (1 cas), une baisse évitée."), s.text)
+    }
 }
