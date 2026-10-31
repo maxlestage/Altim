@@ -107,7 +107,7 @@ struct RadarView: View {
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas ; le bot Tendance peut bloquer un achat, et « risque » est la pire baisse prévue par le bot Risque sur 20 jours. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -243,7 +243,9 @@ struct RadarRowView: View {
 
     @ViewBuilder private var technical: some View {
         if let s = row?.signal {
-            Text("confiance \(Int(s.confidence.rounded()))").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            Text("confiance \(Int(s.confidence.rounded()))" + (row?.botRisk.map { " · risque −\(Int((abs($0) * 100).rounded())) %" } ?? ""))
+                .font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                .accessibilityLabel("Confiance \(Int(s.confidence.rounded()))" + (row?.botRisk.map { ", pire baisse prévue par le bot Risque \(Int((abs($0) * 100).rounded())) % sur 20 jours" } ?? ""))
         } else if row?.error != nil {
             Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
         }
