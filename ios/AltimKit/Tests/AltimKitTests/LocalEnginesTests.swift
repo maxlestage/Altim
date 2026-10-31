@@ -112,4 +112,21 @@ final class LocalEnginesTests: XCTestCase {
         let lone = Candles.closed([Bar(time: day, open: 101, high: 99, low: 0, close: 102, volume: .nan)], .d1, kind: .crypto, now: 10 * day)
         XCTAssertEqual(lone, [Bar(time: day, open: 101, high: 102, low: 101, close: 102, volume: 0)], "plus haut et plus bas encadrent ouverture et clôture")
     }
+
+    /// Two agreeing sources, one bad print on a single candle: the blend keeps the plausible source instead of the
+    /// mean of the two (which would be wrong by half the error).
+    func testBlendOfTwoSourcesIgnoresOneBadPrint() {
+        let day = 86_400_000.0
+        func bar(_ t: Double, _ c: Double) -> Bar { Bar(time: t * day, open: c, high: c * 1.01, low: c * 0.99, close: c, volume: 1) }
+        let good = (0..<5).map { bar(Double($0), 100 + Double($0)) }
+        var bad = good
+        bad[3] = bar(3, 51.5)
+        XCTAssertEqual(Candles.blend(bad, [good])[3].close, 103, "la source principale fautive est écartée sur cette bougie")
+        XCTAssertEqual(Candles.blend(good, [bad])[3].close, 103, "la seconde source fautive est écartée")
+        XCTAssertEqual(Candles.blend(good, [bad]).map(\.close), good.map(\.close))
+        var close = good
+        close[2] = bar(2, 102.4)
+        XCTAssertEqual(Candles.blend(good, [close])[2].close, 102.2, accuracy: 1e-9, "petit écart : la médiane (moyenne) reste utilisée")
+        XCTAssertEqual(Candles.blend(good, [bad, good])[3].close, 103, "trois sources : la médiane suffit")
+    }
 }
