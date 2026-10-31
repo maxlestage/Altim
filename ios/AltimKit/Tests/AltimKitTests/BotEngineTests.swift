@@ -142,4 +142,28 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(held.effectiveState, .mixed)
         XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "RESTER À L'ÉCART")
     }
+
+    /// The Selection follows the same verdicts as the asset pages: an up trend vetoed by the bot is not held.
+    func testSelectionHonoursTheVeto() {
+        let bars = Self.series(drift: 0.002)
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        XCTAssertEqual(Rotation.picks([(a, bars)], kind: .crypto).first?.selected, true)
+        let vetoed = BotEngine.apply(-0.05, to: TrendEngine.verdict(bars, kind: .crypto))
+        let pick = Rotation.picks([(a, bars)], kind: .crypto, verdicts: [a.id: vetoed]).first
+        XCTAssertEqual(pick?.selected, false)
+        XCTAssertTrue(pick?.reason.contains("le bot Tendance prévoit −5,0 % sur 20 jours : à sortir") ?? false, pick?.reason ?? "")
+    }
+
+    /// The bot's real exits are followed apart in the summary of the verdicts.
+    func testBotExitsAreFollowedApart() {
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        var v = BotEngine.apply(-0.05, to: TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto))
+        v.price = 100
+        let log = VerdictLog.record([], v, asset: a, now: 1)
+        XCTAssertEqual(log.last?.label, VerdictLog.botExitLabel)
+        let s = VerdictLog.summary(VerdictLog.outcomes(log, prices: ["crypto:BTC": 90]))
+        XCTAssertEqual(s.botExitCount, 1)
+        XCTAssertEqual(s.botExitMean ?? 0, -10, accuracy: 1e-9)
+        XCTAssertTrue(s.text.contains("Dont sorties décidées par le bot Tendance : −10,0 % en moyenne ensuite (1 cas), une baisse évitée."), s.text)
+    }
 }
