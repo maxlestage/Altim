@@ -270,6 +270,13 @@ public enum BotEngine {
         }
     }
 
+    /// Share (in %, 1…100) of the planned amount to commit so that the risk bot's predicted worst fall costs about 5 %;
+    /// nil without a prediction.
+    public static func size(forFall fall: Double?) -> Int? {
+        guard let f = fall, f.isFinite else { return nil }
+        return Int(max(1, min(100, (0.05 / max(abs(f), 0.01) * 100).rounded())))
+    }
+
     /// The rule's verdict with the bot's veto: in an up trend, no new position when the bot predicts below −1 % over
     /// 20 days (ATTENDRE, keep a position), out below −3 % (VENTE). Never turns a verdict into a buy.
     public static func apply(_ prediction: Double?, to v: TrendEngine.Verdict) -> TrendEngine.Verdict {
