@@ -437,3 +437,59 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Placebo of the trend bot's veto: the same veto fired on random days, as often as the bot fires it. If chance did
+    /// as well, the bot brings no information and the veto must go.
+    func testVetoPlacebo() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var preds: [String: [Double?]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let p = BotEngine.walkForwardTrees(group.map(\.1))
+                for (k, (_, bars)) in group.enumerated() { preds[key(LabSeries(bars))] = p[k] }
+            }
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            func p(_ s: LabSeries, _ i: Int) -> Double? { preds[key(s)]?[i] ?? nil }
+            // How often the bot blocks an entry / forces an exit on in-trend days.
+            var days = 0, noEntry = 0, exits = 0
+            for (_, s) in data {
+                for i in 200..<s.c.count where s.close[i] > Self.v(s.ema200[i]) {
+                    guard let x = p(s, i) else { continue }
+                    days += 1
+                    if x <= BotEngine.entryBelow { noEntry += 1 }
+                    if x < BotEngine.exitBelow { exits += 1 }
+                }
+            }
+            let fEntry = Double(noEntry) / Double(max(days, 1)), fExit = Double(exits) / Double(max(days, 1))
+            print("== \(name) : veto d'entrée \(Int(fEntry * 100)) % des jours en tendance, sortie \(Int(fExit * 100)) %")
+            let n = { (s: LabSeries) in Self.lb(s) }
+            let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+            let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
+            func noise(_ s: LabSeries, _ i: Int, _ seed: Int) -> Double {
+                var h = UInt64(bitPattern: Int64(s.c[i].time)) &+ UInt64(seed) &* 0x9E3779B97F4A7C15 &+ UInt64(s.c.count)
+                h ^= h >> 33; h &*= 0xff51afd7ed558ccd; h ^= h >> 33; h &*= 0xc4ceb9fe1a85ec53; h ^= h >> 33
+                return Double(h % 1_000_000) / 1_000_000
+            }
+            var rules = [
+                LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+                LabRule(name: "veto du bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > BotEngine.entryBelow },
+                        exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < BotEngine.exitBelow }),
+            ]
+            for seed in 1...5 {
+                rules.append(LabRule(name: "veto au hasard \(seed)", enter: { s, i in ruleIn(s, i) && noise(s, i, seed) >= fEntry },
+                                     exit: { s, i in ruleOut(s, i) || noise(s, i, seed + 100) < fExit }))
+            }
+            print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}
