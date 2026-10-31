@@ -511,3 +511,76 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Position size from the risk bot (the app's advice: size so that the predicted worst fall costs ≈ 5 % of the
+    /// planned amount) against a full position and against a size from plain volatility, on the rule + veto.
+    /// Daily close-to-close, weight decided at the close and applied the next day, 0,1 % fee on each change.
+    func testRiskSizing() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var trend: [Int: [Double?]] = [:], risk: [Int: [Double?]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let idx = list.indices.filter { list[$0].0.kind == kind }
+                let t = BotEngine.walkForwardTrees(idx.map { list[$0].1 })
+                let r = BotEngine.walkForwardTrees(idx.map { list[$0].1 }, target: .fall(days: 20))
+                for (k, i) in idx.enumerated() { trend[i] = t[k]; risk[i] = r[k] }
+            }
+            // Per sizing: per kind and half, median return and median worst fall, and the share of assets where the
+            // return per unit of worst fall beat the full position.
+            let sizings = ["pleine", "bot risque", "volatilité"]
+            print("== \(name)")
+            for kind in [Kind.crypto, .stock] {
+                for half in 0..<2 {
+                    var rets: [[Double]] = [[], [], []], dds: [[Double]] = [[], [], []], better = [0, 0, 0], n = 0
+                    for (i, (a, bars)) in list.enumerated() where a.kind == kind {
+                        let s = LabSeries(bars), lb = Self.lb(s), len = s.c.count - 200
+                        let from = 200 + half * len / 2, to = 200 + (half + 1) * len / 2
+                        var res: [(Double, Double)] = []
+                        for z in 0..<3 {
+                            var eq = 1.0, peak = 1.0, dd = 0.0, w = 0.0, inPos = false
+                            for d in from..<(to - 1) {
+                                let up = s.close[d] > Self.v(s.ema200[d]) && (s.ret(d, lb) ?? -1) > 0
+                                let p = trend[i]?[d] ?? nil
+                                if !inPos, up, (p ?? 0) > BotEngine.entryBelow { inPos = true }
+                                else if inPos, !up || (p ?? 0) < BotEngine.exitBelow { inPos = false }
+                                var target = 0.0
+                                if inPos {
+                                    switch z {
+                                    case 1: target = min(1, 0.05 / max(abs(risk[i]?[d] ?? -0.05), 0.01))
+                                    case 2:
+                                        var sq = 0.0
+                                        for k in (d - 19)...d { let r = s.close[k] / s.close[k - 1] - 1; sq += r * r }
+                                        // Typical 20-day fall ≈ 1.5 × the 20-day volatility.
+                                        target = min(1, 0.05 / max(1.5 * sqrt(sq / 20) * sqrt(20), 0.01))
+                                    default: target = 1
+                                    }
+                                }
+                                eq *= 1 - abs(target - w) * Lab.fee
+                                w = target
+                                eq *= 1 + w * (s.close[d + 1] / s.close[d] - 1)
+                                peak = max(peak, eq); dd = min(dd, eq / peak - 1)
+                            }
+                            res.append(((eq - 1) * 100, dd * 100))
+                        }
+                        n += 1
+                        for z in 0..<3 {
+                            rets[z].append(res[z].0); dds[z].append(res[z].1)
+                            let c = (1 + res[z].0 / 100) / (-res[z].1 / 100 + 0.05), c0 = (1 + res[0].0 / 100) / (-res[0].1 / 100 + 0.05)
+                            if c > c0 { better[z] += 1 }
+                        }
+                    }
+                    let parts = (0..<3).map { z in "\(sizings[z]) ret \(Int(Lab.median(rets[z])))% creux \(Int(Lab.median(dds[z])))% mieux/risque \(better[z])/\(n)" }
+                    print("\(kind == .crypto ? "C" : "A")\(half + 1) | " + parts.joined(separator: " | "))
+                }
+            }
+        }
+    }
+}
