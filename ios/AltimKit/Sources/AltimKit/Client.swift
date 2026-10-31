@@ -27,7 +27,7 @@ public enum AltimError: LocalizedError, Equatable {
         case .unauthorized: return "Session expirée : reconnectez-vous."
         case let .server(m): return m
         case let .network(m): return "Réseau indisponible (\(m))."
-        case .needsServer: return "Cette analyse n'est pas encore calculée sur l'iPhone : elle arrive dans une prochaine version (ou connectez un serveur Altim dans Réglages)."
+        case .needsServer: return "Cette analyse n'est pas encore calculée par l'app."
         }
     }
 }

@@ -151,6 +151,6 @@ public enum NewsSummary {
 
     public static let intro = "Sujets des dernières 24 h repris par plusieurs sources indépendantes, escalades graves, ou articles citant vos actifs sur un sujet sensible. Impact potentiel indicatif, pas un signal."
     public static let howRule = "Par règle : sources indépendantes, un même titre repris mot pour mot comptant pour une (2–3 : +1, 4 et plus : +2), thème (escalade grave +2 ; banques centrales, régulation ou piratage +1), cite un de vos actifs (+1). 0–1 point : faible, 2–3 : moyen, 4 et plus : important."
-    public static let howMeasured = "Mesuré : si les bougies horaires d'un actif cité sont déjà en mémoire sur le serveur, la plus forte variation depuis la clôture précédant la publication (action : 1 % moyen, 3 % important ; crypto : 2 % et 5 %). Une variation après un article ne prouve pas qu'il en est la cause."
+    public static let howMeasured = "Mesuré : la variation des cours après la publication n'est pas encore calculée dans l'app ; l'impact affiché est celui de la règle. Même mesurée, une variation après un article ne prouverait pas qu'il en est la cause."
     public static let howConsensus = "Consensus : ton des titres de chaque source (repérage par mots-clés) ; divergent dès qu'un titre est négatif et un autre positif."
 }

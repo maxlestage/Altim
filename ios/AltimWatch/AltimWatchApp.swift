@@ -150,7 +150,7 @@ struct AlertsList: View {
                     Text(WatchLink.checkedText(store.checked, now: ctx.date)).font(.footnote).foregroundStyle(.secondary)
                 }
             } footer: {
-                Text("Lu sur le serveur toutes les 30 s tant que l'app est à l'écran. Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("Calculé sur la montre à partir des cours publics, toutes les 30 s tant que l'app est à l'écran. Conseil indicatif : Altim ne passe aucun ordre.")
             }
         }
         .navigationTitle("Altim")
