@@ -255,7 +255,7 @@ public actor LocalBackend {
             v.botTrainedAt = m.trainedAt
             v.botExamples = m.examples
         }
-        v.botRisk = await risk?.predict(candles)
+        v.botRisk = BotEngine.calibratedFall(await risk?.predict(candles), kind: a.kind)
         return v
     }
 

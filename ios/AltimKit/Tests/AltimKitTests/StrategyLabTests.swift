@@ -554,7 +554,7 @@ extension StrategyLabTests {
                                 var target = 0.0
                                 if inPos {
                                     switch z {
-                                    case 1: target = min(1, 0.05 / max(abs(risk[i]?[d] ?? -0.05), 0.01))
+                                    case 1: target = min(1, 0.05 / max(abs(BotEngine.calibratedFall(risk[i]?[d] ?? -0.05, kind: a.kind) ?? -0.05), 0.01))
                                     case 2:
                                         var sq = 0.0
                                         for k in (d - 19)...d { let r = s.close[k] / s.close[k - 1] - 1; sq += r * r }
@@ -637,5 +637,41 @@ extension StrategyLabTests {
         ]
         print("== univers, chaque actif exclu de l'entraînement")
         print(Lab.report(uData, looRules)); print(Lab.full(uData, looRules))
+    }
+}
+
+extension StrategyLabTests {
+    /// Calibration of the risk bot: does a predicted worst fall of −10 % mean about −10 % in reality? Out of sample
+    /// (walk-forward), by fifth of predictions, both lists. The app sizes positions on this number.
+    func testRiskCalibration() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let preds = BotEngine.walkForwardTrees(group.map(\.1), target: .fall(days: 20))
+                var pairs: [(Double, Double)] = []
+                for (k, (_, bars)) in group.enumerated() {
+                    let s = BotEngine.Series(bars)
+                    for i in 0..<s.c.count { if let p = preds[k][i], let y = BotEngine.label(s, i, .fall(days: 20)) { pairs.append((p, y)) } }
+                }
+                pairs.sort { $0.0 < $1.0 }
+                let q = pairs.count / 5
+                var line = "\(name) \(kind.rawValue) n=\(pairs.count)"
+                for f in 0..<5 {
+                    let part = pairs[(f * q)..<(f == 4 ? pairs.count : (f + 1) * q)]
+                    let pm = part.map(\.0).reduce(0, +) / Double(part.count), ym = part.map(\.1).reduce(0, +) / Double(part.count)
+                    let worse = Double(part.filter { $0.1 < $0.0 }.count) / Double(part.count)
+                    line += String(format: " | prévu %.1f%% réel %.1f%% (pire que prévu %.0f%%)", pm * 100, ym * 100, worse * 100)
+                }
+                print(line)
+            }
+        }
     }
 }

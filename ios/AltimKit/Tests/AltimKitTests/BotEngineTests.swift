@@ -116,4 +116,12 @@ final class BotEngineTests: XCTestCase {
         let older = try JSONDecoder().decode(BotEngine.Model.self, from: JSONSerialization.data(withJSONObject: json))
         XCTAssertFalse(older.isCurrent, "fichier sans nombre de mesures : version antérieure")
     }
+
+    /// The risk bot is never calmer than what its calm predictions turned out to be.
+    func testCalibratedFall() {
+        XCTAssertEqual(BotEngine.calibratedFall(-0.08, kind: .crypto), -0.14)
+        XCTAssertEqual(BotEngine.calibratedFall(-0.25, kind: .crypto), -0.25)
+        XCTAssertEqual(BotEngine.calibratedFall(-0.02, kind: .stock), -0.04)
+        XCTAssertNil(BotEngine.calibratedFall(nil, kind: .stock))
+    }
 }
