@@ -142,4 +142,15 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(held.effectiveState, .mixed)
         XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "RESTER À L'ÉCART")
     }
+
+    /// The Selection follows the same verdicts as the asset pages: an up trend vetoed by the bot is not held.
+    func testSelectionHonoursTheVeto() {
+        let bars = Self.series(drift: 0.002)
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        XCTAssertEqual(Rotation.picks([(a, bars)], kind: .crypto).first?.selected, true)
+        let vetoed = BotEngine.apply(-0.05, to: TrendEngine.verdict(bars, kind: .crypto))
+        let pick = Rotation.picks([(a, bars)], kind: .crypto, verdicts: [a.id: vetoed]).first
+        XCTAssertEqual(pick?.selected, false)
+        XCTAssertTrue(pick?.reason.contains("le bot Tendance prévoit −5,0 % sur 20 jours : à sortir") ?? false, pick?.reason ?? "")
+    }
 }
