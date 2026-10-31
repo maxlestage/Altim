@@ -3,13 +3,14 @@ import AltimKit
 
 /// Sort of the Radar: "Mon ordre", "Variation", "Verdict".
 enum RadarSort: String, CaseIterable {
-    case mine, change, decision
+    case mine, change, decision, risk
 
     var label: String {
         switch self {
         case .mine: return "Mon ordre"
         case .change: return "Variation"
         case .decision: return "Verdict"
+        case .risk: return "Risque"
         }
     }
 }
@@ -35,7 +36,8 @@ struct RadarView: View {
 
     private var sort: RadarSort { RadarSort(rawValue: sortRaw) ?? .mine }
 
-    /// "Verdict": buy side first (strong buy, buy, wait, sell), then the score; "Variation": the largest move.
+    /// "Verdict": buy side first (strong buy, buy, wait, sell), then the score; "Variation": the largest move;
+    /// "Risque": the calmest first according to the risk bot.
     private var sortedWatchlist: [Asset] {
         switch sort {
         case .mine:
@@ -50,6 +52,17 @@ struct RadarView: View {
                 if ra != rb { return ra < rb }
                 if (a?.score ?? 0) != (b?.score ?? 0) { return (a?.score ?? 0) > (b?.score ?? 0) }
                 return x.offset < y.offset
+            }.map(\.element)
+        case .risk:
+            // The smallest worst fall predicted by the risk bot first; assets without a prediction last, in my order.
+            return model.watchlist.enumerated().sorted { x, y in
+                let a = rows[x.element.id]?.botRisk, b = rows[y.element.id]?.botRisk
+                switch (a, b) {
+                case let (a?, b?) where a != b: return a > b
+                case (_?, nil): return true
+                case (nil, _?): return false
+                default: return x.offset < y.offset
+                }
             }.map(\.element)
         }
     }
@@ -107,7 +120,7 @@ struct RadarView: View {
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas ; le bot Tendance peut bloquer un achat, et « risque » est la pire baisse prévue par le bot Risque sur 20 jours. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)
@@ -243,10 +256,30 @@ struct RadarRowView: View {
 
     @ViewBuilder private var technical: some View {
         if let s = row?.signal {
-            Text("confiance \(Int(s.confidence.rounded()))").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+            Text(confidenceText(s))
+                .font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                .accessibilityLabel(confidenceLabel(s))
         } else if row?.error != nil {
             Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
         }
+    }
+
+    /// Worst fall predicted by the risk bot, in whole percent; nil before the bots are trained.
+    private var riskPercent: Int? {
+        guard let r = row?.botRisk else { return nil }
+        return Int((abs(r) * 100).rounded())
+    }
+
+    private func confidenceText(_ s: SignalSummary) -> String {
+        let base = "confiance \(Int(s.confidence.rounded()))"
+        guard let p = riskPercent else { return base }
+        return base + " · risque −\(p) %"
+    }
+
+    private func confidenceLabel(_ s: SignalSummary) -> String {
+        let base = "Confiance \(Int(s.confidence.rounded()))"
+        guard let p = riskPercent else { return base }
+        return base + ", pire baisse prévue par le bot Risque \(p) % sur 20 jours"
     }
 
     @ViewBuilder private var reliability: some View {
