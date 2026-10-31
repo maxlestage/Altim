@@ -1,7 +1,7 @@
 import Foundation
 
 /// Live prices without a server: the consensus quotes read again every few seconds by the iPhone (5 s for cryptos,
-/// 15 s for stocks, 60 s for a closed stock market), as ticks of the same stream as the server's WebSocket.
+/// 15 s for stocks, 60 s around the session, 5 min on days the exchange is closed), as ticks of a live stream.
 enum LocalLive {
     static func messages(_ assets: [Asset], local: LocalBackend, opened: @escaping @Sendable () -> Void = {}) -> AsyncThrowingStream<LiveMessage, Error> {
         AsyncThrowingStream { continuation in
@@ -13,7 +13,7 @@ enum LocalLive {
                 while !Task.isCancelled {
                     let now = Date()
                     let due = assets.filter { a in
-                        let every: Double = a.kind == .crypto ? 5 : marketOpen(now) ? 15 : 60
+                        let every: Double = a.kind == .crypto ? 5 : stockEvery(now)
                         return (last[a.id].map { now.timeIntervalSince1970 - $0 >= every } ?? true)
                     }
                     if !due.isEmpty {
@@ -35,6 +35,12 @@ enum LocalLive {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Seconds between two readings of a stock price: 15 s during the session, 60 s around it (pre- and after-market
+    /// moves), 5 min on a weekend or an exchange holiday, when no price moves at all (spares the battery and the sources).
+    static func stockEvery(_ date: Date) -> Double {
+        marketOpen(date) ? 15 : NYSECalendar.isTradingDay(date) ? 60 : 300
     }
 
     /// New York regular session: Monday to Friday, 9:30 to 16:00 (13:00 on early-close days), not on exchange holidays.
