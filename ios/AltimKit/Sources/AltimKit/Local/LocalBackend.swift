@@ -250,7 +250,11 @@ public actor LocalBackend {
         guard botEnabled, v.state != .unknown else { return v }
         async let trend = botModel(a.kind)
         async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
-        if let m = await trend { v = BotEngine.apply(m.predict(candles), to: v) }
+        if let m = await trend {
+            v = BotEngine.apply(m.predict(candles), to: v)
+            v.botTrainedAt = m.trainedAt
+            v.botExamples = m.examples
+        }
         v.botRisk = await risk?.predict(candles)
         return v
     }

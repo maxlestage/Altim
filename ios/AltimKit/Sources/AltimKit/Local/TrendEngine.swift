@@ -45,6 +45,9 @@ public enum TrendEngine {
         public var bot: Double? = nil
         /// Worst fall within the next 20 days predicted by the risk bot (≤ 0), when it could be trained.
         public var botRisk: Double? = nil
+        /// When the trend bot was trained (ms) and on how many examples, to show how fresh it is.
+        public var botTrainedAt: Double? = nil
+        public var botExamples: Int? = nil
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.
