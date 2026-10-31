@@ -65,7 +65,7 @@ enum LocalAlertRule {
         if state == .trend && hit == nil { cautions.append("Pas de repli en cours : entrer en plusieurs fois.") }
         // The risk bot's size, on its calibrated fall (measured: crypto worst fall −15 % instead of −48 %, return +16 % instead of +47 %).
         if inTrend, let r = a.verdict?.botRisk, let size = BotEngine.size(forFall: r), size < 100 {
-            cautions.append("Bot Risque : pire baisse prévue −\(JSFormat.fr(abs(r) * 100, min: 0, max: 0)) % sur 20 jours, engager environ \(size) % de la somme prévue.")
+            cautions.append("Bot Risque : pire baisse prévue −\(JSFormat.fr(abs(r) * 100, min: 0, max: 0)) % sur 20 jours, engager environ \(size) % de la somme prévue (risque accepté : \(Int(BotEngine.riskBudget * 100)) %).")
         }
         let buy = inTrend && blockers.isEmpty
         let strong = buy && (state == .pullback || hit != nil)
