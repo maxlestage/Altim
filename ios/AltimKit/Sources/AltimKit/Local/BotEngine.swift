@@ -234,7 +234,7 @@ public enum BotEngine {
              measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
-             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne)"),
+             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; régler la taille sur sa prévision a réduit la pire baisse de la règle (crypto −33 % contre −48 % pour +43 % contre +47 % de rendement, et −11 % contre −24 % en marché baissier), avec un rendement presque identique sur les actions"),
     ]
 
     /// Entry blocked under this predicted 20-day return, exit under `exitBelow` (chosen once, before the test; the
@@ -268,6 +268,13 @@ public enum BotEngine {
             guard let f = features(s, s.c.count - 1) else { return nil }
             return trees.predict(f)
         }
+    }
+
+    /// Share (in %, 1…100) of the planned amount to commit so that the risk bot's predicted worst fall costs about 5 %;
+    /// nil without a prediction.
+    public static func size(forFall fall: Double?) -> Int? {
+        guard let f = fall, f.isFinite else { return nil }
+        return Int(max(1, min(100, (0.05 / max(abs(f), 0.01) * 100).rounded())))
     }
 
     /// The rule's verdict with the bot's veto: in an up trend, no new position when the bot predicts below −1 % over
