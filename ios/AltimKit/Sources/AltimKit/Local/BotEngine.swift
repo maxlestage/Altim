@@ -277,6 +277,18 @@ public enum BotEngine {
         return Int(max(1, min(100, (0.05 / max(abs(f), 0.01) * 100).rounded())))
     }
 
+    /// Fall of a portfolio if every line lived, at the same time, the worst fall the risk bot predicts for it
+    /// (a pessimistic bound: lines rarely all touch their low together). Lines without a prediction are left out
+    /// and counted. `lines`: (value, predicted fall ≤ 0 or nil).
+    public static func portfolioFall(_ lines: [(value: Double, fall: Double?)]) -> (percent: Double, amount: Double, covered: Double, missing: Int)? {
+        let known = lines.filter { $0.fall != nil && $0.value > 0 }
+        let total = lines.filter { $0.value > 0 }.reduce(0) { $0 + $1.value }
+        let covered = known.reduce(0) { $0 + $1.value }
+        guard covered > 0, total > 0 else { return nil }
+        let amount = known.reduce(0) { $0 + $1.value * ($1.fall ?? 0) }
+        return (amount / total * 100, amount, covered / total * 100, lines.count - known.count)
+    }
+
     /// The rule's verdict with the bot's veto: in an up trend, no new position when the bot predicts below −1 % over
     /// 20 days (ATTENDRE, keep a position), out below −3 % (VENTE). Never turns a verdict into a buy.
     public static func apply(_ prediction: Double?, to v: TrendEngine.Verdict) -> TrendEngine.Verdict {

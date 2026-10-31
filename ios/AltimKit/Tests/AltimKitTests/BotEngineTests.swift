@@ -93,4 +93,13 @@ final class BotEngineTests: XCTestCase {
         let row = try JSONDecoder().decode(RadarRow.self, from: Data(#"{"symbol":"BTC","kind":"crypto","botRisk":-0.18}"#.utf8))
         XCTAssertEqual(row.botRisk, -0.18)
     }
+
+    func testPortfolioFall() throws {
+        let f = try XCTUnwrap(BotEngine.portfolioFall([(value: 1000, fall: -0.2), (value: 3000, fall: -0.05), (value: 1000, fall: nil)]))
+        XCTAssertEqual(f.amount, -350, accuracy: 1e-9)
+        XCTAssertEqual(f.percent, -7, accuracy: 1e-9, "sur la valeur totale, lignes sans prévision comprises à 0")
+        XCTAssertEqual(f.covered, 80, accuracy: 1e-9)
+        XCTAssertEqual(f.missing, 1)
+        XCTAssertNil(BotEngine.portfolioFall([(value: 1000, fall: nil)]))
+    }
 }

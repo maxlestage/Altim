@@ -2,7 +2,7 @@ import SwiftUI
 import AltimKit
 
 /// Portfolio: value at live prices, gain / loss, concentration, and the daily signal of each line.
-/// The lines stay on this iPhone; only the symbols are sent to the server to get prices and signals.
+/// The lines stay on this iPhone; prices, verdicts and the bots' risk are computed on it from public market data.
 struct HoldingsView: View {
     @Environment(AppModel.self) private var model
     @State private var quotes: [String: Double] = [:]
@@ -82,6 +82,9 @@ struct HoldingsView: View {
                 .listRowBackground(Color.clear)
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
+                if let fall = BotEngine.portfolioFall(portfolio.lines.map { ($0.value ?? 0, signals[$0.holding.asset.id]?.botRisk) }) {
+                    Section { botRiskCard(fall) }.listRowBackground(Color.clear)
+                }
                 if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
                 if !usd.unconverted.isEmpty {
                     Section {
@@ -212,14 +215,26 @@ struct HoldingsView: View {
         .accessibilityElement(children: .combine)
     }
 
+    /// The risk bot over the whole portfolio: a pessimistic bound, said as such.
+    private func botRiskCard(_ f: (percent: Double, amount: Double, covered: Double, missing: Int)) -> some View {
+        Card(title: "Risque prévu par le bot") {
+            KeyValue(key: "Si tout touchait son pire niveau", value: "−\(Format.plain(abs(f.percent), digits: 1)) % · \(Format.money(f.amount))")
+            Text("Somme des pires baisses que le bot Risque prévoit sur 20 jours pour chaque ligne, comme si elles arrivaient toutes en même temps : une borne prudente, rarement atteinte. Ce bot a été fiable dans les 8 cas mesurés au labo." + (f.missing > 0 ? " \(f.missing) ligne\(f.missing > 1 ? "s" : "") sans prévision (historique trop court ou bot pas encore entraîné) ne sont pas comptées." : ""))
+                .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private func lineRow(_ line: PortfolioLine) -> some View {
         let h = line.holding
         return HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(h.asset.symbol).font(Theme.mono(15, weight: .bold)).foregroundStyle(.white)
                 Text("\(Format.quantity(h.quantity)) · \(Format.price(line.price))").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
-                // The daily technical signal as a direction only: the verdict is the asset's Décision card.
+                // The daily verdict (with the trend bot's veto) and the risk bot's worst fall over 20 days.
                 if let s = signals[h.asset.id]?.signal { VerdictLine(action: s.action) }
+                if let r = signals[h.asset.id]?.botRisk {
+                    Text("risque prévu −\(Int((abs(r) * 100).rounded())) % sur 20 j").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                }
             }
             Spacer(minLength: 4)
             VStack(alignment: .trailing, spacing: 3) {
