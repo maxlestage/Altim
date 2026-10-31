@@ -12,7 +12,7 @@ public actor LocalBackend {
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
-    private var botModels: [Kind: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
+    private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
 
     /// False for the widget, the Watch and Siri (little time and memory): the verdict is then the rule alone, without
     /// training the bot.
@@ -185,8 +185,9 @@ public actor LocalBackend {
 
     /// The trained bot of a market, learned on the long histories of its universe (Rotation.universe), kept 12 hours;
     /// one training at a time, shared by every caller. Nil when too few histories could be read.
-    func botModel(_ kind: Kind) async -> BotEngine.Model? {
-        if let c = botModels[kind], nowMs() - c.at < 12 * 3_600_000 {
+    func botModel(_ kind: Kind, _ target: BotEngine.Target = .gain(days: BotEngine.horizon)) async -> BotEngine.Model? {
+        let key = "\(kind.rawValue):\(target)"
+        if let c = botModels[key], nowMs() - c.at < 12 * 3_600_000 {
             if let m = await c.task.value { return m }
             if nowMs() - c.at < 600_000 { return nil }
         }
@@ -199,17 +200,22 @@ public actor LocalBackend {
                 return out
             }
             guard histories.count >= 5 else { return nil }
-            return BotEngine.Model.train(histories)
+            return BotEngine.Model.train(histories, target: target)
         }
-        botModels[kind] = (nowMs(), task)
+        botModels[key] = (nowMs(), task)
         return await task.value
     }
 
-    /// The daily verdict with the trained bot's veto (the rule alone when the bot is unavailable).
+    /// The daily verdict with the bots: the trend bot's veto, the risk bot's expected fall (the rule alone when the
+    /// bots are unavailable).
     func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
-        let v = TrendEngine.verdict(candles, kind: a.kind)
-        guard botEnabled, v.state != .unknown, let model = await botModel(a.kind) else { return v }
-        return BotEngine.apply(model.predict(candles), to: v)
+        var v = TrendEngine.verdict(candles, kind: a.kind)
+        guard botEnabled, v.state != .unknown else { return v }
+        async let trend = botModel(a.kind)
+        async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
+        if let m = await trend { v = BotEngine.apply(m.predict(candles), to: v) }
+        v.botRisk = await risk?.predict(candles)
+        return v
     }
 
     // MARK: Zones
