@@ -700,8 +700,7 @@ struct BotsBlock: View {
 
     /// Size that keeps the typical fall near 5 % of the amount invested in a full position.
     private func riskText(_ r: Double) -> String {
-        let fall = max(abs(r), 0.01)
-        let size = min(100, (0.05 / fall * 100).rounded())
-        return "Baisse typique attendue au pire moment des 20 prochains jours. Pour ne risquer qu'environ 5 % de la somme prévue, n'en engager qu'environ \(Int(size)) %."
+        let size = BotEngine.size(forFall: r) ?? 100
+        return "Baisse typique attendue au pire moment des 20 prochains jours. Pour ne risquer qu'environ 5 % de la somme prévue, n'en engager qu'environ \(size) %."
     }
 }

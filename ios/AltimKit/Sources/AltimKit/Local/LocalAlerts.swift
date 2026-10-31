@@ -63,6 +63,10 @@ enum LocalAlertRule {
             cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText)) : le cours peut bouger fortement, taille prudente.")
         }
         if state == .trend && hit == nil { cautions.append("Pas de repli en cours : entrer en plusieurs fois.") }
+        // The risk bot's size (measured: it cut the rule's worst fall, crypto −33 % instead of −48 %, for a similar return).
+        if inTrend, let r = a.verdict?.botRisk, let size = BotEngine.size(forFall: r), size < 100 {
+            cautions.append("Bot Risque : pire baisse prévue −\(JSFormat.fr(abs(r) * 100, min: 0, max: 0)) % sur 20 jours, engager environ \(size) % de la somme prévue.")
+        }
         let buy = inTrend && blockers.isEmpty
         let strong = buy && (state == .pullback || hit != nil)
         let stop = a.verdict?.ema200.map { " Sortie si le prix repasse sous \(Money.money($0)) (moyenne 200 jours) ou si le momentum devient négatif." } ?? ""

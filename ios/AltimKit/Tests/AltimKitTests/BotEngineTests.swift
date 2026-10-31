@@ -73,4 +73,16 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(back.predict(probe), model.predict(probe))
         XCTAssertEqual(back.examples, model.examples)
     }
+
+    func testRiskSizeInTheBuyAlert() {
+        XCTAssertEqual(BotEngine.size(forFall: -0.25), 20)
+        XCTAssertEqual(BotEngine.size(forFall: -0.02), 100)
+        XCTAssertNil(BotEngine.size(forFall: nil))
+        var v = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
+        v.botRisk = -0.25
+        let o = LocalAlertRule.evaluate(.init(asset: Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), price: 100, verdict: v,
+                                              reliability: nil, zones: []))
+        XCTAssertTrue(o.buy)
+        XCTAssertTrue(o.cautions.contains("Bot Risque : pire baisse prévue −25 % sur 20 jours, engager environ 20 % de la somme prévue."), "\(o.cautions)")
+    }
 }
