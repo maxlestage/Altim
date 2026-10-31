@@ -57,7 +57,8 @@ enum EarningsCalendar {
         }
     }
 
-    /// The New York weekdays from today, `days` calendar days ahead ("2026-10-30"…).
+    /// The New York trading days from today (weekends and exchange holidays left out), `days` calendar days ahead
+    /// ("2026-10-30"…).
     static func weekdays(from now: Date, days: Int) -> [String] {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
@@ -67,7 +68,7 @@ enum EarningsCalendar {
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return (0..<days).compactMap { cal.date(byAdding: .day, value: $0, to: now) }
-            .filter { !cal.isDateInWeekend($0) }.map { f.string(from: $0) }
+            .filter { NYSECalendar.isTradingDay($0) }.map { f.string(from: $0) }
     }
 }
 
