@@ -64,4 +64,13 @@ final class BotEngineTests: XCTestCase {
         XCTAssertLessThan(risky, quiet, "une série agitée doit annoncer une baisse plus forte")
         XCTAssertEqual(BotEngine.bots.map(\.name), ["Bot Tendance", "Bot Risque"])
     }
+
+    /// A trained bot survives a restart: read back from its folder, it predicts the same.
+    func testModelIsKeptBetweenLaunches() throws {
+        let model = try XCTUnwrap(BotEngine.Model.train((0..<6).map { Self.series(drift: $0 % 2 == 0 ? 0.002 : -0.002, seed: Double($0)) }))
+        let back = try JSONDecoder().decode(BotEngine.Model.self, from: JSONEncoder().encode(model))
+        let probe = Self.series(drift: 0.001, seed: 4)
+        XCTAssertEqual(back.predict(probe), model.predict(probe))
+        XCTAssertEqual(back.examples, model.examples)
+    }
 }
