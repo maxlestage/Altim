@@ -82,7 +82,7 @@ struct HoldingsView: View {
                 .listRowBackground(Color.clear)
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
-                if let fall = BotEngine.portfolioFall(portfolio.lines.map { ($0.value ?? 0, signals[$0.holding.asset.id]?.botRisk) }) {
+                if let fall = portfolioFall(portfolio) {
                     Section { botRiskCard(fall) }.listRowBackground(Color.clear)
                 }
                 if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
@@ -215,13 +215,29 @@ struct HoldingsView: View {
         .accessibilityElement(children: .combine)
     }
 
+    private func portfolioFall(_ p: Portfolio) -> (percent: Double, amount: Double, covered: Double, missing: Int)? {
+        var lines: [(value: Double, fall: Double?)] = []
+        for line in p.lines { lines.append((value: line.value ?? 0, fall: signals[line.holding.asset.id]?.botRisk)) }
+        return BotEngine.portfolioFall(lines)
+    }
+
     /// The risk bot over the whole portfolio: a pessimistic bound, said as such.
     private func botRiskCard(_ f: (percent: Double, amount: Double, covered: Double, missing: Int)) -> some View {
         Card(title: "Risque prévu par le bot") {
-            KeyValue(key: "Si tout touchait son pire niveau", value: "−\(Format.plain(abs(f.percent), digits: 1)) % · \(Format.money(f.amount))")
-            Text("Somme des pires baisses que le bot Risque prévoit sur 20 jours pour chaque ligne, comme si elles arrivaient toutes en même temps : une borne prudente, rarement atteinte. Ce bot a été fiable dans les 8 cas mesurés au labo." + (f.missing > 0 ? " \(f.missing) ligne\(f.missing > 1 ? "s" : "") sans prévision (historique trop court ou bot pas encore entraîné) ne sont pas comptées." : ""))
+            let pct: String = Format.plain(abs(f.percent), digits: 1)
+            let amount: String = Format.money(f.amount)
+            KeyValue(key: "Si tout touchait son pire niveau", value: "−\(pct) % · \(amount)")
+            Text(botRiskText(missing: f.missing))
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private func botRiskText(missing: Int) -> String {
+        var text = "Somme des pires baisses que le bot Risque prévoit sur 20 jours pour chaque ligne, comme si elles arrivaient toutes en même temps : une borne prudente, rarement atteinte. Ce bot a été fiable dans les 8 cas mesurés au labo."
+        if missing > 0 {
+            text += " \(missing) ligne\(missing > 1 ? "s" : "") sans prévision (historique trop court ou bot pas encore entraîné) ne sont pas comptées."
+        }
+        return text
     }
 
     private func lineRow(_ line: PortfolioLine) -> some View {
@@ -233,7 +249,8 @@ struct HoldingsView: View {
                 // The daily verdict (with the trend bot's veto) and the risk bot's worst fall over 20 days.
                 if let s = signals[h.asset.id]?.signal { VerdictLine(action: s.action) }
                 if let r = signals[h.asset.id]?.botRisk {
-                    Text("risque prévu −\(Int((abs(r) * 100).rounded())) % sur 20 j").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                    let pct: Int = Int((abs(r) * 100).rounded())
+                    Text("risque prévu −\(pct) % sur 20 j").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 }
             }
             Spacer(minLength: 4)
