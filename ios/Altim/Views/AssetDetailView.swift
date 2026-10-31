@@ -557,6 +557,7 @@ struct VerdictCard: View {
     @Environment(AppModel.self) private var model
     let asset: Asset
     @State private var verdict: Loadable<TrendEngine.Verdict> = .idle
+    @State private var simulating = false
 
     var body: some View {
         Card(title: "Verdict Altim", glow: tone.map { Theme.color($0) } ?? Theme.cyan) {
@@ -578,9 +579,17 @@ struct VerdictCard: View {
                 }
                 Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
                     .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                Button { simulating = true } label: {
+                    Label("Simuler cet achat", systemImage: "testtube.2").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Achat fictif dans le portefeuille simulé, sans argent réel")
             }
         }
         .task(id: asset.id) { await load() }
+        .sheet(isPresented: $simulating) {
+            if let v = verdict.value { PaperBuySheet(asset: asset, verdict: v) }
+        }
     }
 
     private var tone: Tone? { verdict.value.map { $0.action.tone } }
