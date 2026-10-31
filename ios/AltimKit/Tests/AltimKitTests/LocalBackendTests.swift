@@ -214,6 +214,23 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertNotNil(none.error)
     }
 
+    /// An absurd rate from a source is never used: the next source answers; the ECB rate carries its own day.
+    func testFxSkipsAbsurdRates() async {
+        let yahoo = #"{"chart":{"result":[{"meta":{"regularMarketPrice":108.5,"regularMarketTime":1}}]}}"#
+        let ecb = "<Cube time='2026-10-30'><Cube currency='USD' rate='0.0001'/></Cube>"
+        let frank = #"{"rates":{"EUR":0.92}}"#
+        let r = await LocalFx.read(fetcher: FakeFetcher(routes: [("https://query1.finance.yahoo.com", yahoo), ("https://www.ecb.europa.eu", ecb),
+                                                                 ("https://api.frankfurter.dev", frank)]), now: 5)
+        XCTAssertEqual(r.source, "Frankfurter")
+        XCTAssertEqual(r.usdPerEur ?? 0, 1 / 0.92, accuracy: 1e-12)
+        let good = "<Cube time='2026-10-30'><Cube currency='USD' rate='1.0850'/></Cube>"
+        let e = await LocalFx.read(fetcher: FakeFetcher(routes: [("https://query1.finance.yahoo.com", yahoo), ("https://www.ecb.europa.eu", good)]), now: 5)
+        XCTAssertEqual(e.source, "BCE")
+        XCTAssertEqual(e.time, 1_793_372_400_000, "le jour du taux de la BCE, 15 h UTC")
+        let none = await LocalFx.read(fetcher: FakeFetcher(routes: [("https://query1.finance.yahoo.com", yahoo)]), now: 5)
+        XCTAssertNil(none.rate, "un taux absurde n'est jamais utilisé")
+    }
+
     /// The real providers (`ALTIM_LIVE=1 swift test --filter LocalBackendTests/testLive`): skipped by default.
     func testLiveMarkets() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["ALTIM_LIVE"] == "1", "réseau réel non demandé")
