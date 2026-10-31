@@ -256,6 +256,11 @@ public enum BotEngine {
         /// Assets and examples it learned from.
         public let assets: Int, examples: Int
         public let trainedAt: Double
+        /// Measures it was trained on (a bot saved by an older version with other measures is not reused).
+        public var featureCount: Int? = BotEngine.featureNames.count
+
+        /// Usable with today's measures: a bot saved by a version with other measures would read the wrong ones.
+        public var isCurrent: Bool { featureCount == BotEngine.featureNames.count && trees.stumps.allSatisfy { $0.f < BotEngine.featureNames.count } }
 
         /// Trained on every example whose 20 days are over (the most recent 60 000 at most).
         public static func train(_ histories: [[Bar]], target: Target = .gain(days: horizon), now: Double = Date().timeIntervalSince1970 * 1000) -> Model? {
@@ -273,7 +278,7 @@ public enum BotEngine {
         /// Predicted return over the next 20 days for the last closed candle of `bars`; nil under 200 days.
         public func predict(_ bars: [Bar]) -> Double? {
             let s = Series(bars)
-            guard let f = features(s, s.c.count - 1) else { return nil }
+            guard isCurrent, let f = features(s, s.c.count - 1) else { return nil }
             return trees.predict(f)
         }
     }
