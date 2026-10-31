@@ -124,4 +124,22 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(BotEngine.calibratedFall(-0.02, kind: .stock), -0.04)
         XCTAssertNil(BotEngine.calibratedFall(nil, kind: .stock))
     }
+
+    /// A trend vetoed into VENTE by the bot is logged and labelled as a way out, never as a buy.
+    func testVetoedExitIsNeverRecordedAsABuy() {
+        let up = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
+        var v = BotEngine.apply(-0.05, to: up)
+        v.price = 100
+        XCTAssertEqual(v.action, .sell)
+        XCTAssertEqual(v.effectiveState, .down)
+        XCTAssertEqual(v.label, "SORTIR (BOT TENDANCE)")
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        XCTAssertEqual(VerdictLog.record([], v, asset: a, now: 1).last?.side, "out")
+        var pull = up
+        pull.state = .pullback
+        XCTAssertEqual(BotEngine.apply(-0.05, to: pull).label, "SORTIR (BOT TENDANCE)", "un repli aussi")
+        let held = BotEngine.apply(-0.02, to: up)
+        XCTAssertEqual(held.effectiveState, .mixed)
+        XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "RESTER À L'ÉCART")
+    }
 }
