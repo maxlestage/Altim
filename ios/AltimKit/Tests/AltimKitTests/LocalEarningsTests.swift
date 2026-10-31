@@ -45,6 +45,10 @@ final class LocalEarningsTests: XCTestCase {
         XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 2, 9, 29)))
         XCTAssertTrue(LocalLive.marketOpen(ny(2026, 11, 2, 9, 30)))
         XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 2, 16)))
+        XCTAssertEqual(LocalLive.stockEvery(ny(2026, 11, 2, 10)), 15)
+        XCTAssertEqual(LocalLive.stockEvery(ny(2026, 11, 2, 18)), 60, "après la séance d'un jour de Bourse")
+        XCTAssertEqual(LocalLive.stockEvery(ny(2026, 11, 26, 10)), 300, "Thanksgiving : rien ne bouge")
+        XCTAssertEqual(LocalLive.stockEvery(ny(2026, 10, 31, 10)), 300, "samedi")
         // Earnings pages: no page asked for a closed day.
         XCTAssertEqual(EarningsCalendar.weekdays(from: ny(2026, 11, 25, 8), days: 5), ["2026-11-25", "2026-11-27"])
     }
