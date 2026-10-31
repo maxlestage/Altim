@@ -79,7 +79,7 @@ final class SectorsTests: XCTestCase {
 
     func testStockMissingFromTheAnswer() {
         let e = Sectors.exposure([Self.line("MSFT", .stock, 100)], cash: 0, sectors: [:])
-        XCTAssertEqual(e.unknown.map(\.reason), ["absent de la réponse du serveur"])
+        XCTAssertEqual(e.unknown.map(\.reason), ["secteur introuvable dans les sources"])
         XCTAssertEqual(Sectors.sourceLine(e.bySource), "")
         XCTAssertTrue(Sectors.footnote(e).hasPrefix("Sources : aucune action à classer."))
     }
@@ -113,7 +113,7 @@ final class SectorsTests: XCTestCase {
         // An unknown classification counts as unknown.
         let e = Sectors.exposure([Self.line("ODD", .stock, 100), Self.line("NVDA", .stock, 100)], cash: 0, sectors: by)
         XCTAssertEqual(e.blocks.map(\.label), ["Secteur inconnu", "Technologie"])
-        XCTAssertEqual(e.unknown.map(\.reason), ["absent de la réponse du serveur"])
+        XCTAssertEqual(e.unknown.map(\.reason), ["secteur introuvable dans les sources"])
         // An empty object decodes too.
         let blank = try JSONDecoder().decode(SectorsReport.self, from: Data("{}".utf8))
         XCTAssertTrue(blank.items.isEmpty && blank.sources.isEmpty && blank.asOf == nil)

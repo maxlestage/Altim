@@ -142,6 +142,28 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertEqual(q.sources.last?.error, "HTTP 451")
     }
 
+    /// Sources split into two camps: the median between them is no price; the largest camp is kept, never 0.
+    func testQuotesOfSplitSourcesKeepTheLargestCamp() {
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        let two = QuoteSources.combine(a, [("A", .success(PriceQuote(price: 100, change: 1))), ("B", .success(PriceQuote(price: 50, change: nil)))])!
+        XCTAssertEqual(two.price, 100, "deux sources en désaccord : la première listée, jamais leur moyenne ni 0")
+        XCTAssertEqual(two.agreeing, 1)
+        XCTAssertEqual(two.sources.map(\.ok), [true, false])
+        let split = QuoteSources.combine(a, [
+            ("A", .success(PriceQuote(price: 50, change: nil))), ("B", .success(PriceQuote(price: 100, change: 1))),
+            ("C", .success(PriceQuote(price: 100.2, change: 3))), ("D", .success(PriceQuote(price: 50.1, change: nil))),
+            ("E", .success(PriceQuote(price: 100.1, change: 2))),
+        ])!
+        XCTAssertEqual(split.price, 100.1, "la médiane du plus grand groupe")
+        XCTAssertEqual(split.agreeing, 3)
+        let even = QuoteSources.combine(a, [
+            ("A", .success(PriceQuote(price: 100, change: nil))), ("B", .success(PriceQuote(price: 100.2, change: nil))),
+            ("C", .success(PriceQuote(price: 50, change: nil))), ("D", .success(PriceQuote(price: 50.1, change: nil))),
+        ])!
+        XCTAssertEqual(even.price, 100.1, accuracy: 1e-9, "2 contre 2 : le groupe de la première source")
+        XCTAssertEqual(even.agreeing, 2)
+    }
+
     func testBackendRoutesAndParameters() async throws {
         let backend = LocalBackend(fetcher: FakeFetcher(routes: []))
         let none = await backend.answer(path: "/api/decision", query: [:])
