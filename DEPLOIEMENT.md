@@ -84,6 +84,8 @@ Nécessite un **compte Apple Developer** (99 €/an), que l'on peut ouvrir depui
 
 Le build TestFlight contient trois éléments signés automatiquement par le workflow : l'app (`com.maxlestage.altim`), l'extension Live Activity (`com.maxlestage.altim.widgets`) et l'app Watch (`com.maxlestage.altim.watchkitapp`). Aucune clé de notification Apple (APNs) n'est nécessaire : les notifications sont créées par l'iPhone lui-même après chaque vérification.
 
+Chaque envoi tourne sur un Mac neuf et Xcode y crée un certificat de développement avec la clé API ; Apple en limite le nombre. Le workflow révoque donc, avant chaque archive, les certificats de développement créés par la clé API (« Created via API ») lors des envois précédents. Les autres certificats (celui de votre Mac, les certificats de distribution) ne sont jamais touchés. Si la clé n'a pas le droit de révoquer (rôle insuffisant), le workflow l'écrit en avertissement : révoquez-les alors à la main dans developer.apple.com → Certificates.
+
 Sans compte Apple Developer, le site reste utilisable comme une app : Safari → **Ouvrir l'app** → **Partager** → **Sur l'écran d'accueil**.
 
 ## 3. Application Android native
