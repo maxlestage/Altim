@@ -203,4 +203,56 @@ public enum BotEngine {
         }
         return out
     }
+
+    // MARK: - The bot used by the app
+
+    /// Entry blocked under this predicted 20-day return, exit under `exitBelow` (chosen once, before the test; the
+    /// lab checked that nearby values give the same result: −2 / −4 %, −1 / −5 %, entry only).
+    public static let entryBelow = -0.01
+    public static let exitBelow = -0.03
+
+    /// The trained bot of one market: boosted trees learned on the long daily histories of its assets.
+    public struct Model: Sendable {
+        let trees: Stumps
+        /// Assets and examples it learned from.
+        public let assets: Int, examples: Int
+        public let trainedAt: Double
+
+        /// Trained on every example whose 20 days are over (the most recent 60 000 at most).
+        public static func train(_ histories: [[Bar]], now: Double = Date().timeIntervalSince1970 * 1000) -> Model? {
+            var x: [[Double]] = [], y: [Double] = []
+            for bars in histories {
+                let s = Series(bars)
+                for i in 0..<s.c.count { if let f = features(s, i), let l = label(s, i) { x.append(f); y.append(l) } }
+            }
+            let keep = max(0, x.count - 60_000)
+            let t = Stumps.train(Array(x[keep...]), Array(y[keep...]))
+            guard !t.stumps.isEmpty else { return nil }
+            return Model(trees: t, assets: histories.count, examples: x.count - keep, trainedAt: now)
+        }
+
+        /// Predicted return over the next 20 days for the last closed candle of `bars`; nil under 200 days.
+        public func predict(_ bars: [Bar]) -> Double? {
+            let s = Series(bars)
+            guard let f = features(s, s.c.count - 1) else { return nil }
+            return trees.predict(f)
+        }
+    }
+
+    /// The rule's verdict with the bot's veto: in an up trend, no new position when the bot predicts below −1 % over
+    /// 20 days (ATTENDRE, keep a position), out below −3 % (VENTE). Never turns a verdict into a buy.
+    public static func apply(_ prediction: Double?, to v: TrendEngine.Verdict) -> TrendEngine.Verdict {
+        var v = v
+        v.bot = prediction
+        guard let p = prediction, v.state == .trend || v.state == .pullback, v.action == .buy || v.action == .strongBuy else { return v }
+        let pct = "\(p >= 0 ? "+" : "−")\(JSFormat.fr(abs(p) * 100, min: 1, max: 1)) %"
+        if p < exitBelow {
+            v.action = .sell
+            v.text = "Le bot entraîné prévoit \(pct) sur 20 jours malgré la tendance : sortir. " + v.text
+        } else if p < entryBelow {
+            v.action = .hold
+            v.text = "Le bot entraîné prévoit \(pct) sur 20 jours : conserver une position, ne pas en ouvrir. " + v.text
+        }
+        return v
+    }
 }

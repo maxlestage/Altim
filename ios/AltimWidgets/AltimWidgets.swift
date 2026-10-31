@@ -163,7 +163,7 @@ struct VerdictProvider: AppIntentTimelineProvider {
     }
 
     private func entry(_ c: VerdictWidgetIntent) async -> VerdictEntry {
-        let client = AltimClient.standalone()
+        let client = AltimClient.standalone(local: LocalBackend(bot: false))
         if c.dollars {
             Money.setDisplay(.usd, nil)
         } else {
@@ -196,7 +196,7 @@ struct VerdictWidget: Widget {
                 .containerBackground(Palette.background, for: .widget)
         }
         .configurationDisplayName("Verdict Altim")
-        .description("Prix et verdict de vos actifs, calculés par le widget à partir des cours publics. Altim ne passe aucun ordre.")
+        .description("Prix et verdict de la règle Altim pour vos actifs, calculés par le widget à partir des cours publics (le veto du bot entraîné est dans l'app). Altim ne passe aucun ordre.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }
