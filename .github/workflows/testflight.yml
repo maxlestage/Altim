@@ -66,7 +66,9 @@ jobs:
                                            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json"})
               try:
                   with urllib.request.urlopen(req) as r:
-                      return r.status, json.load(r)
+                      raw = r.read()
+                      # A revocation answers 204 with an empty body.
+                      return r.status, json.loads(raw) if raw else {}
               except urllib.error.HTTPError as e:
                   return e.code, json.loads(e.read() or b"{}")
           ids = {"com.maxlestage.altim": "Altim", "com.maxlestage.altim.widgets": "Altim Widgets",
