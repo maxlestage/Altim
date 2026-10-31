@@ -12,8 +12,16 @@ public actor LocalBackend {
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
+    private var botModels: [Kind: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
 
-    public init(fetcher: MarketFetcher = URLSessionFetcher()) { self.fetcher = fetcher }
+    /// False for the widget, the Watch and Siri (little time and memory): the verdict is then the rule alone, without
+    /// training the bot.
+    let botEnabled: Bool
+
+    public init(fetcher: MarketFetcher = URLSessionFetcher(), bot: Bool = true) {
+        self.fetcher = fetcher
+        botEnabled = bot
+    }
 
     /// Routes answered here.
     public static let routes: Set<String> = ["/api/candles", "/api/radar", "/api/tickers", "/api/search", "/api/fx", "/api/zones", "/api/backtest", "/api/history", "/api/news", "/api/alerts", "/api/guard", "/api/rotation", "/api/verdict", "/api/sectors", "/api/macro", "/api/earnings"]
@@ -50,7 +58,7 @@ public actor LocalBackend {
             case "/api/verdict":
                 let a = try Self.asset(query["symbol"], query["kind"])
                 let d = try await snapshot(a, .d1)
-                var v = TrendEngine.verdict(d.candles, kind: a.kind)
+                var v = await botVerdict(a, d.candles)
                 if d.reliability.level == "low" && v.action != .hold {
                     v.action = .hold
                     v.text = "Données insuffisamment fiables (sources en désaccord) : verdict suspendu. " + v.text
@@ -136,7 +144,7 @@ public actor LocalBackend {
         async let chart = try? snapshot(a, tf)
         do {
             let d = try await snapshot(a, .d1)
-            var v = TrendEngine.verdict(d.candles, kind: a.kind)
+            var v = await botVerdict(a, d.candles)
             if d.reliability.level == "low" { v.action = .hold }
             let s = await chart ?? d
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: s.candles.last?.close, change: nil, priceSources: nil,
@@ -171,6 +179,37 @@ public actor LocalBackend {
                                notes: Rotation.notes)
         if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
         return r
+    }
+
+    // MARK: Bot
+
+    /// The trained bot of a market, learned on the long histories of its universe (Rotation.universe), kept 12 hours;
+    /// one training at a time, shared by every caller. Nil when too few histories could be read.
+    func botModel(_ kind: Kind) async -> BotEngine.Model? {
+        if let c = botModels[kind], nowMs() - c.at < 12 * 3_600_000 {
+            if let m = await c.task.value { return m }
+            if nowMs() - c.at < 600_000 { return nil }
+        }
+        let list = Rotation.universe[kind] ?? []
+        let task = Task<BotEngine.Model?, Never> {
+            let histories: [[Bar]] = await withTaskGroup(of: [Bar]?.self) { g in
+                for a in list { g.addTask { try? await self.longDaily(a) } }
+                var out: [[Bar]] = []
+                for await r in g { if let r, r.count > 400 { out.append(r) } }
+                return out
+            }
+            guard histories.count >= 5 else { return nil }
+            return BotEngine.Model.train(histories)
+        }
+        botModels[kind] = (nowMs(), task)
+        return await task.value
+    }
+
+    /// The daily verdict with the trained bot's veto (the rule alone when the bot is unavailable).
+    func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
+        let v = TrendEngine.verdict(candles, kind: a.kind)
+        guard botEnabled, v.state != .unknown, let model = await botModel(a.kind) else { return v }
+        return BotEngine.apply(model.predict(candles), to: v)
     }
 
     // MARK: Zones

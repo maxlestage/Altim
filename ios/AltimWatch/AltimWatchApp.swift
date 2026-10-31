@@ -37,7 +37,7 @@ final class WatchStore: NSObject, WCSessionDelegate {
     private(set) var refreshing = false
     private(set) var message: String? = nil
     /// Altim without a server: the markets read and judged on the Watch (kept for its short caches).
-    private let standalone = AltimClient.standalone(local: LocalBackend(fetcher: URLSessionFetcher(timeout: WatchLink.timeout)))
+    private let standalone = AltimClient.standalone(local: LocalBackend(fetcher: URLSessionFetcher(timeout: WatchLink.timeout), bot: false))
 
     override init() {
         super.init()

@@ -557,6 +557,7 @@ struct VerdictCard: View {
     @Environment(AppModel.self) private var model
     let asset: Asset
     @State private var verdict: Loadable<TrendEngine.Verdict> = .idle
+    @State private var simulating = false
 
     var body: some View {
         Card(title: "Verdict Altim", glow: tone.map { Theme.color($0) } ?? Theme.cyan) {
@@ -576,11 +577,24 @@ struct VerdictCard: View {
                 if let e = v.ema200 {
                     KeyValue(key: "Moyenne 200 jours", value: Format.price(e))
                 }
-                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; le meilleur moment d'entrée est un repli de quelques jours. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
+                if let b = v.bot {
+                    KeyValue(key: "Bot entraîné · 20 jours", value: "\(b >= 0 ? "+" : "−")\(Format.plain(abs(b) * 100, digits: 1)) %")
+                    Text("Le bot apprend sur l'iPhone, à partir de l'historique des actifs de son marché, le rendement des 20 jours suivants. Il sert de veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %. Mesuré sur les deux listes du laboratoire, ce veto a amélioré la règle seule (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto ; sur les actions il ne change presque rien. Une prévision moyenne, jamais une certitude.")
+                        .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
                     .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+                Button { simulating = true } label: {
+                    Label("Simuler cet achat", systemImage: "testtube.2").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Achat fictif dans le portefeuille simulé, sans argent réel")
             }
         }
         .task(id: asset.id) { await load() }
+        .sheet(isPresented: $simulating) {
+            if let v = verdict.value { PaperBuySheet(asset: asset, verdict: v) }
+        }
     }
 
     private var tone: Tone? { verdict.value.map { $0.action.tone } }
