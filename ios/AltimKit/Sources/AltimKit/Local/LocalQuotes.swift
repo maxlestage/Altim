@@ -201,23 +201,40 @@ enum LocalSearch {
 // MARK: - EUR/USD
 
 enum LocalFx {
+    /// Dollars per euro outside this band are a broken answer (EUR/USD has stayed within 0.82–1.60 since 1999): the
+    /// next source is read instead, so that no amount in euros is ever converted with an absurd rate.
+    static let plausible: ClosedRange<Double> = 0.5...2.5
+
+    static func sane(_ x: Double) -> Double? { finitePositive(x).flatMap { plausible.contains($0) ? $0 : nil } }
+
     /// EUR/USD from Yahoo Finance, else the ECB, else Frankfurter: euros per dollar (`rate`) and dollars per euro.
     static func read(fetcher: MarketFetcher, now: Double = nowMs()) async -> Fx.Response {
         if let d = try? await fetcher.json("https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1d&range=5d"),
-           let meta = obj(at(obj(arr(at(d, "chart", "result"))?.first), "meta")), let usdPerEur = finitePositive(num(meta["regularMarketPrice"])) {
+           let meta = obj(at(obj(arr(at(d, "chart", "result"))?.first), "meta")), let usdPerEur = sane(num(meta["regularMarketPrice"])) {
             let t = num(meta["regularMarketTime"])
             return response(usdPerEur, time: t.isFinite ? t * 1000 : now, source: "Yahoo Finance", now: now)
         }
         if let xml = try? await fetcher.text("https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"),
            let r = xml.range(of: "currency='USD' rate='"), let end = xml[r.upperBound...].firstIndex(of: "'"),
-           let usdPerEur = finitePositive(Double(xml[r.upperBound..<end]) ?? .nan) {
-            return response(usdPerEur, time: now, source: "BCE", now: now)
+           let usdPerEur = sane(Double(xml[r.upperBound..<end]) ?? .nan) {
+            return response(usdPerEur, time: ecbDay(xml) ?? now, source: "BCE", now: now)
         }
-        if let d = try? await fetcher.json("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR"), let eur = finitePositive(num(at(d, "rates", "EUR"))) {
-            return response(1 / eur, time: now, source: "Frankfurter", now: now)
+        if let d = try? await fetcher.json("https://api.frankfurter.dev/v1/latest?base=USD&symbols=EUR"), let eur = finitePositive(num(at(d, "rates", "EUR"))), let usdPerEur = sane(1 / eur) {
+            return response(usdPerEur, time: now, source: "Frankfurter", now: now)
         }
         return Fx.Response(base: "USD", quote: "EUR", rate: nil, usdPerEur: nil, time: nil, source: nil, fetchedAt: now, stale: nil,
                            error: "Taux EUR/USD indisponible (aucune source n'a répondu)")
+    }
+
+    /// The day of the ECB reference rate (`<Cube time='2026-10-30'>`, published around 16:00 CET), at 15:00 UTC: the
+    /// rate's real age, not the time it was read.
+    static func ecbDay(_ xml: String) -> Double? {
+        guard let r = xml.range(of: "time='"), let end = xml[r.upperBound...].firstIndex(of: "'") else { return nil }
+        let parts = xml[r.upperBound..<end].split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        var c = DateComponents(timeZone: TimeZone(identifier: "UTC"), year: parts[0], month: parts[1], day: parts[2], hour: 15)
+        c.calendar = Calendar(identifier: .gregorian)
+        return c.date.map { $0.timeIntervalSince1970 * 1000 }
     }
 
     static func response(_ usdPerEur: Double, time: Double, source: String, now: Double) -> Fx.Response {
