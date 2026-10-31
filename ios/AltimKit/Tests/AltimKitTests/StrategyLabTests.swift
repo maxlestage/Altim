@@ -327,3 +327,40 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// The bot trained on the device (BotEngine, walk-forward ridge on 12 measures, pooled per market) against the
+    /// current rule, on both lists and both halves.
+    func testTrainedBot() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var preds: [String: [Double?]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let p = env["ALTIM_TREES"] != nil ? BotEngine.walkForwardTrees(group.map(\.1)) : BotEngine.walkForward(group.map(\.1))
+                for (k, (_, bars)) in group.enumerated() { preds[key(LabSeries(bars))] = p[k] }
+            }
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            func p(_ s: LabSeries, _ i: Int) -> Double? { preds[key(s)]?[i] ?? nil }
+            let n = { (s: LabSeries) in Self.lb(s) }
+            let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+            let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
+            let rules = [
+                LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+                LabRule(name: "bot seul", enter: { s, i in (p(s, i) ?? -1) > 0 }, exit: { s, i in (p(s, i) ?? 0) < 0 }),
+                LabRule(name: "bot seul (marge 1%)", enter: { s, i in (p(s, i) ?? -1) > 0.01 }, exit: { s, i in (p(s, i) ?? 0) < -0.01 }),
+                LabRule(name: "règle + bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? -1) > 0 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < 0 }),
+                LabRule(name: "règle, veto bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.03 }),
+            ]
+            print("== \(name)"); print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}
