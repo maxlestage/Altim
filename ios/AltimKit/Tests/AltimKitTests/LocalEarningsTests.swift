@@ -27,6 +27,28 @@ final class LocalEarningsTests: XCTestCase {
         XCTAssertEqual(days, ["2026-10-30", "2026-11-02"])
     }
 
+    /// The exchange's published calendars (nyse.com): holidays observed on Friday or Monday, Good Friday, early closes.
+    func testNYSEHolidaysAndEarlyCloses() {
+        XCTAssertEqual(NYSECalendar.holidays(2026), [20260101, 20260119, 20260216, 20260403, 20260525, 20260619, 20260703, 20260907, 20261126, 20261225])
+        XCTAssertEqual(NYSECalendar.holidays(2027), [20270101, 20270118, 20270215, 20270326, 20270531, 20270618, 20270705, 20270906, 20271125, 20271224])
+        XCTAssertFalse(NYSECalendar.holidays(2022).contains(20220101), "1er janvier un samedi : pas de fermeture")
+        func ny(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ min: Int = 0) -> Date {
+            NYSECalendar.calendar.date(from: DateComponents(year: y, month: m, day: d, hour: h, minute: min))!
+        }
+        XCTAssertTrue(LocalLive.marketOpen(ny(2026, 11, 25, 15)))
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 26, 11)), "Thanksgiving")
+        XCTAssertTrue(LocalLive.marketOpen(ny(2026, 11, 27, 12, 30)))
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 27, 13, 30)), "lendemain de Thanksgiving : clôture à 13 h")
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 12, 24, 14)), "veille de Noël : clôture à 13 h")
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 12, 25, 11)))
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 10, 31, 11)), "samedi")
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 2, 9, 29)))
+        XCTAssertTrue(LocalLive.marketOpen(ny(2026, 11, 2, 9, 30)))
+        XCTAssertFalse(LocalLive.marketOpen(ny(2026, 11, 2, 16)))
+        // Earnings pages: no page asked for a closed day.
+        XCTAssertEqual(EarningsCalendar.weekdays(from: ny(2026, 11, 25, 8), days: 5), ["2026-11-25", "2026-11-27"])
+    }
+
     func testRouteKeepsTheFirstReportOfEachStock() async throws {
         let body = String(data: try JSONSerialization.data(withJSONObject: fixture()), encoding: .utf8)!
         let now = Date(timeIntervalSince1970: 1_793_361_600) // Friday 30 Oct 2026
