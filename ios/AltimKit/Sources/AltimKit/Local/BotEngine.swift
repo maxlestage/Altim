@@ -230,7 +230,7 @@ public enum BotEngine {
     public static let bots: [Info] = [
         Info(name: "Bot Tendance", predicts: "le rendement des 20 jours suivants",
              use: "veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %",
-             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
+             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
              measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne)"),
