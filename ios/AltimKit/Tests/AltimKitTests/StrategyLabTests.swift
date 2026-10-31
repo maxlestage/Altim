@@ -293,3 +293,37 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 }
+
+extension StrategyLabTests {
+    /// Does « ACHAT FORT » (a short pull-back, RSI 2 < 10, inside the up trend) lead to better results than a plain
+    /// « ACHAT » day? Average return 5 and 20 days later, bought at the next open, per kind, half and list.
+    func testPullbackEdge() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            for kind in [Kind.crypto, .stock] {
+                for half in 0..<2 {
+                    var plain: [[Double]] = [[], []], pull: [[Double]] = [[], []]
+                    for (a, bars) in list where a.kind == kind {
+                        let s = LabSeries(bars), n = Self.lb(s), mid = s.c.count / 2
+                        let range = half == 0 ? 200..<mid : mid..<(s.c.count - 21)
+                        for i in range where s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n) ?? -1) > 0 {
+                            let entry = s.c[i + 1].open
+                            let r = [s.close[i + 5] / entry - 1, s.close[i + 20] / entry - 1]
+                            for k in 0..<2 { if (s.rsi2[i] ?? 50) < 10 { pull[k].append(r[k]) } else { plain[k].append(r[k]) } }
+                        }
+                    }
+                    func avg(_ x: [Double]) -> String { x.isEmpty ? "–" : String(format: "%+.2f%%", 100 * x.reduce(0, +) / Double(x.count)) }
+                    func win(_ x: [Double]) -> String { x.isEmpty ? "–" : String(format: "%.0f%%", 100 * Double(x.filter { $0 > 0 }.count) / Double(x.count)) }
+                    print("\(name) \(kind.rawValue) M\(half + 1) | achat n=\(plain[0].count) 5j \(avg(plain[0])) 20j \(avg(plain[1])) (gagnant \(win(plain[1]))) | achat fort n=\(pull[0].count) 5j \(avg(pull[0])) 20j \(avg(pull[1])) (gagnant \(win(pull[1])))")
+                }
+            }
+        }
+    }
+}
