@@ -709,9 +709,10 @@ struct BotsBlock: View {
 
     private func pct(_ x: Double) -> String { "\(x >= 0 ? "+" : "−")\(Format.plain(abs(x) * 100, digits: 1)) %" }
 
-    /// Size that keeps the typical fall near 5 % of the amount invested in a full position.
+    /// Size that keeps the typical fall near the accepted risk (Réglages) of the amount planned.
     private func riskText(_ r: Double) -> String {
-        let size = BotEngine.size(forFall: r) ?? 100
-        return "Baisse typique attendue au pire moment des 20 prochains jours. Pour ne risquer qu'environ 5 % de la somme prévue, n'en engager qu'environ \(size) %."
+        let budget = BotEngine.riskBudget
+        let size = BotEngine.size(forFall: r, budget: budget) ?? 100
+        return "Baisse typique attendue au pire moment des 20 prochains jours. Pour ne risquer qu'environ \(Int(budget * 100)) % de la somme prévue (Réglages), n'en engager qu'environ \(size) %."
     }
 }

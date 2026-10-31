@@ -293,11 +293,20 @@ public enum BotEngine {
         fall.map { min($0, -riskFloor(kind)) }
     }
 
-    /// Share (in %, 1…100) of the planned amount to commit so that the risk bot's predicted worst fall costs about 5 %;
-    /// nil without a prediction.
-    public static func size(forFall fall: Double?) -> Int? {
+    /// Risk the user accepts per position, as a share of the planned amount (Réglages): 5 % or 10 %. Measured
+    /// (testRiskSizing, rule + veto, calibrated risk): crypto +16 % / worst fall −15 % at 5 %, +33 to +35 % / −30 % at
+    /// 10 %, +47 % / −48 % for a full position; stocks about the same at both.
+    public static let riskBudgetKey = "altim.riskBudget"
+    public static var riskBudget: Double {
+        let v = UserDefaults.standard.double(forKey: riskBudgetKey)
+        return v == 0.10 ? 0.10 : 0.05
+    }
+
+    /// Share (in %, 1…100) of the planned amount to commit so that the risk bot's predicted worst fall costs about
+    /// `budget` of it; nil without a prediction.
+    public static func size(forFall fall: Double?, budget: Double = riskBudget) -> Int? {
         guard let f = fall, f.isFinite else { return nil }
-        return Int(max(1, min(100, (0.05 / max(abs(f), 0.01) * 100).rounded())))
+        return Int(max(1, min(100, (budget / max(abs(f), 0.01) * 100).rounded())))
     }
 
     /// Fall of a portfolio if every line lived, at the same time, the worst fall the risk bot predicts for it
