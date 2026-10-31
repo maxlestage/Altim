@@ -206,7 +206,7 @@ public actor LocalBackend {
         // A bot trained less than 12 hours ago at a previous launch: no download, no training.
         if botModels[key] == nil, let file = botStore?.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"),
            let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(BotEngine.Model.self, from: data),
-           nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
+           saved.isCurrent, nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
             botModels[key] = (saved.trainedAt, Task { saved })
             return saved
         }
