@@ -21,8 +21,8 @@ public enum VerdictLog {
     public static let maxEntries = 300
 
     static func side(_ v: TrendEngine.Verdict) -> (String, String)? {
-        switch v.state {
-        case .trend, .pullback: return v.action == .hold ? ("mixed", "CONSERVER SANS RENFORCER") : ("buy", "ACHETER / CONSERVER")
+        switch v.effectiveState {
+        case .trend, .pullback: return ("buy", "ACHETER / CONSERVER")
         case .mixed: return ("mixed", "CONSERVER SANS RENFORCER")
         case .down: return ("out", "RESTER À L'ÉCART")
         case .unknown: return nil

@@ -386,8 +386,20 @@ public enum Rotation {
 }
 
 extension TrendEngine.Verdict {
+    /// The background picture the advice really gives: an up trend vetoed by the trend bot reads as mixed signals
+    /// (ATTENDRE) or as a way out (VENTE), never as a buy.
+    public var effectiveState: TrendEngine.State {
+        guard state == .trend || state == .pullback else { return state }
+        switch action {
+        case .hold: return .mixed
+        case .sell, .strongSell: return .down
+        default: return state
+        }
+    }
+
     /// The verdict as the app says it.
     public var label: String {
+        if (state == .trend || state == .pullback) && (action == .sell || action == .strongSell) { return "SORTIR (BOT TENDANCE)" }
         switch state {
         case .pullback: return action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
         case .trend: return action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
@@ -404,7 +416,7 @@ extension ConfigChanges {
     /// alerts already tell it): only a change of the background picture is a transition. Unknown verdicts are ignored.
     public static func apply(_ state: ConfigState, verdict v: TrendEngine.Verdict, asset: Asset, now: Double) -> (state: ConfigState, transition: ConfigTransition?) {
         let side: (Decision.Verdict, Decision.Level, String, String)
-        switch v.action == .hold && (v.state == .trend || v.state == .pullback) ? .mixed : v.state {
+        switch v.effectiveState {
         case .pullback, .trend: side = (.buyZone, .moderate, "ACHETER / CONSERVER", "Tendance haussière")
         case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", "Signaux contraires")
         case .down: side = (.noPosition, .exit, "RESTER À L'ÉCART", "Tendance baissière")
