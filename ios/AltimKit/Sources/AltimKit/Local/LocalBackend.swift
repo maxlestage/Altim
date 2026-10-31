@@ -184,8 +184,11 @@ public actor LocalBackend {
             return out.sorted { $0.0 < $1.0 }.compactMap { r in r.2.map { (r.1, $0) } }
         }
         let p = Dictionary((await prices).map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
+        // The same verdicts as each asset's page (trend bot's veto included).
+        var verdicts: [String: TrendEngine.Verdict] = [:]
+        for (a, bars) in data { verdicts[a.id] = await botVerdict(a, bars) }
         let r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
-                               picks: Rotation.picks(data, kind: kind, prices: p), scanned: data.count, test: Rotation.sleeves(data, kind: kind),
+                               picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind),
                                notes: Rotation.notes)
         if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
         return r
