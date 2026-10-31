@@ -102,4 +102,18 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(f.missing, 1)
         XCTAssertNil(BotEngine.portfolioFall([(value: 1000, fall: nil)]))
     }
+
+    /// A bot saved by a version with other measures is not reused (it would read the wrong ones, or crash).
+    func testBotFromAnotherVersionIsIgnored() throws {
+        let model = try XCTUnwrap(BotEngine.Model.train((0..<6).map { Self.series(drift: $0 % 2 == 0 ? 0.002 : -0.002, seed: Double($0)) }))
+        XCTAssertTrue(model.isCurrent)
+        var json = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(model)) as? [String: Any])
+        json["featureCount"] = 9
+        let old = try JSONDecoder().decode(BotEngine.Model.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertFalse(old.isCurrent)
+        XCTAssertNil(old.predict(Self.series(drift: 0.001)))
+        json["featureCount"] = nil
+        let older = try JSONDecoder().decode(BotEngine.Model.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertFalse(older.isCurrent, "fichier sans nombre de mesures : version antérieure")
+    }
 }

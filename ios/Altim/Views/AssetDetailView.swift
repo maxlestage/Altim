@@ -679,6 +679,9 @@ struct BotsBlock: View {
                 KeyValue(key: "Bot Risque · pire baisse 20 jours", value: pct(r))
                 Text(riskText(r)).font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
+            if let line = trainedLine {
+                Text(line).font(.caption2).foregroundStyle(Theme.textSecondary)
+            }
             DisclosureGroup(isExpanded: $details) {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(BotEngine.bots, id: \.name) { bot in
@@ -694,6 +697,14 @@ struct BotsBlock: View {
             }
         }
         .padding(.top, 4)
+    }
+
+    /// "Entraînés il y a 3 h sur 13 480 journées" (nil before the bots exist).
+    private var trainedLine: String? {
+        guard let at = verdict.botTrainedAt, let n = verdict.botExamples else { return nil }
+        let hours = max(0, Int((Date().timeIntervalSince1970 * 1000 - at) / 3_600_000))
+        let when = hours == 0 ? "il y a moins d'une heure" : "il y a \(hours) h"
+        return "Entraînés \(when) sur \(Format.plain(Double(n), digits: 0)) journées de l'historique de leur marché"
     }
 
     private func pct(_ x: Double) -> String { "\(x >= 0 ? "+" : "−")\(Format.plain(abs(x) * 100, digits: 1)) %" }
