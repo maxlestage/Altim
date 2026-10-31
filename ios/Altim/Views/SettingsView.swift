@@ -154,7 +154,7 @@ struct SettingsView: View {
                 KeyValue(key: "Calculs", value: "sur cet iPhone, sans serveur")
                 KeyValue(key: "Sources crypto", value: "8 bourses")
                 KeyValue(key: "Sources actions", value: "Yahoo, Nasdaq, Robinhood")
-                KeyValue(key: "Prix en direct", value: "crypto 5 s, actions 15 s")
+                KeyValue(key: "Prix en direct", value: "crypto 5 s, actions 15 s en séance")
             } header: {
                 Text("Données")
             } footer: {
