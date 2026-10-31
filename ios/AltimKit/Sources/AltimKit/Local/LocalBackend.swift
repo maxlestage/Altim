@@ -19,9 +19,18 @@ public actor LocalBackend {
     /// training the bot.
     let botEnabled: Bool
 
-    public init(fetcher: MarketFetcher = URLSessionFetcher(), bot: Bool = true) {
+    /// Folder where the trained bots are kept between launches (nil: memory only).
+    let botStore: URL?
+
+    public init(fetcher: MarketFetcher = URLSessionFetcher(), bot: Bool = true, botStore: URL? = nil) {
         self.fetcher = fetcher
         botEnabled = bot
+        self.botStore = botStore
+    }
+
+    /// The app's folder for the trained bots (Caches: iOS may empty it, the bots are then trained again).
+    public static var defaultBotStore: URL? {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("altim-bots", isDirectory: true)
     }
 
     /// Routes answered here.
@@ -194,12 +203,25 @@ public actor LocalBackend {
             // Failed 10 minutes ago or more (network): the histories are read again.
             botHistories[kind] = nil
         }
+        // A bot trained less than 12 hours ago at a previous launch: no download, no training.
+        if botModels[key] == nil, let file = botStore?.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"),
+           let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(BotEngine.Model.self, from: data),
+           nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
+            botModels[key] = (saved.trainedAt, Task { saved })
+            return saved
+        }
         let histories = universeHistories(kind)
+        let store = botStore
         let task = Task<BotEngine.Model?, Never> {
             let h = await histories.value
             guard h.count >= 5 else { return nil }
             // Off the actor: the other routes keep answering while the bot learns.
-            return await Task.detached(priority: .utility) { BotEngine.Model.train(h, target: target) }.value
+            let model = await Task.detached(priority: .utility) { BotEngine.Model.train(h, target: target) }.value
+            if let model, let store, let data = try? JSONEncoder().encode(model) {
+                try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
+                try? data.write(to: store.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"), options: .atomic)
+            }
+            return model
         }
         botModels[key] = (nowMs(), task)
         return await task.value

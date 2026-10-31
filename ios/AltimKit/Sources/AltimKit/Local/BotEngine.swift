@@ -52,6 +52,7 @@ public enum BotEngine {
         /// Worst fall from the next open within the next `days` (≤ 0): the risk a buyer tonight would have lived.
         case fall(days: Int)
         var days: Int { switch self { case let .gain(d), let .fall(d): return d } }
+        var isFall: Bool { if case .fall = self { return true } else { return false } }
     }
 
     static func label(_ s: Series, _ i: Int, _ target: Target = .gain(days: horizon)) -> Double? {
@@ -141,8 +142,8 @@ public enum BotEngine {
     /// Gradient-boosted decision stumps on the same measures: each round adds the single split (one measure, one
     /// threshold among its quantiles) that best corrects the remaining error. Captures thresholds and asymmetries a
     /// straight line cannot (e.g. "momentum positive only matters above the 200-day average").
-    struct Stumps {
-        struct Stump { let f: Int; let cut: Double; let left: Double; let right: Double }
+    struct Stumps: Codable, Sendable {
+        struct Stump: Codable, Sendable { let f: Int; let cut: Double; let left: Double; let right: Double }
         var base = 0.0
         var stumps: [Stump] = []
 
@@ -242,7 +243,7 @@ public enum BotEngine {
     public static let exitBelow = -0.03
 
     /// The trained bot of one market: boosted trees learned on the long daily histories of its assets.
-    public struct Model: Sendable {
+    public struct Model: Codable, Sendable {
         let trees: Stumps
         /// Assets and examples it learned from.
         public let assets: Int, examples: Int
