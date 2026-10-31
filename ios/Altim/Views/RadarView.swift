@@ -3,13 +3,14 @@ import AltimKit
 
 /// Sort of the Radar: "Mon ordre", "Variation", "Verdict".
 enum RadarSort: String, CaseIterable {
-    case mine, change, decision
+    case mine, change, decision, risk
 
     var label: String {
         switch self {
         case .mine: return "Mon ordre"
         case .change: return "Variation"
         case .decision: return "Verdict"
+        case .risk: return "Risque"
         }
     }
 }
@@ -35,7 +36,8 @@ struct RadarView: View {
 
     private var sort: RadarSort { RadarSort(rawValue: sortRaw) ?? .mine }
 
-    /// "Verdict": buy side first (strong buy, buy, wait, sell), then the score; "Variation": the largest move.
+    /// "Verdict": buy side first (strong buy, buy, wait, sell), then the score; "Variation": the largest move;
+    /// "Risque": the calmest first according to the risk bot.
     private var sortedWatchlist: [Asset] {
         switch sort {
         case .mine:
@@ -50,6 +52,17 @@ struct RadarView: View {
                 if ra != rb { return ra < rb }
                 if (a?.score ?? 0) != (b?.score ?? 0) { return (a?.score ?? 0) > (b?.score ?? 0) }
                 return x.offset < y.offset
+            }.map(\.element)
+        case .risk:
+            // The smallest worst fall predicted by the risk bot first; assets without a prediction last, in my order.
+            return model.watchlist.enumerated().sorted { x, y in
+                let a = rows[x.element.id]?.botRisk, b = rows[y.element.id]?.botRisk
+                switch (a, b) {
+                case let (a?, b?) where a != b: return a > b
+                case (_?, nil): return true
+                case (nil, _?): return false
+                default: return x.offset < y.offset
+                }
             }.map(\.element)
         }
     }
