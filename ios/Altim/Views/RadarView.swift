@@ -256,12 +256,30 @@ struct RadarRowView: View {
 
     @ViewBuilder private var technical: some View {
         if let s = row?.signal {
-            Text("confiance \(Int(s.confidence.rounded()))" + (row?.botRisk.map { " · risque −\(Int((abs($0) * 100).rounded())) %" } ?? ""))
+            Text(confidenceText(s))
                 .font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
-                .accessibilityLabel("Confiance \(Int(s.confidence.rounded()))" + (row?.botRisk.map { ", pire baisse prévue par le bot Risque \(Int((abs($0) * 100).rounded())) % sur 20 jours" } ?? ""))
+                .accessibilityLabel(confidenceLabel(s))
         } else if row?.error != nil {
             Text("données indisponibles").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
         }
+    }
+
+    /// Worst fall predicted by the risk bot, in whole percent; nil before the bots are trained.
+    private var riskPercent: Int? {
+        guard let r = row?.botRisk else { return nil }
+        return Int((abs(r) * 100).rounded())
+    }
+
+    private func confidenceText(_ s: SignalSummary) -> String {
+        let base = "confiance \(Int(s.confidence.rounded()))"
+        guard let p = riskPercent else { return base }
+        return base + " · risque −\(p) %"
+    }
+
+    private func confidenceLabel(_ s: SignalSummary) -> String {
+        let base = "Confiance \(Int(s.confidence.rounded()))"
+        guard let p = riskPercent else { return base }
+        return base + ", pire baisse prévue par le bot Risque \(p) % sur 20 jours"
     }
 
     @ViewBuilder private var reliability: some View {
