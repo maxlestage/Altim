@@ -242,7 +242,7 @@ public enum BotEngine {
              measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
-             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; régler la taille sur sa prévision a réduit la pire baisse de la règle (crypto −33 % contre −48 % pour +43 % contre +47 % de rendement, et −11 % contre −24 % en marché baissier), avec un rendement presque identique sur les actions"),
+             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; ses prévisions les plus calmes sous-estimaient la baisse réelle (crypto −8 % annoncés, −14 à −15 % vécus ; actions −3 % pour −4 %), d'où un plancher de 14 % en crypto et de 4 % en actions ; avec ce plancher, régler la taille pour ne risquer qu'environ 5 % a ramené la pire baisse de la règle de −48 % à −15 % en crypto, mais aussi son rendement de +47 % à +16 % ; sur les actions, rendement presque identique et pire baisse égale ou plus faible"),
     ]
 
     /// Entry blocked under this predicted 20-day return, exit under `exitBelow` (chosen once, before the test; the
@@ -281,6 +281,16 @@ public enum BotEngine {
             guard isCurrent, let f = features(s, s.c.count - 1) else { return nil }
             return trees.predict(f)
         }
+    }
+
+    /// Smallest worst fall the risk bot may announce, per market. Measured out of sample (testRiskCalibration): its
+    /// calmest fifth of predictions under-estimated the real fall (crypto −8 % announced, −14 to −15 % lived; stocks
+    /// −3 % announced, −4 % lived), the other fifths matched. Below these floors, the floor is the honest figure.
+    public static func riskFloor(_ kind: Kind) -> Double { kind == .crypto ? 0.14 : 0.04 }
+
+    /// The risk bot's prediction, never calmer than what its calm predictions turned out to be.
+    public static func calibratedFall(_ fall: Double?, kind: Kind) -> Double? {
+        fall.map { min($0, -riskFloor(kind)) }
     }
 
     /// Share (in %, 1…100) of the planned amount to commit so that the risk bot's predicted worst fall costs about 5 %;
