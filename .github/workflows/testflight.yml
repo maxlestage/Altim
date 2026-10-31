@@ -4,6 +4,8 @@
 # ASC_KEY_P8 (contenu du fichier .p8). Premier lancement : le workflow enregistre lui-même les identifiants de lot
 # (com.maxlestage.altim, .widgets, .watchkitapp) ; s'il n'y a pas encore d'app dans App Store Connect, il s'arrête en le
 # disant : créez alors l'app avec l'identifiant com.maxlestage.altim (il apparaît maintenant dans la liste) et relancez.
+# Avant l'archive, il révoque les certificats de développement créés par la clé API lors des envois précédents (chaque
+# envoi en crée un sur un Mac neuf ; sans ce nettoyage, Apple refuse au-delà de sa limite).
 name: TestFlight
 
 on:
@@ -49,7 +51,7 @@ jobs:
             echo "::error::Secrets Apple manquants (voir DEPLOIEMENT.md)."; exit 1
           fi
           printf '%s' "$ASC_KEY_P8" > "$RUNNER_TEMP/AuthKey.p8"
-      - name: Identifiants de lot et app dans App Store Connect
+      - name: Identifiants de lot, app et certificats dans App Store Connect
         run: |
           python3 -m pip install --quiet --break-system-packages 'pyjwt[crypto]' 2>/dev/null || python3 -m pip install --quiet 'pyjwt[crypto]'
           python3 - <<'PY'
@@ -88,6 +90,20 @@ jobs:
               open(os.environ["GITHUB_STEP_SUMMARY"], "a").write("### ⏸ " + msg + "\n")
               sys.exit(1)
           print("App trouvée dans App Store Connect.")
+          # Each run starts on a fresh Mac: Xcode creates a new development certificate through the API key and the
+          # next run cannot reuse it, until Apple's limit is reached ("maximum number of certificates"). The ones this
+          # key created earlier ("Created via API") are revoked here; every other certificate (a Mac's own development
+          # certificate, distribution certificates) is never touched.
+          status, body = call("GET", "/v1/certificates?filter[certificateType]=DEVELOPMENT,IOS_DEVELOPMENT&limit=200")
+          if status != 200:
+              print(f"::warning::Liste des certificats illisible ({status}) : aucun nettoyage.")
+          else:
+              old = [c for c in body.get("data", []) if "Created via API" in (c["attributes"].get("displayName") or "")
+                     or "Created via API" in (c["attributes"].get("name") or "")]
+              for c in old:
+                  st, _ = call("DELETE", "/v1/certificates/" + c["id"])
+                  print(f"Certificat de développement {c['attributes'].get('name')} créé par l'API : {'révoqué' if st == 204 else 'échec ' + str(st)}")
+              print(f"{len(old)} certificat(s) de développement créé(s) par l'API révoqué(s).")
           PY
       - name: Archive signée
         run: |
