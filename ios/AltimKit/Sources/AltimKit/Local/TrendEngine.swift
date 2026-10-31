@@ -41,6 +41,8 @@ public enum TrendEngine {
         public var text: String
         /// Last daily close the verdict was computed on.
         public var price: Double? = nil
+        /// Return over the next 20 days predicted by the trained bot (BotEngine), when it could be trained.
+        public var bot: Double? = nil
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.
@@ -93,7 +95,7 @@ public enum TrendEngine {
         switch st {
         case .pullback:
             action = .strongBuy
-            text = "Tendance de fond haussière (prix \(trend)), momentum positif (\(mom)) et repli de court terme : le meilleur moment d'entrée mesuré."
+            text = "Tendance de fond haussière (prix \(trend)), momentum positif (\(mom)) et repli de court terme : en moyenne une meilleure entrée sur la semaine suivante (mesuré sur les deux listes d'actifs du laboratoire), sans avantage net à un mois."
         case .trend:
             action = .buy
             text = "Tendance de fond haussière (prix \(trend)) et momentum positif (\(mom)) : acheter ou conserver. Un repli de quelques jours serait une meilleure entrée."

@@ -293,3 +293,79 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 }
+
+extension StrategyLabTests {
+    /// Does « ACHAT FORT » (a short pull-back, RSI 2 < 10, inside the up trend) lead to better results than a plain
+    /// « ACHAT » day? Average return 5 and 20 days later, bought at the next open, per kind, half and list.
+    func testPullbackEdge() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            for kind in [Kind.crypto, .stock] {
+                for half in 0..<2 {
+                    var plain: [[Double]] = [[], []], pull: [[Double]] = [[], []]
+                    for (a, bars) in list where a.kind == kind {
+                        let s = LabSeries(bars), n = Self.lb(s), mid = s.c.count / 2
+                        let range = half == 0 ? 200..<mid : mid..<(s.c.count - 21)
+                        for i in range where s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n) ?? -1) > 0 {
+                            let entry = s.c[i + 1].open
+                            let r = [s.close[i + 5] / entry - 1, s.close[i + 20] / entry - 1]
+                            for k in 0..<2 { if (s.rsi2[i] ?? 50) < 10 { pull[k].append(r[k]) } else { plain[k].append(r[k]) } }
+                        }
+                    }
+                    func avg(_ x: [Double]) -> String { x.isEmpty ? "–" : String(format: "%+.2f%%", 100 * x.reduce(0, +) / Double(x.count)) }
+                    func win(_ x: [Double]) -> String { x.isEmpty ? "–" : String(format: "%.0f%%", 100 * Double(x.filter { $0 > 0 }.count) / Double(x.count)) }
+                    print("\(name) \(kind.rawValue) M\(half + 1) | achat n=\(plain[0].count) 5j \(avg(plain[0])) 20j \(avg(plain[1])) (gagnant \(win(plain[1]))) | achat fort n=\(pull[0].count) 5j \(avg(pull[0])) 20j \(avg(pull[1])) (gagnant \(win(pull[1])))")
+                }
+            }
+        }
+    }
+}
+
+extension StrategyLabTests {
+    /// The bot trained on the device (BotEngine, walk-forward ridge on 12 measures, pooled per market) against the
+    /// current rule, on both lists and both halves.
+    func testTrainedBot() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var preds: [String: [Double?]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let p = env["ALTIM_TREES"] != nil ? BotEngine.walkForwardTrees(group.map(\.1)) : BotEngine.walkForward(group.map(\.1))
+                for (k, (_, bars)) in group.enumerated() { preds[key(LabSeries(bars))] = p[k] }
+            }
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            func p(_ s: LabSeries, _ i: Int) -> Double? { preds[key(s)]?[i] ?? nil }
+            let n = { (s: LabSeries) in Self.lb(s) }
+            let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+            let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
+            let rules = [
+                LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
+                LabRule(name: "bot seul", enter: { s, i in (p(s, i) ?? -1) > 0 }, exit: { s, i in (p(s, i) ?? 0) < 0 }),
+                LabRule(name: "bot seul (marge 1%)", enter: { s, i in (p(s, i) ?? -1) > 0.01 }, exit: { s, i in (p(s, i) ?? 0) < -0.01 }),
+                LabRule(name: "règle + bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? -1) > 0 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < 0 }),
+                LabRule(name: "règle, veto bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.03 }),
+                LabRule(name: "veto 0 / -2%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > 0 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.02 }),
+                LabRule(name: "veto -2 / -4%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.02 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.04 }),
+                LabRule(name: "veto -1 / -5%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.05 }),
+                LabRule(name: "veto entrée seule -1%", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > -0.01 }, exit: ruleOut),
+                LabRule(name: "veto sortie seule -3%", enter: ruleIn, exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < -0.03 }),
+            ]
+            print("== \(name)"); print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}

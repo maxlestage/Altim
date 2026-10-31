@@ -33,7 +33,7 @@ enum PaperFormat {
     }
 }
 
-/// Simulated portfolio (paper trading): follows Altim's decisions with no real money and no order placed, to see
+/// Simulated portfolio (paper trading): follows Altim's verdicts with no real money and no order placed, to see
 /// whether "signal → exécution → résultat" holds. Everything stays on this iPhone.
 struct PaperView: View {
     @Environment(AppModel.self) private var model
@@ -55,7 +55,7 @@ struct PaperView: View {
             if let error { Section { Notice(text: error, tone: .bad) }.listRowBackground(Color.clear) }
             Section {
                 if v.lines.isEmpty {
-                    Text("Aucune position ouverte. Sur la page d'un actif, le bouton « Simuler cet achat » de la carte Décision ouvre une position fictive.")
+                    Text("Aucune position ouverte. Sur la page d'un actif, le bouton « Simuler cet achat » de la carte Verdict Altim ouvre une position fictive.")
                         .font(.footnote).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
                 } else {
                     ForEach(v.lines) { positionCard($0) }
@@ -372,36 +372,36 @@ struct PaperResetSheet: View {
     }
 }
 
-/// "Simuler cet achat" from the Décision card: amount, stop and target (the plan's, editable), current price.
-/// The decision shown now is kept with the position, to see later which verdicts actually worked.
+/// "Simuler cet achat" from the Verdict card: amount and automatic exit (the 200-day average as stop, the verdict's own
+/// exit level; editable), current price. The verdict shown now is kept with the position, to see later which verdicts
+/// actually worked.
 struct PaperBuySheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    let decision: Decision
+    let asset: Asset
+    let verdict: TrendEngine.Verdict
     @State private var amount = ""
     @State private var stop = ""
     @State private var target = ""
     @State private var note = ""
     @State private var error: String?
 
-    private var asset: Asset { Asset(symbol: decision.symbol, kind: decision.kind, name: decision.name) }
-    private var price: Double? { model.live.price(asset)?.price ?? decision.price }
-    private var label: String { decision.label.isEmpty ? decision.verdict.label : decision.label }
-    private var against: Bool { decision.verdict != .buy && decision.verdict != .buyZone }
+    private var price: Double? { model.live.price(asset)?.price ?? verdict.price }
+    private var against: Bool { verdict.action != .buy && verdict.action != .strongBuy }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    DecisionRow(key: "\(decision.symbol) · \(decision.name)", value: Format.price(price))
-                    DecisionRow(key: "Décision affichée", value: "\(label) · confiance \(Int(decision.confidence.rounded())) %")
+                    DecisionRow(key: "\(asset.symbol) · \(asset.name)", value: Format.price(price))
+                    DecisionRow(key: "Verdict affiché", value: "\(verdict.label) · confiance \(Int(verdict.confidence.rounded())) %")
                     DecisionRow(key: "Liquidités simulées", value: PaperFormat.usd(model.paper.cash))
                 } footer: {
                     Text("Achat fictif dans le portefeuille simulé (Mes avoirs › Simulation) : aucun argent réel, aucun ordre passé.")
                 }
                 if against {
                     Section {
-                        Notice(text: "La décision actuelle est « \(label) » : vous simulez contre la décision. C'est permis ; le résultat sera classé sous « \(label) » dans les statistiques.", tone: .warn)
+                        Notice(text: "Le verdict actuel est « \(verdict.label) » : vous simulez contre le verdict. C'est permis ; le résultat sera classé sous « \(verdict.label) » dans les statistiques.", tone: .warn)
                     }
                     .listRowBackground(Color.clear)
                 }
@@ -421,7 +421,7 @@ struct PaperBuySheet: View {
                 } header: {
                     Text("Sortie automatique")
                 } footer: {
-                    Text("Pré-remplis avec le stop et l'objectif 1 du plan. Vérifiés sur les bougies journalières à partir du lendemain ; un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
+                    Text("Stop pré-rempli avec la moyenne 200 jours, sous laquelle le verdict cesse d'être à l'achat ; pas d'objectif, la règle laisse courir la tendance. Vérifiés sur les bougies journalières à partir du lendemain ; un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
                 }
                 Section {
                     JournalNoteField(text: $note)
@@ -451,10 +451,7 @@ struct PaperBuySheet: View {
         // Shown and typed in the display currency; the simulation gets dollars.
         let a = (Money.toDisplay(min(equity * 0.1, model.paper.cash)) * 100).rounded(.down) / 100
         amount = a > 0 ? Format.plain(a, digits: 2) : ""
-        if let plan = decision.plan {
-            stop = Money.inputPrice(Money.toDisplay(plan.stop))
-            target = Money.inputPrice(Money.toDisplay(plan.target1))
-        }
+        if let e = verdict.ema200, let p = price, e < p { stop = Money.inputPrice(Money.toDisplay(e)) }
     }
 
     /// Optional field: empty → nil; a text that is not a number is refused.
@@ -470,16 +467,17 @@ struct PaperBuySheet: View {
         let (t, e2) = parseOptional(target, "Objectif")
         if let e = e1 ?? e2 { return error = e }
         let order = PaperOrder(
-            id: UUID().uuidString, symbol: decision.symbol, kind: decision.kind, name: decision.name,
+            id: UUID().uuidString, symbol: asset.symbol, kind: asset.kind, name: asset.name,
             price: price ?? 0, amount: PaperFormat.number(amount).map(Money.fromDisplay) ?? .nan, stop: s, target: t,
-            decision: PaperDecision(verdict: decision.verdict.rawValue, label: label, confidence: decision.confidence, asOf: decision.asOf)
+            decision: PaperDecision(verdict: verdict.action.rawValue, label: verdict.label, confidence: verdict.confidence,
+                                    asOf: Date().timeIntervalSince1970 * 1000)
         )
         if let e = model.paperBuy(order) {
             error = e
         } else {
             if let pos = model.paper.positions.last {
                 model.recordTrade(source: .paper, side: .buy, asset: asset, price: pos.entry, quantity: pos.quantity, amount: pos.invested,
-                                  stop: pos.stop, targets: [pos.target], note: note, refId: pos.id, decision: decision)
+                                  stop: pos.stop, targets: [pos.target], note: note, refId: pos.id)
             }
             dismiss()
         }
