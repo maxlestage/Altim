@@ -93,7 +93,7 @@ public enum TrendEngine {
         switch st {
         case .pullback:
             action = .strongBuy
-            text = "Tendance de fond haussière (prix \(trend)), momentum positif (\(mom)) et repli de court terme : le meilleur moment d'entrée mesuré."
+            text = "Tendance de fond haussière (prix \(trend)), momentum positif (\(mom)) et repli de court terme : en moyenne une meilleure entrée sur la semaine suivante (mesuré sur les deux listes d'actifs du laboratoire), sans avantage net à un mois."
         case .trend:
             action = .buy
             text = "Tendance de fond haussière (prix \(trend)) et momentum positif (\(mom)) : acheter ou conserver. Un repli de quelques jours serait une meilleure entrée."

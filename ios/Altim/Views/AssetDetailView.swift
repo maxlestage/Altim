@@ -576,7 +576,7 @@ struct VerdictCard: View {
                 if let e = v.ema200 {
                     KeyValue(key: "Moyenne 200 jours", value: Format.price(e))
                 }
-                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; le meilleur moment d'entrée est un repli de quelques jours. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
+                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
                     .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
         }
