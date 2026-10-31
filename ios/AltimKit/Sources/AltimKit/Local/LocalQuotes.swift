@@ -124,7 +124,16 @@ enum QuoteSources {
         guard !found.isEmpty else { return nil }
         let reference = Indicators.median(found.map(\.1.price))
         let tol = a.kind == .crypto ? 0.5 : 1.5
-        let agree = found.filter { abs($0.1.price / reference - 1) * 100 <= tol }
+        func near(_ x: Double, _ y: Double) -> Bool { abs(x / y - 1) * 100 <= tol }
+        var agree = found.filter { near($0.1.price, reference) }
+        if agree.isEmpty {
+            // The median fell between two camps (two sources apart, or a 2–2 split): it is no price at all. The largest
+            // group of sources close to one another is kept, the first listed source winning a tie.
+            for f in found {
+                let group = found.filter { near($0.1.price, f.1.price) }
+                if group.count > agree.count { agree = group }
+            }
+        }
         let changes = agree.compactMap(\.1.change)
         return Quote(symbol: a.symbol, kind: a.kind, name: a.name, price: Indicators.median(agree.map(\.1.price)),
                      change: changes.isEmpty ? nil : Indicators.median(changes), agreeing: agree.count, total: results.count,
