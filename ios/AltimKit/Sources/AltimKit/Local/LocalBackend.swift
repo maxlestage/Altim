@@ -13,6 +13,7 @@ public actor LocalBackend {
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
+    private var botHistories: [Kind: (at: Double, task: Task<[[Bar]], Never>)] = [:]
 
     /// False for the widget, the Watch and Siri (little time and memory): the verdict is then the rule alone, without
     /// training the bot.
@@ -190,20 +191,34 @@ public actor LocalBackend {
         if let c = botModels[key], nowMs() - c.at < 12 * 3_600_000 {
             if let m = await c.task.value { return m }
             if nowMs() - c.at < 600_000 { return nil }
+            // Failed 10 minutes ago or more (network): the histories are read again.
+            botHistories[kind] = nil
         }
-        let list = Rotation.universe[kind] ?? []
+        let histories = universeHistories(kind)
         let task = Task<BotEngine.Model?, Never> {
-            let histories: [[Bar]] = await withTaskGroup(of: [Bar]?.self) { g in
+            let h = await histories.value
+            guard h.count >= 5 else { return nil }
+            // Off the actor: the other routes keep answering while the bot learns.
+            return await Task.detached(priority: .utility) { BotEngine.Model.train(h, target: target) }.value
+        }
+        botModels[key] = (nowMs(), task)
+        return await task.value
+    }
+
+    /// Long daily histories of a market's universe, read once for all its bots (kept as long as the bots).
+    private func universeHistories(_ kind: Kind) -> Task<[[Bar]], Never> {
+        if let c = botHistories[kind], nowMs() - c.at < 12 * 3_600_000 { return c.task }
+        let list = Rotation.universe[kind] ?? []
+        let task = Task<[[Bar]], Never> {
+            await withTaskGroup(of: [Bar]?.self) { g in
                 for a in list { g.addTask { try? await self.longDaily(a) } }
                 var out: [[Bar]] = []
                 for await r in g { if let r, r.count > 400 { out.append(r) } }
                 return out
             }
-            guard histories.count >= 5 else { return nil }
-            return BotEngine.Model.train(histories, target: target)
         }
-        botModels[key] = (nowMs(), task)
-        return await task.value
+        botHistories[kind] = (nowMs(), task)
+        return task
     }
 
     /// The daily verdict with the bots: the trend bot's veto, the risk bot's expected fall (the rule alone when the

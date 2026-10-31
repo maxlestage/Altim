@@ -493,3 +493,21 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Time to train the app's two bots on the app's universe (what the iPhone does every 12 hours).
+    func testBotTrainingTime() throws {
+        guard let u = ProcessInfo.processInfo.environment["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        for kind in [Kind.crypto, .stock] {
+            let histories = (Rotation.universe[kind] ?? []).compactMap { a -> [Bar]? in
+                guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(u)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+                return rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) }
+            }
+            for target in [BotEngine.Target.gain(days: 20), .fall(days: 20)] {
+                let t0 = Date()
+                let m = BotEngine.Model.train(histories, target: target)
+                print("\(kind.rawValue) \(target) : \(histories.count) historiques, \(m?.examples ?? 0) exemples, \(String(format: "%.2f", Date().timeIntervalSince(t0))) s")
+            }
+        }
+    }
+}
