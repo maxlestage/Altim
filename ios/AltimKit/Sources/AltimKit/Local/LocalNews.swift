@@ -359,3 +359,34 @@ enum NewsEngine {
         return NewsReport(asOf: now, items: items, top: top(items, 5).map(\.id), digest: digest(items, now: now), sources: sources, summary: nil)
     }
 }
+
+/// News feeds read once and shared for `ttl`: the news tab, the guard of every asset and the macro context all read
+/// the same general feeds; without sharing, checking the alerts of 10 assets downloaded them 10 times. Simultaneous
+/// readers wait for the same download; a failed read is not kept.
+actor FeedCache {
+    private var entries: [String: (at: Double, task: Task<Data, Error>)] = [:]
+    let ttl: Double
+    init(ttl: Double = 300_000) { self.ttl = ttl }
+
+    func data(_ url: String, fetcher: MarketFetcher) async throws -> Data {
+        let now = nowMs()
+        entries = entries.filter { now - $0.value.at < ttl }
+        if let e = entries[url] { if let d = try? await e.task.value { return d } }
+        let task = Task { try await fetcher.data(url, method: "GET", body: nil) }
+        entries[url] = (now, task)
+        do { return try await task.value } catch {
+            entries[url] = nil
+            throw error
+        }
+    }
+}
+
+/// A fetcher whose GET requests go through a `FeedCache`.
+struct SharedFeedFetcher: MarketFetcher {
+    let base: MarketFetcher
+    let cache: FeedCache
+    func data(_ url: String, method: String, body: Data?) async throws -> Data {
+        guard method == "GET", body == nil else { return try await base.data(url, method: method, body: body) }
+        return try await cache.data(url, fetcher: base)
+    }
+}
