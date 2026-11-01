@@ -67,6 +67,17 @@ public enum TrendEngine {
         return st == .unknown ? nil : st == .trend || st == .pullback
     }
 
+    /// The market's state (`marketUp`) on each UTC day of its candles, in time order.
+    static func marketDays(_ raw: [Bar], kind: Kind) -> [(day: Double, up: Bool)] {
+        let c = Indicators.sanitize(raw)
+        guard c.count >= 210 else { return [] }
+        let s = Series(c), n = lookback(kind)
+        return c.indices.compactMap { i in
+            let st = state(s, i, lookback: n)
+            return st == .unknown ? nil : ((c[i].time / 86_400_000).rounded(.down), st == .trend || st == .pullback)
+        }
+    }
+
     /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
     /// lab (testMarketFilter, both lists, both halves): better or equal return and a smaller worst fall in all 8 cases,
     /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Never creates a buy.
@@ -152,9 +163,10 @@ public enum TrendEngine {
 
     /// "Si j'avais suivi Altim": in while the state is `trend` or `pullback`, out on `down` or when the trend or the
     /// momentum turns; orders filled at the next open, 0.1 % fees. Starts after 200 days (the 200-day average).
-    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil) -> BacktestReport {
+    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil, market: [Bar]? = nil) -> BacktestReport {
         let c = Indicators.sanitize(raw)
         let n = lookback(asset.kind)
+        let up = market.map { marketDays($0, kind: asset.kind) } ?? []
         let start = 200
         func empty(_ e: String) -> BacktestReport {
             BacktestReport(symbol: asset.symbol, kind: asset.kind, from: c.first?.time ?? 0, to: c.last?.time ?? 0, days: c.count,
@@ -170,8 +182,13 @@ public enum TrendEngine {
         var invested = 0
         let holdUnits = 100 / c[start].open
         var peakS = 100.0, peakH = 100.0, ddS = 0.0, ddH = 0.0
+        var m = 0
         for i in start..<c.count {
             let bar = c[i]
+            // The market's state on the last market day up to this one (no market candles: the rule alone).
+            let day = (bar.time / 86_400_000).rounded(.down)
+            while m + 1 < up.count && up[m + 1].day <= day { m += 1 }
+            let marketOK = up.isEmpty || up[m].day > day || up[m].up
             if pendingSell, let e = entry {
                 cash = units * bar.open * (1 - Backtest.fee)
                 trades.append(.init(entryTime: e.time, entryPrice: e.price, exitTime: bar.time, exitPrice: bar.open, exit: "signal", result: (cash / e.cost - 1) * 100))
@@ -188,7 +205,7 @@ public enum TrendEngine {
             if entry != nil { invested += 1 }
             if i < c.count - 1 {
                 let st = state(s, i, lookback: n)
-                let inTrend = st == .trend || st == .pullback
+                let inTrend = (st == .trend || st == .pullback) && marketOK
                 if entry == nil && inTrend { pendingBuy = true }
                 if entry != nil && !inTrend && st != .unknown {
                     // Out when the trend or the momentum turns (both are needed to be in).

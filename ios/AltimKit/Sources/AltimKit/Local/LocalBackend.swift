@@ -291,7 +291,10 @@ public actor LocalBackend {
     /// The signal replayed on two years of daily candles (`Backtest.run`).
     func backtest(_ a: Asset) async throws -> BacktestReport {
         let s = try await snapshot(a, .d1)
-        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability)
+        let b = TrendEngine.benchmark(a.kind)
+        // The market filter replayed too (the benchmark itself needs none); without its candles, the rule alone.
+        let market = b.id == a.id ? nil : try? await longDaily(b)
+        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market)
     }
 
     /// Longest daily history: for cryptos the exchanges' ≈ 1 000 days when they agree, else the usual daily candles
