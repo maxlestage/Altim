@@ -389,7 +389,9 @@ public enum Rotation {
     /// Fixed shares: each asset gets 1/N of the money, invested only while its own verdict is in the trend (daily, the
     /// per-asset rule), in cash otherwise; against the same assets all held (1/N each, bought at the start). The assets
     /// with a 200-day average at the start take part.
-    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind) -> RotationReport.Test? {
+    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind, market: [Bar]? = nil) -> RotationReport.Test? {
+        let up = market.map { TrendEngine.marketDays($0, kind: kind) } ?? []
+        var m = 0
         let series = data.map { Indicators.sanitize($0.1) }.filter { $0.count >= 260 }
         guard series.count >= 3 else { return nil }
         let n = TrendEngine.lookback(kind)
@@ -409,6 +411,10 @@ public enum Rotation {
         var peak = 100.0, peakB = 100.0, dd = 0.0, ddB = 0.0, mid = (100.0, 100.0)
         var curve: [BacktestReport.Point] = []
         for t in dates {
+            // The market filter (TrendEngine.applyMarket) on the last market day up to this one; none: the rule alone.
+            let day = (t / 86_400_000).rounded(.down)
+            while m + 1 < up.count && up[m + 1].day <= day { m += 1 }
+            let marketOK = up.isEmpty || up[m].day > day || up[m].up
             for a in members.indices {
                 guard let i = index[a][t] else { continue }
                 let bar = c[a][i]
@@ -417,7 +423,7 @@ public enum Rotation {
                 if pending[a] == -1, units[a] > 0 { cash[a] = units[a] * bar.open * (1 - Backtest.fee); units[a] = 0 }
                 pending[a] = 0
                 let st = TrendEngine.state(s[a], i, lookback: n)
-                let inTrend = st == .trend || st == .pullback
+                let inTrend = (st == .trend || st == .pullback) && marketOK
                 if units[a] == 0 && inTrend { pending[a] = 1 }
                 if units[a] > 0 && !inTrend && st != .unknown { pending[a] = -1 }
                 last[a] = i
@@ -437,9 +443,9 @@ public enum Rotation {
     }
 
     public static let notes = [
-        "Chaque actif de la liste a une part fixe du budget. Elle est investie seulement quand sa tendance de fond est haussière et son momentum positif, et gardée en liquidités sinon. Vérifié chaque jour.",
+        "Chaque actif de la liste a une part fixe du budget. Elle est investie seulement quand sa tendance de fond est haussière et son momentum positif, et que tout le marché l'est aussi (le Bitcoin pour les cryptos, le S&P 500 pour les actions) ; gardée en liquidités sinon. Vérifié chaque jour.",
         "C'est une règle de protection : elle a fortement réduit les pertes dans les marchés baissiers, mais elle gagne moins que tout garder dans une forte hausse.",
-        "Le test rejoue la règle sur l'historique de ces mêmes actifs, sans voir le lendemain, avec 0,1 % de frais par ordre.",
+        "Le test rejoue la règle et son filtre de marché sur l'historique de ces mêmes actifs, sans voir le lendemain, avec 0,1 % de frais par ordre. Au labo, ce filtre a nettement aidé les cryptos (ex. +40 % contre +23 % sans lui, pire baisse −38 % contre −44 %) ; pour les actions, mieux sur la première moitié de l'historique mais un peu moins bien sur la seconde (+19 % contre +21 %).",
         "La liste d'actifs est fixée à l'avance, mais ce sont des actifs connus aujourd'hui : un test sur le passé ne garantit rien pour la suite. Altim ne passe aucun ordre.",
     ]
 }
@@ -477,17 +483,29 @@ extension ConfigChanges {
     /// alerts already tell it): only a change of the background picture is a transition. Unknown verdicts are ignored.
     public static func apply(_ state: ConfigState, verdict v: TrendEngine.Verdict, asset: Asset, now: Double) -> (state: ConfigState, transition: ConfigTransition?) {
         let side: (Decision.Verdict, Decision.Level, String, String)
+        // An up trend held back by the market filter or the trend bot: the asset's own trend is not what changed.
+        let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
+        let market = asset.kind == .crypto ? "le Bitcoin" : "le S&P 500"
         switch v.effectiveState {
         case .pullback, .trend: side = (.buyZone, .moderate, "ACHETER / CONSERVER", "Tendance haussière")
-        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", "Signaux contraires")
-        case .down: side = (.noPosition, .exit, "RESTER À L'ÉCART", "Tendance baissière")
+        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", vetoed ? "Achat bloqué par le bot Tendance" : "Signaux contraires")
+        case .down:
+            side = (.noPosition, .exit, vetoed ? v.label : "RESTER À L'ÉCART",
+                    !vetoed ? "Tendance baissière" : v.market == false ? "Marché hors tendance haussière" : "Sortie conseillée par le bot Tendance")
         case .unknown: return (state, nil)
         }
-        let trigger = v.ema200.map { e -> String in
-            side.0 == .buyZone ? "Sortie si le prix repasse sous \(Money.money(e)) (moyenne 200 jours) ou si le momentum devient négatif"
-                : "Retour à l'achat quand le prix repasse au-dessus de \(Money.money(e)) (moyenne 200 jours) avec un momentum positif"
+        let triggers: [String]
+        if vetoed && v.market == false {
+            triggers = ["Retour à l'achat quand \(market) repasse en tendance haussière (au-dessus de sa moyenne 200 jours, momentum positif), si l'actif y est encore"]
+        } else if vetoed {
+            triggers = ["Retour à l'achat quand le bot Tendance ne prévoit plus de baisse sur 20 jours, si la tendance de l'actif tient"]
+        } else {
+            triggers = v.ema200.map { e -> String in
+                side.0 == .buyZone ? "Sortie si le prix repasse sous \(Money.money(e)) (moyenne 200 jours), si le momentum devient négatif ou si \(market) quitte sa tendance haussière"
+                    : "Retour à l'achat quand le prix repasse au-dessus de \(Money.money(e)) (moyenne 200 jours) avec un momentum positif"
+            }.map { [$0] } ?? []
         }
-        let next = ConfigSnapshot(verdict: side.0, level: side.1, label: side.2, levelLabel: side.3, missing: [], triggers: trigger.map { [$0] } ?? [],
+        let next = ConfigSnapshot(verdict: side.0, level: side.1, label: side.2, levelLabel: side.3, missing: [], triggers: triggers,
                                   at: now, rating: nil, ratingLabel: nil, metrics: nil)
         let k = key(kind: asset.kind, symbol: asset.symbol, personal: false)
         let t = diff(state.last[k], next, symbol: asset.symbol, kind: asset.kind, name: asset.name, personal: false)

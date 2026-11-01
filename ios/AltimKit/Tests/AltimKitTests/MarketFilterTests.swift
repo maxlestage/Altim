@@ -76,3 +76,37 @@ extension MarketFilterTests {
                        "marché trop court : la règle seule")
     }
 }
+
+extension MarketFilterTests {
+    /// The Selection's test replays the market filter: rising assets in a falling market stay in cash.
+    func testSelectionTestReplaysTheMarketFilter() throws {
+        let data = (0..<4).map { (Asset(symbol: "A\($0)", kind: .crypto, name: "A\($0)"), BotEngineTests.series(drift: 0.002, seed: Double($0))) }
+        let alone = try XCTUnwrap(Rotation.sleeves(data, kind: .crypto))
+        let filtered = try XCTUnwrap(Rotation.sleeves(data, kind: .crypto, market: down))
+        XCTAssertGreaterThan(alone.ret, 0)
+        XCTAssertEqual(filtered.ret, 0, accuracy: 1e-9, "marché baissier : tout en liquidités")
+        XCTAssertEqual(filtered.basket, alone.basket, accuracy: 1e-9, "le panier de comparaison ne change pas")
+    }
+}
+
+extension MarketFilterTests {
+    /// A configuration change caused by the market says so, with the right way back (not the asset's own average).
+    func testConfigurationChangeNamesTheMarket() {
+        Money.setDisplay(.usd, nil)
+        let v = TrendEngine.verdict(up, kind: .crypto)
+        var (s, t) = ConfigChanges.apply(ConfigState(), verdict: TrendEngine.applyMarket(true, kind: .crypto, to: v), asset: eth, now: 1)
+        XCTAssertNil(t)
+        XCTAssertTrue(s.last.values.first?.triggers.first?.hasSuffix("ou si le Bitcoin quitte sa tendance haussière") ?? false)
+        (s, t) = ConfigChanges.apply(s, verdict: TrendEngine.applyMarket(false, kind: .crypto, to: v), asset: eth, now: 2)
+        XCTAssertEqual(t?.change, "ACHETER / CONSERVER → SORTIR (MARCHÉ)")
+        XCTAssertEqual(t?.to.levelLabel, "Marché hors tendance haussière")
+        XCTAssertEqual(t?.triggers.first, "Retour à l'achat quand le Bitcoin repasse en tendance haussière (au-dessus de sa moyenne 200 jours, momentum positif), si l'actif y est encore")
+        let held = BotEngine.apply(-0.02, to: v)
+        let h = ConfigChanges.apply(ConfigState(), verdict: held, asset: eth, now: 1).state.last.values.first
+        XCTAssertEqual(h?.levelLabel, "Achat bloqué par le bot Tendance")
+        XCTAssertEqual(h?.triggers.first, "Retour à l'achat quand le bot Tendance ne prévoit plus de baisse sur 20 jours, si la tendance de l'actif tient")
+        let down = ConfigChanges.apply(ConfigState(), verdict: TrendEngine.verdict(self.down, kind: .crypto), asset: eth, now: 1).state.last.values.first
+        XCTAssertEqual(down?.levelLabel, "Tendance baissière")
+        XCTAssertTrue(down?.triggers.first?.hasPrefix("Retour à l'achat quand le prix repasse au-dessus de") ?? false)
+    }
+}
