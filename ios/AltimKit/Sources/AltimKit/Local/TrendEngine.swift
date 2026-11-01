@@ -78,6 +78,15 @@ public enum TrendEngine {
         }
     }
 
+    /// The market's state usable for the filter, nil (the rule alone) when its candles cannot be trusted: sources in
+    /// disagreement (low reliability), or a last candle more than 5 days older than the asset's (a stale history
+    /// would judge today's asset on an old market).
+    public static func marketUp(_ raw: [Bar], kind: Kind, reliability: Reliability?, assetTime: Double?) -> Bool? {
+        if reliability?.level == "low" { return nil }
+        if let t = assetTime, let last = raw.last?.time, last < t - 5 * 86_400_000 { return nil }
+        return marketUp(raw, kind: kind)
+    }
+
     /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
     /// lab (testMarketFilter, both lists, both halves): better or equal return and a smaller worst fall in all 8 cases,
     /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Fragile
