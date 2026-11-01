@@ -7,6 +7,8 @@ public actor LocalBackend {
     let fetcher: MarketFetcher
     private var snapshots: [String: (at: Double, task: Task<LocalSnapshot, Error>)] = [:]
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
+    /// Quotes being read: simultaneous callers (live prices, Radar, alerts, Selection) wait for the same read.
+    private var quoteReads: [String: Task<Quote?, Never>] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
     /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
     private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
@@ -14,6 +16,14 @@ public actor LocalBackend {
     /// The news feeds, shared by every news report for 5 minutes.
     private let feeds = FeedCache()
     var macroCache: (at: Double, info: MacroInfo)?
+    /// The macro report being computed: the guards of several assets wait for the same one.
+    var macroRead: Task<MacroInfo, Error>?
+    /// Market-wide data read by every asset's guard or by several stocks at once (Fear & Greed, macro series,
+    /// earnings calendar pages), shared for 10 minutes.
+    let shared = FeedCache(ttl: 600_000)
+    /// Daily candle pages, shared for 1 minute between the daily snapshot and the long history (same URLs).
+    let daily = FeedCache(ttl: 60_000)
+    var sharedFetcher: MarketFetcher { SharedFeedFetcher(base: fetcher, cache: shared) }
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
     private var botHistories: [Kind: (at: Double, task: Task<[[Bar]], Never>)] = [:]
@@ -111,7 +121,8 @@ public actor LocalBackend {
         if let c = snapshots[key], now - c.at < Self.ttl(tf) {
             if let v = try? await c.task.value { return v }
         }
-        let fetcher = self.fetcher
+        // Daily candles go through a 1-minute shared cache: the long history reads the same exchange pages.
+        let fetcher = tf == .d1 ? SharedFeedFetcher(base: self.fetcher, cache: daily) : self.fetcher
         let task = Task { try await LocalSnapshot.build(a, tf, fetcher: fetcher) }
         snapshots[key] = (now, task)
         do { return try await task.value } catch {
@@ -311,7 +322,7 @@ public actor LocalBackend {
     func longDaily(_ a: Asset) async throws -> [Bar] {
         let key = "long:\(a.id)"
         if let c = longCache[key], nowMs() - c.at < 3_600_000, let bars = try? await c.task.value { return bars }
-        let fetcher = self.fetcher
+        let fetcher = SharedFeedFetcher(base: self.fetcher, cache: daily)
         let task = Task<[Bar], Error> {
             let s = try await self.snapshot(a, .d1)
             var bars = s.candles
@@ -367,12 +378,21 @@ public actor LocalBackend {
 
     // MARK: Quotes
 
-    /// Consensus quotes, kept 10 seconds (the live prices poll them).
+    /// Consensus quotes, kept 10 seconds (the live prices poll them); an asset already being read is not read twice.
     public func quotes(_ list: [Asset]) async -> [Quote] {
         let now = nowMs()
-        let missing = list.filter { a in quoteCache[a.id].map { now - $0.at >= 10_000 } ?? true }
-        if !missing.isEmpty {
-            for q in await QuoteSources.consensus(missing, fetcher: fetcher) { quoteCache["\(q.kind.rawValue):\(q.symbol)"] = (now, q) }
+        var reads: [(Asset, Task<Quote?, Never>)] = []
+        for a in list where quoteCache[a.id].map({ now - $0.at >= 10_000 }) ?? true {
+            if let t = quoteReads[a.id] { reads.append((a, t)); continue }
+            let fetcher = self.fetcher
+            let t = Task { await QuoteSources.one(a, fetcher: fetcher) }
+            quoteReads[a.id] = t
+            reads.append((a, t))
+        }
+        for (a, t) in reads {
+            let q = await t.value
+            if quoteReads[a.id] == t { quoteReads[a.id] = nil }
+            if let q { quoteCache[a.id] = (now, q) }
         }
         return list.compactMap { quoteCache[$0.id]?.quote }
     }
