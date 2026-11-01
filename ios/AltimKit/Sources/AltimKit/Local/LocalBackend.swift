@@ -21,6 +21,8 @@ public actor LocalBackend {
     /// Market-wide data read by every asset's guard or by several stocks at once (Fear & Greed, macro series,
     /// earnings calendar pages), shared for 10 minutes.
     let shared = FeedCache(ttl: 600_000)
+    /// Daily candle pages, shared for 1 minute between the daily snapshot and the long history (same URLs).
+    let daily = FeedCache(ttl: 60_000)
     var sharedFetcher: MarketFetcher { SharedFeedFetcher(base: fetcher, cache: shared) }
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
@@ -119,7 +121,8 @@ public actor LocalBackend {
         if let c = snapshots[key], now - c.at < Self.ttl(tf) {
             if let v = try? await c.task.value { return v }
         }
-        let fetcher = self.fetcher
+        // Daily candles go through a 1-minute shared cache: the long history reads the same exchange pages.
+        let fetcher = tf == .d1 ? SharedFeedFetcher(base: self.fetcher, cache: daily) : self.fetcher
         let task = Task { try await LocalSnapshot.build(a, tf, fetcher: fetcher) }
         snapshots[key] = (now, task)
         do { return try await task.value } catch {
@@ -319,7 +322,7 @@ public actor LocalBackend {
     func longDaily(_ a: Asset) async throws -> [Bar] {
         let key = "long:\(a.id)"
         if let c = longCache[key], nowMs() - c.at < 3_600_000, let bars = try? await c.task.value { return bars }
-        let fetcher = self.fetcher
+        let fetcher = SharedFeedFetcher(base: self.fetcher, cache: daily)
         let task = Task<[Bar], Error> {
             let s = try await self.snapshot(a, .d1)
             var bars = s.candles
