@@ -23,6 +23,14 @@ final class BotEngineTests: XCTestCase {
         XCTAssertNil(model.predict(Array(Self.series(drift: 0.002).prefix(150))), "moins de 200 jours : pas de prévision")
     }
 
+    /// A trend-bot exit as recorded by an earlier version (the bot no longer forces exits).
+    static func oldBotExit(_ v: TrendEngine.Verdict) -> TrendEngine.Verdict {
+        var v = v
+        v.bot = -0.05
+        v.action = .sell
+        return v
+    }
+
     func testVetoNeverCreatesAPurchase() {
         let v = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
         XCTAssertTrue(v.action == .buy || v.action == .strongBuy)
@@ -32,7 +40,7 @@ final class BotEngineTests: XCTestCase {
         let hold = BotEngine.apply(-0.02, to: v)
         XCTAssertEqual(hold.action, .hold)
         XCTAssertTrue(hold.text.hasPrefix("Le bot entraîné prévoit −2,0 % sur 20 jours : conserver"))
-        XCTAssertEqual(BotEngine.apply(-0.05, to: v).action, .sell)
+        XCTAssertEqual(BotEngine.apply(-0.05, to: v).action, .hold, "le bot bloque l'achat sans jamais forcer la sortie")
         XCTAssertEqual(BotEngine.apply(nil, to: v).action, v.action, "sans bot : la règle seule")
         let down = TrendEngine.verdict(Self.series(drift: -0.002), kind: .crypto)
         XCTAssertEqual(BotEngine.apply(0.2, to: down).action, down.action, "le bot ne transforme jamais une baisse en achat")
@@ -129,7 +137,7 @@ final class BotEngineTests: XCTestCase {
     /// A trend vetoed into VENTE by the bot is logged and labelled as a way out, never as a buy.
     func testVetoedExitIsNeverRecordedAsABuy() {
         let up = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
-        var v = BotEngine.apply(-0.05, to: up)
+        var v = Self.oldBotExit(up)
         v.price = 100
         XCTAssertEqual(v.action, .sell)
         XCTAssertEqual(v.effectiveState, .down)
@@ -138,7 +146,7 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(VerdictLog.record([], v, asset: a, now: 1).last?.side, "out")
         var pull = up
         pull.state = .pullback
-        XCTAssertEqual(BotEngine.apply(-0.05, to: pull).label, "SORTIR (BOT TENDANCE)", "un repli aussi")
+        XCTAssertEqual(Self.oldBotExit(pull).label, "SORTIR (BOT TENDANCE)", "un repli aussi")
         let held = BotEngine.apply(-0.02, to: up)
         XCTAssertEqual(held.effectiveState, .mixed)
         XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "RESTER À L'ÉCART")
@@ -149,7 +157,7 @@ final class BotEngineTests: XCTestCase {
         let bars = Self.series(drift: 0.002)
         let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
         XCTAssertEqual(Rotation.picks([(a, bars)], kind: .crypto).first?.selected, true)
-        let vetoed = BotEngine.apply(-0.05, to: TrendEngine.verdict(bars, kind: .crypto))
+        let vetoed = Self.oldBotExit(TrendEngine.verdict(bars, kind: .crypto))
         let pick = Rotation.picks([(a, bars)], kind: .crypto, verdicts: [a.id: vetoed]).first
         XCTAssertEqual(pick?.selected, false)
         XCTAssertTrue(pick?.reason.contains("le bot Tendance prévoit −5,0 % sur 20 jours : à sortir") ?? false, pick?.reason ?? "")
@@ -158,7 +166,7 @@ final class BotEngineTests: XCTestCase {
     /// The bot's real exits are followed apart in the summary of the verdicts.
     func testBotExitsAreFollowedApart() {
         let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
-        var v = BotEngine.apply(-0.05, to: TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto))
+        var v = Self.oldBotExit(TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto))
         v.price = 100
         let log = VerdictLog.record([], v, asset: a, now: 1)
         XCTAssertEqual(log.last?.label, VerdictLog.botExitLabel)
