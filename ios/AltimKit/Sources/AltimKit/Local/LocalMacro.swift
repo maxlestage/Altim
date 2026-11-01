@@ -135,7 +135,15 @@ extension LocalBackend {
     /// `/api/macro`: the six series (Yahoo Finance, 2 years of daily closes) and the world headlines of the news engine.
     func macroReport() async throws -> MacroInfo {
         if let c = macroCache, nowMs() - c.at < 600_000 { return c.info }
-        let fetcher = self.fetcher
+        if let t = macroRead { return try await t.value }
+        let t = Task { try await self.computeMacro() }
+        macroRead = t
+        defer { macroRead = nil }
+        return try await t.value
+    }
+
+    private func computeMacro() async throws -> MacroInfo {
+        let fetcher = self.sharedFetcher
         async let news = news([])
         let series: [String: [MacroEngine.Point]] = await withTaskGroup(of: (String, [MacroEngine.Point]).self) { g in
             for (k, sym) in MacroEngine.symbols {

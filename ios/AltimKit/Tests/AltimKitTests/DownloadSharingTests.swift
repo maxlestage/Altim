@@ -92,3 +92,27 @@ extension DownloadSharingTests {
         XCTAssertEqual(shared.all.count, one, "3 demandes simultanées : \(one) requêtes, pas \(shared.all.count)")
     }
 }
+
+extension DownloadSharingTests {
+    /// The macro series, the Fear & Greed index and the earnings calendar asked by several assets at once are read once.
+    func testMarketWideDataIsReadOnce() async {
+        let counter = FeedCounter()
+        let backend = LocalBackend(fetcher: counter, bot: false)
+        async let m1 = try? backend.macroReport()
+        async let m2 = try? backend.macroReport()
+        async let m3 = try? backend.macroReport()
+        _ = await (m1, m2, m3)
+        let yahoo = counter.all.filter { $0.hasPrefix("https://query1.finance.yahoo.com/v8/finance/chart/") }
+        XCTAssertEqual(yahoo.count, MacroEngine.symbols.count, "chaque série macro lue une fois, pas \(yahoo.count)")
+        async let f1 = LocalBackend.fearGreed(await backend.sharedFetcher)
+        async let f2 = LocalBackend.fearGreed(await backend.sharedFetcher)
+        _ = await (f1, f2)
+        XCTAssertEqual(counter.all.filter { $0.contains("alternative.me") }.count, 1)
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        async let e1 = backend.earnings(["AAPL"], now: now)
+        async let e2 = backend.earnings(["MSFT"], now: now)
+        _ = await (e1, e2)
+        let pages = counter.all.filter { $0.hasPrefix("https://api.nasdaq.com/api/calendar/earnings") }
+        XCTAssertEqual(pages.count, Set(pages).count, "chaque page du calendrier lue une fois")
+    }
+}
