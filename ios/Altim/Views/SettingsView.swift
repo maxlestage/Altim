@@ -4,6 +4,8 @@ import AltimKit
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var denied = false
+    /// Risk accepted per position for the risk bot's size (read by AltimKit: BotEngine.riskBudget).
+    @AppStorage(BotEngine.riskBudgetKey) private var riskBudget = 0.05
 
     var body: some View {
         @Bindable var model = model
@@ -142,6 +144,16 @@ struct SettingsView: View {
                 Text("Sécurité")
             } footer: {
                 Text("Face ID (ou le code de l'iPhone) est demandé à l'ouverture et après 2 minutes en arrière-plan. Vos avoirs et réglages restent sur cet iPhone, dans un stockage protégé.")
+            }
+            Section {
+                Picker("Risque accepté par position", selection: $riskBudget) {
+                    Text("5 %").tag(0.05)
+                    Text("10 %").tag(0.10)
+                }
+            } header: {
+                Text("Taille des positions")
+            } footer: {
+                Text("Le bot Risque prévoit la pire baisse des 20 jours suivants ; Altim conseille d'engager la part de la somme prévue qui ne ferait perdre que ce pourcentage. Mesuré sur la règle avec le veto du bot : en crypto, 5 % a donné +16 % de rendement pour une pire baisse de −15 %, 10 % a donné +33 à +35 % pour −30 %, une position pleine +47 % pour −48 % ; sur les actions, presque pareil dans les deux cas. Des résultats passés, pas une promesse.")
             }
             Section {
                 Text("Le verdict sur l'iPhone suit une règle choisie sur des résultats mesurés : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif. Elle a été comparée à « tout garder » sur 26 actifs, avec chaque historique coupé en deux moitiés, puis sur une seconde liste d'actifs. Elle protège surtout dans les marchés baissiers. Deux bots entraînés sur l'iPhone (arbres de décision appris sur l'historique des actifs de chaque marché, mis à jour toutes les 12 heures) l'accompagnent : le bot Tendance peut bloquer un achat (testé sans jamais regarder le futur, ce veto a amélioré la règle sur les deux listes d'actifs, surtout en crypto) ; le bot Risque prévoit la pire baisse des 20 jours suivants, pour régler la taille d'une position. La machine à remonter le temps de chaque actif montre le résultat de la règle seule.")

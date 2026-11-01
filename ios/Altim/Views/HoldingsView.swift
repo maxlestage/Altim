@@ -82,6 +82,9 @@ struct HoldingsView: View {
                 .listRowBackground(Color.clear)
             } else {
                 Section { summary(portfolio) }.listRowBackground(Color.clear)
+                if let exits = exitNotice(portfolio) {
+                    Section { Notice(text: exits, tone: .warn) }.listRowBackground(Color.clear)
+                }
                 if let fall = portfolioFall(portfolio) {
                     Section { botRiskCard(fall) }.listRowBackground(Color.clear)
                 }
@@ -213,6 +216,20 @@ struct HoldingsView: View {
             }
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Held lines whose verdict now says to get out (trend down, or the trend bot's exit): the first thing to look at.
+    private func exitNotice(_ p: Portfolio) -> String? {
+        var names: [String] = []
+        for line in p.lines {
+            guard let a = signals[line.holding.asset.id]?.signal?.action, a == .sell || a == .strongSell else { continue }
+            if !names.contains(line.holding.asset.symbol) { names.append(line.holding.asset.symbol) }
+        }
+        guard !names.isEmpty else { return nil }
+        let list = names.joined(separator: ", ")
+        return names.count == 1
+            ? "Verdict de sortie sur \(list) : tendance baissière ou sortie conseillée par le bot Tendance. Voir sa fiche avant de décider."
+            : "Verdict de sortie sur \(names.count) lignes (\(list)) : tendance baissière ou sortie conseillée par le bot Tendance. Voir leurs fiches avant de décider."
     }
 
     private func portfolioFall(_ p: Portfolio) -> (percent: Double, amount: Double, covered: Double, missing: Int)? {
