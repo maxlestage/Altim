@@ -93,3 +93,18 @@ extension QuoteBatchTests {
         XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
     }
 }
+
+extension QuoteBatchTests {
+    /// Nasdaq history of an ETF: a failing "stocks" request no longer stops the "etf" one, and the class is reused.
+    func testNasdaqHistoryTriesTheOtherClass() async throws {
+        let rows = #"{"data":{"tradesTable":{"rows":[{"date":"10/30/2026","open":"$500.00","high":"$505.00","low":"$498.00","close":"$503.00","volume":"1,000"},{"date":"10/29/2026","open":"$497.00","high":"$501.00","low":"$495.00","close":"$500.00","volume":"900"}]}}}"#
+        let f = Routes([("https://api.nasdaq.com/api/quote/ETFX/historical?assetclass=stocks", "400"),
+                        ("https://api.nasdaq.com/api/quote/ETFX/historical?assetclass=etf", rows)])
+        let bars = try await Sources.nasdaq.fetch(f, "ETFX", .d1)
+        XCTAssertEqual(bars.count, 2)
+        XCTAssertEqual(bars.last?.close, 503)
+        XCTAssertEqual(f.all.count, 2)
+        _ = try await Sources.nasdaq.fetch(f, "ETFX", .d1)
+        XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
+    }
+}
