@@ -382,12 +382,19 @@ public actor LocalBackend {
     public func quotes(_ list: [Asset]) async -> [Quote] {
         let now = nowMs()
         var reads: [(Asset, Task<Quote?, Never>)] = []
+        var fresh: [Asset] = []
         for a in list where quoteCache[a.id].map({ now - $0.at >= 10_000 }) ?? true {
-            if let t = quoteReads[a.id] { reads.append((a, t)); continue }
-            let fetcher = self.fetcher
-            let t = Task { await QuoteSources.one(a, fetcher: fetcher) }
-            quoteReads[a.id] = t
-            reads.append((a, t))
+            if let t = quoteReads[a.id] { reads.append((a, t)) } else if !fresh.contains(where: { $0.id == a.id }) { fresh.append(a) }
+        }
+        if !fresh.isEmpty {
+            // One read for all the new assets: the sources that quote a list are asked once (QuoteSources.batches).
+            let fetcher = self.fetcher, group = fresh
+            let batch = Task { await QuoteSources.consensusByID(group, fetcher: fetcher) }
+            for a in fresh {
+                let t = Task { await batch.value[a.id] }
+                quoteReads[a.id] = t
+                reads.append((a, t))
+            }
         }
         for (a, t) in reads {
             let q = await t.value
