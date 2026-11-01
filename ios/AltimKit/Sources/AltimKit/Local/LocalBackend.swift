@@ -255,7 +255,7 @@ public actor LocalBackend {
     func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
         var v = TrendEngine.verdict(candles, kind: a.kind)
         guard v.state != .unknown else { return v }
-        v = await marketVerdict(a, v)
+        v = await marketVerdict(a, v, assetTime: candles.last?.time)
         guard botEnabled else { return v }
         async let trend = botModel(a.kind)
         async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
@@ -269,10 +269,12 @@ public actor LocalBackend {
     }
 
     /// The market filter applied to a verdict (the rule alone when the benchmark's candles cannot be read).
-    func marketVerdict(_ a: Asset, _ v: TrendEngine.Verdict) async -> TrendEngine.Verdict {
+    /// Unreliable or stale market candles: the rule alone (`TrendEngine.marketUp(_:kind:reliability:assetTime:)`).
+    func marketVerdict(_ a: Asset, _ v: TrendEngine.Verdict, assetTime: Double? = nil) async -> TrendEngine.Verdict {
         let b = TrendEngine.benchmark(a.kind)
-        guard let bars = try? await snapshot(b, .d1).candles else { return v }
-        return TrendEngine.applyMarket(TrendEngine.marketUp(bars, kind: a.kind), kind: a.kind, to: v)
+        guard let snap = try? await snapshot(b, .d1) else { return v }
+        let up = TrendEngine.marketUp(snap.candles, kind: a.kind, reliability: snap.reliability, assetTime: assetTime)
+        return TrendEngine.applyMarket(up, kind: a.kind, to: v)
     }
 
     // MARK: Zones

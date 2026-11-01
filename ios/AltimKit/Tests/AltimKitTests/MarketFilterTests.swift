@@ -110,3 +110,18 @@ extension MarketFilterTests {
         XCTAssertTrue(down?.triggers.first?.hasPrefix("Retour à l'achat quand le prix repasse au-dessus de") ?? false)
     }
 }
+
+extension MarketFilterTests {
+    /// Market candles that cannot be trusted (sources in disagreement, stale history) never decide: the rule alone.
+    func testUntrustedMarketIsIgnored() {
+        let low = Reliability(score: 20, level: "low", independent: 1, conflict: true)
+        let high = Reliability(score: 90, level: "high", independent: 3, conflict: false)
+        let last = down.last!.time
+        XCTAssertEqual(TrendEngine.marketUp(down, kind: .crypto, reliability: high, assetTime: last), false)
+        XCTAssertNil(TrendEngine.marketUp(down, kind: .crypto, reliability: low, assetTime: last), "sources en désaccord")
+        XCTAssertNil(TrendEngine.marketUp(down, kind: .crypto, reliability: high, assetTime: last + 6 * 86_400_000), "historique du marché périmé")
+        XCTAssertEqual(TrendEngine.marketUp(down, kind: .stock, reliability: nil, assetTime: last + 3 * 86_400_000), false, "week-end de 3 jours : encore valable")
+        let v = TrendEngine.verdict(up, kind: .crypto)
+        XCTAssertEqual(TrendEngine.applyMarket(TrendEngine.marketUp(down, kind: .crypto, reliability: low, assetTime: last), kind: .crypto, to: v).action, v.action)
+    }
+}
