@@ -440,11 +440,15 @@ enum Sources {
         fmt.dateFormat = "yyyy-MM-dd"
         fmt.timeZone = TimeZone(identifier: "UTC")
         let to = fmt.string(from: Date()), from = fmt.string(from: Date().addingTimeInterval(-1300 * 86400))
-        for cls in ["stocks", "etf"] {
-            let c = try Parse.nasdaq(try await f.json("https://api.nasdaq.com/api/quote/\(enc(dotted(s)))/historical?assetclass=\(cls)&fromdate=\(from)&todate=\(to)&limit=9999"))
-            if !c.isEmpty { return c }
+        // The class that answered last (quotes or history) first; a failed class does not stop the other one.
+        var lastError: Error = MarketError("symbole inconnu")
+        for cls in NasdaqClass.shared.order(s) {
+            do {
+                let c = try Parse.nasdaq(try await f.json("https://api.nasdaq.com/api/quote/\(enc(dotted(s)))/historical?assetclass=\(cls)&fromdate=\(from)&todate=\(to)&limit=9999"))
+                if !c.isEmpty { NasdaqClass.shared.remember(s, cls); return c }
+            } catch { lastError = error }
         }
-        throw MarketError("symbole inconnu")
+        throw lastError
     }
     static let robinhood = CandleSource("Robinhood", supports: { $0 == .d1 }) { f, s, _ in
         try Parse.robinhood(try await f.json("https://api.robinhood.com/marketdata/historicals/\(enc(dotted(s)))/?interval=day&span=5year&bounds=regular"))
