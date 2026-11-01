@@ -8,7 +8,8 @@ public actor LocalBackend {
     private var snapshots: [String: (at: Double, task: Task<LocalSnapshot, Error>)] = [:]
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
-    private var longCache: [String: (at: Double, bars: [Bar])] = [:]
+    /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
+    private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
@@ -307,16 +308,24 @@ public actor LocalBackend {
     /// (stocks: Nasdaq's ≈ 5 years, checked against Robinhood's and Yahoo's).
     func longDaily(_ a: Asset) async throws -> [Bar] {
         let key = "long:\(a.id)"
-        if let c = longCache[key], nowMs() - c.at < 3_600_000 { return c.bars }
-        let s = try await snapshot(a, .d1)
-        var bars = s.candles
-        let longSources = a.kind == .crypto ? Sources.cryptoLongDaily : Sources.stockLongDaily
-        if let long = try? await Consensus.candles(a.symbol, kind: a.kind, .d1, sources: longSources, fetcher: fetcher, tolerance: a.kind == .crypto ? 0.5 : 1.0),
-           long.candles.count > bars.count {
-            bars = long.candles
+        if let c = longCache[key], nowMs() - c.at < 3_600_000, let bars = try? await c.task.value { return bars }
+        let fetcher = self.fetcher
+        let task = Task<[Bar], Error> {
+            let s = try await self.snapshot(a, .d1)
+            var bars = s.candles
+            let longSources = a.kind == .crypto ? Sources.cryptoLongDaily : Sources.stockLongDaily
+            if let long = try? await Consensus.candles(a.symbol, kind: a.kind, .d1, sources: longSources, fetcher: fetcher, tolerance: a.kind == .crypto ? 0.5 : 1.0),
+               long.candles.count > bars.count {
+                bars = long.candles
+            }
+            return bars
         }
-        longCache[key] = (nowMs(), bars)
-        return bars
+        longCache[key] = (nowMs(), task)
+        do { return try await task.value } catch {
+            // A failure is not kept: the next caller tries again.
+            longCache[key] = nil
+            throw error
+        }
     }
 
     // MARK: News
