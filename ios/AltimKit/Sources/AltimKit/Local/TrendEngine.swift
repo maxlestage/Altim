@@ -389,7 +389,9 @@ public enum Rotation {
     /// Fixed shares: each asset gets 1/N of the money, invested only while its own verdict is in the trend (daily, the
     /// per-asset rule), in cash otherwise; against the same assets all held (1/N each, bought at the start). The assets
     /// with a 200-day average at the start take part.
-    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind) -> RotationReport.Test? {
+    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind, market: [Bar]? = nil) -> RotationReport.Test? {
+        let up = market.map { TrendEngine.marketDays($0, kind: kind) } ?? []
+        var m = 0
         let series = data.map { Indicators.sanitize($0.1) }.filter { $0.count >= 260 }
         guard series.count >= 3 else { return nil }
         let n = TrendEngine.lookback(kind)
@@ -409,6 +411,10 @@ public enum Rotation {
         var peak = 100.0, peakB = 100.0, dd = 0.0, ddB = 0.0, mid = (100.0, 100.0)
         var curve: [BacktestReport.Point] = []
         for t in dates {
+            // The market filter (TrendEngine.applyMarket) on the last market day up to this one; none: the rule alone.
+            let day = (t / 86_400_000).rounded(.down)
+            while m + 1 < up.count && up[m + 1].day <= day { m += 1 }
+            let marketOK = up.isEmpty || up[m].day > day || up[m].up
             for a in members.indices {
                 guard let i = index[a][t] else { continue }
                 let bar = c[a][i]
@@ -417,7 +423,7 @@ public enum Rotation {
                 if pending[a] == -1, units[a] > 0 { cash[a] = units[a] * bar.open * (1 - Backtest.fee); units[a] = 0 }
                 pending[a] = 0
                 let st = TrendEngine.state(s[a], i, lookback: n)
-                let inTrend = st == .trend || st == .pullback
+                let inTrend = (st == .trend || st == .pullback) && marketOK
                 if units[a] == 0 && inTrend { pending[a] = 1 }
                 if units[a] > 0 && !inTrend && st != .unknown { pending[a] = -1 }
                 last[a] = i
@@ -437,9 +443,9 @@ public enum Rotation {
     }
 
     public static let notes = [
-        "Chaque actif de la liste a une part fixe du budget. Elle est investie seulement quand sa tendance de fond est haussière et son momentum positif, et gardée en liquidités sinon. Vérifié chaque jour.",
+        "Chaque actif de la liste a une part fixe du budget. Elle est investie seulement quand sa tendance de fond est haussière et son momentum positif, et que tout le marché l'est aussi (le Bitcoin pour les cryptos, le S&P 500 pour les actions) ; gardée en liquidités sinon. Vérifié chaque jour.",
         "C'est une règle de protection : elle a fortement réduit les pertes dans les marchés baissiers, mais elle gagne moins que tout garder dans une forte hausse.",
-        "Le test rejoue la règle sur l'historique de ces mêmes actifs, sans voir le lendemain, avec 0,1 % de frais par ordre.",
+        "Le test rejoue la règle et son filtre de marché sur l'historique de ces mêmes actifs, sans voir le lendemain, avec 0,1 % de frais par ordre. Au labo, ce filtre a nettement aidé les cryptos (ex. +40 % contre +23 % sans lui, pire baisse −38 % contre −44 %) ; pour les actions, mieux sur la première moitié de l'historique mais un peu moins bien sur la seconde (+19 % contre +21 %).",
         "La liste d'actifs est fixée à l'avance, mais ce sont des actifs connus aujourd'hui : un test sur le passé ne garantit rien pour la suite. Altim ne passe aucun ordre.",
     ]
 }

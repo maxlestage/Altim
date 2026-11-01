@@ -187,8 +187,12 @@ public actor LocalBackend {
         // The same verdicts as each asset's page (trend bot's veto included).
         var verdicts: [String: TrendEngine.Verdict] = [:]
         for (a, bars) in data { verdicts[a.id] = await botVerdict(a, bars) }
+        // The test replays the market filter too (Bitcoin is in the crypto list; SPY is read apart).
+        let b = TrendEngine.benchmark(kind)
+        let marketBars: [Bar]?
+        if let own = data.first(where: { $0.0.id == b.id })?.1 { marketBars = own } else { marketBars = try? await longDaily(b) }
         let r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
-                               picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind),
+                               picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind, market: marketBars),
                                notes: Rotation.notes)
         if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
         return r
