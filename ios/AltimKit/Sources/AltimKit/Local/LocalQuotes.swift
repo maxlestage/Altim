@@ -106,6 +106,22 @@ enum QuoteSources {
                 }
                 return out
             },
+            "Kraken": { f, syms in
+                let pairs = syms.map { "\(krakenBase($0))USD" }
+                let d = try await f.json("https://api.kraken.com/0/public/Ticker?pair=\(pairs.joined(separator: ","))")
+                // An unknown pair makes Kraken refuse the whole list: the caller then reads them one by one.
+                if let e = at(d, "error") as? [Any], !e.isEmpty { throw MarketError("liste refusée") }
+                guard let result = obj(at(d, "result")) else { throw MarketError("réponse illisible") }
+                var out: [String: PriceQuote] = [:]
+                for (sym, pair) in zip(syms, pairs) {
+                    // Older assets come back under their legacy name (XBTUSD → XXBTZUSD, ETHUSD → XETHZUSD).
+                    let base = krakenBase(sym)
+                    guard let t = obj(result[pair] ?? result["X\(base)ZUSD"]),
+                          let q = try? quote(num(arr(t["c"])?.first), nil) else { continue }
+                    out[sym] = q
+                }
+                return out
+            },
             "Bitfinex": { f, syms in
                 let list = syms.map { "t\($0)USD" }.joined(separator: ",")
                 guard let rows = arr(try await f.json("https://api-pub.bitfinex.com/v2/tickers?symbols=\(list)")) else { throw MarketError("réponse illisible") }
