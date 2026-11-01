@@ -155,7 +155,7 @@ public enum TrendEngine {
             text = "Tendance de fond haussière (prix \(trend)), momentum positif (\(mom)) et repli de court terme : en moyenne une meilleure entrée sur la semaine suivante (mesuré sur les deux listes d'actifs du laboratoire), sans avantage net à un mois."
         case .trend:
             action = .buy
-            text = "Tendance de fond haussière (prix \(trend)) et momentum positif (\(mom)) : acheter ou conserver. Un repli de quelques jours serait une meilleure entrée."
+            text = "Tendance de fond haussière (prix \(trend)) et momentum positif (\(mom)) : acheter ou conserver. Attendre un repli pour entrer a fait rater des hausses au test : un repli améliore un peu l'entrée quand il vient, il ne vaut pas d'être attendu."
         case .mixed:
             action = .hold
             text = "Signaux contraires : prix \(trend), momentum \(mom). Conserver une position, ne pas en ouvrir."
