@@ -21,6 +21,7 @@ final class QuoteBatchTests: XCTestCase {
     // Formats of the real list answers (abridged).
     static let binanceList = #"[{"symbol":"BTCUSDT","priceChangePercent":"1.50","lastPrice":"100000.00"},{"symbol":"ETHUSDT","priceChangePercent":"-2.00","lastPrice":"3000.00"}]"#
     static let bitfinexList = #"[["tBTCUSD",99990,1.2,100010,0.8,1500,0.0151,100005,12.3,101000,98000],["tETHUSD",2999,5,3001,4,-60,-0.0197,3001,100,3100,2900]]"#
+    static let krakenList = #"{"error":[],"result":{"XXBTZUSD":{"a":["100010.0","1","1.000"],"c":["100000.0","0.01"],"o":"98000.0"},"XETHZUSD":{"a":["3001","1","1"],"c":["3000.5","0.5"],"o":"2950"},"SOLUSD":{"c":["150.25","2"],"o":"149"}}}"#
     static let robinhoodList = #"{"results":[{"symbol":"AAPL","last_trade_price":"200.00","adjusted_previous_close":"196.00"},{"symbol":"BRK.B","last_trade_price":"500.00","adjusted_previous_close":"505.00"},null]}"#
 
     func testListAnswersAreRead() async throws {
@@ -40,16 +41,31 @@ final class QuoteBatchTests: XCTestCase {
         XCTAssertTrue(f.all.contains { $0.contains("symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22%5D") }, f.all.joined(separator: "\n"))
     }
 
-    /// Two cryptos: Binance and Bitfinex asked once for both; the consensus uses them like single answers.
+    func testKrakenListWithLegacyNames() async throws {
+        let f = Routes([("https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD,SOLUSD", Self.krakenList),
+                        ("https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ZZZUSD", #"{"error":["EQuery:Unknown asset pair"]}"#)])
+        let k = try await XCTUnwrap(QuoteSources.batches[.crypto]?["Kraken"])(f, ["BTC", "ETH", "SOL"])
+        XCTAssertEqual(k["BTC"]?.price, 100_000, "XXBTZUSD relu comme BTC")
+        XCTAssertEqual(k["ETH"]?.price, 3000.5)
+        XCTAssertEqual(k["SOL"]?.price, 150.25)
+        XCTAssertNil(k["BTC"]?.change, "l'ouverture de Kraken est celle de minuit : pas de variation 24 h")
+        do {
+            _ = try await XCTUnwrap(QuoteSources.batches[.crypto]?["Kraken"])(f, ["BTC", "ZZZ"])
+            XCTFail("liste refusée attendue")
+        } catch {}
+    }
+
+    /// Two cryptos: Binance, Kraken and Bitfinex asked once for both; the consensus uses them like single answers.
     func testFewerRequestsSameConsensus() async {
         let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), eth = Asset(symbol: "ETH", kind: .crypto, name: "Ethereum")
         let f = Routes([("https://api.binance.com/api/v3/ticker/24hr?symbols=", Self.binanceList),
+                        ("https://api.kraken.com/0/public/Ticker?pair=XBTUSD,ETHUSD", Self.krakenList),
                         ("https://api-pub.bitfinex.com/v2/tickers?symbols=", Self.bitfinexList)])
         let q = await QuoteSources.consensusByID([btc, eth], fetcher: f)
-        XCTAssertEqual(q["crypto:BTC"]?.price ?? 0, 100_002.5, accuracy: 0.01, "médiane de Binance et Bitfinex")
-        XCTAssertEqual(q["crypto:ETH"]?.agreeing, 2)
+        XCTAssertEqual(q["crypto:BTC"]?.price ?? 0, 100_000, accuracy: 0.01, "médiane de Binance, Kraken et Bitfinex")
+        XCTAssertEqual(q["crypto:ETH"]?.agreeing, 3)
         let perAsset = QuoteSources.crypto.count
-        XCTAssertEqual(f.all.count, 2 * perAsset - 2, "Binance et Bitfinex : une requête pour les deux actifs")
+        XCTAssertEqual(f.all.count, 2 * perAsset - 3, "Binance, Kraken et Bitfinex : une requête pour les deux actifs")
         XCTAssertFalse(f.all.contains { $0.contains("ticker/24hr?symbol=") }, "plus de requête Binance par actif")
     }
 
