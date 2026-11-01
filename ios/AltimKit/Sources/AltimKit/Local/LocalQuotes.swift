@@ -90,6 +90,90 @@ enum QuoteSources {
 
     static func sources(_ kind: Kind) -> [QuoteSource] { kind == .crypto ? crypto : stock }
 
+    /// Sources that quote several assets in one request (by source name): symbol → quote. A symbol they do not quote
+    /// is absent; a failed request falls back to one request per asset.
+    typealias Batch = @Sendable (MarketFetcher, [String]) async throws -> [String: PriceQuote]
+    static let batches: [Kind: [String: Batch]] = [
+        .crypto: [
+            "Binance": { f, syms in
+                // Binance refuses the whole list if one symbol is unknown: the caller then reads them one by one.
+                let list = syms.map { "%22\($0)USDT%22" }.joined(separator: ",")
+                guard let rows = arr(try await f.json("https://api.binance.com/api/v3/ticker/24hr?symbols=%5B\(list)%5D")) else { throw MarketError("réponse illisible") }
+                var out: [String: PriceQuote] = [:]
+                for r in rows.compactMap({ obj($0) }) {
+                    guard let sym = r["symbol"] as? String, sym.hasSuffix("USDT"), let q = try? quote(num(r["lastPrice"]), num(r["priceChangePercent"])) else { continue }
+                    out[String(sym.dropLast(4))] = q
+                }
+                return out
+            },
+            "Kraken": { f, syms in
+                let pairs = syms.map { "\(krakenBase($0))USD" }
+                let d = try await f.json("https://api.kraken.com/0/public/Ticker?pair=\(pairs.joined(separator: ","))")
+                // An unknown pair makes Kraken refuse the whole list: the caller then reads them one by one.
+                if let e = at(d, "error") as? [Any], !e.isEmpty { throw MarketError("liste refusée") }
+                guard let result = obj(at(d, "result")) else { throw MarketError("réponse illisible") }
+                var out: [String: PriceQuote] = [:]
+                for (sym, pair) in zip(syms, pairs) {
+                    // Older assets come back under their legacy name (XBTUSD → XXBTZUSD, ETHUSD → XETHZUSD).
+                    let base = krakenBase(sym)
+                    guard let t = obj(result[pair] ?? result["X\(base)ZUSD"]),
+                          let q = try? quote(num(arr(t["c"])?.first), nil) else { continue }
+                    out[sym] = q
+                }
+                return out
+            },
+            "Bitfinex": { f, syms in
+                let list = syms.map { "t\($0)USD" }.joined(separator: ",")
+                guard let rows = arr(try await f.json("https://api-pub.bitfinex.com/v2/tickers?symbols=\(list)")) else { throw MarketError("réponse illisible") }
+                var out: [String: PriceQuote] = [:]
+                for r in rows.compactMap({ arr($0) }) where r.count >= 8 {
+                    // The list form starts with the symbol: change at 6, last price at 7 (5 and 6 for one ticker).
+                    guard let sym = r[0] as? String, sym.hasPrefix("t"), sym.hasSuffix("USD"), let q = try? quote(num(r[7]), num(r[6]) * 100) else { continue }
+                    out[String(sym.dropFirst().dropLast(3))] = q
+                }
+                return out
+            },
+        ],
+        .stock: [
+            "Robinhood": { f, syms in
+                let dotted = Dictionary(syms.map { (Sources.dotted($0), $0) }, uniquingKeysWith: { a, _ in a })
+                let list = dotted.keys.sorted().map { Sources.enc($0) }.joined(separator: ",")
+                guard let rows = arr(at(try await f.json("https://api.robinhood.com/quotes/?symbols=\(list)"), "results")) else { throw MarketError("réponse illisible") }
+                var out: [String: PriceQuote] = [:]
+                for r in rows.compactMap({ obj($0) }) {
+                    let price = num(r["last_trade_price"]), prev = num(r["adjusted_previous_close"])
+                    guard let sym = r["symbol"] as? String, let original = dotted[sym],
+                          let q = try? quote(price, prev > 0 ? (price / prev - 1) * 100 : nil) else { continue }
+                    out[original] = q
+                }
+                return out
+            },
+        ],
+    ]
+
+    /// Consensus quotes by asset id, the batch sources asked once for all the assets of a market.
+    static func consensusByID(_ assets: [Asset], fetcher: MarketFetcher) async -> [String: Quote] {
+        var pre: [String: [String: PriceQuote]] = [:] // "kind:source" → symbol → quote
+        for kind in [Kind.crypto, .stock] {
+            let syms = Array(Set(assets.filter { $0.kind == kind }.map(\.symbol))).sorted()
+            guard syms.count >= 2, let list = batches[kind] else { continue }
+            let got: [(String, [String: PriceQuote]?)] = await withTaskGroup(of: (String, [String: PriceQuote]?).self) { g in
+                for (name, batch) in list { g.addTask { (name, try? await batch(fetcher, syms)) } }
+                var out: [(String, [String: PriceQuote]?)] = []
+                for await r in g { out.append(r) }
+                return out
+            }
+            for (name, d) in got { if let d { pre["\(kind.rawValue):\(name)"] = d } }
+        }
+        let snapshot = pre
+        return await withTaskGroup(of: (String, Quote?).self) { g in
+            for a in assets { g.addTask { (a.id, await one(a, fetcher: fetcher, prefetched: snapshot)) } }
+            var out: [String: Quote] = [:]
+            for await (id, q) in g { if let q { out[id] = q } }
+            return out
+        }
+    }
+
     /// Consensus quote of each asset (assets no provider quotes are left out).
     static func consensus(_ assets: [Asset], fetcher: MarketFetcher) async -> [Quote] {
         await withTaskGroup(of: (Int, Quote?).self) { g in
@@ -102,11 +186,14 @@ enum QuoteSources {
         }
     }
 
-    static func one(_ a: Asset, fetcher: MarketFetcher) async -> Quote? {
+    static func one(_ a: Asset, fetcher: MarketFetcher, prefetched: [String: [String: PriceQuote]] = [:]) async -> Quote? {
         let list = sources(a.kind)
         let results: [(String, Result<PriceQuote, MarketError>)] = await withTaskGroup(of: (Int, String, Result<PriceQuote, MarketError>).self) { g in
             for (i, s) in list.enumerated() {
                 g.addTask {
+                    if let batch = prefetched["\(a.kind.rawValue):\(s.name)"] {
+                        return (i, s.name, batch[a.symbol].map { .success($0) } ?? .failure(MarketError("non coté")))
+                    }
                     do { return (i, s.name, .success(try await s.fetch(fetcher, a.symbol))) } catch {
                         return (i, s.name, .failure((error as? MarketError) ?? MarketError(error.localizedDescription)))
                     }

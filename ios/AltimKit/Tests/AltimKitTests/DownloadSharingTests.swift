@@ -116,3 +116,40 @@ extension DownloadSharingTests {
         XCTAssertEqual(pages.count, Set(pages).count, "chaque page du calendrier lue une fois")
     }
 }
+
+extension DownloadSharingTests {
+    /// Every feed is dead (HTTP 404), counts requests.
+    final class DeadFeeds: MarketFetcher, @unchecked Sendable {
+        private let lock = NSLock()
+        private var urls: [String] = []
+        var all: [String] { lock.lock(); defer { lock.unlock() }; return urls }
+        func data(_ url: String, method: String, body: Data?) async throws -> Data {
+            lock.lock(); urls.append(url); lock.unlock()
+            try await Task.sleep(nanoseconds: 10_000_000)
+            throw MarketError("HTTP 404")
+        }
+    }
+
+    /// A dead feed is not asked again by every reader that follows (2 minutes), nor by those waiting for it.
+    func testDeadFeedsAreNotRetriedByEveryReader() async {
+        let dead = DeadFeeds()
+        let backend = LocalBackend(fetcher: dead, bot: false)
+        let a = Asset(symbol: "AAPL", kind: .stock, name: "Apple"), b = Asset(symbol: "ETH", kind: .crypto, name: "Ethereum")
+        async let x = backend.news([a])
+        async let y = backend.news([])
+        _ = await (x, y)
+        _ = await backend.news([b])
+        _ = await backend.news([])
+        let general = Set(NewsEngine.feeds.map(\.url))
+        for u in general { XCTAssertEqual(dead.all.filter { $0 == u }.count, 1, u) }
+    }
+
+    func testFailureIsRetriedAfterItsDelay() async throws {
+        let dead = DeadFeeds()
+        let cache = FeedCache(ttl: 60_000, failureTTL: 1)
+        _ = try? await cache.data("https://exemple.test/a", fetcher: dead)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        _ = try? await cache.data("https://exemple.test/a", fetcher: dead)
+        XCTAssertEqual(dead.all.count, 2, "après le délai d'échec, la source est relue")
+    }
+}
