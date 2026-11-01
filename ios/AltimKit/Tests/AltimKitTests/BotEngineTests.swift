@@ -176,3 +176,20 @@ final class BotEngineTests: XCTestCase {
         XCTAssertTrue(s.text.contains("Dont sorties décidées par le bot Tendance : −10,0 % en moyenne ensuite (1 cas), une baisse évitée."), s.text)
     }
 }
+
+extension BotEngineTests {
+    /// The bots read 16 measures (12 of trend, 4 of risk); a bot saved with the 12 of the previous version is retrained.
+    func testBotsReadSixteenMeasures() throws {
+        let bars = Self.series(drift: 0.002)
+        let f = try XCTUnwrap(BotEngine.features(BotEngine.Series(bars), 400))
+        XCTAssertEqual(f.count, 16)
+        XCTAssertEqual(BotEngine.featureNames.count, 16)
+        XCTAssertTrue(f.allSatisfy(\.isFinite))
+        var m = try XCTUnwrap(BotEngine.Model.train((0..<3).map { Self.series(drift: 0.002, seed: Double($0)) }))
+        XCTAssertTrue(m.isCurrent)
+        XCTAssertNotNil(m.predict(bars))
+        m.featureCount = 12
+        XCTAssertFalse(m.isCurrent, "bot de la version précédente (12 mesures) : réentraîné")
+        XCTAssertNil(m.predict(bars))
+    }
+}
