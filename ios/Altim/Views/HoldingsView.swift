@@ -228,8 +228,8 @@ struct HoldingsView: View {
         guard !names.isEmpty else { return nil }
         let list = names.joined(separator: ", ")
         return names.count == 1
-            ? "Verdict de sortie sur \(list) : tendance baissière ou sortie conseillée par le bot Tendance. Voir sa fiche avant de décider."
-            : "Verdict de sortie sur \(names.count) lignes (\(list)) : tendance baissière ou sortie conseillée par le bot Tendance. Voir leurs fiches avant de décider."
+            ? "Verdict de sortie sur \(list) : tendance baissière ou marché hors tendance. Voir sa fiche avant de décider."
+            : "Verdict de sortie sur \(names.count) lignes (\(list)) : tendance baissière ou marché hors tendance. Voir leurs fiches avant de décider."
     }
 
     private func portfolioFall(_ p: Portfolio) -> (percent: Double, amount: Double, covered: Double, missing: Int)? {
