@@ -391,7 +391,7 @@ struct TimeMachineCard: View {
 
     var body: some View {
         Card(title: "Machine à remonter le temps", glow: Theme.magenta) {
-            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, sorti sinon. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
+            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, et que son marché (\(asset.kind == .crypto ? "le Bitcoin" : "le S&P 500, via SPY")) l'est aussi ; sorti sinon. Sans le veto des bots. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             switch report {
             case .idle, .loading:
