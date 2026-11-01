@@ -80,7 +80,9 @@ public enum TrendEngine {
 
     /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
     /// lab (testMarketFilter, both lists, both halves): better or equal return and a smaller worst fall in all 8 cases,
-    /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Never creates a buy.
+    /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Fragile
+    /// (testMarketFilterSensitivity): with the market's momentum read over half or twice the lookback, worse than the
+    /// rule alone; EMA 100 instead of 200 gives about the same. Never creates a buy.
     public static func applyMarket(_ up: Bool?, kind: Kind, to v: Verdict) -> Verdict {
         var v = v
         v.market = up
