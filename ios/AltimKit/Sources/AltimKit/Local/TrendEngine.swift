@@ -48,6 +48,36 @@ public enum TrendEngine {
         /// When the trend bot was trained (ms) and on how many examples, to show how fresh it is.
         public var botTrainedAt: Double? = nil
         public var botExamples: Int? = nil
+        /// Whether the asset's market (Bitcoin for cryptos, SPY for stocks) is itself in an up trend with a positive
+        /// momentum; nil when its candles could not be read.
+        public var market: Bool? = nil
+    }
+
+    /// The asset that stands for a whole market in the market filter.
+    public static func benchmark(_ kind: Kind) -> Asset {
+        kind == .crypto ? Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin") : Asset(symbol: "SPY", kind: .stock, name: "S&P 500 (SPY)")
+    }
+
+    /// Whether a market is in an up trend (its benchmark above its 200-day average with a positive momentum), nil when
+    /// its history is too short.
+    public static func marketUp(_ raw: [Bar], kind: Kind) -> Bool? {
+        let c = Indicators.sanitize(raw)
+        guard c.count >= 210 else { return nil }
+        let st = state(Series(c), c.count - 1, lookback: lookback(kind))
+        return st == .unknown ? nil : st == .trend || st == .pullback
+    }
+
+    /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
+    /// lab (testMarketFilter, both lists, both halves): better or equal return and a smaller worst fall in all 8 cases,
+    /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Never creates a buy.
+    public static func applyMarket(_ up: Bool?, kind: Kind, to v: Verdict) -> Verdict {
+        var v = v
+        v.market = up
+        guard up == false, v.state == .trend || v.state == .pullback, v.action == .buy || v.action == .strongBuy else { return v }
+        let name = kind == .crypto ? "Le Bitcoin (le marché crypto)" : "Le S&P 500 (le marché actions, via SPY)"
+        v.action = .sell
+        v.text = "\(name) n'est pas en tendance haussière : sortir ou rester à l'écart malgré la tendance de l'actif (filtre de marché). " + v.text
+        return v
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.
@@ -272,6 +302,8 @@ public enum Rotation {
             let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
             let bot = v.bot.map { "\($0 >= 0 ? "+" : "−")\(JSFormat.fr(abs($0) * 100, min: 1, max: 1)) %" } ?? ""
             switch vetoed ? .unknown : v.state {
+            case .unknown where vetoed && v.market == false:
+                reason = "Tendance haussière (\(mom)), mais \(kind == .crypto ? "le Bitcoin" : "le S&P 500 (SPY)") n'est pas en tendance haussière : à sortir (filtre de marché)."
             case .unknown where vetoed:
                 reason = v.effectiveState == .down
                     ? "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : à sortir."
@@ -396,7 +428,7 @@ public enum Rotation {
 }
 
 extension TrendEngine.Verdict {
-    /// The background picture the advice really gives: an up trend vetoed by the trend bot reads as mixed signals
+    /// The background picture the advice really gives: an up trend vetoed by the market filter or the trend bot reads as mixed signals
     /// (ATTENDRE) or as a way out (VENTE), never as a buy.
     public var effectiveState: TrendEngine.State {
         guard state == .trend || state == .pullback else { return state }
@@ -409,7 +441,9 @@ extension TrendEngine.Verdict {
 
     /// The verdict as the app says it.
     public var label: String {
-        if (state == .trend || state == .pullback) && (action == .sell || action == .strongSell) { return "SORTIR (BOT TENDANCE)" }
+        if (state == .trend || state == .pullback) && (action == .sell || action == .strongSell) {
+            return market == false ? VerdictLog.marketExitLabel : VerdictLog.botExitLabel
+        }
         switch state {
         case .pullback: return action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
         case .trend: return action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
