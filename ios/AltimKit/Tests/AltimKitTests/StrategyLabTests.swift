@@ -775,3 +775,28 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// The Selection's fixed shares (Rotation.sleeves) with and without the market filter, on both lists.
+    func testSleevesMarketFilter() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l)
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            for kind in [Kind.crypto, .stock] {
+                let d = list.filter { $0.0.kind == kind }
+                let mk = kind == .crypto ? btc : spy
+                for (label, t) in [("règle seule", Rotation.sleeves(d, kind: kind)), ("filtre marché", Rotation.sleeves(d, kind: kind, market: mk))] {
+                    guard let t else { continue }
+                    print("\(name) \(kind.rawValue) \(label.padding(toLength: 13, withPad: " ", startingAt: 0)) : total \(Int(t.ret))% (panier \(Int(t.basket))%) creux \(Int(t.drawdown))% (\(Int(t.basketDrawdown))%) | 1re moitié \(Int(t.firstHalf))% | 2de moitié \(Int(t.secondHalf))%")
+                }
+            }
+        }
+    }
+}

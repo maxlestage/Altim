@@ -76,3 +76,15 @@ extension MarketFilterTests {
                        "marché trop court : la règle seule")
     }
 }
+
+extension MarketFilterTests {
+    /// The Selection's test replays the market filter: rising assets in a falling market stay in cash.
+    func testSelectionTestReplaysTheMarketFilter() throws {
+        let data = (0..<4).map { (Asset(symbol: "A\($0)", kind: .crypto, name: "A\($0)"), BotEngineTests.series(drift: 0.002, seed: Double($0))) }
+        let alone = try XCTUnwrap(Rotation.sleeves(data, kind: .crypto))
+        let filtered = try XCTUnwrap(Rotation.sleeves(data, kind: .crypto, market: down))
+        XCTAssertGreaterThan(alone.ret, 0)
+        XCTAssertEqual(filtered.ret, 0, accuracy: 1e-9, "marché baissier : tout en liquidités")
+        XCTAssertEqual(filtered.basket, alone.basket, accuracy: 1e-9, "le panier de comparaison ne change pas")
+    }
+}
