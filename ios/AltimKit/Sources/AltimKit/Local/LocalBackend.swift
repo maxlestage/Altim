@@ -8,8 +8,11 @@ public actor LocalBackend {
     private var snapshots: [String: (at: Double, task: Task<LocalSnapshot, Error>)] = [:]
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
-    private var longCache: [String: (at: Double, bars: [Bar])] = [:]
+    /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
+    private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
+    /// The news feeds, shared by every news report for 5 minutes.
+    private let feeds = FeedCache()
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
@@ -255,7 +258,7 @@ public actor LocalBackend {
     func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
         var v = TrendEngine.verdict(candles, kind: a.kind)
         guard v.state != .unknown else { return v }
-        v = await marketVerdict(a, v)
+        v = await marketVerdict(a, v, assetTime: candles.last?.time)
         guard botEnabled else { return v }
         async let trend = botModel(a.kind)
         async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
@@ -269,10 +272,12 @@ public actor LocalBackend {
     }
 
     /// The market filter applied to a verdict (the rule alone when the benchmark's candles cannot be read).
-    func marketVerdict(_ a: Asset, _ v: TrendEngine.Verdict) async -> TrendEngine.Verdict {
+    /// Unreliable or stale market candles: the rule alone (`TrendEngine.marketUp(_:kind:reliability:assetTime:)`).
+    func marketVerdict(_ a: Asset, _ v: TrendEngine.Verdict, assetTime: Double? = nil) async -> TrendEngine.Verdict {
         let b = TrendEngine.benchmark(a.kind)
-        guard let bars = try? await snapshot(b, .d1).candles else { return v }
-        return TrendEngine.applyMarket(TrendEngine.marketUp(bars, kind: a.kind), kind: a.kind, to: v)
+        guard let snap = try? await snapshot(b, .d1) else { return v }
+        let up = TrendEngine.marketUp(snap.candles, kind: a.kind, reliability: snap.reliability, assetTime: assetTime)
+        return TrendEngine.applyMarket(up, kind: a.kind, to: v)
     }
 
     // MARK: Zones
@@ -305,16 +310,24 @@ public actor LocalBackend {
     /// (stocks: Nasdaq's ≈ 5 years, checked against Robinhood's and Yahoo's).
     func longDaily(_ a: Asset) async throws -> [Bar] {
         let key = "long:\(a.id)"
-        if let c = longCache[key], nowMs() - c.at < 3_600_000 { return c.bars }
-        let s = try await snapshot(a, .d1)
-        var bars = s.candles
-        let longSources = a.kind == .crypto ? Sources.cryptoLongDaily : Sources.stockLongDaily
-        if let long = try? await Consensus.candles(a.symbol, kind: a.kind, .d1, sources: longSources, fetcher: fetcher, tolerance: a.kind == .crypto ? 0.5 : 1.0),
-           long.candles.count > bars.count {
-            bars = long.candles
+        if let c = longCache[key], nowMs() - c.at < 3_600_000, let bars = try? await c.task.value { return bars }
+        let fetcher = self.fetcher
+        let task = Task<[Bar], Error> {
+            let s = try await self.snapshot(a, .d1)
+            var bars = s.candles
+            let longSources = a.kind == .crypto ? Sources.cryptoLongDaily : Sources.stockLongDaily
+            if let long = try? await Consensus.candles(a.symbol, kind: a.kind, .d1, sources: longSources, fetcher: fetcher, tolerance: a.kind == .crypto ? 0.5 : 1.0),
+               long.candles.count > bars.count {
+                bars = long.candles
+            }
+            return bars
         }
-        longCache[key] = (nowMs(), bars)
-        return bars
+        longCache[key] = (nowMs(), task)
+        do { return try await task.value } catch {
+            // A failure is not kept: the next caller tries again.
+            longCache[key] = nil
+            throw error
+        }
     }
 
     // MARK: News
@@ -323,7 +336,7 @@ public actor LocalBackend {
     func news(_ assets: [Asset]) async -> NewsReport {
         let key = assets.map(\.id).sorted().joined(separator: ",")
         if let c = newsCache[key], nowMs() - c.at < 300_000 { return c.report }
-        let r = await NewsEngine.report(assets, fetcher: fetcher)
+        let r = await NewsEngine.report(assets, fetcher: SharedFeedFetcher(base: fetcher, cache: feeds))
         if !r.items.isEmpty { newsCache[key] = (nowMs(), r) }
         return r
     }
