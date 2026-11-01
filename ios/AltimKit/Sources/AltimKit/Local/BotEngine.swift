@@ -1,8 +1,8 @@
 import Foundation
 
-/// Altim's bot, trained on the device: a ridge regression of the next 20 days' return on 12 measures of each daily
-/// candle (momentum on 4 horizons, distance to the 50- and 200-day averages, RSI, volatility, fall from the high,
-/// volume), learned on the long histories of every asset of the same market (cryptos together, stocks together).
+/// Altim's bots, trained on the device on 16 measures of each daily candle (momentum on 4 horizons, distance to the
+/// 50- and 200-day averages, RSI, volatility, fall from the high, volume, then 4 measures of risk), learned on the long histories of every asset of the same
+/// market (cryptos together, stocks together).
 /// Walk-forward only: a prediction made on a day uses only the examples whose 20 days were already over that day.
 public enum BotEngine {
     /// Days ahead that the bot predicts.
@@ -23,12 +23,71 @@ public enum BotEngine {
         func ret(_ i: Int, _ n: Int) -> Double { close[i] / close[i - n] - 1 }
     }
 
-    public static let featureNames = ["rendement 5 j", "rendement 20 j", "rendement 60 j", "rendement 120 j", "écart moyenne 50 j",
+    /// The 16 measures the bots read: 12 of trend, then 4 of risk (testBotUpgrades2, testRiskModelSizing: the 4 risk
+    /// measures made both bots better or equal almost everywhere — see `bots`).
+    public static var featureNames: [String] { baseFeatureNames + riskFeatureNames }
+
+    static let baseFeatureNames = ["rendement 5 j", "rendement 20 j", "rendement 60 j", "rendement 120 j", "écart moyenne 50 j",
                                       "écart moyenne 200 j", "RSI 14", "RSI 2", "volatilité 20 j", "recul depuis le plus haut 120 j",
                                       "moyenne 50 j / 200 j", "volume 5 j / 60 j"]
 
-    /// The 12 measures of day `i` (closed candle), each kept within a sane range; nil before 200 days of history.
+    /// Measures of the asset's market (Bitcoin for cryptos, SPY for stocks) by UTC day: its 20- and 60-day returns and
+    /// its distance to its 200-day average.
+    public struct MarketContext: Sendable {
+        let days: [Double: [Double]]
+        public init(_ bars: [Bar]) {
+            let s = Series(bars)
+            var d: [Double: [Double]] = [:]
+            for i in 200..<max(200, s.c.count) {
+                guard let e = s.ema200[i] else { continue }
+                d[(s.c[i].time / 86_400_000).rounded(.down)] = [max(-1, min(1, s.ret(i, 20))), max(-2, min(2, s.ret(i, 60))), max(-2, min(2, s.close[i] / e - 1))]
+            }
+            days = d
+        }
+        /// The market's measures on the day of `time`, or on the last market day within the 4 days before.
+        func at(_ time: Double) -> [Double]? {
+            let day = (time / 86_400_000).rounded(.down)
+            for k in 0...4 { if let v = days[day - Double(k)] { return v } }
+            return nil
+        }
+    }
+
+    public static let marketFeatureNames = ["marché : rendement 20 j", "marché : rendement 60 j", "marché : écart moyenne 200 j",
+                                            "force face au marché 60 j"]
+
+    /// The asset's measures followed by its market's (when `market` is given): 12 + 4. Without the market's measures
+    /// for that day, nil (no example rather than a made-up one).
+    /// Measures of risk added to the 12 when `extra`: 60-day volatility, volatility of the down days over 20 days,
+    /// worst day over 20 days, average daily range (high − low) over 20 days.
+    public static let riskFeatureNames = ["volatilité 60 j", "volatilité des baisses 20 j", "pire journée 20 j", "amplitude moyenne 20 j"]
+
+    static func riskFeatures(_ s: Series, _ i: Int) -> [Double] {
+        func clip(_ x: Double, _ lim: Double) -> Double { x.isFinite ? max(-lim, min(lim, x)) : 0 }
+        let r = ((i - 59)...i).map { s.close[$0] / s.close[$0 - 1] - 1 }
+        let m60 = r.reduce(0, +) / 60
+        let vol60 = sqrt(max(0, r.reduce(0) { $0 + ($1 - m60) * ($1 - m60) } / 60))
+        let last = r.suffix(20)
+        let down = sqrt(last.reduce(0) { $0 + min(0, $1) * min(0, $1) } / 20)
+        let range = ((i - 19)...i).reduce(0.0) { $0 + (s.c[$1].high - s.c[$1].low) / max(s.close[$1], 1e-12) } / 20
+        return [clip(vol60 * 10, 2), clip(down * 10, 2), clip((last.min() ?? 0) * 5, 2), clip(range * 10, 2)]
+    }
+
+    /// Lab: the 16 measures, or the 12 trend measures alone (`extra` false, the bots until the risk measures came),
+    /// plus the market's measures when `market` is given (tested, not kept: both bots did worse).
+    static func features(_ s: Series, _ i: Int, market: MarketContext?, extra: Bool = true) -> [Double]? {
+        guard let f = extra ? features(s, i) : baseFeatures(s, i) else { return nil }
+        guard let market else { return f }
+        guard let m = market.at(s.c[i].time) else { return nil }
+        return f + m + [max(-2, min(2, s.ret(i, 60) - m[1]))]
+    }
+
+    /// The 16 measures of day `i` (closed candle); nil before 200 days of history.
     static func features(_ s: Series, _ i: Int) -> [Double]? {
+        baseFeatures(s, i).map { $0 + riskFeatures(s, i) }
+    }
+
+    /// The 12 trend measures of day `i` (closed candle), each kept within a sane range; nil before 200 days of history.
+    static func baseFeatures(_ s: Series, _ i: Int) -> [Double]? {
         guard i >= 200, let e50 = s.ema50[i], let e200 = s.ema200[i], let r14 = s.rsi14[i], let r2 = s.rsi2[i] else { return nil }
         func clip(_ x: Double, _ lim: Double) -> Double { x.isFinite ? max(-lim, min(lim, x)) : 0 }
         var sum = 0.0, sq = 0.0
@@ -137,17 +196,63 @@ public enum BotEngine {
         return out
     }
 
+    /// Measures of the linear risk model: 20-day volatility, then the four risk measures (`riskFeatures`).
+    static func riskInputs(_ s: Series, _ i: Int) -> [Double]? {
+        guard let f = features(s, i) else { return nil }
+        return Array([f[8]] + f.suffix(riskFeatureNames.count))
+    }
+
+    /// Walk-forward linear (ridge) predictions of a target from the risk measures only, retrained every `every`.
+    public static func walkForwardRisk(_ histories: [[Bar]], target: Target = .fall(days: horizon), every: Double = 30 * 86_400_000,
+                                       volOnly: Bool = false) -> [[Double?]] {
+        let series = histories.map(Series.init)
+        var examples: [(known: Double, f: [Double], y: Double)] = []
+        var days: [(t: Double, h: Int, i: Int, f: [Double])] = []
+        for (h, s) in series.enumerated() {
+            for i in 0..<s.c.count {
+                guard let all = riskInputs(s, i) else { continue }
+                let f = volOnly ? [all[0]] : all
+                days.append((s.c[i].time, h, i, f))
+                if let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y)) }
+            }
+        }
+        examples.sort { $0.known < $1.known }
+        days.sort { $0.t < $1.t }
+        var out = series.map { [Double?](repeating: nil, count: $0.c.count) }
+        var model = Ridge(features: volOnly ? 1 : riskFeatureNames.count + 1)
+        var next = 0, weights: [Double]? = nil, trainedAt = -Double.infinity
+        for d in days {
+            if d.t - trainedAt >= every {
+                while next < examples.count, examples[next].known < d.t { model.add(examples[next].f, examples[next].y); next += 1 }
+                weights = model.solve(lambda: ridge * Double(max(model.count, 1)) / 1000)
+                trainedAt = d.t
+            }
+            if let w = weights { out[d.h][d.i] = min(0, predict(w, d.f)) }
+        }
+        return out
+    }
+
     // MARK: - Boosted trees (non-linear)
 
     /// Gradient-boosted decision stumps on the same measures: each round adds the single split (one measure, one
     /// threshold among its quantiles) that best corrects the remaining error. Captures thresholds and asymmetries a
     /// straight line cannot (e.g. "momentum positive only matters above the 200-day average").
     struct Stumps: Codable, Sendable {
-        struct Stump: Codable, Sendable { let f: Int; let cut: Double; let left: Double; let right: Double }
+        /// One split; with `l` / `r`, a second split on each side (a depth-2 tree: two measures combined).
+        struct Stump: Codable, Sendable {
+            let f: Int; let cut: Double; let left: Double; let right: Double
+            var l: Leafs? = nil, r: Leafs? = nil
+            func value(_ x: [Double]) -> Double {
+                if x[f] <= cut { return l.map { x[$0.f] <= $0.cut ? $0.left : $0.right } ?? left }
+                return r.map { x[$0.f] <= $0.cut ? $0.left : $0.right } ?? right
+            }
+        }
+        struct Leafs: Codable, Sendable { let f: Int; let cut: Double; let left: Double; let right: Double }
+        var maxFeature: Int { stumps.map { max($0.f, $0.l?.f ?? 0, $0.r?.f ?? 0) }.max() ?? 0 }
         var base = 0.0
         var stumps: [Stump] = []
 
-        static func train(_ x: [[Double]], _ y: [Double], rounds: Int = 120, rate: Double = 0.1, bins: Int = 16, minLeaf: Int = 200) -> Stumps {
+        static func train(_ x: [[Double]], _ y: [Double], rounds: Int = 120, rate: Double = 0.1, bins: Int = 16, minLeaf: Int = 200, depth: Int = 1) -> Stumps {
             var m = Stumps()
             guard x.count > minLeaf * 4, let width = x.first?.count else { return m }
             m.base = y.reduce(0, +) / Double(y.count)
@@ -160,7 +265,35 @@ public enum BotEngine {
                 cuts.append(c)
                 bin.append(x.map { v in UInt8(c.firstIndex { v[f] <= $0 } ?? c.count) })
             }
-            for _ in 0..<rounds {
+            /// Best split of the examples `idx` on the residuals `r`: (measure, bin, left mean, right mean).
+            func split(_ r: [Double], _ idx: [Int]) -> (f: Int, b: Int, l: Double, rr: Double)? {
+                var best: (gain: Double, f: Int, b: Int, l: Double, rr: Double)? = nil
+                let total = idx.reduce(0.0) { $0 + r[$1] }, n = Double(idx.count)
+                for f in 0..<width {
+                    var sum = [Double](repeating: 0, count: bins), cnt = [Int](repeating: 0, count: bins)
+                    for k in idx { let b = Int(bin[f][k]); sum[b] += r[k]; cnt[b] += 1 }
+                    var ls = 0.0, lc = 0
+                    for b in 0..<(bins - 1) {
+                        ls += sum[b]; lc += cnt[b]
+                        let rc = idx.count - lc
+                        guard lc >= minLeaf, rc >= minLeaf else { continue }
+                        let rs = total - ls
+                        let gain = ls * ls / Double(lc) + rs * rs / Double(rc) - total * total / n
+                        if gain > (best?.gain ?? 0) { best = (gain, f, b, ls / Double(lc), rs / Double(rc)) }
+                    }
+                }
+                return best.map { ($0.f, $0.b, $0.l, $0.rr) }
+            }
+            for _ in 0..<rounds where depth >= 2 {
+                let r = zip(y, pred).map { $0 - $1 }
+                guard let root = split(r, Array(r.indices)) else { break }
+                let leftIdx = r.indices.filter { Int(bin[root.f][$0]) <= root.b }, rightIdx = r.indices.filter { Int(bin[root.f][$0]) > root.b }
+                func leafs(_ idx: [Int]) -> Leafs? { split(r, idx).map { Leafs(f: $0.f, cut: cuts[$0.f][$0.b], left: $0.l * rate, right: $0.rr * rate) } }
+                let s = Stump(f: root.f, cut: cuts[root.f][root.b], left: root.l * rate, right: root.rr * rate, l: leafs(leftIdx), r: leafs(rightIdx))
+                m.stumps.append(s)
+                for k in 0..<pred.count { pred[k] += s.value(x[k]) }
+            }
+            for _ in 0..<rounds where depth < 2 {
                 let r = zip(y, pred).map { $0 - $1 }
                 var best: (gain: Double, f: Int, b: Int, l: Double, rr: Double)? = nil
                 let total = r.reduce(0, +), n = Double(r.count)
@@ -185,44 +318,54 @@ public enum BotEngine {
             return m
         }
 
-        func predict(_ f: [Double]) -> Double { stumps.reduce(base) { $0 + (f[$1.f] <= $1.cut ? $1.left : $1.right) } }
+        func predict(_ f: [Double]) -> Double { stumps.reduce(base) { $0 + $1.value(f) } }
     }
 
     /// Walk-forward predictions of the boosted trees (retrained every `every` of calendar time on the examples
     /// already known, at most the last `window` of them).
     public static func walkForwardTrees(_ histories: [[Bar]], target: Target = .gain(days: horizon), every: Double = 90 * 86_400_000,
-                                        window: Int = 60_000) -> [[Double?]] {
-        walkForwardTrees(train: histories, predict: histories, target: target, every: every, window: window)
+                                        window: Int = 60_000, market: MarketContext? = nil, depth: Int = 1, extra: Bool = true,
+                                        rounds: Int = 120, windows: [Int]? = nil, volScaled: Bool = false) -> [[Double?]] {
+        walkForwardTrees(train: histories, predict: histories, target: target, every: every, window: window, market: market, depth: depth,
+                         extra: extra, rounds: rounds, windows: windows, volScaled: volScaled)
     }
 
     /// Walk-forward predictions for `predict`, learned on the examples of `train` only (as the app does: trained on
     /// its universe, applied to any asset of the same market).
     public static func walkForwardTrees(train: [[Bar]], predict: [[Bar]], target: Target = .gain(days: horizon),
-                                        every: Double = 90 * 86_400_000, window: Int = 60_000) -> [[Double?]] {
+                                        every: Double = 90 * 86_400_000, window: Int = 60_000,
+                                        market: MarketContext? = nil, depth: Int = 1, extra: Bool = true, rounds: Int = 120,
+                                        windows: [Int]? = nil, volScaled: Bool = false) -> [[Double?]] {
+        // With `volScaled`, the trees learn the outcome in units of the asset's 20-day volatility (measure 8) and the
+        // prediction is scaled back by today's volatility.
+        func unit(_ f: [Double]) -> Double { volScaled ? max(f[8] / 10, 0.002) : 1 }
         var examples: [(known: Double, f: [Double], y: Double)] = []
         for s in train.map(Series.init) {
             for i in 0..<s.c.count {
-                if let f = features(s, i), let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y)) }
+                if let f = features(s, i, market: market, extra: extra), let y = label(s, i, target) { examples.append((s.c[i + target.days].time, f, y / unit(f))) }
             }
         }
         let series = predict.map(Series.init)
         var days: [(t: Double, h: Int, i: Int, f: [Double])] = []
         for (h, s) in series.enumerated() {
-            for i in 0..<s.c.count { if let f = features(s, i) { days.append((s.c[i].time, h, i, f)) } }
+            for i in 0..<s.c.count { if let f = features(s, i, market: market, extra: extra) { days.append((s.c[i].time, h, i, f)) } }
         }
         examples.sort { $0.known < $1.known }
         days.sort { $0.t < $1.t }
         var out = series.map { [Double?](repeating: nil, count: $0.c.count) }
-        var known = 0, model: Stumps? = nil, trainedAt = -Double.infinity
+        var known = 0, models: [Stumps] = [], trainedAt = -Double.infinity
         for d in days {
             if d.t - trainedAt >= every {
                 while known < examples.count, examples[known].known < d.t { known += 1 }
-                let slice = examples[max(0, known - window)..<known]
-                let m = Stumps.train(slice.map(\.f), slice.map(\.y))
-                model = m.stumps.isEmpty ? nil : m
+                // Several windows (most recent examples): the predictions are averaged.
+                models = (windows ?? [window]).compactMap { w in
+                    let slice = examples[max(0, known - w)..<known]
+                    let m = Stumps.train(slice.map(\.f), slice.map(\.y), rounds: rounds, depth: depth)
+                    return m.stumps.isEmpty ? nil : m
+                }
                 trainedAt = d.t
             }
-            if let m = model { out[d.h][d.i] = m.predict(d.f) }
+            if !models.isEmpty { out[d.h][d.i] = models.reduce(0) { $0 + $1.predict(d.f) } / Double(models.count) * unit(d.f) }
         }
         return out
     }
@@ -234,15 +377,17 @@ public enum BotEngine {
         public let name: String, predicts: String, use: String, measured: String
     }
 
-    /// The bots shown in the app. Tested and left out: a linear bot (worse than the rule), a 5-day bot (its
+    /// The bots shown in the app. Tested and left out: the market's measures, depth-2 trees, 60 or 240 rounds
+    /// (testBotUpgrades, testBotUpgrades2: worse or mixed), a linear risk model and a volatility-only one
+    /// (testRiskBotVsVolatility, testRiskModelSizing), a linear bot (worse than the rule), a 5-day bot (its
     /// predictions did not separate good and bad days consistently).
     public static let bots: [Info] = [
         Info(name: "Bot Tendance", predicts: "le rendement des 20 jours suivants",
              use: "veto à l'achat : en tendance haussière, pas de nouvel achat sous −1 % (une position déjà ouverte est conservée)",
-             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; avec le filtre de marché, son veto de sortie faisait rater des hausses (cryptos 1re moitié +42 % contre +55 % pour le filtre seul), alors que bloquer seulement les nouveaux achats a fait aussi bien ou mieux (+58 %, creux crypto baissier −25 % contre −30 %) : il ne fait donc plus sortir ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
+             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; avec le filtre de marché, son veto de sortie faisait rater des hausses (cryptos 1re moitié +42 % contre +55 % pour le filtre seul), alors que bloquer seulement les nouveaux achats a fait aussi bien ou mieux (+58 %, creux crypto baissier −25 % contre −30 %) : il ne fait donc plus sortir ; avec 4 mesures de risque en plus (16 au lieu de 12), son veto a fait égal ou mieux presque partout, et les 25 % pires actifs ont moins perdu (−22 % contre −28 %, −17 % contre −22 % sur l'autre liste) ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
-             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; ses prévisions les plus calmes sous-estimaient la baisse réelle (crypto −8 % annoncés, −14 à −15 % vécus ; actions −3 % pour −4 %), d'où un plancher de 14 % en crypto et de 4 % en actions ; avec ce plancher, régler la taille pour ne risquer qu'environ 5 % a ramené la pire baisse de la règle de −48 % à −15 % en crypto, mais aussi son rendement de +47 % à +16 % ; sur les actions, rendement presque identique et pire baisse égale ou plus faible"),
+             measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; ses prévisions les plus calmes sous-estimaient la baisse réelle (crypto −8 % annoncés, −14 à −15 % vécus ; actions −3 % pour −4 %), d'où un plancher de 14 % en crypto et de 4 % en actions ; avec ce plancher, régler la taille pour ne risquer qu'environ 5 % a ramené la pire baisse de la règle de −48 % à −15 % en crypto, mais aussi son rendement de +47 % à +16 % ; sur les actions, rendement presque identique et pire baisse égale ou plus faible ; avec 4 mesures de risque en plus (volatilité 60 jours, volatilité des baisses, pire journée, amplitude), il classe mieux le risque, et la taille conseillée a fait égal ou mieux en rendement et en pire baisse dans les 8 cas à 10 % de risque accepté (crypto en baisse : −7 % contre −14 %, pire baisse −16 % contre −19 %) et dans 7 cas sur 8 à 5 % ; il ne classe pas encore le risque crypto aussi bien que la simple volatilité, qui reste dans ses mesures"),
     ]
 
     /// Entry blocked under this predicted 20-day return (chosen once, before the test; the lab checked that nearby
