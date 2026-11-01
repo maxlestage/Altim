@@ -72,11 +72,17 @@ enum QuoteSources {
             return try quote(price, prev > 0 ? (price / prev - 1) * 100 : nil)
         },
         QuoteSource(name: "Nasdaq", kind: .stock) { f, s in
-            for cls in ["stocks", "etf"] {
+            // Nasdaq wants the asset class: the one that answered last time is tried first (an ETF no longer costs a
+            // failed "stocks" request at every refresh).
+            let classes = NasdaqClass.shared.order(s)
+            for cls in classes {
                 guard let d = try? await f.json("https://api.nasdaq.com/api/quote/\(Sources.enc(Sources.dotted(s)))/info?assetclass=\(cls)") else { continue }
                 let p = obj(at(d, "data", "primaryData"))
                 let price = num(p?["lastSalePrice"])
-                if price.isFinite && price > 0 { return try quote(price, num(p?["percentageChange"])) }
+                if price.isFinite && price > 0 {
+                    NasdaqClass.shared.remember(s, cls)
+                    return try quote(price, num(p?["percentageChange"]))
+                }
             }
             throw MarketError("non coté")
         },
@@ -326,5 +332,20 @@ enum LocalFx {
 
     static func response(_ usdPerEur: Double, time: Double, source: String, now: Double) -> Fx.Response {
         Fx.Response(base: "USD", quote: "EUR", rate: 1 / usdPerEur, usdPerEur: usdPerEur, time: time, source: source, fetchedAt: now, stale: false, error: nil)
+    }
+}
+
+
+/// The Nasdaq asset class ("stocks" or "etf") that quoted each symbol last.
+final class NasdaqClass: @unchecked Sendable {
+    static let shared = NasdaqClass()
+    private let lock = NSLock()
+    private var known: [String: String] = [:]
+    func order(_ symbol: String) -> [String] {
+        lock.lock(); defer { lock.unlock() }
+        return known[symbol] == "etf" ? ["etf", "stocks"] : ["stocks", "etf"]
+    }
+    func remember(_ symbol: String, _ cls: String) {
+        lock.lock(); known[symbol] = cls; lock.unlock()
     }
 }
