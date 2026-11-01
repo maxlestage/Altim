@@ -87,7 +87,7 @@ struct RotationView: View {
     private func testCard(_ t: RotationReport.Test, _ r: RotationReport) -> some View {
         let better = t.ret > t.basket
         return Card(title: "Rejoué sur le passé", glow: better ? Theme.buy : Theme.warning) {
-            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance) contre tout garder, sans le veto du bot (testé à part au labo). 0,1 % de frais par ordre.")
+            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance, filtre de marché compris) contre tout garder, sans le veto du bot (testé à part au labo). 0,1 % de frais par ordre.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 tile("Parts Altim", t.ret, t.drawdown, Theme.magenta)
