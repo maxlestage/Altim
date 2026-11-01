@@ -78,7 +78,7 @@ extension LocalBackend {
         let wanted = Set(symbols.map { $0.uppercased() })
         guard !wanted.isEmpty else { return [] }
         let days = EarningsCalendar.weekdays(from: now, days: 21)
-        let fetcher = self.fetcher
+        let fetcher = self.sharedFetcher
         var pages: [String: [EarningsEvent]] = [:]
         var missing: [String] = []
         for d in days {
