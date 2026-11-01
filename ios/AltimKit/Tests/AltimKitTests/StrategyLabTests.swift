@@ -800,3 +800,39 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Is the market filter's gain an accident of its settings? The market's own trend read with neighbouring
+    /// settings (EMA 100 / 200, momentum 30 / 60 / 120 days, or 3 / 6 months for SPY), entry and exit, both lists.
+    func testMarketFilterSensitivity() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        func days(_ s: LabSeries, ema100: Bool, mom: Double) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            let k = Int((Double(n(s)) * mom).rounded())
+            for i in s.c.indices {
+                let e = ema100 ? s.ema100[i] : s.ema200[i]
+                d[(s.c[i].time / 86_400_000).rounded(.down)] = s.close[i] > Self.v(e) && (s.ret(i, k) ?? -1) > 0
+            }
+            return d
+        }
+        var rules = [LabRule(name: "règle seule", enter: ruleIn, exit: { s, i in !ruleIn(s, i) })]
+        for (ema100, mom, name) in [(false, 1.0, "EMA200 · mom 1×"), (false, 0.5, "EMA200 · mom ½×"), (false, 2.0, "EMA200 · mom 2×"),
+                                    (true, 1.0, "EMA100 · mom 1×"), (true, 0.5, "EMA100 · mom ½×"), (true, 2.0, "EMA100 · mom 2×")] {
+            let mk = [true: days(btc, ema100: ema100, mom: mom), false: days(spy, ema100: ema100, mom: mom)]
+            let ok = { (s: LabSeries, i: Int) in mk[s.c.count > 950]![(s.c[i].time / 86_400_000).rounded(.down)] ?? true }
+            rules.append(LabRule(name: "marché " + name, enter: { s, i in ruleIn(s, i) && ok(s, i) }, exit: { s, i in !ruleIn(s, i) || !ok(s, i) }))
+        }
+        print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
+        print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+}
