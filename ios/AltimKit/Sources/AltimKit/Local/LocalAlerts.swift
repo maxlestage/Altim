@@ -47,7 +47,9 @@ enum LocalAlertRule {
         case .mixed: blockers.append("Signaux contraires (tendance de fond et momentum ne s'accordent pas) : ne pas ouvrir de position.")
         case .unknown: blockers.append("Historique trop court pour juger la tendance de fond.")
         default:
-            if vetoed, let p = a.verdict?.bot {
+            if vetoed, a.verdict?.market == false {
+                blockers.append("Tendance haussière, mais \(a.asset.kind == .crypto ? "le Bitcoin (le marché crypto)" : "le S&P 500 (le marché actions)") n'est pas en tendance haussière : pas d'achat (filtre de marché).")
+            } else if vetoed, let p = a.verdict?.bot {
                 blockers.append("Tendance haussière, mais le bot entraîné prévoit \(p >= 0 ? "+" : "−")\(JSFormat.fr(abs(p) * 100, min: 1, max: 1)) % sur 20 jours : pas d'achat.")
             }
         }

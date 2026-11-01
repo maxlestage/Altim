@@ -196,7 +196,7 @@ struct VerdictWidget: Widget {
                 .containerBackground(Palette.background, for: .widget)
         }
         .configurationDisplayName("Verdict Altim")
-        .description("Prix et verdict de la règle Altim pour vos actifs, calculés par le widget à partir des cours publics (le veto du bot entraîné est dans l'app). Altim ne passe aucun ordre.")
+        .description("Prix et verdict de la règle Altim (filtre de marché compris) pour vos actifs, calculés par le widget à partir des cours publics (le veto du bot entraîné est dans l'app). Altim ne passe aucun ordre.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .accessoryRectangular])
     }
 }

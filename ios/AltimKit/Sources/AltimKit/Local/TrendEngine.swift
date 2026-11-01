@@ -48,6 +48,47 @@ public enum TrendEngine {
         /// When the trend bot was trained (ms) and on how many examples, to show how fresh it is.
         public var botTrainedAt: Double? = nil
         public var botExamples: Int? = nil
+        /// Whether the asset's market (Bitcoin for cryptos, SPY for stocks) is itself in an up trend with a positive
+        /// momentum; nil when its candles could not be read.
+        public var market: Bool? = nil
+    }
+
+    /// The asset that stands for a whole market in the market filter.
+    public static func benchmark(_ kind: Kind) -> Asset {
+        kind == .crypto ? Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin") : Asset(symbol: "SPY", kind: .stock, name: "S&P 500 (SPY)")
+    }
+
+    /// Whether a market is in an up trend (its benchmark above its 200-day average with a positive momentum), nil when
+    /// its history is too short.
+    public static func marketUp(_ raw: [Bar], kind: Kind) -> Bool? {
+        let c = Indicators.sanitize(raw)
+        guard c.count >= 210 else { return nil }
+        let st = state(Series(c), c.count - 1, lookback: lookback(kind))
+        return st == .unknown ? nil : st == .trend || st == .pullback
+    }
+
+    /// The market's state (`marketUp`) on each UTC day of its candles, in time order.
+    static func marketDays(_ raw: [Bar], kind: Kind) -> [(day: Double, up: Bool)] {
+        let c = Indicators.sanitize(raw)
+        guard c.count >= 210 else { return [] }
+        let s = Series(c), n = lookback(kind)
+        return c.indices.compactMap { i in
+            let st = state(s, i, lookback: n)
+            return st == .unknown ? nil : ((c[i].time / 86_400_000).rounded(.down), st == .trend || st == .pullback)
+        }
+    }
+
+    /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
+    /// lab (testMarketFilter, both lists, both halves): better or equal return and a smaller worst fall in all 8 cases,
+    /// e.g. crypto +55 % / −37 % against +46 % / −48 %, average +30 % / +41 % against +24 % / +30 %. Never creates a buy.
+    public static func applyMarket(_ up: Bool?, kind: Kind, to v: Verdict) -> Verdict {
+        var v = v
+        v.market = up
+        guard up == false, v.state == .trend || v.state == .pullback, v.action == .buy || v.action == .strongBuy else { return v }
+        let name = kind == .crypto ? "Le Bitcoin (le marché crypto)" : "Le S&P 500 (le marché actions, via SPY)"
+        v.action = .sell
+        v.text = "\(name) n'est pas en tendance haussière : sortir ou rester à l'écart malgré la tendance de l'actif (filtre de marché). " + v.text
+        return v
     }
 
     /// 60 days for cryptos (open every day), 62 sessions (≈ 90 days) for stocks.
@@ -122,9 +163,10 @@ public enum TrendEngine {
 
     /// "Si j'avais suivi Altim": in while the state is `trend` or `pullback`, out on `down` or when the trend or the
     /// momentum turns; orders filled at the next open, 0.1 % fees. Starts after 200 days (the 200-day average).
-    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil) -> BacktestReport {
+    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil, market: [Bar]? = nil) -> BacktestReport {
         let c = Indicators.sanitize(raw)
         let n = lookback(asset.kind)
+        let up = market.map { marketDays($0, kind: asset.kind) } ?? []
         let start = 200
         func empty(_ e: String) -> BacktestReport {
             BacktestReport(symbol: asset.symbol, kind: asset.kind, from: c.first?.time ?? 0, to: c.last?.time ?? 0, days: c.count,
@@ -140,8 +182,13 @@ public enum TrendEngine {
         var invested = 0
         let holdUnits = 100 / c[start].open
         var peakS = 100.0, peakH = 100.0, ddS = 0.0, ddH = 0.0
+        var m = 0
         for i in start..<c.count {
             let bar = c[i]
+            // The market's state on the last market day up to this one (no market candles: the rule alone).
+            let day = (bar.time / 86_400_000).rounded(.down)
+            while m + 1 < up.count && up[m + 1].day <= day { m += 1 }
+            let marketOK = up.isEmpty || up[m].day > day || up[m].up
             if pendingSell, let e = entry {
                 cash = units * bar.open * (1 - Backtest.fee)
                 trades.append(.init(entryTime: e.time, entryPrice: e.price, exitTime: bar.time, exitPrice: bar.open, exit: "signal", result: (cash / e.cost - 1) * 100))
@@ -158,7 +205,7 @@ public enum TrendEngine {
             if entry != nil { invested += 1 }
             if i < c.count - 1 {
                 let st = state(s, i, lookback: n)
-                let inTrend = st == .trend || st == .pullback
+                let inTrend = (st == .trend || st == .pullback) && marketOK
                 if entry == nil && inTrend { pendingBuy = true }
                 if entry != nil && !inTrend && st != .unknown {
                     // Out when the trend or the momentum turns (both are needed to be in).
@@ -272,6 +319,8 @@ public enum Rotation {
             let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
             let bot = v.bot.map { "\($0 >= 0 ? "+" : "−")\(JSFormat.fr(abs($0) * 100, min: 1, max: 1)) %" } ?? ""
             switch vetoed ? .unknown : v.state {
+            case .unknown where vetoed && v.market == false:
+                reason = "Tendance haussière (\(mom)), mais \(kind == .crypto ? "le Bitcoin" : "le S&P 500 (SPY)") n'est pas en tendance haussière : à sortir (filtre de marché)."
             case .unknown where vetoed:
                 reason = v.effectiveState == .down
                     ? "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : à sortir."
@@ -396,7 +445,7 @@ public enum Rotation {
 }
 
 extension TrendEngine.Verdict {
-    /// The background picture the advice really gives: an up trend vetoed by the trend bot reads as mixed signals
+    /// The background picture the advice really gives: an up trend vetoed by the market filter or the trend bot reads as mixed signals
     /// (ATTENDRE) or as a way out (VENTE), never as a buy.
     public var effectiveState: TrendEngine.State {
         guard state == .trend || state == .pullback else { return state }
@@ -409,7 +458,9 @@ extension TrendEngine.Verdict {
 
     /// The verdict as the app says it.
     public var label: String {
-        if (state == .trend || state == .pullback) && (action == .sell || action == .strongSell) { return "SORTIR (BOT TENDANCE)" }
+        if (state == .trend || state == .pullback) && (action == .sell || action == .strongSell) {
+            return market == false ? VerdictLog.marketExitLabel : VerdictLog.botExitLabel
+        }
         switch state {
         case .pullback: return action == .hold ? "ATTENDRE" : "ACHETER (REPLI)"
         case .trend: return action == .hold ? "ATTENDRE" : "ACHETER / CONSERVER"
