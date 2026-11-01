@@ -49,6 +49,8 @@ extension StrategyLabTests {
     static func v(_ x: Double?) -> Double { x ?? .nan }
     /// 60 days for a market open every day (cryptos), 90 for stocks (≈ 63 sessions… measured in candles: 60 / 62).
     static func lb(_ s: LabSeries) -> Int { s.c.count > 950 ? 60 : 62 }
+    /// Exit threshold of the trend bot measured until the market filter came (testMarketAndVeto dropped it).
+    static let oldExitBelow = -0.03
 
     static var rules: [LabRule] {
         [
@@ -422,7 +424,7 @@ extension StrategyLabTests {
             let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
             let ruleOut = { (s: LabSeries, i: Int) in s.close[i] < Self.v(s.ema200[i]) || (s.ret(i, n(s)) ?? 0) < 0 }
             let veto = { (s: LabSeries, i: Int) in (p("Tendance 20 j", s, i) ?? 0) > BotEngine.entryBelow }
-            let vetoOut = { (s: LabSeries, i: Int) in (p("Tendance 20 j", s, i) ?? 0) < BotEngine.exitBelow }
+            let vetoOut = { (s: LabSeries, i: Int) in (p("Tendance 20 j", s, i) ?? 0) < Self.oldExitBelow }
             let rules = [
                 LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
                 LabRule(name: "veto tendance", enter: { s, i in ruleIn(s, i) && veto(s, i) }, exit: { s, i in ruleOut(s, i) || vetoOut(s, i) }),
@@ -467,7 +469,7 @@ extension StrategyLabTests {
                     guard let x = p(s, i) else { continue }
                     days += 1
                     if x <= BotEngine.entryBelow { noEntry += 1 }
-                    if x < BotEngine.exitBelow { exits += 1 }
+                    if x < Self.oldExitBelow { exits += 1 }
                 }
             }
             let fEntry = Double(noEntry) / Double(max(days, 1)), fExit = Double(exits) / Double(max(days, 1))
@@ -483,7 +485,7 @@ extension StrategyLabTests {
             var rules = [
                 LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
                 LabRule(name: "veto du bot", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > BotEngine.entryBelow },
-                        exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < BotEngine.exitBelow }),
+                        exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < Self.oldExitBelow }),
             ]
             for seed in 1...5 {
                 rules.append(LabRule(name: "veto au hasard \(seed)", enter: { s, i in ruleIn(s, i) && noise(s, i, seed) >= fEntry },
@@ -550,7 +552,7 @@ extension StrategyLabTests {
                                 let up = s.close[d] > Self.v(s.ema200[d]) && (s.ret(d, lb) ?? -1) > 0
                                 let p = trend[i]?[d] ?? nil
                                 if !inPos, up, (p ?? 0) > BotEngine.entryBelow { inPos = true }
-                                else if inPos, !up || (p ?? 0) < BotEngine.exitBelow { inPos = false }
+                                else if inPos, !up || (p ?? 0) < Self.oldExitBelow { inPos = false }
                                 var target = 0.0
                                 if inPos {
                                     switch z {
@@ -615,7 +617,7 @@ extension StrategyLabTests {
         let rules = [
             LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
             LabRule(name: "veto (bot de l'univers)", enter: { s, i in ruleIn(s, i) && (p(s, i) ?? 0) > BotEngine.entryBelow },
-                    exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < BotEngine.exitBelow }),
+                    exit: { s, i in ruleOut(s, i) || (p(s, i) ?? 0) < Self.oldExitBelow }),
         ]
         print(Lab.report(data, rules)); print(Lab.full(data, rules))
 
@@ -633,7 +635,7 @@ extension StrategyLabTests {
         let looRules = [
             LabRule(name: "actuel", enter: ruleIn, exit: ruleOut),
             LabRule(name: "veto (actif jamais vu)", enter: { s, i in ruleIn(s, i) && (q(s, i) ?? 0) > BotEngine.entryBelow },
-                    exit: { s, i in ruleOut(s, i) || (q(s, i) ?? 0) < BotEngine.exitBelow }),
+                    exit: { s, i in ruleOut(s, i) || (q(s, i) ?? 0) < Self.oldExitBelow }),
         ]
         print("== univers, chaque actif exclu de l'entraînement")
         print(Lab.report(uData, looRules)); print(Lab.full(uData, looRules))
@@ -714,5 +716,57 @@ extension StrategyLabTests {
         ]
         print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+}
+
+extension StrategyLabTests {
+    /// The market filter together with the trend bot's veto (walk-forward trees): does each still add to the other?
+    func testMarketAndVeto() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" }).map({ LabSeries($0.1) }),
+              let spy = lab.first(where: { $0.0.symbol == "SPY" }).map({ LabSeries($0.1) }) else { throw XCTSkip("BTC ou SPY absent") }
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        let ruleOut = { (s: LabSeries, i: Int) in !ruleIn(s, i) }
+        func days(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86400).rounded(.down)] = ruleIn(s, i) }
+            return d
+        }
+        let mk = [true: days(btc), false: days(spy)]
+        func market(_ s: LabSeries, _ i: Int) -> Bool {
+            let m = mk[s.c.count > 950]!, day = (s.c[i].time / 86400).rounded(.down)
+            return m[day] ?? m[day - 1] ?? m[day - 2] ?? m[day - 3] ?? true
+        }
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var preds: [String: [Double?]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let p = BotEngine.walkForwardTrees(group.map(\.1))
+                for (k, (_, bars)) in group.enumerated() { preds[key(LabSeries(bars))] = p[k] }
+            }
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            func p(_ s: LabSeries, _ i: Int) -> Double? { preds[key(s)]?[i] ?? nil }
+            let vetoIn = { (s: LabSeries, i: Int) in (p(s, i) ?? 0) > BotEngine.entryBelow }
+            let vetoOut = { (s: LabSeries, i: Int) in (p(s, i) ?? 0) < Self.oldExitBelow }
+            let rules = [
+                LabRule(name: "règle seule", enter: ruleIn, exit: ruleOut),
+                LabRule(name: "veto bot", enter: { s, i in ruleIn(s, i) && vetoIn(s, i) }, exit: { s, i in ruleOut(s, i) || vetoOut(s, i) }),
+                LabRule(name: "filtre marché", enter: { s, i in ruleIn(s, i) && market(s, i) }, exit: { s, i in ruleOut(s, i) || !market(s, i) }),
+                LabRule(name: "filtre + veto", enter: { s, i in ruleIn(s, i) && market(s, i) && vetoIn(s, i) },
+                        exit: { s, i in ruleOut(s, i) || !market(s, i) || vetoOut(s, i) }),
+                LabRule(name: "filtre + veto entrée", enter: { s, i in ruleIn(s, i) && market(s, i) && vetoIn(s, i) },
+                        exit: { s, i in ruleOut(s, i) || !market(s, i) }),
+            ]
+            print("== \(name)"); print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
     }
 }
