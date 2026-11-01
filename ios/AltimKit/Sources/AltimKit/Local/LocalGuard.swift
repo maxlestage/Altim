@@ -415,7 +415,7 @@ extension LocalBackend {
         async let h1 = try? snapshot(a, .h1)
         async let news = news([a])
         async let funding: Double? = a.kind == .crypto ? Self.funding(a.symbol, fetcher) : nil
-        async let fearGreed: [Double] = a.kind == .crypto ? Self.fearGreed(fetcher) : []
+        async let fearGreed: [Double] = a.kind == .crypto ? Self.fearGreed(sharedFetcher) : []
         async let q = quotes([a])
         let daily = try await d1
         let report = await news

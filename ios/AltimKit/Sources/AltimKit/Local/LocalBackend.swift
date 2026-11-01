@@ -16,6 +16,12 @@ public actor LocalBackend {
     /// The news feeds, shared by every news report for 5 minutes.
     private let feeds = FeedCache()
     var macroCache: (at: Double, info: MacroInfo)?
+    /// The macro report being computed: the guards of several assets wait for the same one.
+    var macroRead: Task<MacroInfo, Error>?
+    /// Market-wide data read by every asset's guard or by several stocks at once (Fear & Greed, macro series,
+    /// earnings calendar pages), shared for 10 minutes.
+    let shared = FeedCache(ttl: 600_000)
+    var sharedFetcher: MarketFetcher { SharedFeedFetcher(base: fetcher, cache: shared) }
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
     private var botHistories: [Kind: (at: Double, task: Task<[[Bar]], Never>)] = [:]
