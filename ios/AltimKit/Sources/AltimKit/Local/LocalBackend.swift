@@ -11,6 +11,8 @@ public actor LocalBackend {
     /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
     private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
+    /// The news feeds, shared by every news report for 5 minutes.
+    private let feeds = FeedCache()
     var macroCache: (at: Double, info: MacroInfo)?
     var earningsCache: [String: (at: Double, events: [EarningsEvent])] = [:]
     private var botModels: [String: (at: Double, task: Task<BotEngine.Model?, Never>)] = [:]
@@ -334,7 +336,7 @@ public actor LocalBackend {
     func news(_ assets: [Asset]) async -> NewsReport {
         let key = assets.map(\.id).sorted().joined(separator: ",")
         if let c = newsCache[key], nowMs() - c.at < 300_000 { return c.report }
-        let r = await NewsEngine.report(assets, fetcher: fetcher)
+        let r = await NewsEngine.report(assets, fetcher: SharedFeedFetcher(base: fetcher, cache: feeds))
         if !r.items.isEmpty { newsCache[key] = (nowMs(), r) }
         return r
     }
