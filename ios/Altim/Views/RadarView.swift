@@ -120,7 +120,7 @@ struct RadarView: View {
                         LiveBadge()
                     }
                 } footer: {
-                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers, ATTENDRE sinon ou si les sources ne s'accordent pas ; le bot Tendance peut bloquer un achat, et « risque » est la pire baisse prévue par le bot Risque sur 20 jours. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
+                    Text("Verdict Altim, calculé sur cet iPhone en données journalières : ACHAT quand la tendance de fond est haussière et le momentum positif, ACHAT FORT sur un repli dans cette tendance, VENTE quand les deux sont baissiers ou que tout le marché (Bitcoin, S&P 500) quitte sa tendance haussière, ATTENDRE sinon ou si les sources ne s'accordent pas ; le bot Tendance peut bloquer un achat, et « risque » est la pire baisse prévue par le bot Risque sur 20 jours. L'unité choisie ci-dessus ne change que la courbe. Une règle testée sur le passé, jamais une certitude. Glissez vers la gauche pour retirer un actif.")
                 }
                 if model.watchlist.count >= 2 {
                     Section { CompareCard() }.listRowBackground(Color.clear)

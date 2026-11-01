@@ -21,6 +21,8 @@ public enum VerdictLog {
     public static let maxEntries = 300
     /// Label of an exit decided by the trend bot (its real results are shown apart in the summary).
     public static let botExitLabel = "SORTIR (BOT TENDANCE)"
+    /// Label of an exit decided by the market filter (Bitcoin or SPY out of its up trend).
+    public static let marketExitLabel = "SORTIR (MARCHÉ)"
 
     static func side(_ v: TrendEngine.Verdict) -> (String, String)? {
         switch v.effectiveState {
@@ -28,7 +30,7 @@ public enum VerdictLog {
         case .mixed: return ("mixed", "CONSERVER SANS RENFORCER")
         case .down:
             // A way out decided by the trend bot inside an up trend: kept apart to follow what the bot's exits are worth.
-            return v.state == .trend || v.state == .pullback ? ("out", botExitLabel) : ("out", "RESTER À L'ÉCART")
+            return v.state == .trend || v.state == .pullback ? ("out", v.label) : ("out", "RESTER À L'ÉCART")
         case .unknown: return nil
         }
     }
