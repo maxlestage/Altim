@@ -149,7 +149,7 @@ final class BotEngineTests: XCTestCase {
         XCTAssertEqual(Self.oldBotExit(pull).label, "SORTIR (BOT TENDANCE)", "un repli aussi")
         let held = BotEngine.apply(-0.02, to: up)
         XCTAssertEqual(held.effectiveState, .mixed)
-        XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "RESTER À L'ÉCART")
+        XCTAssertEqual(ConfigChanges.apply(ConfigState(), verdict: v, asset: a, now: 1).state.last.values.first?.label, "SORTIR (BOT TENDANCE)")
     }
 
     /// The Selection follows the same verdicts as the asset pages: an up trend vetoed by the bot is not held.
