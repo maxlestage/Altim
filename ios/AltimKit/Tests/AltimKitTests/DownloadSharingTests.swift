@@ -74,3 +74,21 @@ extension DownloadSharingTests {
         XCTAssertEqual(counter.all.count, before, "même flux dans les 5 minutes : servis par le cache")
     }
 }
+
+extension DownloadSharingTests {
+    /// The same quote asked by several screens at once is read once from each source.
+    func testQuotesAreReadOnceForSimultaneousCallers() async {
+        let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), aapl = Asset(symbol: "AAPL", kind: .stock, name: "Apple")
+        let single = FeedCounter()
+        _ = await LocalBackend(fetcher: single, bot: false).quotes([btc, aapl])
+        let one = single.all.count
+        XCTAssertGreaterThan(one, 0)
+        let shared = FeedCounter()
+        let backend = LocalBackend(fetcher: shared, bot: false)
+        async let a = backend.quotes([btc, aapl])
+        async let b = backend.quotes([btc])
+        async let c = backend.quotes([aapl, btc])
+        _ = await (a, b, c)
+        XCTAssertEqual(shared.all.count, one, "3 demandes simultanées : \(one) requêtes, pas \(shared.all.count)")
+    }
+}
