@@ -80,3 +80,31 @@ final class QuoteBatchTests: XCTestCase {
         XCTAssertEqual(q["crypto:ETH"]?.price, 3000)
     }
 }
+
+extension QuoteBatchTests {
+    /// An ETF quoted by Nasdaq under "etf": the next refresh asks that class directly (1 request instead of 2).
+    func testNasdaqRemembersTheAssetClass() async throws {
+        let f = Routes([("https://api.nasdaq.com/api/quote/QQQX/info?assetclass=etf", #"{"data":{"primaryData":{"lastSalePrice":"$500.10","percentageChange":"+0.50%"}}}"#)])
+        let nasdaq = try XCTUnwrap(QuoteSources.stock.first { $0.name == "Nasdaq" })
+        let first = try await nasdaq.fetch(f, "QQQX")
+        XCTAssertEqual(first.price, 500.10, accuracy: 1e-9)
+        XCTAssertEqual(f.all.count, 2, "1re fois : « stocks » puis « etf »")
+        _ = try await nasdaq.fetch(f, "QQQX")
+        XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
+    }
+}
+
+extension QuoteBatchTests {
+    /// Nasdaq history of an ETF: a failing "stocks" request no longer stops the "etf" one, and the class is reused.
+    func testNasdaqHistoryTriesTheOtherClass() async throws {
+        let rows = #"{"data":{"tradesTable":{"rows":[{"date":"10/30/2026","open":"$500.00","high":"$505.00","low":"$498.00","close":"$503.00","volume":"1,000"},{"date":"10/29/2026","open":"$497.00","high":"$501.00","low":"$495.00","close":"$500.00","volume":"900"}]}}}"#
+        let f = Routes([("https://api.nasdaq.com/api/quote/ETFX/historical?assetclass=stocks", "400"),
+                        ("https://api.nasdaq.com/api/quote/ETFX/historical?assetclass=etf", rows)])
+        let bars = try await Sources.nasdaq.fetch(f, "ETFX", .d1)
+        XCTAssertEqual(bars.count, 2)
+        XCTAssertEqual(bars.last?.close, 503)
+        XCTAssertEqual(f.all.count, 2)
+        _ = try await Sources.nasdaq.fetch(f, "ETFX", .d1)
+        XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
+    }
+}
