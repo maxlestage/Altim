@@ -42,7 +42,7 @@ struct RotationView: View {
 
     @ViewBuilder private func content(_ r: RotationReport) -> some View {
         Card(title: "À détenir maintenant · \(r.selected.count) sur \(r.scanned)", glow: Theme.buy) {
-            Text("Les \(r.kind == .crypto ? "cryptos" : "actions") en tendance de fond haussière avec un momentum positif (\(r.kind == .crypto ? "\(r.lookback) jours" : "3 mois")), chacune pour 1/\(r.top) du budget ; le reste (\(Int((Double(r.top - r.selected.count) / Double(max(1, r.top)) * 100).rounded())) %) en liquidités, ainsi que celles dont le bot Tendance bloque l'achat. Vérifié chaque jour.")
+            Text("Les \(r.kind == .crypto ? "cryptos" : "actions") en tendance de fond haussière avec un momentum positif (\(r.kind == .crypto ? "\(r.lookback) jours" : "3 mois")), chacune pour 1/\(r.top) du budget ; le reste (\(Int((Double(r.top - r.selected.count) / Double(max(1, r.top)) * 100).rounded())) %) en liquidités, ainsi que celles dont le bot Tendance bloque l'achat, et toutes quand le marché (\(r.kind == .crypto ? "Bitcoin" : "S&P 500")) n'est pas en tendance haussière. Vérifié chaque jour.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             if r.selected.isEmpty {
                 Notice(text: "Aucun actif de ce marché n'est en tendance haussière : la règle reste entièrement en liquidités.", tone: .warn)

@@ -675,3 +675,44 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Market filter: an asset is bought only when its whole market is in an up trend too (Bitcoin for crypto, SPY for
+    /// stocks, close above their EMA 200 on the same day). Lab and universe lists, both halves.
+    func testMarketFilter() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        func days(_ s: LabSeries, _ up: (LabSeries, Int) -> Bool) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86400).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let trendUp = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) }
+        let fullUp = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        let mkTrend = [true: days(btc, trendUp), false: days(spy, trendUp)]
+        let mkFull = [true: days(btc, fullUp), false: days(spy, fullUp)]
+        func market(_ m: [Bool: [Double: Bool]], _ s: LabSeries, _ i: Int) -> Bool {
+            let crypto = s.c.count > 950, day = (s.c[i].time / 86400).rounded(.down)
+            return m[crypto]?[day] ?? m[crypto]?[day - 1] ?? m[crypto]?[day - 2] ?? m[crypto]?[day - 3] ?? true
+        }
+        let enter = { (s: LabSeries, i: Int) in fullUp(s, i) }
+        let exit = { (s: LabSeries, i: Int) in !fullUp(s, i) }
+        let rules = [
+            LabRule(name: "actuel", enter: enter, exit: exit),
+            LabRule(name: "marché > EMA200 entrée", enter: { s, i in enter(s, i) && market(mkTrend, s, i) }, exit: exit),
+            LabRule(name: "marché > EMA200 e+s", enter: { s, i in enter(s, i) && market(mkTrend, s, i) }, exit: { s, i in exit(s, i) || !market(mkTrend, s, i) }),
+            LabRule(name: "marché complet entrée", enter: { s, i in enter(s, i) && market(mkFull, s, i) }, exit: exit),
+            LabRule(name: "marché complet e+s", enter: { s, i in enter(s, i) && market(mkFull, s, i) }, exit: { s, i in exit(s, i) || !market(mkFull, s, i) }),
+        ]
+        print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
+        print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+}
