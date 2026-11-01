@@ -362,20 +362,23 @@ enum NewsEngine {
 
 /// News feeds read once and shared for `ttl`: the news tab, the guard of every asset and the macro context all read
 /// the same general feeds; without sharing, checking the alerts of 10 assets downloaded them 10 times. Simultaneous
-/// readers wait for the same download; a failed read is not kept.
+/// readers wait for the same download; a failed read is kept for 2 minutes only.
 actor FeedCache {
-    private var entries: [String: (at: Double, task: Task<Data, Error>)] = [:]
+    private var entries: [String: (at: Double, task: Task<Data, Error>, failed: Bool)] = [:]
     let ttl: Double
-    init(ttl: Double = 300_000) { self.ttl = ttl }
+    /// A failed read (dead feed, source down) is remembered this long: the readers that follow do not try it again
+    /// and again, yet it is retried soon.
+    let failureTTL: Double
+    init(ttl: Double = 300_000, failureTTL: Double = 120_000) { self.ttl = ttl; self.failureTTL = min(ttl, failureTTL) }
 
     func data(_ url: String, fetcher: MarketFetcher) async throws -> Data {
         let now = nowMs()
-        entries = entries.filter { now - $0.value.at < ttl }
-        if let e = entries[url] { if let d = try? await e.task.value { return d } }
+        entries = entries.filter { now - $0.value.at < ($0.value.failed ? failureTTL : ttl) }
+        if let e = entries[url] { return try await e.task.value }
         let task = Task { try await fetcher.data(url, method: "GET", body: nil) }
-        entries[url] = (now, task)
+        entries[url] = (now, task, false)
         do { return try await task.value } catch {
-            entries[url] = nil
+            if entries[url]?.task == task { entries[url] = (now, task, true) }
             throw error
         }
     }
