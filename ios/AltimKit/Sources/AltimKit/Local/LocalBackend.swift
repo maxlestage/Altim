@@ -250,7 +250,9 @@ public actor LocalBackend {
     /// bots are unavailable).
     func botVerdict(_ a: Asset, _ candles: [Bar]) async -> TrendEngine.Verdict {
         var v = TrendEngine.verdict(candles, kind: a.kind)
-        guard botEnabled, v.state != .unknown else { return v }
+        guard v.state != .unknown else { return v }
+        v = await marketVerdict(a, v)
+        guard botEnabled else { return v }
         async let trend = botModel(a.kind)
         async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
         if let m = await trend {
@@ -260,6 +262,13 @@ public actor LocalBackend {
         }
         v.botRisk = BotEngine.calibratedFall(await risk?.predict(candles), kind: a.kind)
         return v
+    }
+
+    /// The market filter applied to a verdict (the rule alone when the benchmark's candles cannot be read).
+    func marketVerdict(_ a: Asset, _ v: TrendEngine.Verdict) async -> TrendEngine.Verdict {
+        let b = TrendEngine.benchmark(a.kind)
+        guard let bars = try? await snapshot(b, .d1).candles else { return v }
+        return TrendEngine.applyMarket(TrendEngine.marketUp(bars, kind: a.kind), kind: a.kind, to: v)
     }
 
     // MARK: Zones
@@ -282,7 +291,10 @@ public actor LocalBackend {
     /// The signal replayed on two years of daily candles (`Backtest.run`).
     func backtest(_ a: Asset) async throws -> BacktestReport {
         let s = try await snapshot(a, .d1)
-        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability)
+        let b = TrendEngine.benchmark(a.kind)
+        // The market filter replayed too (the benchmark itself needs none); without its candles, the rule alone.
+        let market = b.id == a.id ? nil : try? await longDaily(b)
+        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market)
     }
 
     /// Longest daily history: for cryptos the exchanges' ≈ 1 000 days when they agree, else the usual daily candles

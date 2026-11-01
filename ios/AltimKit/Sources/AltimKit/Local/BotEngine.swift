@@ -238,17 +238,17 @@ public enum BotEngine {
     /// predictions did not separate good and bad days consistently).
     public static let bots: [Info] = [
         Info(name: "Bot Tendance", predicts: "le rendement des 20 jours suivants",
-             use: "veto : en tendance haussière, pas de nouvel achat sous −1 %, sortie sous −3 %",
-             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
+             use: "veto à l'achat : en tendance haussière, pas de nouvel achat sous −1 % (une position déjà ouverte est conservée)",
+             measured: "comme veto, a amélioré la règle sur les deux listes (rendement moyen +32 % contre +24 %, pertes des pires actifs réduites), surtout en crypto, et a battu 5 vetos tirés au hasard aussi souvent (+9 à +23 % sur la même liste)  ; sur un actif qu'il n'a jamais vu à l'entraînement, le veto aide encore en moyenne (+35 % contre +30 %, creux crypto baissier −30 % contre −34 %) : il apporte bien une information ; avec le filtre de marché, son veto de sortie faisait rater des hausses (cryptos 1re moitié +42 % contre +55 % pour le filtre seul), alors que bloquer seulement les nouveaux achats a fait aussi bien ou mieux (+58 %, creux crypto baissier −25 % contre −30 %) : il ne fait donc plus sortir ; en revanche, classer les actifs par sa prévision ne marche pas (les prévisions les plus hautes n'ont pas fait mieux)"),
         Info(name: "Bot Risque", predicts: "la pire baisse dans les 20 jours suivants",
              use: "information de risque, pour régler la taille d'une position",
              measured: "fiable dans les 8 cas mesurés : quand il prévoit peu de risque, la baisse réelle a été plus faible (actions −4 % contre −8 %, crypto −13 % contre −16 % en moyenne) ; ses prévisions les plus calmes sous-estimaient la baisse réelle (crypto −8 % annoncés, −14 à −15 % vécus ; actions −3 % pour −4 %), d'où un plancher de 14 % en crypto et de 4 % en actions ; avec ce plancher, régler la taille pour ne risquer qu'environ 5 % a ramené la pire baisse de la règle de −48 % à −15 % en crypto, mais aussi son rendement de +47 % à +16 % ; sur les actions, rendement presque identique et pire baisse égale ou plus faible"),
     ]
 
-    /// Entry blocked under this predicted 20-day return, exit under `exitBelow` (chosen once, before the test; the
-    /// lab checked that nearby values give the same result: −2 / −4 %, −1 / −5 %, entry only).
+    /// Entry blocked under this predicted 20-day return (chosen once, before the test; the lab checked that nearby
+    /// values give the same result). With the market filter, the bot's exit (below −3 %) cost in rising markets and
+    /// was dropped (testMarketAndVeto): the bot only blocks new purchases.
     public static let entryBelow = -0.01
-    public static let exitBelow = -0.03
 
     /// The trained bot of one market: boosted trees learned on the long daily histories of its assets.
     public struct Model: Codable, Sendable {
@@ -322,16 +322,13 @@ public enum BotEngine {
     }
 
     /// The rule's verdict with the bot's veto: in an up trend, no new position when the bot predicts below −1 % over
-    /// 20 days (ATTENDRE, keep a position), out below −3 % (VENTE). Never turns a verdict into a buy.
+    /// 20 days (ATTENDRE: keep a position, don't open one). Never turns a verdict into a buy, never forces an exit.
     public static func apply(_ prediction: Double?, to v: TrendEngine.Verdict) -> TrendEngine.Verdict {
         var v = v
         v.bot = prediction
         guard let p = prediction, v.state == .trend || v.state == .pullback, v.action == .buy || v.action == .strongBuy else { return v }
-        let pct = "\(p >= 0 ? "+" : "−")\(JSFormat.fr(abs(p) * 100, min: 1, max: 1)) %"
-        if p < exitBelow {
-            v.action = .sell
-            v.text = "Le bot entraîné prévoit \(pct) sur 20 jours malgré la tendance : sortir. " + v.text
-        } else if p < entryBelow {
+        if p < entryBelow {
+            let pct = "\(p >= 0 ? "+" : "−")\(JSFormat.fr(abs(p) * 100, min: 1, max: 1)) %"
             v.action = .hold
             v.text = "Le bot entraîné prévoit \(pct) sur 20 jours : conserver une position, ne pas en ouvrir. " + v.text
         }

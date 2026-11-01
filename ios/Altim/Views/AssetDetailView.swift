@@ -391,7 +391,7 @@ struct TimeMachineCard: View {
 
     var body: some View {
         Card(title: "Machine à remonter le temps", glow: Theme.magenta) {
-            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, sorti sinon. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
+            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, et que son marché (\(asset.kind == .crypto ? "le Bitcoin" : "le S&P 500, via SPY")) l'est aussi ; sorti sinon. Sans le veto des bots. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             switch report {
             case .idle, .loading:
@@ -580,7 +580,7 @@ struct VerdictCard: View {
                 if v.bot != nil || v.botRisk != nil {
                     BotsBlock(verdict: v)
                 }
-                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
+                Text("La règle : investi seulement quand la tendance de fond est haussière (prix au-dessus de la moyenne 200 jours) et le momentum positif (\(asset.kind == .crypto ? "60 jours" : "3 mois")) ; et seulement quand son marché l'est aussi (\(asset.kind == .crypto ? "le Bitcoin" : "le S&P 500, via SPY")) ; un repli de quelques jours a donné en moyenne une meilleure entrée sur la semaine suivante, sans avantage net à un mois. Choisie parce qu'elle a le mieux résisté aux tests sur 26 actifs : voir la machine à remonter le temps ci-dessous.")
                     .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
                 Button { simulating = true } label: {
                     Label("Simuler cet achat", systemImage: "testtube.2").frame(maxWidth: .infinity)
