@@ -693,7 +693,7 @@ extension StrategyLabTests {
         guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
         func days(_ s: LabSeries, _ up: (LabSeries, Int) -> Bool) -> [Double: Bool] {
             var d: [Double: Bool] = [:]
-            for i in s.c.indices { d[(s.c[i].time / 86400).rounded(.down)] = up(s, i) }
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
             return d
         }
         let n = { (s: LabSeries) in Self.lb(s) }
@@ -702,8 +702,13 @@ extension StrategyLabTests {
         let mkTrend = [true: days(btc, trendUp), false: days(spy, trendUp)]
         let mkFull = [true: days(btc, fullUp), false: days(spy, fullUp)]
         func market(_ m: [Bool: [Double: Bool]], _ s: LabSeries, _ i: Int) -> Bool {
-            let crypto = s.c.count > 950, day = (s.c[i].time / 86400).rounded(.down)
+            let crypto = s.c.count > 950, day = (s.c[i].time / 86_400_000).rounded(.down)
             return m[crypto]?[day] ?? m[crypto]?[day - 1] ?? m[crypto]?[day - 2] ?? m[crypto]?[day - 3] ?? true
+        }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var hit = 0, all = 0
+            for (_, s) in list { for i in 200..<s.c.count { all += 1; if mkTrend[s.c.count > 950]?[(s.c[i].time / 86_400_000).rounded(.down)] != nil { hit += 1 } } }
+            print("jours du marché trouvés (\(name)) : \(hit) / \(all)")
         }
         let enter = { (s: LabSeries, i: Int) in fullUp(s, i) }
         let exit = { (s: LabSeries, i: Int) in !fullUp(s, i) }
@@ -737,12 +742,12 @@ extension StrategyLabTests {
         let ruleOut = { (s: LabSeries, i: Int) in !ruleIn(s, i) }
         func days(_ s: LabSeries) -> [Double: Bool] {
             var d: [Double: Bool] = [:]
-            for i in s.c.indices { d[(s.c[i].time / 86400).rounded(.down)] = ruleIn(s, i) }
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = ruleIn(s, i) }
             return d
         }
         let mk = [true: days(btc), false: days(spy)]
         func market(_ s: LabSeries, _ i: Int) -> Bool {
-            let m = mk[s.c.count > 950]!, day = (s.c[i].time / 86400).rounded(.down)
+            let m = mk[s.c.count > 950]!, day = (s.c[i].time / 86_400_000).rounded(.down)
             return m[day] ?? m[day - 1] ?? m[day - 2] ?? m[day - 3] ?? true
         }
         func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }

@@ -61,3 +61,18 @@ final class MarketFilterTests: XCTestCase {
         XCTAssertNil(out.market)
     }
 }
+
+extension MarketFilterTests {
+    /// The time machine replays the market filter: an asset rising while its market falls stays in cash.
+    func testBacktestReplaysTheMarketFilter() {
+        let alone = TrendEngine.backtest(up, asset: eth)
+        XCTAssertGreaterThan(alone.exposure, 50)
+        let filtered = TrendEngine.backtest(up, asset: eth, market: down)
+        XCTAssertEqual(filtered.exposure, 0, accuracy: 1e-9, "marché baissier tout du long : jamais investi")
+        XCTAssertEqual(filtered.strategyReturn, 0, accuracy: 1e-9)
+        let same = TrendEngine.backtest(up, asset: eth, market: BotEngineTests.series(drift: 0.002, seed: 2))
+        XCTAssertEqual(same.exposure, alone.exposure, accuracy: 5, "marché haussier : presque comme la règle seule")
+        XCTAssertEqual(TrendEngine.backtest(up, asset: eth, market: Array(down.prefix(100))).exposure, alone.exposure, accuracy: 1e-9,
+                       "marché trop court : la règle seule")
+    }
+}
