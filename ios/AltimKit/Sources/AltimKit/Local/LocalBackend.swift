@@ -7,6 +7,8 @@ public actor LocalBackend {
     let fetcher: MarketFetcher
     private var snapshots: [String: (at: Double, task: Task<LocalSnapshot, Error>)] = [:]
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
+    /// Quotes being read: simultaneous callers (live prices, Radar, alerts, Selection) wait for the same read.
+    private var quoteReads: [String: Task<Quote?, Never>] = [:]
     private var fxCache: (at: Double, value: Fx.Response)?
     /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
     private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
@@ -367,12 +369,21 @@ public actor LocalBackend {
 
     // MARK: Quotes
 
-    /// Consensus quotes, kept 10 seconds (the live prices poll them).
+    /// Consensus quotes, kept 10 seconds (the live prices poll them); an asset already being read is not read twice.
     public func quotes(_ list: [Asset]) async -> [Quote] {
         let now = nowMs()
-        let missing = list.filter { a in quoteCache[a.id].map { now - $0.at >= 10_000 } ?? true }
-        if !missing.isEmpty {
-            for q in await QuoteSources.consensus(missing, fetcher: fetcher) { quoteCache["\(q.kind.rawValue):\(q.symbol)"] = (now, q) }
+        var reads: [(Asset, Task<Quote?, Never>)] = []
+        for a in list where quoteCache[a.id].map({ now - $0.at >= 10_000 }) ?? true {
+            if let t = quoteReads[a.id] { reads.append((a, t)); continue }
+            let fetcher = self.fetcher
+            let t = Task { await QuoteSources.one(a, fetcher: fetcher) }
+            quoteReads[a.id] = t
+            reads.append((a, t))
+        }
+        for (a, t) in reads {
+            let q = await t.value
+            if quoteReads[a.id] == t { quoteReads[a.id] = nil }
+            if let q { quoteCache[a.id] = (now, q) }
         }
         return list.compactMap { quoteCache[$0.id]?.quote }
     }
