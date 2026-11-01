@@ -535,16 +535,16 @@ extension StrategyLabTests {
             }
             // Per sizing: per kind and half, median return and median worst fall, and the share of assets where the
             // return per unit of worst fall beat the full position.
-            let sizings = ["pleine", "bot risque", "volatilité"]
+            let sizings = ["pleine", "bot risque 5 %", "volatilité", "bot risque 10 %"]
             print("== \(name)")
             for kind in [Kind.crypto, .stock] {
                 for half in 0..<2 {
-                    var rets: [[Double]] = [[], [], []], dds: [[Double]] = [[], [], []], better = [0, 0, 0], n = 0
+                    var rets: [[Double]] = [[], [], [], []], dds: [[Double]] = [[], [], [], []], better = [0, 0, 0, 0], n = 0
                     for (i, (a, bars)) in list.enumerated() where a.kind == kind {
                         let s = LabSeries(bars), lb = Self.lb(s), len = s.c.count - 200
                         let from = 200 + half * len / 2, to = 200 + (half + 1) * len / 2
                         var res: [(Double, Double)] = []
-                        for z in 0..<3 {
+                        for z in 0..<4 {
                             var eq = 1.0, peak = 1.0, dd = 0.0, w = 0.0, inPos = false
                             for d in from..<(to - 1) {
                                 let up = s.close[d] > Self.v(s.ema200[d]) && (s.ret(d, lb) ?? -1) > 0
@@ -554,7 +554,7 @@ extension StrategyLabTests {
                                 var target = 0.0
                                 if inPos {
                                     switch z {
-                                    case 1: target = min(1, 0.05 / max(abs(BotEngine.calibratedFall(risk[i]?[d] ?? -0.05, kind: a.kind) ?? -0.05), 0.01))
+                                    case 1, 3: target = min(1, (z == 1 ? 0.05 : 0.10) / max(abs(BotEngine.calibratedFall(risk[i]?[d] ?? -0.05, kind: a.kind) ?? -0.05), 0.01))
                                     case 2:
                                         var sq = 0.0
                                         for k in (d - 19)...d { let r = s.close[k] / s.close[k - 1] - 1; sq += r * r }
@@ -571,13 +571,13 @@ extension StrategyLabTests {
                             res.append(((eq - 1) * 100, dd * 100))
                         }
                         n += 1
-                        for z in 0..<3 {
+                        for z in 0..<4 {
                             rets[z].append(res[z].0); dds[z].append(res[z].1)
                             let c = (1 + res[z].0 / 100) / (-res[z].1 / 100 + 0.05), c0 = (1 + res[0].0 / 100) / (-res[0].1 / 100 + 0.05)
                             if c > c0 { better[z] += 1 }
                         }
                     }
-                    let parts = (0..<3).map { z in "\(sizings[z]) ret \(Int(Lab.median(rets[z])))% creux \(Int(Lab.median(dds[z])))% mieux/risque \(better[z])/\(n)" }
+                    let parts = (0..<4).map { z in "\(sizings[z]) ret \(Int(Lab.median(rets[z])))% creux \(Int(Lab.median(dds[z])))% mieux/risque \(better[z])/\(n)" }
                     print("\(kind == .crypto ? "C" : "A")\(half + 1) | " + parts.joined(separator: " | "))
                 }
             }
