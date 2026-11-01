@@ -836,3 +836,363 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 }
+
+extension StrategyLabTests {
+    /// Better bots? Four variants of both bots, walk-forward, two lists × two halves × two markets:
+    /// the current one (12 measures, one split per round), + the market's measures, depth-2 trees, both.
+    /// Reported: the realised gap between the 20 % highest and 20 % lowest predictions (both bots), the rank
+    /// correlation of predictions and outcomes, and the app's rule (market filter + the trend bot's entry veto).
+    func testBotUpgrades() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        let contexts: [Kind: BotEngine.MarketContext] = [.crypto: .init(btc), .stock: .init(spy)]
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        let variants: [(String, Bool, Int)] = [("actuel", false, 1), ("+ marché", true, 1), ("profondeur 2", false, 2), ("marché + prof. 2", true, 2)]
+        let targets: [(String, BotEngine.Target)] = [("Tendance", .gain(days: 20)), ("Risque", .fall(days: 20))]
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = ruleIn(s, i) }
+            return d
+        }
+        let mk = [true: mdays(LabSeries(btc)), false: mdays(LabSeries(spy))]
+        let marketOK = { (s: LabSeries, i: Int) in mk[s.c.count > 950]![(s.c[i].time / 86_400_000).rounded(.down)] ?? true }
+        func spearman(_ pairs: [(Double, Double)]) -> Double {
+            func ranks(_ v: [Double]) -> [Double] {
+                var r = [Double](repeating: 0, count: v.count)
+                for (k, i) in v.indices.sorted(by: { v[$0] < v[$1] }).enumerated() { r[i] = Double(k) }
+                return r
+            }
+            let a = ranks(pairs.map(\.0)), b = ranks(pairs.map(\.1)), m = Double(pairs.count - 1) / 2
+            let num = zip(a, b).reduce(0) { $0 + ($1.0 - m) * ($1.1 - m) }
+            let den = sqrt(a.reduce(0) { $0 + ($1 - m) * ($1 - m) } * b.reduce(0) { $0 + ($1 - m) * ($1 - m) })
+            return den > 0 ? num / den : 0
+        }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            var rules = [LabRule(name: "filtre seul", enter: { s, i in ruleIn(s, i) && marketOK(s, i) }, exit: { s, i in !ruleIn(s, i) || !marketOK(s, i) })]
+            print("== \(name) : haut / bas = moyenne réalisée des 20 % de prévisions les plus hautes / basses ; ρ = corrélation des rangs")
+            for (vname, useMarket, depth) in variants {
+                var preds: [String: [String: [Double?]]] = [:]
+                for (bot, target) in targets {
+                    for kind in [Kind.crypto, .stock] {
+                        let group = list.filter { $0.0.kind == kind }
+                        let p = BotEngine.walkForwardTrees(group.map(\.1), target: target, market: useMarket ? contexts[kind] : nil, depth: depth, extra: false)
+                        for (k, (_, bars)) in group.enumerated() { preds[bot, default: [:]][key(LabSeries(bars))] = p[k] }
+                    }
+                }
+                for (bot, target) in targets {
+                    var line = "\(vname) · \(bot)".padding(toLength: 28, withPad: " ", startingAt: 0)
+                    for kind in [Kind.crypto, .stock] {
+                        for half in 0..<2 {
+                            var pairs: [(Double, Double)] = []
+                            for (a, s) in data where a.kind == kind {
+                                guard let p = preds[bot]?[key(s)] else { continue }
+                                let bs = BotEngine.Series(s.c), mid = s.c.count / 2
+                                for i in (half == 0 ? 200..<mid : mid..<s.c.count) {
+                                    if let x = p[i], let y = BotEngine.label(bs, i, target) { pairs.append((x, y)) }
+                                }
+                            }
+                            pairs.sort { $0.0 < $1.0 }
+                            let q = pairs.count / 5
+                            guard q > 10 else { line += " | –"; continue }
+                            func mean(_ v: ArraySlice<(Double, Double)>) -> Double { v.map(\.1).reduce(0, +) / Double(v.count) }
+                            line += String(format: " | %@%d %+.1f/%+.1f ρ%+.2f", kind == .crypto ? "C" : "A", half + 1,
+                                           mean(pairs[(pairs.count - q)...]) * 100, mean(pairs[..<q]) * 100, spearman(pairs))
+                        }
+                    }
+                    print(line)
+                }
+                let tp = preds["Tendance"] ?? [:]
+                rules.append(LabRule(name: "veto " + vname, enter: { s, i in ruleIn(s, i) && marketOK(s, i) && (tp[key(s)]?[i] ?? nil ?? 0) > BotEngine.entryBelow },
+                                     exit: { s, i in !ruleIn(s, i) || !marketOK(s, i) }))
+            }
+            print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}
+
+extension StrategyLabTests {
+    func testBotUpgrades2() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        let contexts: [Kind: BotEngine.MarketContext] = [.crypto: .init(btc), .stock: .init(spy)]
+        func key(_ s: LabSeries) -> String { "\(s.c.count)-\(s.close[0])-\(s.close[s.close.count - 1])" }
+        // (name, extra risk measures, rounds, windows)
+        let variants: [(String, Bool, Int, [Int]?)] = [("actuel", false, 120, nil), ("+ mesures de risque", true, 120, nil),
+                                                       ("60 tours", false, 60, nil), ("240 tours", false, 240, nil),
+                                                       ("moyenne 3 fenêtres", false, 120, [20_000, 40_000, 60_000])]
+        let targets: [(String, BotEngine.Target)] = [("Tendance", .gain(days: 20)), ("Risque", .fall(days: 20))]
+        let n = { (s: LabSeries) in Self.lb(s) }
+        let ruleIn = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, n(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = ruleIn(s, i) }
+            return d
+        }
+        let mk = [true: mdays(LabSeries(btc)), false: mdays(LabSeries(spy))]
+        let marketOK = { (s: LabSeries, i: Int) in mk[s.c.count > 950]![(s.c[i].time / 86_400_000).rounded(.down)] ?? true }
+        func spearman(_ pairs: [(Double, Double)]) -> Double {
+            func ranks(_ v: [Double]) -> [Double] {
+                var r = [Double](repeating: 0, count: v.count)
+                for (k, i) in v.indices.sorted(by: { v[$0] < v[$1] }).enumerated() { r[i] = Double(k) }
+                return r
+            }
+            let a = ranks(pairs.map(\.0)), b = ranks(pairs.map(\.1)), m = Double(pairs.count - 1) / 2
+            let num = zip(a, b).reduce(0) { $0 + ($1.0 - m) * ($1.1 - m) }
+            let den = sqrt(a.reduce(0) { $0 + ($1 - m) * ($1 - m) } * b.reduce(0) { $0 + ($1 - m) * ($1 - m) })
+            return den > 0 ? num / den : 0
+        }
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            let data = list.map { ($0.0, LabSeries($0.1)) }
+            var rules = [LabRule(name: "filtre seul", enter: { s, i in ruleIn(s, i) && marketOK(s, i) }, exit: { s, i in !ruleIn(s, i) || !marketOK(s, i) })]
+            for kind in [Kind.crypto, .stock] {
+                var line = "référence volatilité · Risque".padding(toLength: 28, withPad: " ", startingAt: 0)
+                for half in 0..<2 {
+                    var pairs: [(Double, Double)] = []
+                    for (a, s) in data where a.kind == kind {
+                        let bs = BotEngine.Series(s.c), mid = s.c.count / 2
+                        for i in (half == 0 ? 200..<mid : mid..<s.c.count) {
+                            if let f = BotEngine.features(bs, i), let y = BotEngine.label(bs, i, .fall(days: 20)) { pairs.append((-f[8], y)) }
+                        }
+                    }
+                    line += String(format: " | %@%d ρ%+.2f", kind == .crypto ? "C" : "A", half + 1, spearman(pairs))
+                }
+                print("== \(name) " + line)
+            }
+            print("== \(name) : haut / bas = moyenne réalisée des 20 % de prévisions les plus hautes / basses ; ρ = corrélation des rangs")
+            for (vname, extra, rounds, windows) in variants {
+                var preds: [String: [String: [Double?]]] = [:]
+                for (bot, target) in targets {
+                    for kind in [Kind.crypto, .stock] {
+                        let group = list.filter { $0.0.kind == kind }
+                        let p = BotEngine.walkForwardTrees(group.map(\.1), target: target, extra: extra, rounds: rounds, windows: windows)
+                        for (k, (_, bars)) in group.enumerated() { preds[bot, default: [:]][key(LabSeries(bars))] = p[k] }
+                    }
+                }
+                for (bot, target) in targets {
+                    var line = "\(vname) · \(bot)".padding(toLength: 28, withPad: " ", startingAt: 0)
+                    for kind in [Kind.crypto, .stock] {
+                        for half in 0..<2 {
+                            var pairs: [(Double, Double)] = []
+                            for (a, s) in data where a.kind == kind {
+                                guard let p = preds[bot]?[key(s)] else { continue }
+                                let bs = BotEngine.Series(s.c), mid = s.c.count / 2
+                                for i in (half == 0 ? 200..<mid : mid..<s.c.count) {
+                                    if let x = p[i], let y = BotEngine.label(bs, i, target) { pairs.append((x, y)) }
+                                }
+                            }
+                            pairs.sort { $0.0 < $1.0 }
+                            let q = pairs.count / 5
+                            guard q > 10 else { line += " | –"; continue }
+                            func mean(_ v: ArraySlice<(Double, Double)>) -> Double { v.map(\.1).reduce(0, +) / Double(v.count) }
+                            line += String(format: " | %@%d %+.1f/%+.1f ρ%+.2f", kind == .crypto ? "C" : "A", half + 1,
+                                           mean(pairs[(pairs.count - q)...]) * 100, mean(pairs[..<q]) * 100, spearman(pairs))
+                        }
+                    }
+                    print(line)
+                }
+                let tp = preds["Tendance"] ?? [:]
+                rules.append(LabRule(name: "veto " + vname, enter: { s, i in ruleIn(s, i) && marketOK(s, i) && (tp[key(s)]?[i] ?? nil ?? 0) > BotEngine.entryBelow },
+                                     exit: { s, i in !ruleIn(s, i) || !marketOK(s, i) }))
+            }
+            print(Lab.report(data, rules)); print(Lab.full(data, rules))
+        }
+    }
+}
+
+extension StrategyLabTests {
+    /// The risk bot against plain volatility: rank correlation with the fall lived, gap between the calmest and the
+    /// riskiest fifth, and calibration (announced vs lived, calmest and riskiest fifth), walk-forward.
+    func testRiskBotVsVolatility() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        func spearman(_ pairs: [(Double, Double)]) -> Double {
+            func ranks(_ v: [Double]) -> [Double] {
+                var r = [Double](repeating: 0, count: v.count)
+                for (k, i) in v.indices.sorted(by: { v[$0] < v[$1] }).enumerated() { r[i] = Double(k) }
+                return r
+            }
+            let a = ranks(pairs.map(\.0)), b = ranks(pairs.map(\.1)), m = Double(pairs.count - 1) / 2
+            let num = zip(a, b).reduce(0) { $0 + ($1.0 - m) * ($1.1 - m) }
+            let den = sqrt(a.reduce(0) { $0 + ($1 - m) * ($1 - m) } * b.reduce(0) { $0 + ($1 - m) * ($1 - m) })
+            return den > 0 ? num / den : 0
+        }
+        let target = BotEngine.Target.fall(days: 20)
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            print("== \(name) : ρ | calmes annoncé→vécu | risqués annoncé→vécu")
+            for kind in [Kind.crypto, .stock] {
+                let group = list.filter { $0.0.kind == kind }
+                let bot = BotEngine.walkForwardTrees(group.map(\.1), target: target, extra: false)
+                let scaled = BotEngine.walkForwardTrees(group.map(\.1), target: target, extra: false, volScaled: true)
+                let scaledX = BotEngine.walkForwardTrees(group.map(\.1), target: target, extra: true, volScaled: true)
+                let linear = BotEngine.walkForwardRisk(group.map(\.1))
+                for (vname, preds) in [("bot actuel", bot), ("volatilité seule", nil), ("bot × volatilité", scaled), ("bot × vol + mesures", scaledX), ("linéaire risque", linear)] as [(String, [[Double?]]?)] {
+                    var line = "\(kind == .crypto ? "C" : "A") \(vname)".padding(toLength: 24, withPad: " ", startingAt: 0)
+                    for half in 0..<2 {
+                        var pairs: [(Double, Double)] = []
+                        for (h, (_, bars)) in group.enumerated() {
+                            let bs = BotEngine.Series(bars), mid = bs.c.count / 2
+                            for i in (half == 0 ? 200..<mid : mid..<bs.c.count) {
+                                guard let y = BotEngine.label(bs, i, target), let f = BotEngine.features(bs, i) else { continue }
+                                if let p = preds { if let x = p[h][i] { pairs.append((x, y)) } } else { pairs.append((-f[8], y)) }
+                            }
+                        }
+                        pairs.sort { $0.0 > $1.0 } // calmest first
+                        let q = pairs.count / 5
+                        func m(_ v: ArraySlice<(Double, Double)>, _ k: KeyPath<(Double, Double), Double>) -> Double { v.map { $0[keyPath: k] }.reduce(0, +) / Double(v.count) * 100 }
+                        let calm = pairs[..<q], risky = pairs[(pairs.count - q)...]
+                        line += String(format: " | %d: ρ%+.2f calmes %+.1f→%+.1f risqués %+.1f→%+.1f", half + 1, spearman(pairs),
+                                       preds == nil ? .nan : m(calm, \.0), m(calm, \.1), preds == nil ? .nan : m(risky, \.0), m(risky, \.1))
+                    }
+                    print(line)
+                }
+            }
+        }
+    }
+}
+
+extension StrategyLabTests {
+    static func rho(_ pairs: [(Double, Double)]) -> Double {
+        func ranks(_ v: [Double]) -> [Double] {
+            var r = [Double](repeating: 0, count: v.count)
+            for (k, i) in v.indices.sorted(by: { v[$0] < v[$1] }).enumerated() { r[i] = Double(k) }
+            return r
+        }
+        let a = ranks(pairs.map(\.0)), b = ranks(pairs.map(\.1)), m = Double(pairs.count - 1) / 2
+        let num = zip(a, b).reduce(0) { $0 + ($1.0 - m) * ($1.1 - m) }
+        let den = sqrt(a.reduce(0) { $0 + ($1 - m) * ($1 - m) } * b.reduce(0) { $0 + ($1 - m) * ($1 - m) })
+        return den > 0 ? num / den : 0
+    }
+
+    /// Risk models compared where it counts: calibration by fifths (announced vs lived worst fall) and the position size
+    /// they advise on the app's rule (market filter + the trend bot's entry veto), at 5 % and 10 % of accepted risk.
+    func testRiskModelSizing() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        func up(_ s: LabSeries, _ i: Int) -> Bool { s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, Self.lb(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let mk = [Kind.crypto: mdays(LabSeries(btc)), .stock: mdays(LabSeries(spy))]
+        let target = BotEngine.Target.fall(days: 20)
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var trend: [Int: [Double?]] = [:], trendX: [Int: [Double?]] = [:], models: [String: [Int: [Double?]]] = [:]
+            for kind in [Kind.crypto, .stock] {
+                let idx = list.indices.filter { list[$0].0.kind == kind }
+                let h = idx.map { list[$0].1 }
+                let t = BotEngine.walkForwardTrees(h, extra: false)
+                let r = BotEngine.walkForwardTrees(h, target: target, extra: false)
+                let tx = BotEngine.walkForwardTrees(h, extra: true)
+                let rx = BotEngine.walkForwardTrees(h, target: target, extra: true)
+                let v = BotEngine.walkForwardRisk(h, volOnly: true)
+                for (k, i) in idx.enumerated() {
+                    trend[i] = t[k]; trendX[i] = tx[k]; models["bot actuel", default: [:]][i] = r[k]; models["volatilité calibrée", default: [:]][i] = v[k]
+                    models["bot + mesures", default: [:]][i] = rx[k]
+                    // The more cautious of the two (calibrated bot, calibrated volatility).
+                    models["prudent des deux", default: [:]][i] = zip(r[k], v[k]).map { a, b in
+                        guard let a, let b else { return nil }
+                        return min(BotEngine.calibratedFall(a, kind: kind) ?? a, b)
+                    }
+                }
+            }
+            print("== \(name) : calibration par cinquième (annoncé → vécu), du plus calme au plus risqué")
+            for m in ["bot actuel", "bot + mesures"] {
+                for kind in [Kind.crypto, .stock] {
+                    var line = "\(kind == .crypto ? "C" : "A") \(m)".padding(toLength: 24, withPad: " ", startingAt: 0)
+                    for half in 0..<2 {
+                        var pairs: [(Double, Double)] = []
+                        for (i, (a, bars)) in list.enumerated() where a.kind == kind {
+                            let bs = BotEngine.Series(bars), mid = bs.c.count / 2
+                            for d in (half == 0 ? 200..<mid : mid..<bs.c.count) {
+                                if let x = models[m]?[i]?[d] ?? nil, let y = BotEngine.label(bs, d, target) { pairs.append((x, y)) }
+                            }
+                        }
+                        pairs.sort { $0.0 > $1.0 }
+                        let q = pairs.count / 5
+                        line += String(format: " | ρ%+.2f", Self.rho(pairs))
+                        line += " | \(half + 1):"
+                        for f in 0..<5 {
+                            let sl = pairs[(f * q)..<((f + 1) * q)]
+                            line += String(format: " %.0f→%.0f", sl.map(\.0).reduce(0, +) / Double(q) * 100, sl.map(\.1).reduce(0, +) / Double(q) * 100)
+                        }
+                    }
+                    print(line)
+                }
+            }
+            print("== \(name) : taille conseillée sur la règle de l'app (médianes rendement / pire baisse ; mieux/risque contre la position pleine)")
+            let sizings: [(String, String?, Double)] = [("pleine", nil, 0), ("bot actuel 5 %", "bot actuel", 0.05), ("bot + mesures 5 %", "bot + mesures", 0.05),
+                                                        ("bot actuel 10 %", "bot actuel", 0.10), ("bot + mesures 10 %", "bot + mesures", 0.10)]
+            for kind in [Kind.crypto, .stock] {
+                for half in 0..<2 {
+                    var rets = sizings.map { _ in [Double]() }, dds = rets, better = sizings.map { _ in 0 }, n = 0
+                    for (i, (a, bars)) in list.enumerated() where a.kind == kind {
+                        let s = LabSeries(bars), len = s.c.count - 200
+                        let from = 200 + half * len / 2, to = 200 + (half + 1) * len / 2
+                        var res: [(Double, Double)] = []
+                        for (_, model, budget) in sizings {
+                            var eq = 1.0, peak = 1.0, dd = 0.0, w = 0.0, inPos = false
+                            for d in from..<(to - 1) {
+                                let ok = up(s, d) && (mk[kind]?[(s.c[d].time / 86_400_000).rounded(.down)] ?? true)
+                                // Each risk model with its own trend bot (the 16-measure bots go together).
+                                let tb = model == "bot + mesures" ? trendX : trend
+                                if !inPos, ok, (tb[i]?[d] ?? nil ?? 0) > BotEngine.entryBelow { inPos = true } else if inPos, !ok { inPos = false }
+                                var t = 0.0
+                                if inPos {
+                                    if let model {
+                                        let raw = models[model]?[i]?[d] ?? nil ?? -0.05
+                                        let fall = model != "volatilité calibrée" ? (BotEngine.calibratedFall(raw, kind: kind) ?? raw) : raw
+                                        t = min(1, budget / max(abs(fall), 0.01))
+                                    } else { t = 1 }
+                                }
+                                eq *= 1 - abs(t - w) * Lab.fee
+                                w = t
+                                eq *= 1 + w * (s.close[d + 1] / s.close[d] - 1)
+                                peak = max(peak, eq); dd = min(dd, eq / peak - 1)
+                            }
+                            res.append(((eq - 1) * 100, dd * 100))
+                        }
+                        n += 1
+                        for z in sizings.indices {
+                            rets[z].append(res[z].0); dds[z].append(res[z].1)
+                            let c = (1 + res[z].0 / 100) / (-res[z].1 / 100 + 0.05), c0 = (1 + res[0].0 / 100) / (-res[0].1 / 100 + 0.05)
+                            if c > c0 { better[z] += 1 }
+                        }
+                    }
+                    let parts = sizings.indices.map { z in "\(sizings[z].0) \(Int(Lab.median(rets[z])))% / \(Int(Lab.median(dds[z])))% (\(better[z])/\(n))" }
+                    print("\(kind == .crypto ? "C" : "A")\(half + 1) | " + parts.joined(separator: " | "))
+                }
+            }
+        }
+    }
+}
