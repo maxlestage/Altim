@@ -42,3 +42,35 @@ final class DownloadSharingTests: XCTestCase {
         XCTAssertEqual(shared.count, one, "redemandé ensuite : servi par le cache")
     }
 }
+
+extension DownloadSharingTests {
+    /// Counts requests per URL, answers an empty RSS feed.
+    final class FeedCounter: MarketFetcher, @unchecked Sendable {
+        private let lock = NSLock()
+        private var urls: [String] = []
+        var all: [String] { lock.lock(); defer { lock.unlock() }; return urls }
+        func data(_ url: String, method: String, body: Data?) async throws -> Data {
+            lock.lock(); urls.append(url); lock.unlock()
+            try await Task.sleep(nanoseconds: 10_000_000)
+            return Data("<rss><channel></channel></rss>".utf8)
+        }
+    }
+
+    /// The news of several assets and of the macro context read each general feed once.
+    func testNewsFeedsAreReadOncePerFiveMinutes() async {
+        let a = Asset(symbol: "AAPL", kind: .stock, name: "Apple"), b = Asset(symbol: "ETH", kind: .crypto, name: "Ethereum")
+        let counter = FeedCounter()
+        let backend = LocalBackend(fetcher: counter, bot: false)
+        async let x = backend.news([a])
+        async let y = backend.news([b])
+        async let z = backend.news([])
+        _ = await (x, y, z)
+        let general = NewsEngine.feeds.map(\.url)
+        let urls = counter.all
+        for u in general { XCTAssertEqual(urls.filter { $0 == u }.count, 1, u) }
+        XCTAssertEqual(urls.count, Set(urls).count, "aucun flux lu deux fois")
+        let before = urls.count
+        _ = await backend.news([a, b])
+        XCTAssertEqual(counter.all.count, before, "même flux dans les 5 minutes : servis par le cache")
+    }
+}
