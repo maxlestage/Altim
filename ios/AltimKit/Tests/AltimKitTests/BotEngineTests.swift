@@ -75,7 +75,8 @@ final class BotEngineTests: XCTestCase {
     }
 
     func testRiskSizeInTheBuyAlert() {
-        XCTAssertEqual(BotEngine.size(forFall: -0.25), 20)
+        XCTAssertEqual(BotEngine.size(forFall: -0.25, budget: 0.05), 20)
+        XCTAssertEqual(BotEngine.size(forFall: -0.25, budget: 0.10), 40, "risque accepté de 10 %")
         XCTAssertEqual(BotEngine.size(forFall: -0.02), 100)
         XCTAssertNil(BotEngine.size(forFall: nil))
         var v = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
@@ -83,7 +84,7 @@ final class BotEngineTests: XCTestCase {
         let o = LocalAlertRule.evaluate(.init(asset: Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), price: 100, verdict: v,
                                               reliability: nil, zones: []))
         XCTAssertTrue(o.buy)
-        XCTAssertTrue(o.cautions.contains("Bot Risque : pire baisse prévue −25 % sur 20 jours, engager environ 20 % de la somme prévue."), "\(o.cautions)")
+        XCTAssertTrue(o.cautions.contains("Bot Risque : pire baisse prévue −25 % sur 20 jours, engager environ 20 % de la somme prévue (risque accepté : 5 %)."), "\(o.cautions)")
     }
 
     /// The radar row carries the risk bot's fall; an older cached row without it still reads.

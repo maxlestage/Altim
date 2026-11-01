@@ -411,7 +411,7 @@ struct PaperBuySheet: View {
                 } header: {
                     Text("Montant")
                 } footer: {
-                    Text("Frais de 0,1 % et glissement de 0,05 % déduits, comme pour un vrai ordre.")
+                    Text(amountFooter)
                 }
                 Section {
                     TextField("Stop en \(Money.symbol()) (facultatif)", text: $stop).keyboardType(.decimalPad)
@@ -443,13 +443,23 @@ struct PaperBuySheet: View {
         .presentationDetents([.large])
     }
 
+    private var amountFooter: String {
+        var text = "Frais de 0,1 % et glissement de 0,05 % déduits, comme pour un vrai ordre."
+        if let size = BotEngine.size(forFall: verdict.botRisk), size < 100 {
+            text += " Pré-rempli avec \(size) % d'une position de 10 % du portefeuille : la taille conseillée par le bot Risque pour un risque accepté de \(Int(BotEngine.riskBudget * 100)) % (Réglages)."
+        }
+        return text
+    }
+
     private func prefill() {
         guard amount.isEmpty else { return }
         var prices: [String: Double] = [:]
         for p in model.paper.positions { if let t = model.live.price(p.asset) { prices[p.key] = t.price } }
         let equity = Paper.valuation(model.paper, prices: prices).equity
-        // Shown and typed in the display currency; the simulation gets dollars.
-        let a = (Money.toDisplay(min(equity * 0.1, model.paper.cash)) * 100).rounded(.down) / 100
+        // 10 % of the simulated portfolio, reduced to the risk bot's size (risk accepted in Réglages), as the alerts
+        // advise. Shown and typed in the display currency; the simulation gets dollars.
+        let share = Double(BotEngine.size(forFall: verdict.botRisk) ?? 100) / 100
+        let a = (Money.toDisplay(min(equity * 0.1 * share, model.paper.cash)) * 100).rounded(.down) / 100
         amount = a > 0 ? Format.plain(a, digits: 2) : ""
         if let e = verdict.ema200, let p = price, e < p { stop = Money.inputPrice(Money.toDisplay(e)) }
     }
