@@ -80,3 +80,16 @@ final class QuoteBatchTests: XCTestCase {
         XCTAssertEqual(q["crypto:ETH"]?.price, 3000)
     }
 }
+
+extension QuoteBatchTests {
+    /// An ETF quoted by Nasdaq under "etf": the next refresh asks that class directly (1 request instead of 2).
+    func testNasdaqRemembersTheAssetClass() async throws {
+        let f = Routes([("https://api.nasdaq.com/api/quote/QQQX/info?assetclass=etf", #"{"data":{"primaryData":{"lastSalePrice":"$500.10","percentageChange":"+0.50%"}}}"#)])
+        let nasdaq = try XCTUnwrap(QuoteSources.stock.first { $0.name == "Nasdaq" })
+        let first = try await nasdaq.fetch(f, "QQQX")
+        XCTAssertEqual(first.price, 500.10, accuracy: 1e-9)
+        XCTAssertEqual(f.all.count, 2, "1re fois : « stocks » puis « etf »")
+        _ = try await nasdaq.fetch(f, "QQQX")
+        XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
+    }
+}
