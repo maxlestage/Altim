@@ -1196,3 +1196,81 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Selection weights: each asset of the fixed list gets an equal share today. Variant: shares inversely
+    /// proportional to the asset's volatility, measured on the 60 days before the period (no look-ahead), kept fixed.
+    /// Rule of the app: trend + momentum + market filter. Per list, market and half: return and worst fall.
+    /// Result (not kept): with the period cut here, crypto better in return and worst fall in all 4 cases and with
+    /// 30, 60 or 120 days (e.g. +57 % / −27 % against +48 % / −30 %), stocks lower return. But replayed with the
+    /// app's own Selection test (Rotation.sleeves, another start date, shares measured again at mid-period), crypto
+    /// did worse on the lab list (+28 % against +30 %, first half +56 % against +58 %) and barely better on the
+    /// universe (+41 % against +40 %): the gain depends on the dates. Equal shares are kept.
+    func testSleeveWeights() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        func up(_ s: LabSeries, _ i: Int) -> Bool { s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, Self.lb(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let mk = [Kind.crypto: mdays(LabSeries(btc)), .stock: mdays(LabSeries(spy))]
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            for kind in [Kind.crypto, .stock] {
+                let series = list.filter { $0.0.kind == kind }.map { LabSeries($0.1) }
+                // Common calendar: the days every asset has (from the latest 260th day on).
+                let start = series.map { $0.c[260].time }.max()!
+                let days = Array(Set(series.flatMap { $0.c.map(\.time) })).filter { $0 >= start }.sorted()
+                let idx = series.map { s in Dictionary(s.c.enumerated().map { ($0.element.time, $0.offset) }, uniquingKeysWith: { a, _ in a }) }
+                for half in 0..<2 {
+                    let from = days[half * days.count / 2], to = days[(half + 1) * days.count / 2 - 1]
+                    // Volatility of each asset over the 60 days before `from`.
+                    func invVol(_ n: Int) -> [Double] {
+                        var vols: [Double] = []
+                        for (a, s) in series.enumerated() {
+                            let found: Int? = idx[a][from] ?? s.c.lastIndex(where: { $0.time <= from })
+                            guard let i = found, i > n + 1 else { vols.append(0.03); continue }
+                            var r: [Double] = []
+                            for k in (i - n + 1)...i { r.append(s.close[k] / s.close[k - 1] - 1) }
+                            let m: Double = r.reduce(0, +) / Double(n)
+                            var v: Double = 0
+                            for x in r { v += (x - m) * (x - m) }
+                            vols.append(max(0.002, (v / Double(n)).squareRoot()))
+                        }
+                        let inv = vols.map { 1 / $0 }, sumInv = inv.reduce(0, +)
+                        return inv.map { $0 / sumInv }
+                    }
+                    var line = "\(name) \(kind == .crypto ? "C" : "A")\(half + 1)"
+                    let equal: [Double] = series.map { _ in 1.0 / Double(series.count) }
+                    let variants: [(String, [Double])] = [("égales", equal), ("inv. vol 30 j", invVol(30)), ("inv. vol 60 j", invVol(60)), ("inv. vol 120 j", invVol(120))]
+                    for (label, w) in variants {
+                        // Each sleeve compounds on its own (as the app's fixed shares): in when the rule says so.
+                        var value = w, inPos = series.map { _ in false }, last = series.map { _ in -1 }
+                        var peak = 1.0, dd = 0.0
+                        for t in days where t >= from && t <= to {
+                            for (a, s) in series.enumerated() {
+                                guard let i = idx[a][t] else { continue }
+                                if last[a] >= 0, inPos[a] { value[a] *= s.close[i] / s.close[last[a]] }
+                                let ok = up(s, i) && (mk[kind]?[(t / 86_400_000).rounded(.down)] ?? true)
+                                if ok != inPos[a] { value[a] *= 1 - Lab.fee; inPos[a] = ok }
+                                last[a] = i
+                            }
+                            let v = value.reduce(0, +)
+                            peak = max(peak, v); dd = min(dd, v / peak - 1)
+                        }
+                        line += String(format: " | %@ %+.0f%% creux %.0f%%", label, (value.reduce(0, +) - 1) * 100, dd * 100)
+                    }
+                    print(line)
+                }
+            }
+        }
+    }
+}
