@@ -23,7 +23,7 @@ final class LocalAlertsTests: XCTestCase {
         XCTAssertTrue(p.buy && p.strong)
         XCTAssertEqual(p.key, "repli")
         XCTAssertTrue(p.title.hasPrefix("BTC : achat conseillé à 90"))
-        XCTAssertTrue(p.body.hasSuffix("Sortie si le prix repasse sous 70,00\u{a0}$ (moyenne 200 jours) ou si le momentum devient négatif."))
+        XCTAssertTrue(p.body.hasSuffix("Sortie si le prix repasse sous 70,00\u{a0}$ (moyenne 200 jours), si le momentum devient négatif ou si le Bitcoin quitte sa tendance haussière."))
         let t = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: []))
         XCTAssertTrue(t.buy && !t.strong)
         XCTAssertTrue(t.cautions.contains("Pas de repli en cours : entrer en plusieurs fois."))
