@@ -71,7 +71,8 @@ enum LocalAlertRule {
         }
         let buy = inTrend && blockers.isEmpty
         let strong = buy && (state == .pullback || hit != nil)
-        let stop = a.verdict?.ema200.map { " Sortie si le prix repasse sous \(Money.money($0)) (moyenne 200 jours) ou si le momentum devient négatif." } ?? ""
+        let market = a.asset.kind == .crypto ? "le Bitcoin" : "le S&P 500"
+        let stop = a.verdict?.ema200.map { " Sortie si le prix repasse sous \(Money.money($0)) (moyenne 200 jours), si le momentum devient négatif ou si \(market) quitte sa tendance haussière." } ?? ""
         let price = a.price.map { " à \(Money.money($0))" } ?? ""
         let symbol = a.asset.symbol
         return Output(buy: buy, strong: strong, reasons: reasons, blockers: blockers, cautions: cautions,

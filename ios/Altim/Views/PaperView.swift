@@ -421,7 +421,7 @@ struct PaperBuySheet: View {
                 } header: {
                     Text("Sortie automatique")
                 } footer: {
-                    Text("Stop pré-rempli avec la moyenne 200 jours, sous laquelle le verdict cesse d'être à l'achat ; pas d'objectif, la règle laisse courir la tendance. Vérifiés sur les bougies journalières à partir du lendemain ; un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
+                    Text("Stop pré-rempli avec la moyenne 200 jours, sous laquelle le verdict cesse d'être à l'achat (il peut aussi passer à la sortie si le momentum devient négatif ou si le marché quitte sa tendance : la simulation ne le suit pas, voyez le verdict de la fiche) ; pas d'objectif, la règle laisse courir la tendance. Vérifiés sur les bougies journalières à partir du lendemain ; un stop au-dessus du prix d'achat ou un objectif en dessous est ignoré.")
                 }
                 Section {
                     JournalNoteField(text: $note)
