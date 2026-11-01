@@ -483,17 +483,29 @@ extension ConfigChanges {
     /// alerts already tell it): only a change of the background picture is a transition. Unknown verdicts are ignored.
     public static func apply(_ state: ConfigState, verdict v: TrendEngine.Verdict, asset: Asset, now: Double) -> (state: ConfigState, transition: ConfigTransition?) {
         let side: (Decision.Verdict, Decision.Level, String, String)
+        // An up trend held back by the market filter or the trend bot: the asset's own trend is not what changed.
+        let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
+        let market = asset.kind == .crypto ? "le Bitcoin" : "le S&P 500"
         switch v.effectiveState {
         case .pullback, .trend: side = (.buyZone, .moderate, "ACHETER / CONSERVER", "Tendance haussière")
-        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", "Signaux contraires")
-        case .down: side = (.noPosition, .exit, "RESTER À L'ÉCART", "Tendance baissière")
+        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", vetoed ? "Achat bloqué par le bot Tendance" : "Signaux contraires")
+        case .down:
+            side = (.noPosition, .exit, vetoed ? v.label : "RESTER À L'ÉCART",
+                    !vetoed ? "Tendance baissière" : v.market == false ? "Marché hors tendance haussière" : "Sortie conseillée par le bot Tendance")
         case .unknown: return (state, nil)
         }
-        let trigger = v.ema200.map { e -> String in
-            side.0 == .buyZone ? "Sortie si le prix repasse sous \(Money.money(e)) (moyenne 200 jours) ou si le momentum devient négatif"
-                : "Retour à l'achat quand le prix repasse au-dessus de \(Money.money(e)) (moyenne 200 jours) avec un momentum positif"
+        let triggers: [String]
+        if vetoed && v.market == false {
+            triggers = ["Retour à l'achat quand \(market) repasse en tendance haussière (au-dessus de sa moyenne 200 jours, momentum positif), si l'actif y est encore"]
+        } else if vetoed {
+            triggers = ["Retour à l'achat quand le bot Tendance ne prévoit plus de baisse sur 20 jours, si la tendance de l'actif tient"]
+        } else {
+            triggers = v.ema200.map { e -> String in
+                side.0 == .buyZone ? "Sortie si le prix repasse sous \(Money.money(e)) (moyenne 200 jours), si le momentum devient négatif ou si \(market) quitte sa tendance haussière"
+                    : "Retour à l'achat quand le prix repasse au-dessus de \(Money.money(e)) (moyenne 200 jours) avec un momentum positif"
+            }.map { [$0] } ?? []
         }
-        let next = ConfigSnapshot(verdict: side.0, level: side.1, label: side.2, levelLabel: side.3, missing: [], triggers: trigger.map { [$0] } ?? [],
+        let next = ConfigSnapshot(verdict: side.0, level: side.1, label: side.2, levelLabel: side.3, missing: [], triggers: triggers,
                                   at: now, rating: nil, ratingLabel: nil, metrics: nil)
         let k = key(kind: asset.kind, symbol: asset.symbol, personal: false)
         let t = diff(state.last[k], next, symbol: asset.symbol, kind: asset.kind, name: asset.name, personal: false)
