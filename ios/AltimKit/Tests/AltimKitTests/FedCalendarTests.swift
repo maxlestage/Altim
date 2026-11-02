@@ -37,3 +37,19 @@ final class FedCalendarTests: XCTestCase {
         XCTAssertFalse(far.cautions.contains { $0.contains("Fed") }, "à plus de 3 jours : rien")
     }
 }
+
+extension FedCalendarTests {
+    /// The macro card shows the next Fed decision; an older answer without it still reads.
+    func testMacroCarriesTheNextDecision() throws {
+        let old = #"{"score":20,"level":"calm","factors":[],"themes":[],"values":{}}"#
+        var m = try JSONDecoder().decode(MacroInfo.self, from: Data(old.utf8))
+        XCTAssertNil(m.nextFedText())
+        m.nextFed = Self.day(2026, 12, 9)
+        XCTAssertEqual(m.nextFedText(now: Self.day(2026, 11, 2)), "9 décembre (dans 37 jours)")
+        XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 8)), "9 décembre (demain)")
+        XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 9) - 3_600_000), "9 décembre (aujourd'hui)")
+        XCTAssertNil(m.nextFedText(now: Self.day(2026, 12, 11)), "passée : rien")
+        let back = try JSONDecoder().decode(MacroInfo.self, from: JSONEncoder().encode(m))
+        XCTAssertEqual(back.nextFed, m.nextFed)
+    }
+}
