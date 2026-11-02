@@ -100,7 +100,8 @@ enum FibEngine {
         let distance = status == "above" ? (1 - top / p) * 100 : nil
         let text: String
         switch status {
-        case "above": text = "Prix au-dessus de la zone : attendre un repli vers \(px(top)) – \(px(bottom)) (−\(pct(distance ?? 0)) pour l'atteindre)."
+        // Not « wait for a pull-back »: waiting for one to enter missed most rises in the lab (testEntryOnPullbackOnly).
+        case "above": text = "Prix au-dessus de la zone (\(px(top)) – \(px(bottom)), à −\(pct(distance ?? 0))). Attendre ce repli pour entrer a fait rater des hausses au test : la zone est un repère, le verdict décide."
         case "inZone": text = "Prix dans la zone d'achat (38,2 % – 61,8 % du mouvement de \(px(s.low)) à \(px(s.high)))."
         case "golden": text = "Prix dans la « zone d'or » (61,8 % – 65 %), le repli le plus surveillé par les traders."
         case "deep": text = "Repli profond (au-delà de 65 %) : dernier soutien avant \(px(s.low)) ; un passage sous ce plus bas invalide la zone."
