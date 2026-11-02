@@ -53,3 +53,15 @@ extension FedCalendarTests {
         XCTAssertEqual(back.nextFed, m.nextFed)
     }
 }
+
+/// The Fibonacci card no longer tells to wait for a pull-back (waiting missed most rises in the lab).
+final class FibTextTests: XCTestCase {
+    func testAboveTheZoneDoesNotSayWait() {
+        Money.setDisplay(.usd, nil)
+        let s = FibEngine.Swing(up: true, low: 100, high: 200, lowIndex: 0, highIndex: 10)
+        let st = FibEngine.state(s, 190)
+        XCTAssertEqual(st.status, "above")
+        XCTAssertFalse(st.text.contains("attendre un repli vers"))
+        XCTAssertTrue(st.text.hasSuffix("la zone est un repère, le verdict décide."), st.text)
+    }
+}
