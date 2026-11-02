@@ -72,7 +72,7 @@ enum LocalAlertRule {
                 let fmt = DateFormatter()
                 fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = TimeZone(identifier: "UTC"); fmt.dateFormat = "d MMMM"
                 let when = d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
-                cautions.append("Décision de taux de la Fed \(when) (\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))), annoncée à 14 h heure de New York) : un événement qui peut faire bouger tous les marchés.")
+                cautions.append("Décision de taux de la Fed \(when) (\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))), annoncée à 14 h heure de New York) : au labo, ce jour-là et le lendemain ont bougé en moyenne 15 à 20 % de plus que les autres jours.")
             }
         }
         if let e = a.earnings, (0...7).contains(e.daysAway(now: a.now)) {

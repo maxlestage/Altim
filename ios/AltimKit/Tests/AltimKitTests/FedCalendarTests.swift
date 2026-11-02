@@ -31,7 +31,7 @@ final class FedCalendarTests: XCTestCase {
         let v = TrendEngine.verdict(BotEngineTests.series(drift: 0.002), kind: .crypto)
         let now = Date(timeIntervalSince1970: Self.day(2026, 12, 7) / 1000)
         let o = LocalAlertRule.evaluate(.init(asset: a, price: 100, verdict: v, reliability: nil, zones: [], fedDecision: Self.day(2026, 12, 9), now: now))
-        XCTAssertTrue(o.cautions.contains("Décision de taux de la Fed dans 2 jours (9 décembre, annoncée à 14 h heure de New York) : un événement qui peut faire bouger tous les marchés."), o.cautions.joined(separator: "\n"))
+        XCTAssertTrue(o.cautions.contains("Décision de taux de la Fed dans 2 jours (9 décembre, annoncée à 14 h heure de New York) : au labo, ce jour-là et le lendemain ont bougé en moyenne 15 à 20 % de plus que les autres jours."), o.cautions.joined(separator: "\n"))
         let far = LocalAlertRule.evaluate(.init(asset: a, price: 100, verdict: v, reliability: nil, zones: [], fedDecision: Self.day(2026, 12, 9),
                                                 now: Date(timeIntervalSince1970: Self.day(2026, 11, 20) / 1000)))
         XCTAssertFalse(far.cautions.contains { $0.contains("Fed") }, "à plus de 3 jours : rien")
