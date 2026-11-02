@@ -67,6 +67,8 @@ public struct SignalSummary: Codable, Sendable {
     public var action: Action
     public var score: Double
     public var confidence: Double
+    /// ATTENDRE forced by the data, not by the rule: last close too old, or sources too unreliable.
+    public var suspended: Bool? = nil
 }
 
 public struct RadarRow: Codable, Sendable, Identifiable {
