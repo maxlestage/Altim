@@ -22,6 +22,11 @@ final class DailyPointTests: XCTestCase {
             "Prochaine décision de taux de la Fed : 9 décembre (dans 37 jours).",
         ])
         XCTAssertEqual(DailyPoint.lines(macro: nil, rows: []), [], "rien de connu : pas de carte")
+        let soon = EarningsEvent(symbol: "AAPL", name: "Apple", date: "2026-11-05", time: FedCalendarTests.day(2026, 11, 5) - 4.5 * 3_600_000,
+                                 moment: "après la clôture", epsForecast: nil, lastYearEPS: nil)
+        let far = EarningsEvent(symbol: "MSFT", name: "Microsoft", date: "2026-11-30", time: FedCalendarTests.day(2026, 11, 30), moment: nil, epsForecast: nil, lastYearEPS: nil)
+        XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [], earnings: [far, soon], now: FedCalendarTests.day(2026, 11, 2)),
+                       ["Résultats trimestriels dans les 7 jours : AAPL (jeudi 5 novembre, après la clôture)."])
         let back = try JSONDecoder().decode(MacroInfo.self, from: JSONEncoder().encode(m))
         XCTAssertEqual(back.marketUp?["crypto"], false)
     }
