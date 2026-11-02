@@ -75,6 +75,16 @@ public struct SignalSummary: Codable, Sendable {
     public static let suspendedLabel = "Verdict suspendu : la dernière clôture est trop ancienne ou les sources sont trop peu fiables"
 }
 
+/// The widgets' short word in place of a verdict the data does not allow: nil when the verdict stands.
+public enum WidgetNote {
+    public static func text(_ row: RadarRow?) -> String? {
+        guard let row else { return nil }
+        if row.signal?.suspended == true { return "SUSPENDU" }
+        if row.signal == nil, row.error != nil { return "INDISP." }
+        return nil
+    }
+}
+
 public struct RadarRow: Codable, Sendable, Identifiable {
     public var symbol: String
     public var kind: Kind

@@ -133,6 +133,8 @@ struct VerdictEntry: TimelineEntry {
         var price: Double?
         var change: Double?
         var action: Action?
+        /// Shown instead of the verdict: SUSPENDU (data too old or unreliable) or INDISP. (data not read).
+        var note: String? = nil
         var id: String { symbol }
     }
 
@@ -184,7 +186,8 @@ struct VerdictProvider: AppIntentTimelineProvider {
         }
         return VerdictEntry(date: .now, rows: assets.map { a in
             let r = rows.first { $0.symbol == a.symbol && $0.kind == a.kind }
-            return .init(symbol: a.symbol, name: a.name, price: r?.price, change: r?.change, action: r?.signal?.action)
+            return .init(symbol: a.symbol, name: a.name, price: r?.price, change: r?.change, action: r?.signal?.action,
+                         note: WidgetNote.text(r))
         }, message: nil)
     }
 }
@@ -222,7 +225,7 @@ private struct VerdictWidgetView: View {
                 Text(r.price.map { Format.price($0) } ?? "—").font(.title3.monospaced().bold()).foregroundStyle(.white)
                     .minimumScaleFactor(0.5).lineLimit(1)
                 Text(Format.percent(r.change)).font(.caption.monospaced()).foregroundStyle(Palette.change(r.change))
-                VerdictChip(action: r.action)
+                VerdictChip(action: r.action, note: r.note)
             } else {
                 Text("Altim").font(.headline).foregroundStyle(Palette.cyan)
             }
@@ -249,7 +252,7 @@ private struct VerdictWidgetView: View {
                         Text(r.price.map { Format.price($0) } ?? "—").font(.caption.monospaced()).foregroundStyle(.white).lineLimit(1).minimumScaleFactor(0.6)
                         Text(Format.percent(r.change)).font(.caption2.monospaced()).foregroundStyle(Palette.change(r.change))
                     }
-                    VerdictChip(action: r.action).frame(minWidth: 62, alignment: .trailing)
+                    VerdictChip(action: r.action, note: r.note).frame(minWidth: 62, alignment: .trailing)
                 }
             }
             if let m = entry.message { Text(m).font(.caption2).foregroundStyle(Palette.muted).lineLimit(2) }
@@ -264,7 +267,7 @@ private struct VerdictWidgetView: View {
                     Text(r.symbol).font(.caption2.monospaced().bold())
                     Spacer(minLength: 2)
                     Text(Format.percent(r.change)).font(.caption2.monospaced())
-                    Text(r.action.map(VerdictChip.short) ?? "—").font(.caption2.bold())
+                    Text(r.note ?? r.action.map(VerdictChip.short) ?? "—").font(.caption2.bold())
                 }
             }
         }
@@ -273,6 +276,7 @@ private struct VerdictWidgetView: View {
 
 private struct VerdictChip: View {
     var action: Action?
+    var note: String? = nil
 
     static func short(_ a: Action) -> String {
         switch a {
@@ -284,6 +288,7 @@ private struct VerdictChip: View {
     }
 
     private var color: Color {
+        if note != nil { return Palette.muted }
         switch action {
         case .strongBuy?, .buy?: return Palette.buy
         case .sell?, .strongSell?: return Palette.sell
@@ -292,7 +297,7 @@ private struct VerdictChip: View {
     }
 
     var body: some View {
-        Text(action.map(Self.short) ?? "…")
+        Text(note ?? action.map(Self.short) ?? "…")
             .font(.system(size: 10, weight: .bold, design: .rounded))
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
