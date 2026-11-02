@@ -139,3 +139,28 @@ extension MarketFilterTests {
         XCTAssertTrue(s.text.contains("Dont sorties décidées par le filtre de marché : +10,0 % en moyenne ensuite (1 cas), une hausse manquée."), s.text)
     }
 }
+
+extension MarketFilterTests {
+    /// Daily candles too old: no new purchase (ATTENDRE, alert blocked with its reason); a way out is kept.
+    func testStaleDataNeverBuys() {
+        let v = TrendEngine.verdict(up, kind: .crypto)
+        let last = up.last!.time
+        XCTAssertEqual(TrendEngine.applyStale(lastClose: last, kind: .crypto, now: last + 2 * 86_400_000, to: v).action, v.action, "2 jours : normal")
+        let s = TrendEngine.applyStale(lastClose: last, kind: .crypto, now: last + 4 * 86_400_000, to: v)
+        XCTAssertEqual(s.action, .hold)
+        XCTAssertEqual(s.label, "ATTENDRE")
+        XCTAssertTrue(s.text.hasPrefix("Dernière clôture lue il y a 4 jours"), s.text)
+        XCTAssertEqual(TrendEngine.applyStale(lastClose: last, kind: .stock, now: last + 4 * 86_400_000, to: TrendEngine.verdict(up, kind: .stock)).action,
+                       TrendEngine.verdict(up, kind: .stock).action, "action : long week-end férié accepté")
+        let d = TrendEngine.verdict(down, kind: .crypto)
+        XCTAssertEqual(TrendEngine.applyStale(lastClose: down.last!.time, kind: .crypto, now: down.last!.time + 10 * 86_400_000, to: d).action, d.action, "une sortie reste")
+        let o = LocalAlertRule.evaluate(.init(asset: eth, price: 100, verdict: s, reliability: nil, zones: []))
+        XCTAssertFalse(o.buy)
+        XCTAssertEqual(o.blockers.first, "Données de cours en retard (dernière clôture trop ancienne) : pas d'achat avant leur mise à jour.")
+        let c = ConfigChanges.apply(ConfigState(), verdict: s, asset: eth, now: 1).state.last.values.first
+        XCTAssertEqual(c?.levelLabel, "Données en retard")
+        let pick = Rotation.picks([(eth, up)], kind: .crypto, verdicts: [eth.id: s]).first
+        XCTAssertEqual(pick?.selected, false)
+        XCTAssertTrue(pick?.reason.contains("données en retard") ?? false, pick?.reason ?? "")
+    }
+}
