@@ -69,6 +69,10 @@ public struct SignalSummary: Codable, Sendable {
     public var confidence: Double
     /// ATTENDRE forced by the data, not by the rule: last close too old, or sources too unreliable.
     public var suspended: Bool? = nil
+
+    /// What the Radar shows in place of the confidence when the data, not the rule, forced ATTENDRE.
+    public static let suspendedText = "suspendu : données en retard ou peu fiables"
+    public static let suspendedLabel = "Verdict suspendu : la dernière clôture est trop ancienne ou les sources sont trop peu fiables"
 }
 
 public struct RadarRow: Codable, Sendable, Identifiable {

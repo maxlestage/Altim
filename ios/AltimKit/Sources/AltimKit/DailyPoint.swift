@@ -26,7 +26,7 @@ public enum DailyPoint {
             if wait > 0 { parts.append("\(wait) en attente") }
             if held > 0 { parts.append("\(held) suspendu\(held > 1 ? "s" : "") faute de données à jour ou fiables") }
             if out_ > 0 { parts.append("\(out_) à l'écart ou à la sortie") }
-            out.append("Vos \(actions.count) actifs suivis : " + parts.joined(separator: ", ") + ".")
+            out.append((actions.count == 1 ? "Votre actif suivi : " : "Vos \(actions.count) actifs suivis : ") + parts.joined(separator: ", ") + ".")
         }
         let missing = rows.filter { $0.signal == nil }.count
         if missing > 0 {
