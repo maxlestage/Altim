@@ -72,6 +72,10 @@ public enum VerdictLog {
         /// Exits decided by the trend bot, and the mean move after them (negative: a fall avoided).
         public var botExitCount: Int = 0
         public var botExitMean: Double? = nil
+        /// Exits decided by the market filter (Bitcoin or S&P 500 out of its up trend), and the mean move after them:
+        /// the filter's lab result is fragile, its real exits are followed apart.
+        public var marketExitCount: Int = 0
+        public var marketExitMean: Double? = nil
 
         public var text: String {
             var parts: [String] = []
@@ -81,6 +85,9 @@ public enum VerdictLog {
             }
             if let e = botExitMean {
                 parts.append("Dont sorties décidées par le bot Tendance : \(Self.signed(e)) en moyenne ensuite (\(botExitCount) cas)\(e < 0 ? ", une baisse évitée" : e > 0 ? ", une hausse manquée" : "").")
+            }
+            if let e = marketExitMean {
+                parts.append("Dont sorties décidées par le filtre de marché : \(Self.signed(e)) en moyenne ensuite (\(marketExitCount) cas)\(e < 0 ? ", une baisse évitée" : e > 0 ? ", une hausse manquée" : "").")
             }
             return parts.isEmpty ? "Pas encore de verdict suivi : le bilan se remplit à chaque changement de verdict de vos actifs." : parts.joined(separator: " ")
         }
@@ -95,7 +102,9 @@ public enum VerdictLog {
         }
         let b = mean("buy"), o = mean("out")
         let bot = outcomes.filter { $0.entry.label == botExitLabel }.compactMap(\.change)
+        let market = outcomes.filter { $0.entry.label == marketExitLabel }.compactMap(\.change)
         return Summary(buyCount: b.0, buyMean: b.1, outCount: o.0, outMean: o.1,
-                       botExitCount: bot.count, botExitMean: bot.isEmpty ? nil : bot.reduce(0, +) / Double(bot.count))
+                       botExitCount: bot.count, botExitMean: bot.isEmpty ? nil : bot.reduce(0, +) / Double(bot.count),
+                       marketExitCount: market.count, marketExitMean: market.isEmpty ? nil : market.reduce(0, +) / Double(market.count))
     }
 }
