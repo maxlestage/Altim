@@ -9,6 +9,8 @@ public actor LocalBackend {
     private var quoteCache: [String: (at: Double, quote: Quote)] = [:]
     /// Quotes being read: simultaneous callers (live prices, Radar, alerts, Selection) wait for the same read.
     private var quoteReads: [String: Task<Quote?, Never>] = [:]
+    /// Symbols each quote source does not list, remembered 1 hour (not asked again every 5 seconds).
+    let unlisted = Unlisted()
     private var fxCache: (at: Double, value: Fx.Response)?
     /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
     private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
@@ -389,7 +391,8 @@ public actor LocalBackend {
         if !fresh.isEmpty {
             // One read for all the new assets: the sources that quote a list are asked once (QuoteSources.batches).
             let fetcher = self.fetcher, group = fresh
-            let batch = Task { await QuoteSources.consensusByID(group, fetcher: fetcher) }
+            let unlisted = self.unlisted
+            let batch = Task { await QuoteSources.consensusByID(group, fetcher: fetcher, unlisted: unlisted) }
             for a in fresh {
                 let t = Task { await batch.value[a.id] }
                 quoteReads[a.id] = t

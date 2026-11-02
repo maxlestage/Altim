@@ -108,3 +108,28 @@ extension QuoteBatchTests {
         XCTAssertEqual(f.all.count, 3, "ensuite : directement « etf »")
     }
 }
+
+extension QuoteBatchTests {
+    /// A crypto Binance does not list made it refuse the whole list at every refresh (then one request per asset):
+    /// once it answered « not listed », it is left out of the list and not asked again.
+    func testUnlistedSymbolIsLeftOut() async {
+        let btc = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin"), eth = Asset(symbol: "ETH", kind: .crypto, name: "Ethereum")
+        let zzz = Asset(symbol: "ZZZ", kind: .crypto, name: "Inconnue")
+        let f = Routes([("https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22,%22ZZZUSDT%22%5D", "400"),
+                        ("https://api.binance.com/api/v3/ticker/24hr?symbols=%5B%22BTCUSDT%22,%22ETHUSDT%22%5D", Self.binanceList),
+                        ("https://api.binance.com/api/v3/ticker/24hr?symbol=BTCUSDT", #"{"lastPrice":"100000","priceChangePercent":"1"}"#),
+                        ("https://api.binance.com/api/v3/ticker/24hr?symbol=ETHUSDT", #"{"lastPrice":"3000","priceChangePercent":"1"}"#),
+                        ("https://api.binance.com/api/v3/ticker/24hr?symbol=ZZZUSDT", "400")])
+        let unlisted = Unlisted()
+        let first = await QuoteSources.consensusByID([btc, eth, zzz], fetcher: f, unlisted: unlisted)
+        XCTAssertEqual(first["crypto:BTC"]?.price, 100_000)
+        let after1 = f.all.count
+        let second = await QuoteSources.consensusByID([btc, eth, zzz], fetcher: f, unlisted: unlisted)
+        XCTAssertEqual(second["crypto:BTC"]?.price, 100_000)
+        let secondURLs = Array(f.all.dropFirst(after1))
+        XCTAssertFalse(secondURLs.contains { $0.contains("ZZZ") }, "la crypto non cotée n'est plus demandée")
+        XCTAssertTrue(secondURLs.contains { $0.hasSuffix("%5B%22BTCUSDT%22,%22ETHUSDT%22%5D") }, "liste Binance sans elle")
+        XCTAssertFalse(secondURLs.contains { $0.contains("ticker/24hr?symbol=") }, "plus de requête Binance actif par actif")
+        XCTAssertLessThan(secondURLs.count, after1, "\(after1) requêtes la 1re fois, \(secondURLs.count) ensuite")
+    }
+}
