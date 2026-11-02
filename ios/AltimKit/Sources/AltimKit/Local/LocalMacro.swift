@@ -161,6 +161,12 @@ extension LocalBackend {
         let world = (await news).items.filter { $0.category == "monde" || $0.category == "marches" }.map { (title: $0.title, time: $0.time) }
         guard var info = MacroEngine.report(series, news: world, now: nowMs()) else { throw MarketError("données macro indisponibles") }
         info.nextFed = FedCalendar.next(await fedDecisions(), now: nowMs())
+        var up: [String: Bool] = [:]
+        for kind in [Kind.crypto, .stock] {
+            if let s = try? await snapshot(TrendEngine.benchmark(kind), .d1),
+               let u = TrendEngine.marketUp(s.candles, kind: kind, reliability: s.reliability, assetTime: nil) { up[kind.rawValue] = u }
+        }
+        info.marketUp = up
         macroCache = (nowMs(), info)
         return info
     }
