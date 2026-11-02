@@ -20,7 +20,7 @@ final class IndependenceTests: XCTestCase {
     static let allowed: Set<String> = [
         "api.binance.com", "www.okx.com", "api.exchange.coinbase.com", "api.kraken.com", "api.kucoin.com", "api.gateio.ws",
         "www.bitstamp.net", "api-pub.bitfinex.com", "query1.finance.yahoo.com", "api.nasdaq.com", "api.robinhood.com",
-        "www.ecb.europa.eu", "api.frankfurter.dev", "api.coingecko.com", "api.alternative.me", "feeds.finance.yahoo.com",
+        "www.ecb.europa.eu", "www.federalreserve.gov", "api.frankfurter.dev", "api.coingecko.com", "api.alternative.me", "feeds.finance.yahoo.com",
         "news.google.com", "www.lemonde.fr", "www.bfmtv.com", "www.latribune.fr", "feeds.content.dowjones.io", "search.cnbc.com",
         "www.investing.com", "www.coindesk.com", "cointelegraph.com", "decrypt.co", "www.theblock.co", "cryptoast.fr", "journaldutoken.com",
     ]
