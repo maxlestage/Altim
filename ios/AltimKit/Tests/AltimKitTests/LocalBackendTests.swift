@@ -308,3 +308,34 @@ extension LocalBackendTests {
         print(String(format: "radar en cache : %.2f s", Date().timeIntervalSince(t2)))
     }
 }
+
+extension LocalBackendTests {
+    /// Every EUR/USD source down: the last rate read comes back marked stale, and the sources are not asked again
+    /// at every call (at most once a minute).
+    func testFxKeepsTheLastRateWhenSourcesFail() async {
+        final class Switch: MarketFetcher, @unchecked Sendable {
+            private let lock = NSLock()
+            private var down = false, n = 0
+            func fail() { lock.lock(); down = true; lock.unlock() }
+            var count: Int { lock.lock(); defer { lock.unlock() }; return n }
+            func data(_ url: String, method: String, body: Data?) async throws -> Data {
+                lock.lock(); n += 1; let d = down; lock.unlock()
+                if d { throw MarketError("HTTP 503") }
+                return Data(#"{"chart":{"result":[{"meta":{"regularMarketPrice":1.08,"regularMarketTime":1800000000}}]}}"#.utf8)
+            }
+        }
+        let f = Switch()
+        let b = LocalBackend(fetcher: f, bot: false)
+        let ok = await b.fx()
+        XCTAssertEqual(ok.usdPerEur ?? 0, 1.08, accuracy: 1e-9)
+        await b.setFxTTL(0)
+        f.fail()
+        let stale = await b.fx()
+        XCTAssertEqual(stale.usdPerEur ?? 0, 1.08, accuracy: 1e-9, "dernier taux connu")
+        XCTAssertEqual(stale.stale, true)
+        XCTAssertNotNil(Fx.parse(stale), "toujours utilisable par l'app")
+        let asked = f.count
+        _ = await b.fx()
+        XCTAssertEqual(f.count, asked, "pas de nouvelle tentative avant une minute")
+    }
+}
