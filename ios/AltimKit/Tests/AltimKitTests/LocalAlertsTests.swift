@@ -26,10 +26,11 @@ final class LocalAlertsTests: XCTestCase {
         XCTAssertTrue(p.body.hasSuffix("Sortie si le prix repasse sous 70,00\u{a0}$ (moyenne 200 jours), si le momentum devient négatif ou si le Bitcoin quitte sa tendance haussière."))
         let t = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: []))
         XCTAssertTrue(t.buy && !t.strong)
-        XCTAssertTrue(t.cautions.contains("Pas de repli en cours : entrer en plusieurs fois."))
-        // A buy zone makes it advised, only inside the trend.
+        XCTAssertTrue(t.cautions.contains("Pas de repli en cours : entrer en plusieurs fois a réduit les pires cas au test (10 % pires à 40 jours −33 % contre −37 % en crypto) mais rapporté un peu moins en moyenne : un choix de prudence."))
+        // A buy zone is information, not an « advised » buy (no consistent edge in the lab).
         let tz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: [zone("inZone")]))
-        XCTAssertTrue(tz.strong)
+        XCTAssertTrue(tz.buy && !tz.strong)
+        XCTAssertTrue(tz.reasons.contains { $0.hasPrefix("Prix dans la zone d'achat") })
         XCTAssertEqual(tz.key, "tendance+zone:medium")
         let dz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.down), reliability: high, zones: [zone("golden")]))
         XCTAssertFalse(dz.buy)
