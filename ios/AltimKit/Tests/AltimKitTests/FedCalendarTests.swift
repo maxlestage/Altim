@@ -1,0 +1,39 @@
+import XCTest
+@testable import AltimKit
+
+/// The Fed's rate decisions read from its published calendar (real page excerpt, 2026 and 2025 panels).
+final class FedCalendarTests: XCTestCase {
+    func html() throws -> String {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "fed-fomccalendars", withExtension: "html", subdirectory: "Fixtures"))
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+    static func day(_ y: Int, _ m: Int, _ d: Int) -> Double {
+        var c = DateComponents(timeZone: TimeZone(identifier: "UTC"), year: y, month: m, day: d, hour: 18)
+        c.calendar = Calendar(identifier: .gregorian)
+        return c.date!.timeIntervalSince1970 * 1000
+    }
+
+    func testDecisionDaysOfThePublishedCalendar() throws {
+        let days = FedCalendar.parse(try html())
+        XCTAssertEqual(days.count, 16, "8 réunions en 2026, 8 en 2025 (le vote par écrit d'août 2025 n'est pas une réunion)")
+        XCTAssertTrue(days.contains(Self.day(2026, 1, 28)), "dernier jour de la réunion des 27-28 janvier")
+        XCTAssertTrue(days.contains(Self.day(2026, 12, 9)), "« 8-9* » : la marque des projections est ignorée")
+        XCTAssertFalse(days.contains(Self.day(2025, 8, 22)))
+        XCTAssertEqual(FedCalendar.next(days, now: Self.day(2026, 11, 2)), Self.day(2026, 12, 9))
+        XCTAssertEqual(FedCalendar.next(days, now: Self.day(2026, 12, 9) - 3_600_000), Self.day(2026, 12, 9), "le jour même")
+        XCTAssertNil(FedCalendar.next(days, now: Self.day(2027, 1, 1)), "au-delà du calendrier publié : rien")
+        XCTAssertEqual(FedCalendar.parse(#"<h4><a id="x">2031 FOMC Meetings</a></h4><div class="fomc-meeting__month"><strong>April/May</strong></div><div class="fomc-meeting__date">30-1</div>"#),
+                       [Self.day(2031, 5, 1)], "réunion à cheval sur deux mois")
+    }
+
+    func testBuyAlertMentionsAnImminentDecision() {
+        let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
+        let v = TrendEngine.verdict(BotEngineTests.series(drift: 0.002), kind: .crypto)
+        let now = Date(timeIntervalSince1970: Self.day(2026, 12, 7) / 1000)
+        let o = LocalAlertRule.evaluate(.init(asset: a, price: 100, verdict: v, reliability: nil, zones: [], fedDecision: Self.day(2026, 12, 9), now: now))
+        XCTAssertTrue(o.cautions.contains("Décision de taux de la Fed dans 2 jours (9 décembre, annoncée à 14 h heure de New York) : un événement qui peut faire bouger tous les marchés."), o.cautions.joined(separator: "\n"))
+        let far = LocalAlertRule.evaluate(.init(asset: a, price: 100, verdict: v, reliability: nil, zones: [], fedDecision: Self.day(2026, 12, 9),
+                                                now: Date(timeIntervalSince1970: Self.day(2026, 11, 20) / 1000)))
+        XCTAssertFalse(far.cautions.contains { $0.contains("Fed") }, "à plus de 3 jours : rien")
+    }
+}
