@@ -158,13 +158,17 @@ enum QuoteSources {
     ]
 
     /// Consensus quotes by asset id, the batch sources asked once for all the assets of a market.
-    static func consensusByID(_ assets: [Asset], fetcher: MarketFetcher) async -> [String: Quote] {
+    static func consensusByID(_ assets: [Asset], fetcher: MarketFetcher, unlisted: Unlisted = Unlisted()) async -> [String: Quote] {
         var pre: [String: [String: PriceQuote]] = [:] // "kind:source" → symbol → quote
         for kind in [Kind.crypto, .stock] {
             let syms = Array(Set(assets.filter { $0.kind == kind }.map(\.symbol))).sorted()
             guard syms.count >= 2, let list = batches[kind] else { continue }
             let got: [(String, [String: PriceQuote]?)] = await withTaskGroup(of: (String, [String: PriceQuote]?).self) { g in
-                for (name, batch) in list { g.addTask { (name, try? await batch(fetcher, syms)) } }
+                for (name, batch) in list {
+                    // Symbols this source does not list are left out: one of them made the whole list refused.
+                    let listed = syms.filter { !unlisted.contains(name, $0) }
+                    g.addTask { (name, listed.isEmpty ? [:] : try? await batch(fetcher, listed)) }
+                }
                 var out: [(String, [String: PriceQuote]?)] = []
                 for await r in g { out.append(r) }
                 return out
@@ -173,7 +177,7 @@ enum QuoteSources {
         }
         let snapshot = pre
         return await withTaskGroup(of: (String, Quote?).self) { g in
-            for a in assets { g.addTask { (a.id, await one(a, fetcher: fetcher, prefetched: snapshot)) } }
+            for a in assets { g.addTask { (a.id, await one(a, fetcher: fetcher, prefetched: snapshot, unlisted: unlisted)) } }
             var out: [String: Quote] = [:]
             for await (id, q) in g { if let q { out[id] = q } }
             return out
@@ -192,15 +196,18 @@ enum QuoteSources {
         }
     }
 
-    static func one(_ a: Asset, fetcher: MarketFetcher, prefetched: [String: [String: PriceQuote]] = [:]) async -> Quote? {
+    static func one(_ a: Asset, fetcher: MarketFetcher, prefetched: [String: [String: PriceQuote]] = [:], unlisted: Unlisted = Unlisted()) async -> Quote? {
         let list = sources(a.kind)
         let results: [(String, Result<PriceQuote, MarketError>)] = await withTaskGroup(of: (Int, String, Result<PriceQuote, MarketError>).self) { g in
             for (i, s) in list.enumerated() {
                 g.addTask {
+                    if unlisted.contains(s.name, a.symbol) { return (i, s.name, .failure(MarketError("non coté"))) }
                     if let batch = prefetched["\(a.kind.rawValue):\(s.name)"] {
                         return (i, s.name, batch[a.symbol].map { .success($0) } ?? .failure(MarketError("non coté")))
                     }
                     do { return (i, s.name, .success(try await s.fetch(fetcher, a.symbol))) } catch {
+                        let m = (error as? MarketError)?.message ?? ""
+                        if m == "non coté" || m == "HTTP 400" || m == "HTTP 404" { unlisted.mark(s.name, a.symbol) }
                         return (i, s.name, .failure((error as? MarketError) ?? MarketError(error.localizedDescription)))
                     }
                 }
@@ -347,5 +354,22 @@ final class NasdaqClass: @unchecked Sendable {
     }
     func remember(_ symbol: String, _ cls: String) {
         lock.lock(); known[symbol] = cls; lock.unlock()
+    }
+}
+
+
+/// Symbols a quote source said it does not list (« non coté », HTTP 400 or 404 for that symbol alone): not asked
+/// again, nor put in its lists, for 1 hour (a listing can come later, an odd answer can be a one-off).
+final class Unlisted: @unchecked Sendable {
+    private let lock = NSLock()
+    private var since: [String: Double] = [:]
+    static let keep = 3_600_000.0
+    func contains(_ source: String, _ symbol: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        guard let t = since["\(source):\(symbol)"] else { return false }
+        return nowMs() - t < Self.keep
+    }
+    func mark(_ source: String, _ symbol: String) {
+        lock.lock(); since["\(source):\(symbol)"] = nowMs(); lock.unlock()
     }
 }

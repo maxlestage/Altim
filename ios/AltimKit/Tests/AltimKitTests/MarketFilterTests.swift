@@ -125,3 +125,17 @@ extension MarketFilterTests {
         XCTAssertEqual(TrendEngine.applyMarket(TrendEngine.marketUp(down, kind: .crypto, reliability: low, assetTime: last), kind: .crypto, to: v).action, v.action)
     }
 }
+
+extension MarketFilterTests {
+    /// The market filter's real exits are followed apart in the summary of the verdicts (its lab result is fragile).
+    func testMarketExitsAreFollowedApart() {
+        var v = TrendEngine.applyMarket(false, kind: .crypto, to: TrendEngine.verdict(up, kind: .crypto))
+        v.price = 100
+        let log = VerdictLog.record([], v, asset: eth, now: 1)
+        let s = VerdictLog.summary(VerdictLog.outcomes(log, prices: ["crypto:ETH": 110]))
+        XCTAssertEqual(s.marketExitCount, 1)
+        XCTAssertEqual(s.marketExitMean ?? 0, 10, accuracy: 1e-9)
+        XCTAssertEqual(s.botExitCount, 0)
+        XCTAssertTrue(s.text.contains("Dont sorties décidées par le filtre de marché : +10,0 % en moyenne ensuite (1 cas), une hausse manquée."), s.text)
+    }
+}
