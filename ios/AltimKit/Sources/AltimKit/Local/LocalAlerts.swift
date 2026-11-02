@@ -1,8 +1,8 @@
 import Foundation
 
 /// "Puis-je acheter maintenant ?" on the iPhone, on the rule chosen by its measured results (TrendEngine): buyable
-/// only in an up background trend with a positive momentum; the best moment (advised) is a short pull-back inside it,
-/// or the price in a Fibonacci buy zone at the same time. Blocked by unreliable data, a market shock or a broken zone.
+/// only in an up background trend with a positive momentum; the best moment (advised) is a short pull-back inside it
+/// (a Fibonacci buy zone is shown as information). Blocked by unreliable data, a market shock or a broken zone.
 enum LocalAlertRule {
     struct Input {
         var asset: Asset
@@ -85,7 +85,10 @@ enum LocalAlertRule {
             cautions.append("Bot Risque : pire baisse prévue −\(JSFormat.fr(abs(r) * 100, min: 0, max: 0)) % sur 20 jours, engager environ \(size) % de la somme prévue (risque accepté : \(Int(BotEngine.riskBudget * 100)) %).")
         }
         let buy = inTrend && blockers.isEmpty
-        let strong = buy && (state == .pullback || hit != nil)
+        // « Conseillé » only for a short pull-back in the trend: it gave a better entry over the next week in all 8 lab
+        // cases (testPullbackEdge). Being in a Fibonacci zone did not, consistently (testFibonacciZoneEdge: better in
+        // half the cases, worse in the others) — it stays a piece of information.
+        let strong = buy && state == .pullback
         let market = a.asset.kind == .crypto ? "le Bitcoin" : "le S&P 500"
         let stop = a.verdict?.ema200.map { " Sortie si le prix repasse sous \(Money.money($0)) (moyenne 200 jours), si le momentum devient négatif ou si \(market) quitte sa tendance haussière." } ?? ""
         let price = a.price.map { " à \(Money.money($0))" } ?? ""

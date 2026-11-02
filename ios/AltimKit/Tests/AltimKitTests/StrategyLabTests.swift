@@ -1369,3 +1369,53 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// The buy alert becomes « achat conseillé » when the price is in a Fibonacci buy zone. Is it a better buy? Among the
+    /// days the app's rule says to buy (trend + momentum + market filter), the return 5 and 20 days later (bought at the
+    /// next open) when the price is in the medium-term zone (daily candles, 38.2–65 % of the last up move) or not.
+    func testFibonacciZoneEdge() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        func up(_ s: LabSeries, _ i: Int) -> Bool { s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, Self.lb(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let mk = [Kind.crypto: mdays(LabSeries(btc)), .stock: mdays(LabSeries(spy))]
+        for (name, list) in [("labo", lab), ("univers", uni)] {
+            var line = "== \(name)"
+            for kind in [Kind.crypto, .stock] {
+                for half in 0..<2 {
+                    var zone5: [Double] = [], zone20: [Double] = [], rest5: [Double] = [], rest20: [Double] = []
+                    for (a, bars) in list where a.kind == kind {
+                        let s = LabSeries(bars), atr = Indicators.atr(s.c, 14), mid = s.c.count / 2
+                        for i in (half == 0 ? 200..<mid : mid..<(s.c.count - 21)) {
+                            guard up(s, i), mk[kind]?[(s.c[i].time / 86_400_000).rounded(.down)] ?? true else { continue }
+                            let entry = s.c[i + 1].open
+                            guard entry > 0 else { continue }
+                            let r5 = s.close[i + 5] / entry - 1, r20 = s.close[i + 20] / entry - 1
+                            var inZone = false
+                            if let sw = FibEngine.swing(s.c, until: i, window: FibEngine.medium.window, minAtr: FibEngine.medium.minAtr, atr: atr), sw.up {
+                                let st = FibEngine.state(sw, s.close[i]).status
+                                inZone = st == "inZone" || st == "golden"
+                            }
+                            if inZone { zone5.append(r5); zone20.append(r20) } else { rest5.append(r5); rest20.append(r20) }
+                        }
+                    }
+                    func m(_ v: [Double]) -> String { v.isEmpty ? "–" : String(format: "%+.1f%%", v.reduce(0, +) / Double(v.count) * 100) }
+                    line += " | \(kind == .crypto ? "C" : "A")\(half + 1) zone 5 j \(m(zone5)) / autres \(m(rest5)) · 20 j \(m(zone20)) / \(m(rest20)) (n \(zone5.count)/\(rest5.count))"
+                }
+            }
+            print(line)
+        }
+    }
+}

@@ -27,9 +27,10 @@ final class LocalAlertsTests: XCTestCase {
         let t = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: []))
         XCTAssertTrue(t.buy && !t.strong)
         XCTAssertTrue(t.cautions.contains("Pas de repli en cours : entrer en plusieurs fois."))
-        // A buy zone makes it advised, only inside the trend.
+        // A buy zone is information, not an « advised » buy (no consistent edge in the lab).
         let tz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.trend), reliability: high, zones: [zone("inZone")]))
-        XCTAssertTrue(tz.strong)
+        XCTAssertTrue(tz.buy && !tz.strong)
+        XCTAssertTrue(tz.reasons.contains { $0.hasPrefix("Prix dans la zone d'achat") })
         XCTAssertEqual(tz.key, "tendance+zone:medium")
         let dz = LocalAlertRule.evaluate(.init(asset: btc, price: 90, verdict: verdict(.down), reliability: high, zones: [zone("golden")]))
         XCTAssertFalse(dz.buy)
