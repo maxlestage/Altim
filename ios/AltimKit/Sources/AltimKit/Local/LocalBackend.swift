@@ -272,6 +272,7 @@ public actor LocalBackend {
         var v = TrendEngine.verdict(candles, kind: a.kind)
         guard v.state != .unknown else { return v }
         v = await marketVerdict(a, v, assetTime: candles.last?.time)
+        v = TrendEngine.applyStale(lastClose: candles.last?.time, kind: a.kind, now: nowMs(), to: v)
         guard botEnabled else { return v }
         async let trend = botModel(a.kind)
         async let risk = botModel(a.kind, .fall(days: BotEngine.horizon))
