@@ -370,6 +370,9 @@ struct MacroCard: View {
                     Text("\(t.label) : \(t.count) titres").font(.caption).foregroundStyle(Theme.textSecondary)
                 }
             }
+            if let fed = macro.nextFedText() {
+                KeyValue(key: "Prochaine décision de la Fed", value: fed)
+            }
             if macro.factors.isEmpty {
                 Text("Aucun signe de stress sur la peur (VIX), le S&P 500, le pétrole, l'or, le dollar ni les taux.").font(.caption).foregroundStyle(Theme.textSecondary)
             }

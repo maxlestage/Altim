@@ -1340,3 +1340,32 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 }
+
+extension StrategyLabTests {
+    /// Do markets move more around the Fed's rate decisions? Absolute daily move on the decision day and the day after
+    /// (close to close), against all the other days, for SPY, QQQ, Bitcoin and Ether. Decisions from the Fed's
+    /// published calendar (the real page in ALTIM_FOMC, else the 2025–2026 excerpt kept for the tests).
+    func testFedDecisionDays() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"] else { throw XCTSkip("dossiers absents") }
+        let html: String
+        if let p = env["ALTIM_FOMC"], let s = try? String(contentsOfFile: p, encoding: .utf8) { html = s } else {
+            let url = try XCTUnwrap(Bundle.module.url(forResource: "fed-fomccalendars", withExtension: "html", subdirectory: "Fixtures"))
+            html = try String(contentsOf: url, encoding: .utf8)
+        }
+        let decisions = Set(FedCalendar.parse(html).map { ($0 / 86_400_000).rounded(.down) })
+        for (sym, bars) in Self.load(l) where ["SPY", "QQQ", "BTC", "ETH"].contains(sym.symbol) {
+            let s = LabSeries(bars)
+            var fed: [Double] = [], next: [Double] = [], other: [Double] = []
+            for i in 1..<s.c.count {
+                let day = (s.c[i].time / 86_400_000).rounded(.down)
+                let r = abs(s.close[i] / s.close[i - 1] - 1) * 100
+                if decisions.contains(day) { fed.append(r) } else if decisions.contains(day - 1) || (sym.kind == .stock && decisions.contains(day - 3)) { next.append(r) } else { other.append(r) }
+            }
+            func mean(_ v: [Double]) -> String { v.isEmpty ? "–" : String(format: "%.2f %%", v.reduce(0, +) / Double(v.count)) }
+            func big(_ v: [Double], _ t: Double) -> String { v.isEmpty ? "–" : String(format: "%.0f %%", 100 * Double(v.filter { $0 > t }.count) / Double(v.count)) }
+            let t = Lab.median(other) * 2
+            print("\(sym.symbol) : jour de décision \(mean(fed)) (n=\(fed.count)), lendemain \(mean(next)) (n=\(next.count)), autres jours \(mean(other)) (n=\(other.count)) | jours > 2× la médiane : \(big(fed, t)) / \(big(next, t)) / \(big(other, t))")
+        }
+    }
+}

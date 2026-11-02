@@ -205,8 +205,20 @@ public struct MacroInfo: Codable, Sendable {
     public var evidence: Evidence?
     /// Risk-on / risk-off / neutre (macro stress and the S&P 500 trend); absent from older servers.
     public var regime: Decision.MarketRegime?
+    /// Next rate decision of the US Federal Reserve (ms), read on the device from the Fed's calendar.
+    public var nextFed: Double? = nil
 
     public var levelLabel: String { ["tense": "Tendu", "high": "Très tendu"][level] ?? "Calme" }
+
+    /// « 9 décembre (dans 37 jours) », « aujourd'hui », nil when unknown or past.
+    public func nextFedText(now: Double = Date().timeIntervalSince1970 * 1000) -> String? {
+        guard let f = nextFed, f + 6 * 3_600_000 >= now else { return nil }
+        let d = Int((f / 86_400_000).rounded(.down) - (now / 86_400_000).rounded(.down))
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = TimeZone(identifier: "UTC"); fmt.dateFormat = "d MMMM"
+        let when = d <= 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
+        return "\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))) (\(when))"
+    }
     public var tone: Tone { level == "high" ? .bad : level == "tense" ? .warn : .good }
     /// Display order and French names of the market series.
     public static let series: [(key: String, label: String)] = [

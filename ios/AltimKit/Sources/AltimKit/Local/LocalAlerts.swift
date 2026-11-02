@@ -14,6 +14,8 @@ enum LocalAlertRule {
         var shock: String? = nil
         /// The stock's next quarterly results, when known.
         var earnings: EarningsEvent? = nil
+        /// The next rate decision of the Fed (ms), when known.
+        var fedDecision: Double? = nil
         var now: Date = Date()
     }
 
@@ -62,6 +64,17 @@ enum LocalAlertRule {
         }
         if a.shock == "agitated" { cautions.append("Marché agité : taille réduite, stop plus large.") }
         if a.reliability?.level == "medium" { cautions.append("Fiabilité moyenne des données : taille réduite.") }
+        if let f = a.fedDecision {
+            // Calendar days in New York's terms are close enough with UTC days: the decision is at 18:00 UTC.
+            let dayNow = (a.now.timeIntervalSince1970 * 1000 / 86_400_000).rounded(.down), dayFed = (f / 86_400_000).rounded(.down)
+            let d = Int(dayFed - dayNow)
+            if (0...3).contains(d) {
+                let fmt = DateFormatter()
+                fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = TimeZone(identifier: "UTC"); fmt.dateFormat = "d MMMM"
+                let when = d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
+                cautions.append("Décision de taux de la Fed \(when) (\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))), annoncée à 14 h heure de New York) : au labo, ce jour-là et le lendemain ont bougé en moyenne 15 à 20 % de plus que les autres jours.")
+            }
+        }
         if let e = a.earnings, (0...7).contains(e.daysAway(now: a.now)) {
             let d = e.daysAway(now: a.now)
             cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText)) : le cours peut bouger fortement, taille prudente.")
@@ -109,6 +122,7 @@ extension LocalBackend {
     func alerts(_ list: [Asset]) async -> Data {
         let prices = await quotes(list)
         let results = await earnings(list.filter { $0.kind == .stock }.map(\.symbol))
+        let fed = FedCalendar.next(await fedDecisions(), now: nowMs())
         let items: [[String: Any]] = await withTaskGroup(of: (Int, [String: Any]).self) { g in
             for (i, a) in list.enumerated() {
                 g.addTask {
@@ -120,7 +134,7 @@ extension LocalBackend {
                         let s = try await d1
                         let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: await self.botVerdict(a, s.candles),
                                                          reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level,
-                                                         earnings: results.first { $0.symbol == a.symbol && a.kind == .stock })
+                                                         earnings: results.first { $0.symbol == a.symbol && a.kind == .stock }, fedDecision: fed)
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))
                     } catch {
                         return (i, LocalAlertRule.json(a, nil, price: nil, asOf: nowMs(), error: (error as? MarketError)?.message ?? error.localizedDescription))

@@ -159,7 +159,8 @@ extension LocalBackend {
         }
         guard series["vix"] != nil || series["spx"] != nil else { throw MarketError("données macro indisponibles") }
         let world = (await news).items.filter { $0.category == "monde" || $0.category == "marches" }.map { (title: $0.title, time: $0.time) }
-        guard let info = MacroEngine.report(series, news: world, now: nowMs()) else { throw MarketError("données macro indisponibles") }
+        guard var info = MacroEngine.report(series, news: world, now: nowMs()) else { throw MarketError("données macro indisponibles") }
+        info.nextFed = FedCalendar.next(await fedDecisions(), now: nowMs())
         macroCache = (nowMs(), info)
         return info
     }
