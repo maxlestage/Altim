@@ -51,6 +51,8 @@ public enum TrendEngine {
         /// Whether the asset's market (Bitcoin for cryptos, SPY for stocks) is itself in an up trend with a positive
         /// momentum; nil when its candles could not be read.
         public var market: Bool? = nil
+        /// The last daily close is too old to buy on (`applyStale`).
+        public var stale: Bool? = nil
     }
 
     /// The asset that stands for a whole market in the market filter.
@@ -85,6 +87,21 @@ public enum TrendEngine {
         if reliability?.level == "low" { return nil }
         if let t = assetTime, let last = raw.last?.time, last < t - 5 * 86_400_000 { return nil }
         return marketUp(raw, kind: kind)
+    }
+
+    /// Daily candles too old to buy on: the last close more than 3 days old for a crypto (open every day), more than
+    /// 5 days for a stock (a long weekend with a holiday stays fine). Then no new purchase: the up trend reads as
+    /// ATTENDRE until the data catches up; a way out (VENTE) is kept, it protects.
+    public static func applyStale(lastClose: Double?, kind: Kind, now: Double, to v: Verdict) -> Verdict {
+        guard let t = lastClose, v.action == .buy || v.action == .strongBuy else { return v }
+        let allowed = (kind == .crypto ? 3.0 : 5.0) * 86_400_000
+        guard now - t > allowed else { return v }
+        var v = v
+        let days = Int(((now - t) / 86_400_000).rounded(.down))
+        v.action = .hold
+        v.stale = true
+        v.text = "Dernière clôture lue il y a \(days) jours : données en retard, pas de nouvel achat avant leur mise à jour. " + v.text
+        return v
     }
 
     /// The market filter: an asset is bought or kept only while its whole market is in an up trend too. Measured in the
@@ -330,6 +347,8 @@ public enum Rotation {
             let vetoed = (v.state == .trend || v.state == .pullback) && v.effectiveState != v.state
             let bot = v.bot.map { "\($0 >= 0 ? "+" : "−")\(JSFormat.fr(abs($0) * 100, min: 1, max: 1)) %" } ?? ""
             switch vetoed ? .unknown : v.state {
+            case .unknown where vetoed && v.stale == true:
+                reason = "Tendance haussière (\(mom)), mais données en retard : pas retenu avant leur mise à jour."
             case .unknown where vetoed && v.market == false:
                 reason = "Tendance haussière (\(mom)), mais \(kind == .crypto ? "le Bitcoin" : "le S&P 500 (SPY)") n'est pas en tendance haussière : à sortir (filtre de marché)."
             case .unknown where vetoed:
@@ -499,14 +518,16 @@ extension ConfigChanges {
         let market = asset.kind == .crypto ? "le Bitcoin" : "le S&P 500"
         switch v.effectiveState {
         case .pullback, .trend: side = (.buyZone, .moderate, "ACHETER / CONSERVER", "Tendance haussière")
-        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", vetoed ? "Achat bloqué par le bot Tendance" : "Signaux contraires")
+        case .mixed: side = (.wait, .waiting, "CONSERVER SANS RENFORCER", !vetoed ? "Signaux contraires" : v.stale == true ? "Données en retard" : "Achat bloqué par le bot Tendance")
         case .down:
             side = (.noPosition, .exit, vetoed ? v.label : "RESTER À L'ÉCART",
                     !vetoed ? "Tendance baissière" : v.market == false ? "Marché hors tendance haussière" : "Sortie conseillée par le bot Tendance")
         case .unknown: return (state, nil)
         }
         let triggers: [String]
-        if vetoed && v.market == false {
+        if vetoed && v.stale == true {
+            triggers = ["Retour à l'achat dès que les cours du jour sont lus, si la tendance tient"]
+        } else if vetoed && v.market == false {
             triggers = ["Retour à l'achat quand \(market) repasse en tendance haussière (au-dessus de sa moyenne 200 jours, momentum positif), si l'actif y est encore"]
         } else if vetoed {
             triggers = ["Retour à l'achat quand le bot Tendance ne prévoit plus de baisse sur 20 jours, si la tendance de l'actif tient"]
