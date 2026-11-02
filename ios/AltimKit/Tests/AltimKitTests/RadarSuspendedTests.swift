@@ -15,5 +15,16 @@ final class RadarSuspendedTests: XCTestCase {
         XCTAssertEqual(s.action, .hold)
         XCTAssertEqual(s.suspended, true, "attente imposée par les données, pas par la règle")
         XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [row]), ["Votre actif suivi : 1 suspendu faute de données à jour ou fiables."])
+        XCTAssertEqual(WidgetNote.text(row), "SUSPENDU", "le widget ne montre pas un simple ATTENDRE")
+    }
+
+    func testWidgetNotes() {
+        func row(_ signal: SignalSummary?, error: String?) -> RadarRow {
+            RadarRow(symbol: "X", kind: .stock, name: "X", price: nil, change: nil, priceSources: nil, signal: signal,
+                     reliability: nil, agreeing: nil, sources: nil, sparkline: nil, error: error)
+        }
+        XCTAssertNil(WidgetNote.text(nil), "pas encore lu")
+        XCTAssertNil(WidgetNote.text(row(SignalSummary(action: .hold, score: 0, confidence: 50), error: nil)), "attente de la règle")
+        XCTAssertEqual(WidgetNote.text(row(nil, error: "HTTP 404")), "INDISP.", "plus de « … » sans fin quand les données manquent")
     }
 }
