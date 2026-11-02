@@ -177,10 +177,12 @@ public actor LocalBackend {
         do {
             let d = try await snapshot(a, .d1)
             var v = await botVerdict(a, d.candles)
-            if d.reliability.level == "low" { v.action = .hold }
+            let unreliable = d.reliability.level == "low"
+            if unreliable { v.action = .hold }
             let s = await chart ?? d
             return RadarRow(symbol: a.symbol, kind: a.kind, name: a.name, price: s.candles.last?.close, change: nil, priceSources: nil,
-                            signal: v.state == .unknown ? nil : SignalSummary(action: v.action, score: v.score, confidence: v.confidence * d.reliability.score / 100),
+                            signal: v.state == .unknown ? nil : SignalSummary(action: v.action, score: v.score, confidence: v.confidence * d.reliability.score / 100,
+                                                                                     suspended: (unreliable || v.stale == true) ? true : nil),
                             reliability: d.reliability, agreeing: d.agreeing, sources: d.sources.count,
                             sparkline: s.candles.suffix(48).map(\.close), error: nil, botRisk: v.botRisk)
         } catch {

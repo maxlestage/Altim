@@ -13,17 +13,25 @@ public enum DailyPoint {
                              : "\(name) hors tendance haussière : le filtre de marché suspend les achats et conseille de sortir.")
             }
         }
-        let actions = rows.compactMap { $0.signal?.action }
+        let signals = rows.compactMap(\.signal)
+        let actions = signals.map(\.action)
         if !actions.isEmpty {
             let buy = actions.filter { $0 == .buy || $0 == .strongBuy }.count
             let strong = actions.filter { $0 == .strongBuy }.count
-            let wait = actions.filter { $0 == .hold }.count
+            let held = signals.filter { $0.action == .hold && $0.suspended == true }.count
+            let wait = actions.filter { $0 == .hold }.count - held
             let out_ = actions.filter { $0 == .sell || $0 == .strongSell }.count
             var parts: [String] = []
             if buy > 0 { parts.append("\(buy) à l'achat" + (strong > 0 ? " (dont \(strong) sur repli)" : "")) }
             if wait > 0 { parts.append("\(wait) en attente") }
+            if held > 0 { parts.append("\(held) suspendu\(held > 1 ? "s" : "") faute de données à jour ou fiables") }
             if out_ > 0 { parts.append("\(out_) à l'écart ou à la sortie") }
             out.append("Vos \(actions.count) actifs suivis : " + parts.joined(separator: ", ") + ".")
+        }
+        let missing = rows.filter { $0.signal == nil }.count
+        if missing > 0 {
+            out.append(missing == 1 ? "1 actif suivi sans verdict : ses données n'ont pas pu être lues."
+                                    : "\(missing) actifs suivis sans verdict : leurs données n'ont pas pu être lues.")
         }
         let date = Date(timeIntervalSince1970: now / 1000)
         let soon = earnings.filter { (0...7).contains($0.daysAway(now: date)) }.sorted { $0.time < $1.time }
