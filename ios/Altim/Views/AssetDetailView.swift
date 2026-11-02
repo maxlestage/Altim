@@ -285,7 +285,8 @@ struct ZoneRow: View {
             if let z = zone.zone { KeyValue(key: "Zone d'achat", value: "\(Format.price(z.to)) – \(Format.price(z.from))") }
             if let g = zone.golden { KeyValue(key: "Zone d'or", value: "\(Format.price(g.to)) – \(Format.price(g.from))", tone: .warn) }
             if let inv = zone.invalidation { KeyValue(key: "Invalidée sous", value: Format.price(inv), tone: .bad) }
-            if !zone.targets.isEmpty { KeyValue(key: "Objectifs", value: zone.targets.prefix(3).map { Format.price($0) }.joined(separator: "\n"), tone: .good) }
+            // The move's high, then its 1.272 and 1.618 extensions: levels traders watch, not a forecast (not measured).
+            if !zone.targets.isEmpty { KeyValue(key: "Repères au-dessus (plus haut, extensions)", value: zone.targets.prefix(3).map { Format.price($0) }.joined(separator: "\n")) }
             Text(zone.text).font(.footnote).foregroundStyle(.white.opacity(0.9))
             if let note = zone.macroNote { Notice(text: note, tone: .warn) }
             Text(evidenceText).font(.caption).foregroundStyle(Theme.textSecondary)

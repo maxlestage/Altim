@@ -80,7 +80,8 @@ enum LocalAlertRule {
             cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText)) : le cours peut bouger fortement, taille prudente.")
         }
         if state == .trend { cautions.append("Pas de repli en cours : entrer en plusieurs fois a réduit les pires cas au test (10 % pires à 40 jours −33 % contre −37 % en crypto) mais rapporté un peu moins en moyenne : un choix de prudence.") }
-        // The risk bot's size, on its calibrated fall (measured: crypto worst fall −15 % instead of −48 %, return +16 % instead of +47 %).
+        // The risk bot's size, on its calibrated fall (testRiskModelSizing, current rule: crypto rising market at 5 % of accepted risk
+        // +20 % / worst fall −12 % instead of +59 % / −33 % for a full position).
         if inTrend, let r = a.verdict?.botRisk, let size = BotEngine.size(forFall: r), size < 100 {
             cautions.append("Bot Risque : pire baisse prévue −\(JSFormat.fr(abs(r) * 100, min: 0, max: 0)) % sur 20 jours, engager environ \(size) % de la somme prévue (risque accepté : \(Int(BotEngine.riskBudget * 100)) %).")
         }
