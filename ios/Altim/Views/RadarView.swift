@@ -20,6 +20,8 @@ enum RadarSort: String, CaseIterable {
 struct RadarView: View {
     @Environment(AppModel.self) private var model
     @State private var rows: [String: RadarRow] = [:]
+    /// Quarterly results of the watchlist's stocks (for the « Point du jour »).
+    @State private var earnings: [EarningsEvent] = []
     @State private var macro: MacroInfo?
     @State private var error: String?
     @State private var loading = false
@@ -76,6 +78,9 @@ struct RadarView: View {
             } else {
                 if model.watchlist.count >= 3 {
                     Section { MarketHeatmap(assets: model.watchlist, rows: rows) }.listRowBackground(Color.clear)
+                }
+                if !pointLines.isEmpty {
+                    Section { DailyPointCard(lines: pointLines) }.listRowBackground(Color.clear)
                 }
                 if let macro, macro.level != "calm" {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
@@ -178,11 +183,16 @@ struct RadarView: View {
         results = (try? await client.search(q)) ?? []
     }
 
+    /// « Point du jour » from what the Radar already loaded (markets, verdicts, next Fed decision).
+    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings) }
+
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
         loading = true
         defer { loading = false }
         async let m = try? client.macro()
+        let stocks = model.watchlist.filter { $0.kind == .stock }.map(\.symbol)
+        async let e = stocks.isEmpty ? [] : ((try? await client.earnings(stocks)) ?? [])
         do {
             let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)
             rows = Dictionary(r.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -194,6 +204,7 @@ struct RadarView: View {
             self.error = error.localizedDescription
         }
         macro = await m
+        earnings = await e
     }
 }
 
@@ -284,6 +295,24 @@ struct RadarRowView: View {
 
     @ViewBuilder private var reliability: some View {
         if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
+    }
+}
+
+/// « Point du jour » computed on the iPhone: markets for the filter, the watchlist's verdicts, the next Fed decision.
+struct DailyPointCard: View {
+    var lines: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Point du jour").font(.subheadline.bold())
+            ForEach(lines, id: \.self) { l in
+                Text("• \(l)").font(.caption).foregroundStyle(.white.opacity(0.85)).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.cyan.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.cyan.opacity(0.35)))
     }
 }
 
