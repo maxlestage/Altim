@@ -12,6 +12,10 @@ public actor LocalBackend {
     /// Symbols each quote source does not list, remembered 1 hour (not asked again every 5 seconds).
     let unlisted = Unlisted()
     private var fxCache: (at: Double, value: Fx.Response)?
+    private var fxFailedAt: Double?
+    /// How long a rate is kept (5 minutes; tests shorten it).
+    var fxTTL: Double = 300_000
+    func setFxTTL(_ v: Double) { fxTTL = v }
     /// Long daily histories, shared while downloading: simultaneous callers wait for the same download.
     private var longCache: [String: (at: Double, task: Task<[Bar], Error>)] = [:]
     private var newsCache: [String: (at: Double, report: NewsReport)] = [:]
@@ -408,11 +412,26 @@ public actor LocalBackend {
         return list.compactMap { quoteCache[$0.id]?.quote }
     }
 
+    /// EUR/USD, kept 5 minutes. When every source fails, the last rate read is given back marked stale (amounts in
+    /// euros stay shown, the app says the rate is old) and the sources are tried again at most once a minute.
     func fx() async -> Fx.Response {
         let now = nowMs()
-        if let c = fxCache, now - c.at < 300_000 { return c.value }
+        if let c = fxCache, now - c.at < fxTTL { return c.value }
+        if let f = fxFailedAt, now - f < 60_000, let last = fxCache?.value { return Self.staleFx(last) }
         let r = await LocalFx.read(fetcher: fetcher, now: now)
-        if r.rate != nil { fxCache = (now, r) }
+        if r.rate != nil {
+            fxCache = (now, r)
+            fxFailedAt = nil
+            return r
+        }
+        fxFailedAt = now
+        return fxCache.map { Self.staleFx($0.value) } ?? r
+    }
+
+    static func staleFx(_ r: Fx.Response) -> Fx.Response {
+        var r = r
+        r.stale = true
+        r.error = "Taux EUR/USD non mis à jour (aucune source n'a répondu) : dernier taux connu."
         return r
     }
 
