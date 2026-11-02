@@ -8,7 +8,10 @@ public enum DailyPoint {
         var out: [String] = []
         if let up = macro?.marketUp {
             for (key, name) in [("crypto", "Marché crypto (Bitcoin)"), ("stock", "Marché actions (S&P 500)")] {
-                guard let u = up[key] else { continue }
+                guard let u = up[key] else {
+                    out.append("\(name) : état inconnu (données peu fiables ou indisponibles), le filtre de marché ne s'applique pas ; la règle de l'actif décide seule.")
+                    continue
+                }
                 out.append(u ? "\(name) en tendance haussière : le filtre de marché laisse acheter."
                              : "\(name) hors tendance haussière : le filtre de marché suspend les achats et conseille de sortir.")
             }
