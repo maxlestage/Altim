@@ -77,6 +77,9 @@ struct RadarView: View {
                 if model.watchlist.count >= 3 {
                     Section { MarketHeatmap(assets: model.watchlist, rows: rows) }.listRowBackground(Color.clear)
                 }
+                if !pointLines.isEmpty {
+                    Section { DailyPointCard(lines: pointLines) }.listRowBackground(Color.clear)
+                }
                 if let macro, macro.level != "calm" {
                     Section { MacroBanner(macro: macro) }.listRowBackground(Color.clear)
                 }
@@ -177,6 +180,9 @@ struct RadarView: View {
         guard !Task.isCancelled else { return }
         results = (try? await client.search(q)) ?? []
     }
+
+    /// « Point du jour » from what the Radar already loaded (markets, verdicts, next Fed decision).
+    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values)) }
 
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
@@ -284,6 +290,24 @@ struct RadarRowView: View {
 
     @ViewBuilder private var reliability: some View {
         if let r = row?.reliability, r.level != "high" { Badge(text: r.level == "medium" ? "FIAB. MOY." : "FIAB. FAIBLE", tone: r.tone) }
+    }
+}
+
+/// « Point du jour » computed on the iPhone: markets for the filter, the watchlist's verdicts, the next Fed decision.
+struct DailyPointCard: View {
+    var lines: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Point du jour").font(.subheadline.bold())
+            ForEach(lines, id: \.self) { l in
+                Text("• \(l)").font(.caption).foregroundStyle(.white.opacity(0.85)).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Theme.cyan.opacity(0.08)))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(Theme.cyan.opacity(0.35)))
     }
 }
 

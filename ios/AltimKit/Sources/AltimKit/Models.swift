@@ -207,6 +207,9 @@ public struct MacroInfo: Codable, Sendable {
     public var regime: Decision.MarketRegime?
     /// Next rate decision of the US Federal Reserve (ms), read on the device from the Fed's calendar.
     public var nextFed: Double? = nil
+    /// Whether each market is in an up trend for the market filter ("crypto": Bitcoin, "stock": SPY); a missing key:
+    /// unknown (its candles could not be trusted).
+    public var marketUp: [String: Bool]? = nil
 
     public var levelLabel: String { ["tense": "Tendu", "high": "Très tendu"][level] ?? "Calme" }
 
