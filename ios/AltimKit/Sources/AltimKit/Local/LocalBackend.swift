@@ -22,6 +22,8 @@ public actor LocalBackend {
     /// The news feeds, shared by every news report for 5 minutes.
     private let feeds = FeedCache()
     var macroCache: (at: Double, info: MacroInfo)?
+    /// The Fed's decision days (FedCalendar), read at most twice a day.
+    var fedCache: (at: Double, days: [Double])?
     /// The macro report being computed: the guards of several assets wait for the same one.
     var macroRead: Task<MacroInfo, Error>?
     /// Market-wide data read by every asset's guard or by several stocks at once (Fear & Greed, macro series,
