@@ -356,7 +356,7 @@ public enum Rotation {
                     ? "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : à sortir."
                     : "Tendance haussière (\(mom)), mais le bot Tendance prévoit \(bot) sur 20 jours : pas de nouvel achat."
             case .pullback, .trend:
-                reason = v.state == .pullback ? "Tendance de fond haussière (\(mom)) et léger repli : bon moment pour entrer." : "Tendance de fond haussière (\(mom)) : à détenir."
+                reason = v.state == .pullback ? "Tendance de fond haussière (\(mom)) et léger repli : à détenir (au test, un repli a donné une entrée un peu meilleure sur la semaine, sans avantage net à un mois)." : "Tendance de fond haussière (\(mom)) : à détenir."
             case .mixed: reason = "Signaux contraires (\(mom)) : pas retenu."
             case .down: reason = "Tendance de fond baissière (\(mom)) : écarté."
             case .unknown: reason = "Historique insuffisant."
