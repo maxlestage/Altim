@@ -20,6 +20,8 @@ enum RadarSort: String, CaseIterable {
 struct RadarView: View {
     @Environment(AppModel.self) private var model
     @State private var rows: [String: RadarRow] = [:]
+    /// Quarterly results of the watchlist's stocks (for the « Point du jour »).
+    @State private var earnings: [EarningsEvent] = []
     @State private var macro: MacroInfo?
     @State private var error: String?
     @State private var loading = false
@@ -182,13 +184,15 @@ struct RadarView: View {
     }
 
     /// « Point du jour » from what the Radar already loaded (markets, verdicts, next Fed decision).
-    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values)) }
+    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings) }
 
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
         loading = true
         defer { loading = false }
         async let m = try? client.macro()
+        let stocks = model.watchlist.filter { $0.kind == .stock }.map(\.symbol)
+        async let e = stocks.isEmpty ? [] : ((try? await client.earnings(stocks)) ?? [])
         do {
             let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)
             rows = Dictionary(r.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -200,6 +204,7 @@ struct RadarView: View {
             self.error = error.localizedDescription
         }
         macro = await m
+        earnings = await e
     }
 }
 
