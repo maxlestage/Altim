@@ -266,7 +266,11 @@ struct RadarRowView: View {
     }
 
     @ViewBuilder private var technical: some View {
-        if let s = row?.signal {
+        if let s = row?.signal, s.suspended == true {
+            Text(SignalSummary.suspendedText)
+                .font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
+                .accessibilityLabel(SignalSummary.suspendedLabel)
+        } else if let s = row?.signal {
             Text(confidenceText(s))
                 .font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 .accessibilityLabel(confidenceLabel(s))
