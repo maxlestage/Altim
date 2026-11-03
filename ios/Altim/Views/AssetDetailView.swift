@@ -710,12 +710,7 @@ struct BotsBlock: View {
     }
 
     /// "Entraînés il y a 3 h sur 13 480 journées" (nil before the bots exist).
-    private var trainedLine: String? {
-        guard let at = verdict.botTrainedAt, let n = verdict.botExamples else { return nil }
-        let hours = max(0, Int((Date().timeIntervalSince1970 * 1000 - at) / 3_600_000))
-        let when = hours == 0 ? "il y a moins d'une heure" : "il y a \(hours) h"
-        return "Entraînés \(when) sur \(Format.plain(Double(n), digits: 0)) journées de l'historique de leur marché"
-    }
+    private var trainedLine: String? { verdict.botTrainedText() }
 
     private func pct(_ x: Double) -> String { "\(x >= 0 ? "+" : "−")\(Format.plain(abs(x) * 100, digits: 1)) %" }
 

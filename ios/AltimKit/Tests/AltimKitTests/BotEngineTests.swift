@@ -202,5 +202,14 @@ extension BotEngineTests {
         XCTAssertFalse(BotEngine.Model.isComplete(assets: 11, universe: 15))
         XCTAssertFalse(BotEngine.Model.isComplete(assets: 5, universe: 20))
         XCTAssertTrue(BotEngine.Model.isComplete(assets: 15, universe: 20))
+        var v = TrendEngine.verdict(Self.series(drift: 0.002), kind: .crypto)
+        XCTAssertNil(v.botTrainedText(now: 10 * 3_600_000))
+        v.botTrainedAt = 7 * 3_600_000
+        v.botExamples = 13_480
+        v.botAssets = 14
+        v.botUniverse = 15
+        let t = v.botTrainedText(now: 10 * 3_600_000)
+        XCTAssertTrue(t?.hasPrefix("Entraînés il y a 3 h sur 13") == true, t ?? "")
+        XCTAssertTrue(t?.hasSuffix("journées de l'historique de leur marché (14 actifs sur 15)") == true, t ?? "")
     }
 }

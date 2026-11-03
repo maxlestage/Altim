@@ -48,6 +48,20 @@ public enum TrendEngine {
         /// When the trend bot was trained (ms) and on how many examples, to show how fresh it is.
         public var botTrainedAt: Double? = nil
         public var botExamples: Int? = nil
+        /// How many assets of its market's list the trend bot learned on, out of how many.
+        public var botAssets: Int? = nil
+        public var botUniverse: Int? = nil
+
+        /// "Entraînés il y a 3 h sur 13 480 journées de l'historique de leur marché (15 actifs sur 15)", nil before the
+        /// bots exist.
+        public func botTrainedText(now: Double = Date().timeIntervalSince1970 * 1000) -> String? {
+            guard let at = botTrainedAt, let n = botExamples else { return nil }
+            let hours = max(0, Int((now - at) / 3_600_000))
+            let when = hours == 0 ? "il y a moins d'une heure" : "il y a \(hours) h"
+            var text = "Entraînés \(when) sur \(Format.plain(Double(n), digits: 0)) journées de l'historique de leur marché"
+            if let a = botAssets, let u = botUniverse, u > 0 { text += " (\(a) actif\(a > 1 ? "s" : "") sur \(u))" }
+            return text
+        }
         /// Whether the asset's market (Bitcoin for cryptos, SPY for stocks) is itself in an up trend with a positive
         /// momentum; nil when its candles could not be read.
         public var market: Bool? = nil
