@@ -176,6 +176,10 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertEqual(QuoteSources.price(lone, lastClose: 270), 270, "alertes, zones, garde-fou : la clôture reste")
         XCTAssertEqual(QuoteSources.price(lone, lastClose: 500), 520)
         XCTAssertEqual(QuoteSources.price(nil, lastClose: 270), 270)
+        let v = QuoteSources.vetted(lone, lastClose: 270)
+        XCTAssertEqual(v.price, 270, "avoirs, simulation, stops : la clôture, pas un cours aberrant")
+        XCTAssertNil(v.change)
+        XCTAssertEqual(QuoteSources.vetted(two, lastClose: 270).price, 520.5, accuracy: 1e-9)
     }
 
     func testBackendRoutesAndParameters() async throws {
