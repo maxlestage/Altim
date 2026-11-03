@@ -1539,3 +1539,32 @@ extension StrategyLabTests {
         }
     }
 }
+
+extension StrategyLabTests {
+    /// Share of winning trades of the app's rule (TrendEngine.backtest, market filter included), pooled over each list:
+    /// what the first-launch warning may say about a single buy.
+    /// Measured 2026-11-03: lab 436 trades, 33 % winners, average gain +15.2 %, average loss −4.0 %; universe 570 trades,
+    /// 35 % winners, +15.7 % / −3.9 % (DisclaimerView quotes these).
+    func testTrendWinRate() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l)
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }
+        for (name, list, dir) in [("labo", lab, l), ("univers", uni, u)] {
+            let btc = read(dir, Asset(symbol: "BTC", kind: .crypto, name: "BTC"))?.1 ?? read(l, Asset(symbol: "BTC", kind: .crypto, name: "BTC"))?.1
+            let spy = read(dir, Asset(symbol: "SPY", kind: .stock, name: "SPY"))?.1 ?? read(l, Asset(symbol: "SPY", kind: .stock, name: "SPY"))?.1
+            var wins = 0, all = 0, gains: [Double] = [], losses: [Double] = []
+            for (a, bars) in list {
+                let r = TrendEngine.backtest(bars, asset: a, market: a.kind == .crypto ? btc : spy)
+                for t in r.trades { all += 1; if t.result > 0 { wins += 1; gains.append(t.result) } else { losses.append(t.result) } }
+            }
+            let avg = { (x: [Double]) in x.isEmpty ? 0 : x.reduce(0, +) / Double(x.count) }
+            print(String(format: "%@ : %d trades, %.0f %% gagnants, gain moyen %.1f %%, perte moyenne %.1f %%",
+                         name, all, all == 0 ? 0 : Double(wins) / Double(all) * 100, avg(gains), avg(losses)))
+        }
+    }
+}
