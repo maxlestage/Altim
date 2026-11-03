@@ -1340,6 +1340,44 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 
+    /// The stocks' market filter on another benchmark: QQQ (Nasdaq 100) instead of SPY, or both required up.
+    /// Measured 2026-11-03: rejected. QQQ (alone or with SPY) gives slightly shallower drawdowns but much less return
+    /// on stocks: universe 1st half 15–17 % vs 21 %, 2nd half 7 % vs 16 %; lab 1st half 5 % vs 8 %. SPY stays.
+    func testStockMarketBenchmark() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1,
+              let qqq = lab.first(where: { $0.0.symbol == "QQQ" })?.1 else { throw XCTSkip("BTC, SPY ou QQQ absent") }
+        let up = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, Self.lb(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let spyDays = mdays(spy), qqqDays = mdays(qqq), btcDays = mdays(btc)
+        func rule(_ name: String, _ stockUp: @escaping (Double) -> Bool?) -> LabRule {
+            let ok = { (s: LabSeries, i: Int) -> Bool in
+                let day = (s.c[i].time / 86_400_000).rounded(.down)
+                let m: Bool = s.c.count > 950 ? (btcDays[day] ?? true) : (stockUp(day) ?? true)
+                return up(s, i) && m
+            }
+            return LabRule(name: name, enter: ok, exit: { s, i in !ok(s, i) })
+        }
+        let rules = [
+            rule("actuel (SPY)") { spyDays[$0] },
+            rule("QQQ") { qqqDays[$0] },
+            rule("SPY et QQQ") { d in spyDays[d].flatMap { a in qqqDays[d].map { a && $0 } } },
+        ]
+        print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
+        print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+
     /// Entry filters on the asset's own state (exit unchanged): no entry while its volatility spikes (ATR 14 above
     /// 1.5× its 100-day average), or only when the trend is strong (ADX 14 above 20).
     /// Measured 2026-11-03: both rejected. ATR filter: nearly the same, slightly worse (universe stocks 1st half 19 % vs
