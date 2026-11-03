@@ -35,6 +35,9 @@ final class DailyPointTests: XCTestCase {
         XCTAssertEqual(DailyPoint.lines(macro: m, rows: [], now: FedCalendarTests.day(2026, 11, 2)).first,
                        "Marché crypto (Bitcoin) : état inconnu (données peu fiables ou indisponibles), le filtre de marché ne s'applique pas ; la règle de l'actif décide seule.",
                        "un marché illisible n'est pas passé sous silence")
+        XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [], markets: [.crypto: true, .stock: nil], now: FedCalendarTests.day(2026, 11, 2)),
+                       [MarketBoard.text(.crypto, true), MarketBoard.text(.stock, nil)], "macro absente : les marchés lus à part")
+        XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [], markets: [.crypto: nil, .stock: nil]), [], "rien de lu : rien affiché")
         m.marketUp = ["crypto": false, "stock": true]
         let back = try JSONDecoder().decode(MacroInfo.self, from: JSONEncoder().encode(m))
         XCTAssertEqual(back.marketUp?["crypto"], false)

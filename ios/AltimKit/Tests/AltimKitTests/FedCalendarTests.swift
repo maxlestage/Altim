@@ -26,6 +26,16 @@ final class FedCalendarTests: XCTestCase {
                        [Self.day(2031, 5, 1)], "réunion à cheval sur deux mois")
     }
 
+    /// The Fed's page changed its layout (nothing parses): the calendar read before stays, never an empty one.
+    func testUnparsablePageKeepsTheLastCalendar() async {
+        let backend = LocalBackend(fetcher: FakeFetcher(routes: [(FedCalendar.url, "<html>nouvelle mise en page</html>")]))
+        let fresh = await backend.fedDecisions()
+        XCTAssertEqual(fresh, [], "jamais lu : rien")
+        await backend.setFedCache([Self.day(2026, 12, 9)], at: Date().timeIntervalSince1970 * 1000 - 13 * 3_600_000)
+        let kept = await backend.fedDecisions()
+        XCTAssertEqual(kept, [Self.day(2026, 12, 9)])
+    }
+
     func testBuyAlertMentionsAnImminentDecision() {
         let a = Asset(symbol: "BTC", kind: .crypto, name: "Bitcoin")
         let v = TrendEngine.verdict(BotEngineTests.series(drift: 0.002), kind: .crypto)
