@@ -94,4 +94,18 @@ extension TrendEngineTests {
         XCTAssertEqual(s.transitions.count, 1)
         XCTAssertNil(ConfigChanges.apply(s, verdict: v(.unknown), asset: a, now: 4).transition)
     }
+
+    /// Histories not read: the Sélection names them, says the shares are on the others, and is read again soon.
+    func testRotationSaysWhichAssetsAreMissing() {
+        var r = RotationReport(kind: .stock, asOf: 0, top: 18, lookback: 62, picks: [], scanned: 18, test: nil, notes: Rotation.notes)
+        XCTAssertNil(r.missingText)
+        XCTAssertEqual(r.keepFor, 6 * 3_600_000)
+        r.missing = ["Apple", "Tesla"]
+        XCTAssertEqual(r.missingText, "2 actifs de la liste non lus pour l'instant (Apple, Tesla) : laissés de côté, parts calculées sur les 18 autres. Nouvel essai dans quelques minutes.")
+        XCTAssertEqual(r.keepFor, 600_000)
+        r.missing = ["A", "B", "C", "D", "E", "F"]
+        XCTAssertTrue(r.missingText?.contains("(A, B, C, D et 2 autres)") == true)
+        let back = try? JSONDecoder().decode(RotationReport.self, from: JSONEncoder().encode(r))
+        XCTAssertEqual(back?.missing?.count, 6)
+    }
 }
