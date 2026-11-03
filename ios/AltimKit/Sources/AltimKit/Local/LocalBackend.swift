@@ -327,7 +327,9 @@ public actor LocalBackend {
         let b = TrendEngine.benchmark(a.kind)
         // The market filter replayed too (the benchmark itself needs none); without its candles, the rule alone.
         let market = b.id == a.id ? nil : try? await longDaily(b)
-        return TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market)
+        var r = TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market)
+        if b.id != a.id, market == nil { r.marketMissing = true }
+        return r
     }
 
     /// Longest daily history: for cryptos the exchanges' ≈ 1 000 days when they agree, else the usual daily candles
