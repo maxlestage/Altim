@@ -48,12 +48,17 @@ enum FedCalendar {
 }
 
 extension LocalBackend {
-    /// The Fed's decision days, read at most twice a day (an empty list when the page cannot be read).
+    /// The Fed's decision days, read at most twice a day. A page that cannot be read, or no longer parses (its layout
+    /// changed), keeps the last calendar read; an empty list only when none was ever read.
     func fedDecisions() async -> [Double] {
         if let c = fedCache, nowMs() - c.at < 12 * 3_600_000 { return c.days }
         guard let html = try? await sharedFetcher.text(FedCalendar.url) else { return fedCache?.days ?? [] }
         let days = FedCalendar.parse(html)
-        if !days.isEmpty { fedCache = (nowMs(), days) }
+        guard !days.isEmpty else { return fedCache?.days ?? [] }
+        fedCache = (nowMs(), days)
         return days
     }
+
+    /// For the tests: a calendar as if read at `at` (ms).
+    func setFedCache(_ days: [Double], at: Double) { fedCache = (at, days) }
 }
