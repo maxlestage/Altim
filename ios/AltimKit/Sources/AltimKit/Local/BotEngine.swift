@@ -405,6 +405,11 @@ public enum BotEngine {
         public var featureCount: Int? = BotEngine.featureNames.count
 
         /// Usable with today's measures: a bot saved by a version with other measures would read the wrong ones.
+        /// Trained on at least 3/4 of its market's list: a bot learned during a network failure on a few assets is
+        /// used for 30 minutes only, then trained again, and never saved for the next launch.
+        public static func isComplete(assets: Int, universe: Int) -> Bool { universe == 0 || assets * 4 >= universe * 3 }
+        public func isComplete(_ kind: Kind) -> Bool { Self.isComplete(assets: assets, universe: Rotation.universe[kind]?.count ?? 0) }
+
         public var isCurrent: Bool { featureCount == BotEngine.featureNames.count && trees.stumps.allSatisfy { $0.f < BotEngine.featureNames.count } }
 
         /// Trained on every example whose 20 days are over (the most recent 60 000 at most).
