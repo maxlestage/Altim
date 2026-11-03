@@ -3,11 +3,15 @@ import Foundation
 /// « Point du jour » computed on the device (the server's daily brief is gone): the state of each market for the market
 /// filter, what the watchlist's verdicts say, the next Fed decision. Facts the app already computed, nothing predicted.
 public enum DailyPoint {
-    public static func lines(macro: MacroInfo?, rows: [RadarRow], earnings: [EarningsEvent] = [],
+    /// `markets`: the market filter's states read on their own (`MarketBoard.read`), used when the macro report is
+    /// missing (its VIX / S&P sources down) so that the market lines do not vanish with it.
+    public static func lines(macro: MacroInfo?, rows: [RadarRow], earnings: [EarningsEvent] = [], markets: [Kind: Bool?]? = nil,
                              now: Double = Date().timeIntervalSince1970 * 1000) -> [String] {
         var out: [String] = []
         if let up = macro?.marketUp {
             for kind in MarketBoard.kinds { out.append(MarketBoard.text(kind, up[kind.rawValue])) }
+        } else if let markets, markets.values.contains(where: { $0 != nil }) {
+            for kind in MarketBoard.kinds { out.append(MarketBoard.text(kind, markets[kind] ?? nil)) }
         }
         let signals = rows.compactMap(\.signal)
         let actions = signals.map(\.action)
