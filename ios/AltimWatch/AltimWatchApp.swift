@@ -178,7 +178,7 @@ struct AlertRow: View {
             Spacer()
             Image(systemName: alert.buy ? (alert.strong ? "arrow.up.circle.fill" : "arrow.up.circle") : "pause.circle")
                 .foregroundStyle(alert.buy ? buyColor : .secondary)
-                .accessibilityLabel(alert.buy ? (alert.strong ? "Achat conseillé" : "Achat possible") : "Attendre")
+                .accessibilityLabel(alert.spokenLabel)
         }
     }
 }
@@ -191,7 +191,7 @@ struct AlertDetail: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(alert.name).font(.headline)
                 Text(Format.price(alert.price)).font(.title3.monospaced())
-                Text(alert.buy ? (alert.strong ? "ACHETER" : "ZONE D'ACHAT") : "ATTENDRE")
+                Text(alert.shortLabel)
                     .font(.caption.bold())
                     .foregroundStyle(alert.buy ? buyColor : .secondary)
                 ForEach(alert.reasons + alert.blockers + alert.cautions, id: \.self) { line in
