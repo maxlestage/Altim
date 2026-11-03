@@ -62,6 +62,21 @@ public struct BacktestReport: Codable, Sendable {
         if error != nil || trades.isEmpty { return .neutral }
         return beatsHolding ? .good : safer ? .warn : .bad
     }
+
+    /// Average result of the winning and of the losing trades (%), nil without such trades.
+    public var averageWin: Double? { Self.mean(trades.map(\.result).filter { $0 > 0 }) }
+    public var averageLoss: Double? { Self.mean(trades.map(\.result).filter { $0 <= 0 }) }
+
+    /// "+15 % / −4 %": what a winning and a losing trade gave on average; nil when one side is missing.
+    public var winLossText: String? {
+        guard let w = averageWin, let l = averageLoss else { return nil }
+        return "\(Format.percent(w, digits: 0)) / \(Format.percent(l, digits: 0))"
+    }
+
+    /// Why fewer than half of the trades winning is not by itself a bad sign for a trend rule.
+    public static let winRateNote = "Une règle de tendance perd souvent un peu et gagne parfois beaucoup : sur l'ensemble des actifs testés, environ un trade sur trois a été gagnant (+15 % en moyenne contre −4 % pour les perdants). C'est l'écart entre gain moyen et perte moyenne qui compte."
+
+    static func mean(_ x: [Double]) -> Double? { x.isEmpty ? nil : x.reduce(0, +) / Double(x.count) }
 }
 
 public enum Backtest {

@@ -73,7 +73,7 @@ final class LiveActivities {
     private static func state(price: Double, change: Double?, alert: BuyAlert?, signal: String?) -> PriceActivityAttributes.ContentState {
         let note: String
         if let alert {
-            note = alert.buy ? (alert.reasons.first ?? alert.body) : (alert.blockers.first ?? "Ni signal d'achat ni prix dans une zone d'achat.")
+            note = alert.buy ? (alert.reasons.first ?? alert.body) : (alert.blockers.first ?? "Pas de signal d'achat pour l'instant.")
         } else {
             note = "Verdict d'achat à la prochaine vérification."
         }

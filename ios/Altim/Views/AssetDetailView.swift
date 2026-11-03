@@ -428,7 +428,8 @@ struct TimeMachineCard: View {
             }
             .font(.caption2)
             KeyValue(key: "Achats déclenchés", value: "\(r.trades.count)")
-            if let w = r.winRate { KeyValue(key: "Trades gagnants", value: "\(Int(w.rounded())) %", tone: w >= 50 ? .good : .warn) }
+            if let w = r.winRate { KeyValue(key: "Trades gagnants", value: "\(Int(w.rounded())) %") }
+            if let g = r.winLossText { KeyValue(key: "Gain moyen / perte moyenne", value: g) }
             KeyValue(key: "Temps investi", value: "\(Int(r.exposure.rounded())) %")
             if !r.trades.isEmpty {
                 Button(showTrades ? "Masquer les trades" : "Voir les derniers trades") {
@@ -439,6 +440,10 @@ struct TimeMachineCard: View {
                     ForEach(r.trades.suffix(8).reversed()) { t in tradeRow(t) }
                         .transition(.opacity.combined(with: .move(edge: .top)))
                 }
+            }
+            if r.winRate != nil {
+                Text(BacktestReport.winRateNote)
+                    .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             }
             Text("Le passé ne garantit rien. La règle protège surtout dans les marchés baissiers ; en forte hausse, garder peut faire mieux.")
                 .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)

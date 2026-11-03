@@ -19,6 +19,11 @@ public struct BuyAlert: Codable, Sendable, Identifiable, Hashable {
     public var id: String { "\(kind.rawValue):\(symbol)" }
     public var asset: Asset { Asset(symbol: symbol, kind: kind, name: name) }
 
+    /// The Watch's word for the alert, the same as the iPhone's title: never ATTENDRE, which would hide a SORTIR
+    /// verdict behind "no buy" (the alerts only speak about buying).
+    public var shortLabel: String { buy ? (strong ? "ACHAT CONSEILLÉ" : "ACHAT POSSIBLE") : "PAS D'ACHAT" }
+    public var spokenLabel: String { buy ? (strong ? "Achat conseillé" : "Achat possible") : "Pas d'achat pour l'instant" }
+
     enum CodingKeys: String, CodingKey { case symbol, kind, name, price, asOf, buy, strong, reasons, blockers, cautions, key, title, body }
 
     public init(from decoder: Decoder) throws {
