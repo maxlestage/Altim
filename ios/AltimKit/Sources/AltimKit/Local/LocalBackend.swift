@@ -231,15 +231,20 @@ public actor LocalBackend {
     func botModel(_ kind: Kind, _ target: BotEngine.Target = .gain(days: BotEngine.horizon)) async -> BotEngine.Model? {
         let key = "\(kind.rawValue):\(target)"
         if let c = botModels[key], nowMs() - c.at < 12 * 3_600_000 {
-            if let m = await c.task.value { return m }
-            if nowMs() - c.at < 600_000 { return nil }
-            // Failed 10 minutes ago or more (network): the histories are read again.
-            botHistories[kind] = nil
+            if let m = await c.task.value {
+                if m.isComplete(kind) || nowMs() - c.at < 1_800_000 { return m }
+                // Learned on too few assets 30 minutes ago or more: the histories are read again.
+                botHistories[kind] = nil
+            } else {
+                if nowMs() - c.at < 600_000 { return nil }
+                // Failed 10 minutes ago or more (network): the histories are read again.
+                botHistories[kind] = nil
+            }
         }
         // A bot trained less than 12 hours ago at a previous launch: no download, no training.
         if botModels[key] == nil, let file = botStore?.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"),
            let data = try? Data(contentsOf: file), let saved = try? JSONDecoder().decode(BotEngine.Model.self, from: data),
-           saved.isCurrent, nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
+           saved.isCurrent, saved.isComplete(kind), nowMs() - saved.trainedAt < 12 * 3_600_000, saved.trainedAt <= nowMs() {
             botModels[key] = (saved.trainedAt, Task { saved })
             return saved
         }
@@ -250,7 +255,7 @@ public actor LocalBackend {
             guard h.count >= 5 else { return nil }
             // Off the actor: the other routes keep answering while the bot learns.
             let model = await Task.detached(priority: .utility) { BotEngine.Model.train(h, target: target) }.value
-            if let model, let store, let data = try? JSONEncoder().encode(model) {
+            if let model, model.isComplete(kind), let store, let data = try? JSONEncoder().encode(model) {
                 try? FileManager.default.createDirectory(at: store, withIntermediateDirectories: true)
                 try? data.write(to: store.appendingPathComponent("\(kind.rawValue)-\(target.days)-\(target.isFall ? "fall" : "gain").json"), options: .atomic)
             }
@@ -290,6 +295,8 @@ public actor LocalBackend {
             v = BotEngine.apply(m.predict(candles), to: v)
             v.botTrainedAt = m.trainedAt
             v.botExamples = m.examples
+            v.botAssets = m.assets
+            v.botUniverse = Rotation.universe[a.kind]?.count
         }
         v.botRisk = BotEngine.calibratedFall(await risk?.predict(candles), kind: a.kind)
         return v
