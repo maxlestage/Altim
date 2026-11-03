@@ -8,6 +8,7 @@ import AltimKit
 struct AltimWidgetsBundle: WidgetBundle {
     var body: some Widget {
         VerdictWidget()
+        MarketWidget()
         PriceLiveActivity()
     }
 }
@@ -305,5 +306,92 @@ private struct VerdictChip: View {
             .background(Capsule().fill(color.opacity(0.15)))
             .lineLimit(1)
             .fixedSize()
+    }
+}
+
+// MARK: Marchés
+
+/// The two markets of the market filter, read by the widget itself from the public quotes (Bitcoin, SPY daily candles).
+struct MarketEntry: TimelineEntry {
+    var date: Date
+    var states: [Kind: Bool?]
+    var read: Bool
+
+    static let sample = MarketEntry(date: .now, states: [.crypto: true, .stock: false], read: true)
+}
+
+struct MarketProvider: TimelineProvider {
+    func placeholder(in context: Context) -> MarketEntry { .sample }
+
+    func getSnapshot(in context: Context, completion: @escaping @Sendable (MarketEntry) -> Void) {
+        if context.isPreview { completion(.sample); return }
+        Task { completion(await Self.entry()) }
+    }
+
+    func getTimeline(in context: Context, completion: @escaping @Sendable (Timeline<MarketEntry>) -> Void) {
+        Task {
+            let e = await Self.entry()
+            // Daily candles: an hour is plenty (WidgetKit decides the exact moment); sooner after a failed read.
+            completion(Timeline(entries: [e], policy: .after(Date().addingTimeInterval(e.read ? 60 * 60 : 15 * 60))))
+        }
+    }
+
+    static func entry() async -> MarketEntry {
+        let states = await MarketBoard.read(AltimClient.standalone(local: LocalBackend(bot: false)))
+        return MarketEntry(date: .now, states: states, read: states.values.contains { $0 != nil })
+    }
+}
+
+struct MarketWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "altim.markets", provider: MarketProvider()) { entry in
+            MarketWidgetView(entry: entry)
+                .containerBackground(Palette.background, for: .widget)
+        }
+        .configurationDisplayName("Marchés")
+        .description("État du filtre de marché : Bitcoin pour les cryptos, S&P 500 (SPY) pour les actions. Hors tendance haussière, Altim ne conseille aucun achat sur ce marché. Altim ne passe aucun ordre.")
+        .supportedFamilies([.systemSmall, .systemMedium, .accessoryRectangular])
+    }
+}
+
+private struct MarketWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    var entry: MarketEntry
+
+    var body: some View {
+        if family == .accessoryRectangular {
+            VStack(alignment: .leading, spacing: 1) {
+                ForEach(MarketBoard.kinds, id: \.self) { k in
+                    HStack(spacing: 4) {
+                        Text(k == .crypto ? "BTC" : "S&P").font(.caption2.monospaced().bold())
+                        Text(MarketBoard.shortText(entry.states[k] ?? nil)).font(.caption2).lineLimit(1)
+                    }
+                }
+            }
+        } else {
+            VStack(alignment: .leading, spacing: family == .systemSmall ? 6 : 8) {
+                HStack {
+                    Text("Marchés").font(.caption.bold()).foregroundStyle(Palette.cyan)
+                    Spacer()
+                    Text(entry.date, style: .time).font(.caption2).foregroundStyle(Palette.muted)
+                }
+                ForEach(MarketBoard.kinds, id: \.self) { k in row(k, entry.states[k] ?? nil) }
+                if !entry.read { Text("Réseau indisponible : nouvel essai bientôt.").font(.caption2).foregroundStyle(Palette.muted) }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func row(_ k: Kind, _ up: Bool?) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Circle().fill(up == true ? Palette.buy : up == false ? Palette.sell : Palette.muted).frame(width: 8, height: 8).padding(.top, 4)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(MarketBoard.shortName(k)).font(.caption.bold()).foregroundStyle(.white)
+                Text(MarketBoard.shortText(up)).font(.caption2).foregroundStyle(Palette.muted)
+                    .lineLimit(2).minimumScaleFactor(0.8)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(MarketBoard.text(k, up))
     }
 }
