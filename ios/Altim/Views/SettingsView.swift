@@ -48,7 +48,7 @@ struct SettingsView: View {
             } header: {
                 Text("Notifications d'achat")
             } footer: {
-                Text("L'iPhone vérifie lui-même votre radar et vos avoirs : achetable seulement en tendance de fond haussière avec un momentum positif, sans source en désaccord ni choc de marché ; « conseillé » sur un repli dans cette tendance ou dans une zone d'achat Fibonacci. Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit aussi. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("L'iPhone vérifie lui-même votre radar et vos avoirs : achetable seulement en tendance de fond haussière avec un momentum positif, sans source en désaccord ni choc de marché ; « conseillé » seulement sur un repli dans cette tendance (la zone Fibonacci seule n'a pas montré d'avantage mesuré). Une notification seulement quand un actif devient achetable ou que la raison change ; l'Apple Watch les reçoit aussi. iOS décide du rythme en arrière-plan (au mieux toutes les 15 minutes), et la vérification a lieu aussi à chaque ouverture. Conseil indicatif : Altim ne passe aucun ordre.")
             }
             Section {
                 Toggle("Me prévenir des actualités importantes", isOn: Binding(
@@ -110,7 +110,7 @@ struct SettingsView: View {
             } header: {
                 Text("Radar et avoirs")
             } footer: {
-                Text("Pendant la vérification en arrière-plan (au mieux toutes les 15 minutes, iOS décide) et à chaque ouverture. Changements de configuration : les décisions des 20 premiers actifs du radar sont relues, 2 à la fois, celles déjà analysées depuis moins de 15 minutes attendent ; une seule notification regroupe les nouveaux changements (ATTENDRE → ZONE D'ACHAT…), avec les conditions manquantes. Positions dangereuses : cours de vos avoirs et bougies journalières des lignes qui ont un stop ; prévenu quand une ligne devient dangereuse (stop cassé, à moins d'une volatilité journalière du stop, perte au-delà de votre risque accepté par idée), pas à chaque vérification, et pas de nouveau avant 24 h si elle sort puis revient. Rien n'est vérifié hors ligne. Conseil indicatif : Altim ne passe aucun ordre.")
+                Text("Pendant la vérification en arrière-plan (au mieux toutes les 15 minutes, iOS décide) et à chaque ouverture. Changements de configuration : les décisions des 20 premiers actifs du radar sont relues, 2 à la fois, celles déjà analysées depuis moins de 15 minutes attendent ; une seule notification regroupe les nouveaux changements (RESTER À L'ÉCART → ACHETER / CONSERVER…), avec les conditions manquantes. Positions dangereuses : cours de vos avoirs et bougies journalières des lignes qui ont un stop ; prévenu quand une ligne devient dangereuse (stop cassé, à moins d'une volatilité journalière du stop, perte au-delà de votre risque accepté par idée), pas à chaque vérification, et pas de nouveau avant 24 h si elle sort puis revient. Rien n'est vérifié hors ligne. Conseil indicatif : Altim ne passe aucun ordre.")
             }
             Section {
                 Toggle("Suivi en direct (écran verrouillé et Dynamic Island)", isOn: $model.liveActivityEnabled)
