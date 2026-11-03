@@ -298,8 +298,21 @@ public struct RotationReport: Codable, Sendable {
     public var scanned: Int
     public var test: Test?
     public var notes: [String]
+    /// Assets of the list whose history could not be read this time: left out, and the shares (1 / `top`) computed on
+    /// the others.
+    public var missing: [String]? = nil
 
     public var selected: [Pick] { picks.filter(\.selected) }
+
+    /// Said under the picks when assets are missing; nil when the whole list was read.
+    public var missingText: String? {
+        guard let m = missing, !m.isEmpty else { return nil }
+        let names = m.count <= 4 ? m.joined(separator: ", ") : m.prefix(4).joined(separator: ", ") + " et \(m.count - 4) autre\(m.count - 4 > 1 ? "s" : "")"
+        return "\(m.count) actif\(m.count > 1 ? "s" : "") de la liste non lu\(m.count > 1 ? "s" : "") pour l'instant (\(names)) : laissé\(m.count > 1 ? "s" : "") de côté, parts calculées sur les \(top) autres. Nouvel essai dans quelques minutes."
+    }
+
+    /// How long the report is kept: 6 hours when the whole list was read, 10 minutes otherwise (read again soon).
+    public var keepFor: Double { (missing?.isEmpty ?? true) ? 6 * 3_600_000 : 600_000 }
 }
 
 public enum Rotation {

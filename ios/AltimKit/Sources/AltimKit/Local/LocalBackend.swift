@@ -198,7 +198,7 @@ public actor LocalBackend {
 
     /// « Sélection Altim » of a market: this week's picks and the rule replayed on the same assets (kept 6 hours).
     func rotation(_ kind: Kind) async -> RotationReport {
-        if let c = rotationCache[kind], nowMs() - c.at < 6 * 3_600_000 { return c.report }
+        if let c = rotationCache[kind], nowMs() - c.at < c.report.keepFor { return c.report }
         let list = Rotation.universe[kind] ?? []
         async let prices = quotes(list)
         let data: [(Asset, [Bar])] = await withTaskGroup(of: (Int, Asset, [Bar]?).self) { g in
@@ -215,9 +215,10 @@ public actor LocalBackend {
         let b = TrendEngine.benchmark(kind)
         let marketBars: [Bar]?
         if let own = data.first(where: { $0.0.id == b.id })?.1 { marketBars = own } else { marketBars = try? await longDaily(b) }
-        let r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
+        var r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
                                picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind, market: marketBars),
                                notes: Rotation.notes)
+        r.missing = list.filter { a in !data.contains { $0.0.id == a.id } }.map(\.name)
         if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
         return r
     }
