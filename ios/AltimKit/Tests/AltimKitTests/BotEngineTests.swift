@@ -193,3 +193,14 @@ extension BotEngineTests {
         XCTAssertNil(m.predict(bars))
     }
 }
+
+extension BotEngineTests {
+    /// A bot learned on too few assets (network failure) is not kept as if it were the real one.
+    func testIncompleteTrainingIsNotKept() {
+        XCTAssertTrue(BotEngine.Model.isComplete(assets: 15, universe: 15))
+        XCTAssertTrue(BotEngine.Model.isComplete(assets: 12, universe: 15), "3/4 et plus : complet")
+        XCTAssertFalse(BotEngine.Model.isComplete(assets: 11, universe: 15))
+        XCTAssertFalse(BotEngine.Model.isComplete(assets: 5, universe: 20))
+        XCTAssertTrue(BotEngine.Model.isComplete(assets: 15, universe: 20))
+    }
+}
