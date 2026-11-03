@@ -164,6 +164,17 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertEqual(even.agreeing, 2)
     }
 
+    /// A lone source far from the last close does not replace it on the Radar; agreeing sources always do.
+    func testLoneAberrantQuoteDoesNotReplaceTheClose() {
+        let a = Asset(symbol: "AAPL", kind: .stock, name: "Apple")
+        let lone = QuoteSources.combine(a, [("A", .success(PriceQuote(price: 520, change: nil))), ("B", .failure(MarketError("HTTP 451")))])!
+        XCTAssertFalse(QuoteSources.trusted(lone, lastClose: 270), "une seule source à +93 % : pas un cours")
+        XCTAssertTrue(QuoteSources.trusted(lone, lastClose: 500), "une seule source à +4 % : gardée")
+        XCTAssertTrue(QuoteSources.trusted(lone, lastClose: nil))
+        let two = QuoteSources.combine(a, [("A", .success(PriceQuote(price: 520, change: nil))), ("B", .success(PriceQuote(price: 521, change: nil)))])!
+        XCTAssertTrue(QuoteSources.trusted(two, lastClose: 270), "deux sources d'accord : le cours prime")
+    }
+
     func testBackendRoutesAndParameters() async throws {
         let backend = LocalBackend(fetcher: FakeFetcher(routes: []))
         let none = await backend.answer(path: "/api/decision", query: [:])
