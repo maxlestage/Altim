@@ -301,6 +301,13 @@ public struct RotationReport: Codable, Sendable {
     /// Assets of the list whose history could not be read this time: left out, and the shares (1 / `top`) computed on
     /// the others.
     public var missing: [String]? = nil
+    /// The market's history (Bitcoin / SPY) could not be read: the replay ran without the market filter.
+    public var marketMissing: Bool? = nil
+
+    /// How the replay treated the market filter, for its caption.
+    public var testMarketText: String {
+        marketMissing == true ? "sans le filtre de marché : historique du \(kind == .crypto ? "Bitcoin" : "S&P 500 (SPY)") non lu" : "filtre de marché compris"
+    }
 
     public var selected: [Pick] { picks.filter(\.selected) }
 
@@ -312,7 +319,7 @@ public struct RotationReport: Codable, Sendable {
     }
 
     /// How long the report is kept: 6 hours when the whole list was read, 10 minutes otherwise (read again soon).
-    public var keepFor: Double { (missing?.isEmpty ?? true) ? 6 * 3_600_000 : 600_000 }
+    public var keepFor: Double { (missing?.isEmpty ?? true) && marketMissing != true ? 6 * 3_600_000 : 600_000 }
 }
 
 public enum Rotation {
