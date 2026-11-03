@@ -73,7 +73,8 @@ enum EarningsCalendar {
 }
 
 extension LocalBackend {
-    /// The next results of these stocks within 3 weeks (one Nasdaq page per trading day, each kept 12 hours).
+    /// The next results of these stocks within 3 weeks (one Nasdaq page per trading day, each kept 12 hours, and its
+    /// last read used for up to a week when Nasdaq does not answer).
     func earnings(_ symbols: [String], now: Date = Date()) async -> [EarningsEvent] {
         let wanted = Set(symbols.map { $0.uppercased() })
         guard !wanted.isEmpty else { return [] }
@@ -96,7 +97,12 @@ extension LocalBackend {
             return out
         }
         for (d, events) in fetched {
-            guard let events else { continue }
+            guard let events else {
+                // Nasdaq down for that day: its last page read (within a week) rather than a silent hole, since a
+                // report's date rarely moves.
+                if let c = earningsCache[d], nowMs() - c.at < 7 * 86_400_000 { pages[d] = c.events }
+                continue
+            }
             pages[d] = events
             earningsCache[d] = (nowMs(), events)
         }
@@ -107,6 +113,11 @@ extension LocalBackend {
         }
         return first.values.sorted { ($0.time, $0.symbol) < ($1.time, $1.symbol) }
     }
+}
+
+extension LocalBackend {
+    /// For the tests: a day's page as if read at `at` (ms).
+    func setEarningsPage(_ day: String, at: Double, _ events: [EarningsEvent]) { earningsCache[day] = (at, events) }
 }
 
 extension AltimClient {
