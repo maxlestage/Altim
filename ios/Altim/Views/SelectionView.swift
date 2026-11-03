@@ -44,6 +44,7 @@ struct RotationView: View {
         Card(title: "À détenir maintenant · \(r.selected.count) sur \(r.scanned)", glow: Theme.buy) {
             Text("Les \(r.kind == .crypto ? "cryptos" : "actions") en tendance de fond haussière avec un momentum positif (\(r.kind == .crypto ? "\(r.lookback) jours" : "3 mois")), chacune pour 1/\(r.top) du budget ; le reste (\(Int((Double(r.top - r.selected.count) / Double(max(1, r.top)) * 100).rounded())) %) en liquidités, ainsi que celles dont le bot Tendance bloque l'achat, et toutes quand le marché (\(r.kind == .crypto ? "Bitcoin" : "S&P 500")) n'est pas en tendance haussière. Vérifié chaque jour.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
+            if let m = r.missingText { Notice(text: m, tone: .warn) }
             if r.selected.isEmpty {
                 Notice(text: "Aucun actif de ce marché n'est en tendance haussière : la règle reste entièrement en liquidités.", tone: .warn)
             }
@@ -87,7 +88,7 @@ struct RotationView: View {
     private func testCard(_ t: RotationReport.Test, _ r: RotationReport) -> some View {
         let better = t.ret > t.basket
         return Card(title: "Rejoué sur le passé", glow: better ? Theme.buy : Theme.warning) {
-            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance, filtre de marché compris) contre tout garder, sans le veto du bot (testé à part au labo). 0,1 % de frais par ordre.")
+            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance, \(r.testMarketText)) contre tout garder, sans le veto du bot (testé à part au labo). 0,1 % de frais par ordre.")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 tile("Parts Altim", t.ret, t.drawdown, Theme.magenta)

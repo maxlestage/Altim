@@ -20,4 +20,12 @@ final class BacktestWinLossTests: XCTestCase {
         XCTAssertNil(report([]).averageWin)
         XCTAssertFalse(BacktestReport.winRateNote.contains("garanti"), "une explication, pas une promesse")
     }
+
+    /// Market history not read: the replay says it ran without the market filter, instead of claiming it.
+    func testMarketMissingIsSaid() async {
+        var r = report([5, -2])
+        XCTAssertNil(r.marketMissingText)
+        r.marketMissing = true
+        XCTAssertEqual(r.marketMissingText, "Historique du S&P 500 (SPY) non lu pour l'instant : rejoué sans le filtre de marché, la règle de l'actif seule.")
+    }
 }

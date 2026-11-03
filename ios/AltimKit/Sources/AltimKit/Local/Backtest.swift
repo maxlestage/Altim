@@ -42,6 +42,13 @@ public struct BacktestReport: Codable, Sendable {
     public var curve: [Point]
     public var reliability: Reliability?
     public var error: String?
+    /// The market's history (Bitcoin / SPY) could not be read: replayed without the market filter.
+    public var marketMissing: Bool? = nil
+
+    /// Said under the replay when it ran without the market filter; nil otherwise.
+    public var marketMissingText: String? {
+        marketMissing == true ? "Historique \(kind == .crypto ? "du Bitcoin" : "du S&P 500 (SPY)") non lu pour l'instant : rejoué sans le filtre de marché, la règle de l'actif seule." : nil
+    }
 
     public var beatsHolding: Bool { strategyReturn > holdReturn }
     /// The signal lost less in its worst moment than the asset held.
