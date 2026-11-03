@@ -219,6 +219,15 @@ enum QuoteSources {
         return combine(a, results)
     }
 
+    /// Whether a live quote may replace the last daily close on the Radar: always with two agreeing sources or more; a
+    /// lone source only within 25 % (stocks) or 30 % (cryptos) of that close, beyond which it is more likely a wrong
+    /// price than a move.
+    static func trusted(_ q: Quote, lastClose: Double?) -> Bool {
+        if q.agreeing >= 2 { return true }
+        guard let c = lastClose, c > 0 else { return true }
+        return abs(q.price / c - 1) <= (q.kind == .crypto ? 0.30 : 0.25)
+    }
+
     static func combine(_ a: Asset, _ results: [(String, Result<PriceQuote, MarketError>)]) -> Quote? {
         let found = results.compactMap { r -> (String, PriceQuote)? in if case .success(let q) = r.1 { return (r.0, q) } else { return nil } }
         guard !found.isEmpty else { return nil }

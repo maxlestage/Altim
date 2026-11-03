@@ -161,7 +161,7 @@ public actor LocalBackend {
         let qs = await prices
         return rows.map { r in
             var r = r
-            if let q = qs.first(where: { $0.symbol == r.symbol && $0.kind == r.kind }) {
+            if let q = qs.first(where: { $0.symbol == r.symbol && $0.kind == r.kind }), QuoteSources.trusted(q, lastClose: r.price) {
                 r.price = q.price
                 r.change = q.change
                 r.priceSources = "\(q.agreeing)/\(q.total)"
