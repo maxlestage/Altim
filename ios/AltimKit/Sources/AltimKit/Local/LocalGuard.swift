@@ -436,12 +436,26 @@ extension LocalBackend {
 
     static func funding(_ symbol: String, _ f: MarketFetcher) async -> Double? {
         guard let d = try? await f.json("https://www.okx.com/api/v5/public/funding-rate?instId=\(symbol)-USDT-SWAP") else { return nil }
-        let v = num(obj(arr(at(d, "data"))?.first)?["fundingRate"])
-        return v.isFinite ? v : nil
+        return parseFunding(d)
     }
 
-    static func fearGreed(_ f: MarketFetcher) async -> [Double] {
+    /// The funding rate per 8 h (fraction); nil when absent or beyond ±5 % (OKX caps it far below: such a value is a
+    /// read error, not a market signal).
+    static func parseFunding(_ d: Any) -> Double? {
+        let v = num(obj(arr(at(d, "data"))?.first)?["fundingRate"])
+        return v.isFinite && abs(v) <= 0.05 ? v : nil
+    }
+
+    static func fearGreed(_ f: MarketFetcher, now: Double = Date().timeIntervalSince1970 * 1000) async -> [Double] {
         guard let d = try? await f.json("https://api.alternative.me/fng/?limit=30") else { return [] }
-        return (arr(at(d, "data")) ?? []).compactMap { obj($0) }.map { num($0["value"]) }.filter(\.isFinite).reversed()
+        return parseFearGreed(d, now: now)
+    }
+
+    /// The index's daily values, oldest first: only values within 0–100, and nothing when the newest one is more than
+    /// 3 days old (a feed stuck on an old reading would describe a market that has moved on).
+    static func parseFearGreed(_ d: Any, now: Double) -> [Double] {
+        let rows = (arr(at(d, "data")) ?? []).compactMap { obj($0) }
+        guard let newest = rows.first.map({ num($0["timestamp"]) }), newest.isFinite, now - newest * 1000 <= 3 * 86_400_000 else { return [] }
+        return rows.map { num($0["value"]) }.filter { $0.isFinite && (0...100).contains($0) }.reversed()
     }
 }
