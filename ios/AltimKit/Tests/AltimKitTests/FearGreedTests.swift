@@ -15,4 +15,12 @@ final class FearGreedTests: XCTestCase {
         XCTAssertEqual(LocalBackend.parseFearGreed(stale, now: now), [], "dernière valeur vieille de 5 jours : rien")
         XCTAssertEqual(LocalBackend.parseFearGreed(["data": []], now: now), [])
     }
+
+    /// OKX funding rate: a plausible value is kept, an absurd one (read error) is dropped.
+    func testFunding() {
+        XCTAssertEqual(LocalBackend.parseFunding(["data": [["fundingRate": "0.0001"]]]), 0.0001)
+        XCTAssertEqual(LocalBackend.parseFunding(["data": [["fundingRate": "-0.003"]]]), -0.003)
+        XCTAssertNil(LocalBackend.parseFunding(["data": [["fundingRate": "0.8"]]]), "80 % par 8 h : erreur de lecture")
+        XCTAssertNil(LocalBackend.parseFunding(["data": []]))
+    }
 }
