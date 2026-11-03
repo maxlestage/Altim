@@ -69,6 +69,20 @@ public struct SignalSummary: Codable, Sendable {
     public var confidence: Double
     /// ATTENDRE forced by the data, not by the rule: last close too old, or sources too unreliable.
     public var suspended: Bool? = nil
+
+    /// What the Radar shows in place of the confidence when the data, not the rule, forced ATTENDRE.
+    public static let suspendedText = "suspendu : données en retard ou peu fiables"
+    public static let suspendedLabel = "Verdict suspendu : la dernière clôture est trop ancienne ou les sources sont trop peu fiables"
+}
+
+/// The widgets' short word in place of a verdict the data does not allow: nil when the verdict stands.
+public enum WidgetNote {
+    public static func text(_ row: RadarRow?) -> String? {
+        guard let row else { return nil }
+        if row.signal?.suspended == true { return "SUSPENDU" }
+        if row.signal == nil, row.error != nil { return "INDISP." }
+        return nil
+    }
 }
 
 public struct RadarRow: Codable, Sendable, Identifiable {
