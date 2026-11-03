@@ -216,38 +216,6 @@ struct AssetPriceIntent: AppIntent {
     }
 }
 
-/// The spoken answers (plain words: Siri reads them aloud).
-enum SiriText {
-    static func radar(_ rows: [RadarRow]) -> String {
-        let ok = rows.filter { $0.signal != nil }
-        guard !ok.isEmpty else { return "Les marchés ne répondent pas pour l'instant. Réessayez dans un moment." }
-        let buys = ok.filter { $0.signal?.action == .buy || $0.signal?.action == .strongBuy }.map { $0.name ?? $0.symbol }
-        let sells = ok.filter { $0.signal?.action == .sell || $0.signal?.action == .strongSell }.map { $0.name ?? $0.symbol }
-        var parts: [String] = []
-        parts.append(buys.isEmpty ? "Aucun signal d'achat sur votre radar." : "Signal d'achat sur \(list(buys)).")
-        if !sells.isEmpty { parts.append("Signal de vente sur \(list(sells)).") }
-        let wait = ok.count - buys.count - sells.count
-        if wait > 0 { parts.append("\(wait) actif\(wait > 1 ? "s" : "") à attendre.") }
-        if let best = ok.max(by: { ($0.change ?? -.infinity) < ($1.change ?? -.infinity) }), let c = best.change {
-            parts.append("Plus forte hausse : \(best.name ?? best.symbol), \(Format.percent(c, digits: 1)) sur 24 heures.")
-        }
-        parts.append("Altim ne passe aucun ordre.")
-        return parts.joined(separator: " ")
-    }
-
-    static func asset(_ a: Asset, _ row: RadarRow?) -> String {
-        guard let row, let price = row.price else { return "Le cours de \(a.name) est indisponible pour l'instant." }
-        var text = "\(a.name) vaut \(Format.price(price))"
-        if let c = row.change { text += ", \(Format.percent(c, digits: 1)) sur 24 heures" }
-        text += "."
-        if let s = row.signal { text += " Verdict Altim : \(s.action.label.lowercased())." }
-        return text
-    }
-
-    static func list(_ names: [String]) -> String {
-        names.count <= 1 ? names.joined() : names.dropLast().joined(separator: ", ") + " et " + names.last!
-    }
-}
 
 struct AltimShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
