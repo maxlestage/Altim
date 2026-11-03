@@ -20,9 +20,9 @@ struct DisclaimerView: View {
                         .font(.title2.bold())
 
                     VStack(alignment: .leading, spacing: 14) {
-                        point("waveform.path.ecg", "Les signaux sont des probabilités calculées sur l'historique, jamais des certitudes. Aucun outil ne garantit un gain.")
+                        point("waveform.path.ecg", "Les verdicts appliquent une règle de tendance testée sur le passé : ils ne prédisent pas l'avenir. Sur le passé, environ deux achats sur trois de cette règle ont fini en petite perte (−4 % en moyenne) ; quelques gains plus rares et plus grands (+15 % en moyenne) ont fait le résultat. Aucun outil ne garantit un gain.")
                         point("exclamationmark.triangle", "Investir en crypto-actifs et en actions comporte un risque de perte totale du capital investi.")
-                        point("lightbulb", "Altim est un conseiller : il ne passe aucun ordre et ne demande aucun accès à vos comptes. Vous décidez, chez votre courtier habituel.")
+                        point("lightbulb", "Altim donne des conseils indicatifs, sans connaître votre situation : il ne passe aucun ordre et ne demande aucun accès à vos comptes. Vous décidez, chez votre courtier habituel.")
                         point("lock.shield", "Vos avoirs restent sur cet iPhone, jamais envoyés nulle part. Les analyses sont calculées sur l'iPhone à partir des cours publics de plusieurs bourses et sources boursières, comparés entre eux.")
                     }
                     .glassCard(glow: Theme.warning)
