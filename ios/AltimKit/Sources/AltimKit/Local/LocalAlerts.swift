@@ -130,13 +130,13 @@ extension LocalBackend {
         let items: [[String: Any]] = await withTaskGroup(of: (Int, [String: Any]).self) { g in
             for (i, a) in list.enumerated() {
                 g.addTask {
-                    let price = prices.first { $0.symbol == a.symbol && $0.kind == a.kind }?.price
+                    let quote = prices.first { $0.symbol == a.symbol && $0.kind == a.kind }
                     do {
                         async let d1 = self.snapshot(a, .d1)
                         async let z = try? self.zones(a)
                         async let g = try? self.guardReport(a)
                         let s = try await d1
-                        let input = LocalAlertRule.Input(asset: a, price: price ?? s.candles.last?.close, verdict: await self.botVerdict(a, s.candles),
+                        let input = LocalAlertRule.Input(asset: a, price: QuoteSources.price(quote, lastClose: s.candles.last?.close), verdict: await self.botVerdict(a, s.candles),
                                                          reliability: s.reliability, zones: await z?.zones ?? [], shock: await g?.shock.level,
                                                          earnings: results.first { $0.symbol == a.symbol && a.kind == .stock }, fedDecision: fed)
                         return (i, LocalAlertRule.json(a, LocalAlertRule.evaluate(input), price: input.price, asOf: nowMs()))
