@@ -107,5 +107,10 @@ extension TrendEngineTests {
         XCTAssertTrue(r.missingText?.contains("(A, B, C, D et 2 autres)") == true)
         let back = try? JSONDecoder().decode(RotationReport.self, from: JSONEncoder().encode(r))
         XCTAssertEqual(back?.missing?.count, 6)
+        var s = RotationReport(kind: .stock, asOf: 0, top: 20, lookback: 62, picks: [], scanned: 20, test: nil, notes: Rotation.notes)
+        XCTAssertEqual(s.testMarketText, "filtre de marché compris")
+        s.marketMissing = true
+        XCTAssertEqual(s.testMarketText, "sans le filtre de marché : historique du S&P 500 (SPY) non lu", "le test ne prétend pas un filtre qu'il n'a pas rejoué")
+        XCTAssertEqual(s.keepFor, 600_000, "relu bientôt")
     }
 }

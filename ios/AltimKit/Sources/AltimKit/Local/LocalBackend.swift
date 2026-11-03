@@ -218,6 +218,7 @@ public actor LocalBackend {
         var r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
                                picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind, market: marketBars),
                                notes: Rotation.notes)
+        r.marketMissing = marketBars == nil ? true : nil
         r.missing = list.filter { a in !data.contains { $0.0.id == a.id } }.map(\.name)
         if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
         return r
