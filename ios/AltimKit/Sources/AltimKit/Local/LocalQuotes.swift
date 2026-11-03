@@ -228,6 +228,16 @@ enum QuoteSources {
         return abs(q.price / c - 1) <= (q.kind == .crypto ? 0.30 : 0.25)
     }
 
+    /// The quote with an untrusted lone price replaced by the last close (change unknown then), for every screen that
+    /// reads quotes alone (holdings, simulation, stop checks): a wrong price must not value a line or break a stop.
+    static func vetted(_ q: Quote, lastClose: Double?) -> Quote {
+        guard !trusted(q, lastClose: lastClose), let c = lastClose else { return q }
+        var q = q
+        q.price = c
+        q.change = nil
+        return q
+    }
+
     /// The price to use: the live quote when `trusted`, else the last close.
     static func price(_ q: Quote?, lastClose: Double?) -> Double? {
         guard let q, trusted(q, lastClose: lastClose) else { return lastClose }

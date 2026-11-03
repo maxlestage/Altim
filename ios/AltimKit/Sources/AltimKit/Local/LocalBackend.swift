@@ -71,7 +71,7 @@ public actor LocalBackend {
                 let tf = try Self.timeframe(query["interval"] ?? "4h")
                 return (try Self.encode(await radar(list, tf)), 200)
             case "/api/tickers":
-                return (try Self.encode(await quotes(Self.assets(query["symbols"]))), 200)
+                return (try Self.encode(await vettedQuotes(Self.assets(query["symbols"]))), 200)
             case "/api/search":
                 let limit = Int(query["limit"] ?? "") ?? 20
                 return (try Self.encode(await LocalSearch.search(query["q"] ?? "", limit: limit, fetcher: fetcher)), 200)
@@ -168,6 +168,17 @@ public actor LocalBackend {
             }
             return r
         }
+    }
+
+    /// Quotes for the screens that read them alone: a lone source is checked against the daily close (usually cached).
+    func vettedQuotes(_ list: [Asset]) async -> [Quote] {
+        var out: [Quote] = []
+        for q in await quotes(list) {
+            guard q.agreeing < 2, let a = list.first(where: { $0.symbol == q.symbol && $0.kind == q.kind }) else { out.append(q); continue }
+            let close = (try? await snapshot(a, .d1))?.candles.last?.close
+            out.append(QuoteSources.vetted(q, lastClose: close))
+        }
+        return out
     }
 
     /// A radar row: the verdict of the daily trend engine (whatever the chosen timeframe, which only draws the
