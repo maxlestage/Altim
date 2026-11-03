@@ -63,6 +63,25 @@ final class LocalEarningsTests: XCTestCase {
         XCTAssertEqual(events.first?.daysAway(now: now), 4)
     }
 
+    /// Nasdaq down: the last page read for a day (here 2 days old) is used rather than a silent hole; too old, not.
+    func testNasdaqDownKeepsTheLastPageRead() async throws {
+        let body = String(data: try JSONSerialization.data(withJSONObject: fixture()), encoding: .utf8)!
+        let now = Date(timeIntervalSince1970: 1_793_361_600)
+        let backend = LocalBackend(fetcher: FakeFetcher(routes: [("https://api.nasdaq.com/api/calendar/earnings?date=2026-11-03", body)]))
+        let first = await backend.earnings(["MU"], now: now)
+        XCTAssertEqual(first.map(\.symbol), ["MU"])
+        let cached = await backend.earningsCache["2026-11-03"]
+        let page = try XCTUnwrap(cached)
+        let offline = LocalBackend(fetcher: FakeFetcher(routes: []))
+        await offline.setEarningsPage("2026-11-03", at: Date().timeIntervalSince1970 * 1000 - 2 * 86_400_000, page.events)
+        let kept = await offline.earnings(["MU"], now: now)
+        XCTAssertEqual(kept.map(\.symbol), ["MU"], "page lue il y a 2 jours : gardée")
+        let old = LocalBackend(fetcher: FakeFetcher(routes: []))
+        await old.setEarningsPage("2026-11-03", at: Date().timeIntervalSince1970 * 1000 - 8 * 86_400_000, page.events)
+        let none = await old.earnings(["MU"], now: now)
+        XCTAssertEqual(none.count, 0, "page de plus d'une semaine : pas reprise")
+    }
+
     func testBuyAlertWarnsBeforeResults() throws {
         Money.setDisplay(.usd, nil)
         let now = Date(timeIntervalSince1970: 1_793_361_600)
