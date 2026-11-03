@@ -436,8 +436,14 @@ extension LocalBackend {
 
     static func funding(_ symbol: String, _ f: MarketFetcher) async -> Double? {
         guard let d = try? await f.json("https://www.okx.com/api/v5/public/funding-rate?instId=\(symbol)-USDT-SWAP") else { return nil }
+        return parseFunding(d)
+    }
+
+    /// The funding rate per 8 h (fraction); nil when absent or beyond ±5 % (OKX caps it far below: such a value is a
+    /// read error, not a market signal).
+    static func parseFunding(_ d: Any) -> Double? {
         let v = num(obj(arr(at(d, "data"))?.first)?["fundingRate"])
-        return v.isFinite ? v : nil
+        return v.isFinite && abs(v) <= 0.05 ? v : nil
     }
 
     static func fearGreed(_ f: MarketFetcher, now: Double = Date().timeIntervalSince1970 * 1000) async -> [Double] {
