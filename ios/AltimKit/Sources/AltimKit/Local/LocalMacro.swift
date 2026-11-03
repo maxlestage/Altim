@@ -131,6 +131,14 @@ enum MacroEngine {
     }
 }
 
+extension MacroEngine {
+    /// The series whose last close is at most 7 days old (a long weekend stays fine): a series stuck on old closes
+    /// would describe a market that has moved on, so it is left out like a source that did not answer.
+    static func fresh(_ series: [String: [Point]], now: Double) -> [String: [Point]] {
+        series.filter { _, v in v.last.map { now - $0.time <= 7 * 86_400_000 } ?? false }
+    }
+}
+
 extension LocalBackend {
     /// `/api/macro`: the six series (Yahoo Finance, 2 years of daily closes) and the world headlines of the news engine.
     func macroReport() async throws -> MacroInfo {
@@ -155,7 +163,7 @@ extension LocalBackend {
             }
             var out: [String: [MacroEngine.Point]] = [:]
             for await (k, v) in g where !v.isEmpty { out[k] = v }
-            return out
+            return MacroEngine.fresh(out, now: nowMs())
         }
         guard series["vix"] != nil || series["spx"] != nil else { throw MarketError("données macro indisponibles") }
         let world = (await news).items.filter { $0.category == "monde" || $0.category == "marches" }.map { (title: $0.title, time: $0.time) }
