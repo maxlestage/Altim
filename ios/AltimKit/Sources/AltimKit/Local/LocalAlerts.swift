@@ -77,7 +77,7 @@ enum LocalAlertRule {
         }
         if let e = a.earnings, (0...7).contains(e.daysAway(now: a.now)) {
             let d = e.daysAway(now: a.now)
-            cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText))  : une action bouge souvent plus que d'habitude autour de ses résultats (effet non mesuré par Altim, faute de dates passées accessibles) ; une taille réduite limite la surprise.")
+            cautions.append("Résultats trimestriels \(d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours") (\(e.dayText)) : une action bouge souvent plus que d'habitude autour de ses résultats (effet non mesuré par Altim, faute de dates passées accessibles) ; une taille réduite limite la surprise.")
         }
         if state == .trend { cautions.append("Pas de repli en cours : entrer en plusieurs fois a réduit les pires cas au test (10 % pires à 40 jours −33 % contre −37 % en crypto) mais rapporté un peu moins en moyenne : un choix de prudence.") }
         // The risk bot's size, on its calibrated fall (testRiskModelSizing, current rule: crypto rising market at 5 % of accepted risk

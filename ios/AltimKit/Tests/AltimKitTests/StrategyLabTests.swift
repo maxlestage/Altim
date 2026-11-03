@@ -1340,6 +1340,47 @@ extension StrategyLabTests {
         print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
     }
 
+    /// Entry filters on the asset's own state (exit unchanged): no entry while its volatility spikes (ATR 14 above
+    /// 1.5× its 100-day average), or only when the trend is strong (ADX 14 above 20).
+    /// Measured 2026-11-03: both rejected. ATR filter: nearly the same, slightly worse (universe stocks 1st half 19 % vs
+    /// 21 %, lab stocks 1st half drawdown −19 % vs −16 %). ADX > 20: shallower drawdowns but much less return (crypto 1st
+    /// half 45 % vs 55 % on both lists, stocks 1st half 3–4 % vs 8–21 %). The rule stays as it is.
+    func testVolatilityAndADXEntryFilters() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard let l = env["ALTIM_LAB"], let u = env["ALTIM_ULAB"] else { throw XCTSkip("dossiers absents") }
+        func read(_ dir: String, _ a: Asset) -> (Asset, [Bar])? {
+            guard let rows = (try? JSONSerialization.jsonObject(with: Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(a.kind.rawValue)-\(a.symbol).json")))) as? [[Double]] else { return nil }
+            return (a, rows.map { Bar(time: $0[0], open: $0[1], high: $0[2], low: $0[3], close: $0[4], volume: $0[5]) })
+        }
+        let lab = Self.load(l).filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        let uni = ((Rotation.universe[.crypto] ?? []) + (Rotation.universe[.stock] ?? [])).compactMap { read(u, $0) }.filter { $0.1.count > 600 }.map { ($0.0, LabSeries($0.1)) }
+        guard let btc = lab.first(where: { $0.0.symbol == "BTC" })?.1, let spy = lab.first(where: { $0.0.symbol == "SPY" })?.1 else { throw XCTSkip("BTC ou SPY absent") }
+        let up = { (s: LabSeries, i: Int) in s.close[i] > Self.v(s.ema200[i]) && (s.ret(i, Self.lb(s)) ?? -1) > 0 }
+        func mdays(_ s: LabSeries) -> [Double: Bool] {
+            var d: [Double: Bool] = [:]
+            for i in s.c.indices { d[(s.c[i].time / 86_400_000).rounded(.down)] = up(s, i) }
+            return d
+        }
+        let mk = [true: mdays(btc), false: mdays(spy)]
+        let ok = { (s: LabSeries, i: Int) in up(s, i) && (mk[s.c.count > 950]![(s.c[i].time / 86_400_000).rounded(.down)] ?? true) }
+        let exit = { (s: LabSeries, i: Int) in !ok(s, i) }
+        // Calm enough: today's ATR 14 (as a share of the price) at most 1.5× its average of the last 100 days.
+        let calm = { (s: LabSeries, i: Int) -> Bool in
+            guard i >= 114, let a = s.atr14[i] else { return true }
+            let past = (i - 100..<i).compactMap { j in s.atr14[j].map { $0 / s.close[j] } }
+            guard !past.isEmpty else { return true }
+            return a / s.close[i] <= 1.5 * past.reduce(0, +) / Double(past.count)
+        }
+        let strong = { (s: LabSeries, i: Int) in Self.v(s.adx14[i]) > 20 }
+        let rules = [
+            LabRule(name: "actuel (filtre marché)", enter: ok, exit: exit),
+            LabRule(name: "entrée si ATR ≤ 1,5× moy.", enter: { s, i in ok(s, i) && calm(s, i) }, exit: exit),
+            LabRule(name: "entrée si ADX > 20", enter: { s, i in ok(s, i) && strong(s, i) }, exit: exit),
+        ]
+        print("== labo"); print(Lab.report(lab, rules)); print(Lab.full(lab, rules))
+        print("== univers"); print(Lab.report(uni, rules)); print(Lab.full(uni, rules))
+    }
+
     /// Entry also asking a positive momentum over twice / three times the usual lookback (exit unchanged): fewer
     /// entries on young trends — better on both halves of both lists, in return and drawdown?
     /// Measured 2026-11-03: rejected. 2× lowers some drawdowns (crypto 2nd half −24 % vs −30 %) but loses return on the
