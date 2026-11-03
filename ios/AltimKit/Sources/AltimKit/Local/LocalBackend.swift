@@ -321,7 +321,7 @@ public actor LocalBackend {
         async let q = quotes([a])
         let (s4, sd, sw) = (await h4, await d1, await w1)
         guard s4 != nil || sd != nil || sw != nil else { throw MarketError("Toutes les sources ont échoué") }
-        let price = await q.first?.price ?? s4?.candles.last?.close ?? sd?.candles.last?.close
+        let price = QuoteSources.price(await q.first, lastClose: s4?.candles.last?.close ?? sd?.candles.last?.close)
         let zones = FibEngine.zones(h4: s4?.candles ?? [], daily: sd?.candles ?? [], weekly: sw?.candles ?? [], price: price)
         return ZonesReport(symbol: a.symbol, kind: a.kind, price: price, asOf: nowMs(), zones: zones, macro: try? await macroReport())
     }
