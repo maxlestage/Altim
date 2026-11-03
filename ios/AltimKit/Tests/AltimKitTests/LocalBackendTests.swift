@@ -173,6 +173,9 @@ final class LocalBackendTests: XCTestCase {
         XCTAssertTrue(QuoteSources.trusted(lone, lastClose: nil))
         let two = QuoteSources.combine(a, [("A", .success(PriceQuote(price: 520, change: nil))), ("B", .success(PriceQuote(price: 521, change: nil)))])!
         XCTAssertTrue(QuoteSources.trusted(two, lastClose: 270), "deux sources d'accord : le cours prime")
+        XCTAssertEqual(QuoteSources.price(lone, lastClose: 270), 270, "alertes, zones, garde-fou : la clôture reste")
+        XCTAssertEqual(QuoteSources.price(lone, lastClose: 500), 520)
+        XCTAssertEqual(QuoteSources.price(nil, lastClose: 270), 270)
     }
 
     func testBackendRoutesAndParameters() async throws {
