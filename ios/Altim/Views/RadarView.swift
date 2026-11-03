@@ -23,6 +23,7 @@ struct RadarView: View {
     /// Quarterly results of the watchlist's stocks (for the « Point du jour »).
     @State private var earnings: [EarningsEvent] = []
     @State private var macro: MacroInfo?
+    @State private var markets: [Kind: Bool?]?
     @State private var error: String?
     @State private var loading = false
     @State private var query = ""
@@ -184,7 +185,7 @@ struct RadarView: View {
     }
 
     /// « Point du jour » from what the Radar already loaded (markets, verdicts, next Fed decision).
-    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings) }
+    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings, markets: markets) }
 
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
@@ -205,6 +206,8 @@ struct RadarView: View {
         }
         macro = await m
         earnings = await e
+        // Macro sources down: the market filter's lines from Bitcoin and SPY alone (their daily candles are cached).
+        markets = macro?.marketUp == nil ? await MarketBoard.read(client) : nil
     }
 }
 
