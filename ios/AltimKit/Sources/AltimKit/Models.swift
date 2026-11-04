@@ -232,11 +232,9 @@ public struct MacroInfo: Codable, Sendable {
     /// « 9 décembre (dans 37 jours) », « aujourd'hui », nil when unknown or past.
     public func nextFedText(now: Double = Date().timeIntervalSince1970 * 1000) -> String? {
         guard let f = nextFed, f + 6 * 3_600_000 >= now else { return nil }
-        let d = Int((f / 86_400_000).rounded(.down) - (now / 86_400_000).rounded(.down))
-        let fmt = DateFormatter()
-        fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = TimeZone(identifier: "UTC"); fmt.dateFormat = "d MMMM"
+        let d = FedDay.days(f, now: now)
         let when = d <= 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
-        return "\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))) (\(when))"
+        return "\(FedDay.date(f)) (\(when))"
     }
     public var tone: Tone { level == "high" ? .bad : level == "tense" ? .warn : .good }
     /// Display order and French names of the market series.
@@ -491,5 +489,25 @@ extension SelectionReport {
         var out: [String: Double] = [:]
         for (i, p) in withPlan.enumerated() { out[p.0] = min(cap, budget * inv[i] / sum) }
         return out
+    }
+}
+
+/// A Fed decision's day counted in New York, where it is announced (14:00): the same date and the same « demain »
+/// wherever the iPhone is (in Tokyo, 18:00 UTC is already the next day).
+public enum FedDay {
+    static let ny = TimeZone(identifier: "America/New_York") ?? .current
+
+    public static func days(_ decision: Double, now: Double) -> Int {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = ny
+        return cal.dateComponents([.day], from: cal.startOfDay(for: Date(timeIntervalSince1970: now / 1000)),
+                                  to: cal.startOfDay(for: Date(timeIntervalSince1970: decision / 1000))).day ?? 0
+    }
+
+    /// "9 décembre".
+    public static func date(_ decision: Double) -> String {
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = ny; fmt.dateFormat = "d MMMM"
+        return fmt.string(from: Date(timeIntervalSince1970: decision / 1000))
     }
 }
