@@ -71,7 +71,7 @@ public actor LocalBackend {
                 let tf = try Self.timeframe(query["interval"] ?? "4h")
                 return (try Self.encode(await radar(list, tf)), 200)
             case "/api/tickers":
-                return (try Self.encode(await quotes(Self.assets(query["symbols"]))), 200)
+                return (try Self.encode(await vettedQuotes(Self.assets(query["symbols"]))), 200)
             case "/api/search":
                 let limit = Int(query["limit"] ?? "") ?? 20
                 return (try Self.encode(await LocalSearch.search(query["q"] ?? "", limit: limit, fetcher: fetcher)), 200)
@@ -161,13 +161,24 @@ public actor LocalBackend {
         let qs = await prices
         return rows.map { r in
             var r = r
-            if let q = qs.first(where: { $0.symbol == r.symbol && $0.kind == r.kind }) {
+            if let q = qs.first(where: { $0.symbol == r.symbol && $0.kind == r.kind }), QuoteSources.trusted(q, lastClose: r.price) {
                 r.price = q.price
                 r.change = q.change
                 r.priceSources = "\(q.agreeing)/\(q.total)"
             }
             return r
         }
+    }
+
+    /// Quotes for the screens that read them alone: a lone source is checked against the daily close (usually cached).
+    func vettedQuotes(_ list: [Asset]) async -> [Quote] {
+        var out: [Quote] = []
+        for q in await quotes(list) {
+            guard q.agreeing < 2, let a = list.first(where: { $0.symbol == q.symbol && $0.kind == q.kind }) else { out.append(q); continue }
+            let close = (try? await snapshot(a, .d1))?.candles.last?.close
+            out.append(QuoteSources.vetted(q, lastClose: close))
+        }
+        return out
     }
 
     /// A radar row: the verdict of the daily trend engine (whatever the chosen timeframe, which only draws the
@@ -321,7 +332,7 @@ public actor LocalBackend {
         async let q = quotes([a])
         let (s4, sd, sw) = (await h4, await d1, await w1)
         guard s4 != nil || sd != nil || sw != nil else { throw MarketError("Toutes les sources ont échoué") }
-        let price = await q.first?.price ?? s4?.candles.last?.close ?? sd?.candles.last?.close
+        let price = QuoteSources.price(await q.first, lastClose: s4?.candles.last?.close ?? sd?.candles.last?.close)
         let zones = FibEngine.zones(h4: s4?.candles ?? [], daily: sd?.candles ?? [], weekly: sw?.candles ?? [], price: price)
         return ZonesReport(symbol: a.symbol, kind: a.kind, price: price, asOf: nowMs(), zones: zones, macro: try? await macroReport())
     }
