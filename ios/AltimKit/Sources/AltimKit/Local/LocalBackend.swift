@@ -97,7 +97,8 @@ public actor LocalBackend {
                 return (try Self.encode(v), 200)
             case "/api/rotation":
                 guard let kind = Kind(rawValue: query["kind"] ?? "") else { throw MarketError("Paramètre kind invalide") }
-                return (try Self.encode(await rotation(kind)), 200)
+                let fee = query["fee"].flatMap(Double.init).map { BacktestReport.clampFee($0 / 100) } ?? Backtest.fee
+                return (try Self.encode(await rotation(kind, fee: fee)), 200)
             case "/api/guard":
                 return (try Self.encode(try await guardReport(try Self.asset(query["symbol"], query["kind"]))), 200)
             case "/api/alerts":
@@ -217,11 +218,12 @@ public actor LocalBackend {
 
     // MARK: Rotation
 
-    private var rotationCache: [Kind: (at: Double, report: RotationReport)] = [:]
+    private var rotationCache: [String: (at: Double, report: RotationReport)] = [:]
 
     /// « Sélection Altim » of a market: this week's picks and the rule replayed on the same assets (kept 6 hours).
-    func rotation(_ kind: Kind) async -> RotationReport {
-        if let c = rotationCache[kind], nowMs() - c.at < c.report.keepFor { return c.report }
+    func rotation(_ kind: Kind, fee: Double = Backtest.fee) async -> RotationReport {
+        let key = "\(kind.rawValue):\(fee)"
+        if let c = rotationCache[key], nowMs() - c.at < c.report.keepFor { return c.report }
         let list = Rotation.universe[kind] ?? []
         async let prices = quotes(list)
         let data: [(Asset, [Bar])] = await withTaskGroup(of: (Int, Asset, [Bar]?).self) { g in
@@ -239,11 +241,11 @@ public actor LocalBackend {
         let marketBars: [Bar]?
         if let own = data.first(where: { $0.0.id == b.id })?.1 { marketBars = own } else { marketBars = try? await longDaily(b) }
         var r = RotationReport(kind: kind, asOf: nowMs(), top: data.count, lookback: TrendEngine.lookback(kind),
-                               picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind, market: marketBars),
+                               picks: Rotation.picks(data, kind: kind, prices: p, verdicts: verdicts), scanned: data.count, test: Rotation.sleeves(data, kind: kind, market: marketBars, fee: fee),
                                notes: Rotation.notes)
         r.marketMissing = marketBars == nil ? true : nil
         r.missing = list.filter { a in !data.contains { $0.0.id == a.id } }.map(\.name)
-        if !data.isEmpty { rotationCache[kind] = (nowMs(), r) }
+        if !data.isEmpty { rotationCache[key] = (nowMs(), r) }
         return r
     }
 

@@ -454,7 +454,7 @@ public enum Rotation {
     /// Fixed shares: each asset gets 1/N of the money, invested only while its own verdict is in the trend (daily, the
     /// per-asset rule), in cash otherwise; against the same assets all held (1/N each, bought at the start). The assets
     /// with a 200-day average at the start take part.
-    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind, market: [Bar]? = nil) -> RotationReport.Test? {
+    public static func sleeves(_ data: [(Asset, [Bar])], kind: Kind, market: [Bar]? = nil, fee: Double = Backtest.fee) -> RotationReport.Test? {
         let up = market.map { TrendEngine.marketDays($0, kind: kind) } ?? []
         var m = 0
         let series = data.map { Indicators.sanitize($0.1) }.filter { $0.count >= 260 }
@@ -484,8 +484,8 @@ public enum Rotation {
                 guard let i = index[a][t] else { continue }
                 let bar = c[a][i]
                 if holdUnits[a] == 0 { holdUnits[a] = share / bar.open }
-                if pending[a] == 1, units[a] == 0 { units[a] = cash[a] * (1 - Backtest.fee) / bar.open; cash[a] = 0 }
-                if pending[a] == -1, units[a] > 0 { cash[a] = units[a] * bar.open * (1 - Backtest.fee); units[a] = 0 }
+                if pending[a] == 1, units[a] == 0 { units[a] = cash[a] * (1 - fee) / bar.open; cash[a] = 0 }
+                if pending[a] == -1, units[a] > 0 { cash[a] = units[a] * bar.open * (1 - fee); units[a] = 0 }
                 pending[a] = 0
                 let st = TrendEngine.state(s[a], i, lookback: n)
                 let inTrend = (st == .trend || st == .pullback) && marketOK

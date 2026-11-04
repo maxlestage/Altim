@@ -198,8 +198,11 @@ extension AltimClient {
     }
 
     /// « Sélection Altim » of a market (always computed on the iPhone).
-    public func rotation(_ kind: Kind) async throws -> RotationReport {
-        let (data, status) = try await getWithStatus("/api/rotation", ["kind": kind.rawValue])
+    /// `feePercent`: the user's cost per order in % (Réglages), counted by the replay; 0.1 % when not set.
+    public func rotation(_ kind: Kind, feePercent: Double? = nil) async throws -> RotationReport {
+        var q = ["kind": kind.rawValue]
+        if let f = feePercent { q["fee"] = String(f) }
+        let (data, status) = try await getWithStatus("/api/rotation", q)
         return try decodeResponse(RotationReport.self, data, status)
     }
 
