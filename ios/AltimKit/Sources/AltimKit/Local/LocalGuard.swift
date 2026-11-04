@@ -426,7 +426,7 @@ extension LocalBackend {
         let (regime, shock, reversal, policy) = GuardEngine.run(input)
         let macro = try? await macroReport()
         let recent = headlines.filter { $0.time >= now - 86_400_000 }
-        return GuardReport(symbol: a.symbol, kind: a.kind, price: await q.first?.price ?? daily.candles.last?.close, asOf: now,
+        return GuardReport(symbol: a.symbol, kind: a.kind, price: QuoteSources.price(await q.first, lastClose: daily.candles.last?.close), asOf: now,
                            regime: regime, shock: shock, reversal: reversal, policy: policy,
                            inputs: .init(fearGreed: input.fearGreed.last, news24h: recent.count,
                                          headlines: recent.prefix(6).map { .init(title: $0.title, time: $0.time, source: $0.source) },
