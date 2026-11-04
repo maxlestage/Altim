@@ -205,7 +205,8 @@ public enum TrendEngine {
 
     /// "Si j'avais suivi Altim": in while the state is `trend` or `pullback`, out on `down` or when the trend or the
     /// momentum turns; orders filled at the next open, 0.1 % fees. Starts after 200 days (the 200-day average).
-    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil, market: [Bar]? = nil) -> BacktestReport {
+    public static func backtest(_ raw: [Bar], asset: Asset, reliability: Reliability? = nil, market: [Bar]? = nil,
+                                fee: Double = Backtest.fee) -> BacktestReport {
         let c = Indicators.sanitize(raw)
         let n = lookback(asset.kind)
         let up = market.map { marketDays($0, kind: asset.kind) } ?? []
@@ -232,14 +233,14 @@ public enum TrendEngine {
             while m + 1 < up.count && up[m + 1].day <= day { m += 1 }
             let marketOK = up.isEmpty || up[m].day > day || up[m].up
             if pendingSell, let e = entry {
-                cash = units * bar.open * (1 - Backtest.fee)
+                cash = units * bar.open * (1 - fee)
                 trades.append(.init(entryTime: e.time, entryPrice: e.price, exitTime: bar.time, exitPrice: bar.open, exit: "signal", result: (cash / e.cost - 1) * 100))
                 units = 0
                 entry = nil
             }
             if pendingBuy, entry == nil {
                 entry = (bar.time, bar.open, cash)
-                units = cash * (1 - Backtest.fee) / bar.open
+                units = cash * (1 - fee) / bar.open
                 cash = 0
             }
             pendingBuy = false
@@ -261,7 +262,7 @@ public enum TrendEngine {
         }
         if let e = entry, let last = c.last {
             trades.append(.init(entryTime: e.time, entryPrice: e.price, exitTime: last.time, exitPrice: last.close, exit: "open",
-                                result: (units * last.close * (1 - Backtest.fee) / e.cost - 1) * 100))
+                                result: (units * last.close * (1 - fee) / e.cost - 1) * 100))
         }
         let wins = trades.filter { $0.result > 0 }.count
         return BacktestReport(symbol: asset.symbol, kind: asset.kind, from: c[start].time, to: c[c.count - 1].time, days: c.count - start,

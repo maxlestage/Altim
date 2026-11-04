@@ -44,6 +44,11 @@ public struct BacktestReport: Codable, Sendable {
     public var error: String?
     /// The market's history (Bitcoin / SPY) could not be read: replayed without the market filter.
     public var marketMissing: Bool? = nil
+    /// Fee counted per order, as a fraction (0.001 = 0.1 %); nil in reports saved before it was settable.
+    public var fee: Double? = nil
+
+    /// Allowed range of a user's fee per order (fraction): 0 to 2 %.
+    public static func clampFee(_ f: Double) -> Double { min(max(f.isFinite ? f : Backtest.fee, 0), 0.02) }
 
     /// Said under the replay when it ran without the market filter; nil otherwise.
     public var marketMissingText: String? {
@@ -91,7 +96,8 @@ public struct BacktestReport: Codable, Sendable {
 }
 
 public enum Backtest {
-    static let fee = 0.001
+    /// Default cost per order counted by every replay (0.1 %).
+    public static let fee = 0.001
     /// Candles the signal needs before its first day, and the window it sees each day (as the live signal: ≤ 300).
     static let warmup = 200
     static let window = 300
@@ -198,8 +204,11 @@ extension AltimClient {
     }
 
     /// The signal replayed on the asset's daily history, always computed on the iPhone.
-    public func backtest(_ a: Asset) async throws -> BacktestReport {
-        let (data, status) = try await getWithStatus("/api/backtest", ["symbol": a.symbol, "kind": a.kind.rawValue])
+    /// `feePercent`: the user's cost per order in % (Réglages), 0.1 % when not set.
+    public func backtest(_ a: Asset, feePercent: Double? = nil) async throws -> BacktestReport {
+        var q = ["symbol": a.symbol, "kind": a.kind.rawValue]
+        if let f = feePercent { q["fee"] = String(f) }
+        let (data, status) = try await getWithStatus("/api/backtest", q)
         return try decodeResponse(BacktestReport.self, data, status)
     }
 }
