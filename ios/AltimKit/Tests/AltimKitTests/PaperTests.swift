@@ -15,6 +15,23 @@ final class PaperTests: XCTestCase {
         PaperOrder(id: id, symbol: symbol, kind: kind, name: name, price: price, amount: amount, stop: stop, target: target)
     }
 
+    /// The user's fee per order (Réglages) is the one the simulation charges.
+    func testUserFeeRate() throws {
+        defer { Paper.setFeeRate(0.001) }
+        func roundTrip(_ fee: Double) throws -> Double {
+            Paper.setFeeRate(fee)
+            let s = Paper.new(capital: 10_000, now: t0)
+            let opened = Paper.open(s, order("p", "BTC", .crypto, "Bitcoin", price: 100, amount: 1_000), now: t0)
+            XCTAssertNil(opened.error)
+            return try XCTUnwrap(Paper.close(opened.state, id: "p", price: 100, now: t0 + 1).state.trades.first).pnl
+        }
+        let cheap = try roundTrip(0.001), dear = try roundTrip(0.006)
+        XCTAssertLessThan(dear, cheap, "0,6 % par ordre coûte plus que 0,1 %")
+        XCTAssertEqual(Paper.feeText, "0,6 %")
+        Paper.setFeeRate(0.5)
+        XCTAssertEqual(Paper.feeRate, 0.02, "plafonné à 2 %")
+    }
+
     func testRoundLikeJavaScript() {
         // Math.round: halves toward +∞ (Swift's .rounded() would give −3 and 1 for the first and last).
         XCTAssertEqual(Paper.jsRound(-2.5), -2)

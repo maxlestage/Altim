@@ -19,7 +19,7 @@ enum Glossary {
         ("EMA", "Moyenne mobile exponentielle : moyenne des prix qui donne plus de poids aux plus récents. Prix au-dessus de l'EMA 200 : tendance de fond haussière."),
         ("Volatilité", "Ampleur des variations. Annualisée : l'écart type des variations journalières ramené à un an. Bitcoin ≈ 40–60 %/an, une grande action ≈ 20–30 %/an."),
         ("Pire recul (drawdown)", "Plus forte baisse depuis un sommet sur la période. −50 % : il faut ensuite +100 % pour revenir au sommet."),
-        ("Simulation (paper trading)", "Portefeuille virtuel, sans argent réel ni ordre passé : Altim suit le cours et vend au stop ou à l'objectif sur les bougies journalières, frais (0,1 %) et glissement (0,05 %) compris. Sous une vingtaine de trades, les résultats veulent dire peu."),
+        ("Simulation (paper trading)", "Portefeuille virtuel, sans argent réel ni ordre passé : Altim suit le cours et vend au stop ou à l'objectif sur les bougies journalières, frais (ceux des Réglages, 0,1 % par défaut) et glissement (0,05 %) compris. Sous une vingtaine de trades, les résultats veulent dire peu."),
         ("Profit factor", "Somme des gains divisée par la somme des pertes des trades passés. Au-dessus de 1, les gains l'emportent ; 2 : deux fois plus gagné que perdu. Peu de trades : chiffre fragile."),
         ("Funding (financement)", "Taux payé toutes les 8 h entre acheteurs et vendeurs de contrats perpétuels. Très positif : beaucoup de paris à la hausse avec effet de levier, risque de purge ; négatif : l'inverse."),
         ("Corrélation", "Entre −1 et 1 : proche de 1, deux actifs montent et baissent ensemble (peu de diversification) ; proche de 0, ils sont indépendants."),
