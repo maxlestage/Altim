@@ -24,7 +24,11 @@ final class VerdictLogTests: XCTestCase {
         XCTAssertFalse(o[1].ended)
         let s = VerdictLog.summary(o)
         XCTAssertEqual(s.buyCount, 1)
-        XCTAssertEqual(s.text, "Après « acheter / conserver » : +20,0 % en moyenne (1 cas). Après « rester à l'écart » : −25,0 % en moyenne (1 cas), une baisse évitée.")
+        XCTAssertEqual(s.text, "Après « acheter / conserver » : +20,0 % en moyenne (1 cas). Après « rester à l'écart » : −25,0 % en moyenne (1 cas), une baisse évitée. Moins de 10 cas en tout : trop peu pour juger la règle, un seul mouvement fort fait la moyenne.")
+        var many = s
+        many.buyCount = 6
+        many.outCount = 4
+        XCTAssertFalse(many.text.contains("trop peu"), "10 cas et plus : pas d'avertissement")
         XCTAssertTrue(VerdictLog.summary([]).text.hasPrefix("Pas encore de verdict suivi"))
     }
 
