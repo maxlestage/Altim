@@ -80,6 +80,10 @@ public struct BacktestReport: Codable, Sendable {
         return "\(Format.percent(w, digits: 0)) / \(Format.percent(l, digits: 0))"
     }
 
+    /// What the order costs do to the rule (StrategyLabTests.testFeeSensitivity, measured 2026-11-04): the tests count
+    /// 0.1 % per order; a retail broker's fee plus the currency conversion on US stocks is often more.
+    public static let feeNote = "Les frais comptent beaucoup : au test, avec 0,35 % par ordre au lieu de 0,1 %, le rendement moyen de la règle tombe de +41 % à +29 % (+30 % à +20 % sur l'autre liste d'actifs), et à +19 % (+10 %) avec 0,6 %. Vérifiez ce que vous coûtent un achat et une vente chez votre courtier, change compris pour les actions américaines."
+
     /// Why fewer than half of the trades winning is not by itself a bad sign for a trend rule.
     public static let winRateNote = "Une règle de tendance perd souvent un peu et gagne parfois beaucoup : sur l'ensemble des actifs testés, environ un trade sur trois a été gagnant (+15 % en moyenne contre −4 % pour les perdants). C'est l'écart entre gain moyen et perte moyenne qui compte."
 
