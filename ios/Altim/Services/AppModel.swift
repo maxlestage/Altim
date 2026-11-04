@@ -113,9 +113,11 @@ final class AppModel {
         holdings = (LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []).map(\.cleaned)
         alertsEnabled = defaults.bool(forKey: "alertsEnabled")
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
-        orderFeePercent = defaults.object(forKey: "orderFeePercent") == nil ? Backtest.fee * 100
+        // A local value: `self` cannot be read before every stored property is set.
+        let feePercent = defaults.object(forKey: "orderFeePercent") == nil ? Backtest.fee * 100
             : BacktestReport.clampFee(defaults.double(forKey: "orderFeePercent") / 100) * 100
-        Paper.setFeeRate(orderFeePercent / 100)
+        orderFeePercent = feePercent
+        Paper.setFeeRate(feePercent / 100)
         newsAlertsEnabled = defaults.bool(forKey: "newsAlertsEnabled")
         // On by default only when the buy notifications were already allowed; the first value is kept.
         let buyAlerts = defaults.bool(forKey: "alertsEnabled")
