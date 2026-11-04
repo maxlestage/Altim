@@ -109,7 +109,8 @@ public actor LocalBackend {
                 guard [30, 90, 365, 730].contains(days) else { throw MarketError("Paramètre days invalide (30 | 90 | 365 | 730)") }
                 return (try Self.encode(await history(Self.assets(query["symbols"]), days: days)), 200)
             case "/api/backtest":
-                return (try Self.encode(try await backtest(try Self.asset(query["symbol"], query["kind"]))), 200)
+                let fee = query["fee"].flatMap(Double.init).map { BacktestReport.clampFee($0 / 100) } ?? Backtest.fee
+                return (try Self.encode(try await backtest(try Self.asset(query["symbol"], query["kind"]), fee: fee)), 200)
             default:
                 return nil
             }
@@ -351,12 +352,13 @@ public actor LocalBackend {
     // MARK: Backtest
 
     /// The signal replayed on two years of daily candles (`Backtest.run`).
-    func backtest(_ a: Asset) async throws -> BacktestReport {
+    func backtest(_ a: Asset, fee: Double = Backtest.fee) async throws -> BacktestReport {
         let s = try await snapshot(a, .d1)
         let b = TrendEngine.benchmark(a.kind)
         // The market filter replayed too (the benchmark itself needs none); without its candles, the rule alone.
         let market = b.id == a.id ? nil : try? await longDaily(b)
-        var r = TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market)
+        var r = TrendEngine.backtest(try await longDaily(a), asset: a, reliability: s.reliability, market: market, fee: fee)
+        r.fee = fee
         if b.id != a.id, market == nil { r.marketMissing = true }
         return r
     }

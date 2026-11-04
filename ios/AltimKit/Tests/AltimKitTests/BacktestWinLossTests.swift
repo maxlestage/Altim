@@ -33,4 +33,15 @@ final class BacktestWinLossTests: XCTestCase {
         XCTAssertTrue(BacktestReport.feeNote.contains("+41 % à +29 %"))
         XCTAssertFalse(BacktestReport.feeNote.contains("garanti"))
     }
+
+    /// The user's fee per order: higher fees, lower replayed return, and the fee is kept in the report.
+    func testUserFee() async throws {
+        XCTAssertEqual(BacktestReport.clampFee(0.05), 0.02, "plafonné à 2 %")
+        XCTAssertEqual(BacktestReport.clampFee(-1), 0)
+        let bars = BotEngineTests.series(drift: 0.002)
+        let a = Asset(symbol: "X", kind: .crypto, name: "X")
+        let cheap = TrendEngine.backtest(bars, asset: a), dear = TrendEngine.backtest(bars, asset: a, fee: 0.01)
+        XCTAssertFalse(cheap.trades.isEmpty)
+        XCTAssertLessThan(dear.strategyReturn, cheap.strategyReturn, "des frais plus élevés coûtent du rendement")
+    }
 }
