@@ -31,7 +31,7 @@ struct LabRule {
 struct LabResult { var ret: Double; var hold: Double; var dd: Double; var holdDD: Double; var trades: Int; var wins: Int; var expo: Double }
 
 enum Lab {
-    static let fee = 0.001
+    nonisolated(unsafe) static var fee = 0.001
 
     static func run(_ s: LabSeries, _ rule: LabRule, from: Int, to: Int) -> LabResult {
         var cash = 100.0, units = 0.0, entryCost = 0.0
