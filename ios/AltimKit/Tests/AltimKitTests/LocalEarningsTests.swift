@@ -82,6 +82,14 @@ final class LocalEarningsTests: XCTestCase {
         XCTAssertEqual(none.count, 0, "page de plus d'une semaine : pas reprise")
     }
 
+    func testHeldLineSoonText() {
+        let now = Date(timeIntervalSince1970: 1_793_361_600) // Friday 30 Oct 2026
+        let e = EarningsEvent(symbol: "AAPL", name: "Apple", date: "2026-11-02", time: nyOpen(2026, 11, 2)!, moment: "après la clôture", epsForecast: nil, lastYearEPS: nil)
+        XCTAssertEqual(e.soonText(now: now), "Résultats dans 3 jours (lundi 2 novembre, après la clôture)")
+        let far = EarningsEvent(symbol: "AAPL", name: "Apple", date: "2026-11-20", time: nyOpen(2026, 11, 20)!, moment: nil, epsForecast: nil, lastYearEPS: nil)
+        XCTAssertNil(far.soonText(now: now), "à plus de 7 jours : rien")
+    }
+
     func testBuyAlertWarnsBeforeResults() throws {
         Money.setDisplay(.usd, nil)
         let now = Date(timeIntervalSince1970: 1_793_361_600)
