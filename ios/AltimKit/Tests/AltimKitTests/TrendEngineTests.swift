@@ -113,4 +113,11 @@ extension TrendEngineTests {
         XCTAssertEqual(s.testMarketText, "sans le filtre de marché : historique du S&P 500 (SPY) non lu", "le test ne prétend pas un filtre qu'il n'a pas rejoué")
         XCTAssertEqual(s.keepFor, 600_000, "relu bientôt")
     }
+
+    /// The Sélection's notes do not claim a fee the replay may not use: the user's own fees count (Réglages).
+    func testRotationNotesSayTheFeesAreTheUsers() {
+        let joined = Rotation.notes.joined(separator: " ")
+        XCTAssertTrue(joined.contains("vos frais par ordre (Réglages"))
+        XCTAssertFalse(joined.contains("avec 0,1 % de frais par ordre."), "plus de 0,1 % affirmé pour le test rejoué")
+    }
 }
