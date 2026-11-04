@@ -36,6 +36,8 @@ final class WatchStore: NSObject, WCSessionDelegate {
     private(set) var checked: Date? = nil
     private(set) var refreshing = false
     private(set) var message: String? = nil
+    /// The market filter's two markets (Bitcoin, S&P 500), read on the Watch with the alerts; nil = unknown.
+    private(set) var markets: [Kind: Bool?] = [:]
     /// Altim without a server: the markets read and judged on the Watch (kept for its short caches).
     private let standalone = AltimClient.standalone(local: LocalBackend(fetcher: URLSessionFetcher(timeout: WatchLink.timeout), bot: false))
 
@@ -66,12 +68,14 @@ final class WatchStore: NSObject, WCSessionDelegate {
         refreshing = true
         defer { refreshing = false }
         do {
+            async let marketStates = MarketBoard.read(client)
             async let fresh = client.alerts(assets)
             // The prices are a plus: the alerts alone are enough when the quotes fail.
             async let quotes = try? client.quotes(assets)
             let items = try await fresh
             let prices = Dictionary(((await quotes) ?? []).map { ("\($0.kind.rawValue):\($0.symbol)", $0.price) }, uniquingKeysWith: { a, _ in a })
             store(WatchLink.merge(items, quotes: prices), checked: Date())
+            markets = await marketStates
             message = nil
         } catch {
             message = WatchLink.message(for: error)
@@ -126,6 +130,20 @@ struct AlertsList: View {
             let buyable = store.alerts.filter(\.buy)
             if store.alerts.isEmpty {
                 Text("Ajoutez des actifs au Radar sur l'iPhone, puis ouvrez Altim une fois.").font(.footnote).foregroundStyle(.secondary)
+            }
+            if store.markets.values.contains(where: { $0 != nil }) {
+                Section("Marchés") {
+                    ForEach(MarketBoard.kinds, id: \.self) { k in
+                        let up = store.markets[k] ?? nil
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(MarketBoard.shortName(k)).font(.footnote.bold())
+                            Text(MarketBoard.shortText(up)).font(.caption2)
+                                .foregroundStyle(up == true ? buyColor : up == false ? Color.red : Color.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(MarketBoard.text(k, up))
+                    }
+                }
             }
             if !buyable.isEmpty {
                 Section("Achetables") {

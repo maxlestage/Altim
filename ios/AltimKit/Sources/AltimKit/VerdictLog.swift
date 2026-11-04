@@ -89,8 +89,16 @@ public enum VerdictLog {
             if let e = marketExitMean {
                 parts.append("Dont sorties décidées par le filtre de marché : \(Self.signed(e)) en moyenne ensuite (\(marketExitCount) cas)\(e < 0 ? ", une baisse évitée" : e > 0 ? ", une hausse manquée" : "").")
             }
-            return parts.isEmpty ? "Pas encore de verdict suivi : le bilan se remplit à chaque changement de verdict de vos actifs." : parts.joined(separator: " ")
+            if parts.isEmpty { return "Pas encore de verdict suivi : le bilan se remplit à chaque changement de verdict de vos actifs." }
+            // A handful of cases says nothing about the rule: one strong move decides the mean.
+            if buyCount + outCount < Self.minCases {
+                parts.append("Moins de \(Self.minCases) cas en tout : trop peu pour juger la règle, un seul mouvement fort fait la moyenne.")
+            }
+            return parts.joined(separator: " ")
         }
+
+        /// Below this many followed verdicts, the means are said to be too few to judge anything.
+        public static let minCases = 10
 
         static func signed(_ v: Double) -> String { "\(v >= 0 ? "+" : "−")\(JSFormat.fr(abs(v), min: 1, max: 1)) %" }
     }
