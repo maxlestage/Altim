@@ -50,4 +50,10 @@ final class BacktestWinLossTests: XCTestCase {
         let r1 = try XCTUnwrap(s1, "replay de la Sélection"), r2 = try XCTUnwrap(s2)
         XCTAssertLessThan(r2.ret, r1.ret, "Sélection : les frais comptés aussi")
     }
+
+    func testSampleNote() {
+        XCTAssertTrue(report([5, -2, 3]).sampleNote?.hasPrefix("Seulement 3 trades") == true)
+        XCTAssertTrue(report([]).sampleNote?.hasPrefix("Aucun trade") == true)
+        XCTAssertNil(report(Array(repeating: 2, count: 10)).sampleNote, "10 trades et plus : pas d'avertissement")
+    }
 }
