@@ -16,6 +16,11 @@ struct SettingsView: View {
                     Text("Dollar ($)").tag(Currency.usd)
                 }
                 FxNote()
+                Stepper(value: $model.orderFeePercent, in: 0...2, step: 0.05) {
+                    Text("Frais par ordre : \(Format.plain(model.orderFeePercent, digits: 2)) %")
+                }
+                Text("Ce que vous coûte un achat ou une vente chez votre courtier (change compris pour les actions américaines) : la machine à remonter le temps de chaque actif le compte. Plus les frais sont élevés, moins la règle rapporte face à « tout garder ».")
+                    .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
                 if model.currency == .eur, model.fx == nil, let e = model.fxError {
                     Text(e).font(.caption).foregroundStyle(Theme.warning)
                 }
@@ -36,7 +41,7 @@ struct SettingsView: View {
                         }
                     }
                 ))
-                Toggle("Seulement les achats conseillés (repli ou zone)", isOn: $model.alertsStrongOnly)
+                Toggle("Seulement les achats conseillés (sur repli)", isOn: $model.alertsStrongOnly)
                     .disabled(!model.alertsEnabled)
                 if denied {
                     Text("Notifications refusées : autorisez-les dans Réglages de l'iPhone → Notifications → Altim.").foregroundStyle(Theme.warning)

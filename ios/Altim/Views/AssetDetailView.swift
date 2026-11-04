@@ -395,7 +395,7 @@ struct TimeMachineCard: View {
 
     var body: some View {
         Card(title: "Machine à remonter le temps", glow: Theme.magenta) {
-            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, et que son marché (\(asset.kind == .crypto ? "le Bitcoin" : "le S&P 500, via SPY")) l'est aussi ; sorti sinon. Sans le veto des bots. Rejoué jour par jour, sans jamais voir le lendemain, avec 0,1 % de frais par ordre.")
+            Text("Et si vous aviez suivi Altim sur \(asset.symbol) ? Investi seulement quand la tendance de fond est haussière et le momentum positif, et que son marché (\(asset.kind == .crypto ? "le Bitcoin" : "le S&P 500, via SPY")) l'est aussi ; sorti sinon. Sans le veto des bots. Rejoué jour par jour, sans jamais voir le lendemain, avec \(Format.plain(model.orderFeePercent, digits: 2)) % de frais par ordre (Réglages).")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             switch report {
             case .idle, .loading:
@@ -406,7 +406,8 @@ struct TimeMachineCard: View {
                 content(r)
             }
         }
-        .task(id: asset.id) { await load() }
+        // Read again when the fee per order changes (Réglages).
+        .task(id: "\(asset.id):\(model.orderFeePercent)") { await load() }
     }
 
     @ViewBuilder private func content(_ r: BacktestReport) -> some View {
@@ -504,7 +505,7 @@ struct TimeMachineCard: View {
     private func load() async {
         guard let client = model.client else { return }
         if report.value == nil { report = .loading }
-        do { report = .loaded(try await client.backtest(asset)) } catch { report = .failed(error.localizedDescription) }
+        do { report = .loaded(try await client.backtest(asset, feePercent: model.orderFeePercent)) } catch { report = .failed(error.localizedDescription) }
     }
 }
 

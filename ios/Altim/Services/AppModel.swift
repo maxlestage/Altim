@@ -36,6 +36,13 @@ final class AppModel {
     /// Buy notifications (Réglages) and "strong only" (signal and zone together).
     var alertsEnabled: Bool { didSet { defaults.set(alertsEnabled, forKey: "alertsEnabled") } }
     var alertsStrongOnly: Bool { didSet { defaults.set(alertsStrongOnly, forKey: "alertsStrongOnly") } }
+    /// The user's cost per order in % (Réglages, 0 to 2 %): the time machine replays with it (0.1 % by default).
+    var orderFeePercent: Double {
+        didSet {
+            defaults.set(orderFeePercent, forKey: "orderFeePercent")
+            Paper.setFeeRate(orderFeePercent / 100)
+        }
+    }
     /// News alerts (Réglages): serious escalation told by 2 sources, or a story about one of my assets told by 3.
     var newsAlertsEnabled: Bool { didSet { defaults.set(newsAlertsEnabled, forKey: "newsAlertsEnabled") } }
     /// Notifications (Réglages) of the configuration changes of the radar and of the positions that became dangerous,
@@ -106,6 +113,11 @@ final class AppModel {
         holdings = (LocalStore.load([Holding].self, "holdings") ?? Self.migrate([Holding].self, "holdings") ?? []).map(\.cleaned)
         alertsEnabled = defaults.bool(forKey: "alertsEnabled")
         alertsStrongOnly = defaults.bool(forKey: "alertsStrongOnly")
+        // A local value: `self` cannot be read before every stored property is set.
+        let feePercent = defaults.object(forKey: "orderFeePercent") == nil ? Backtest.fee * 100
+            : BacktestReport.clampFee(defaults.double(forKey: "orderFeePercent") / 100) * 100
+        orderFeePercent = feePercent
+        Paper.setFeeRate(feePercent / 100)
         newsAlertsEnabled = defaults.bool(forKey: "newsAlertsEnabled")
         // On by default only when the buy notifications were already allowed; the first value is kept.
         let buyAlerts = defaults.bool(forKey: "alertsEnabled")
