@@ -17,7 +17,7 @@ enum LocalLive {
                         return (last[a.id].map { now.timeIntervalSince1970 - $0 >= every } ?? true)
                     }
                     if !due.isEmpty {
-                        let quotes = await local.quotes(due)
+                        let quotes = await local.liveQuotes(due)
                         failures = quotes.isEmpty ? failures + 1 : 0
                         // Several rounds without a single price: the network is gone, the caller reconnects later.
                         if failures >= 3 { return continuation.finish(throwing: MarketError("aucun cours")) }
