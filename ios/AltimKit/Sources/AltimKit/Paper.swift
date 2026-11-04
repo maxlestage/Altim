@@ -290,7 +290,14 @@ public struct PaperStats: Codable, Sendable {
 }
 
 public enum Paper {
-    public static let feeRate = 0.001
+    /// Fee per order (fraction): 0.1 % by default, the user's own (Réglages, `setFeeRate`) once set.
+    nonisolated(unsafe) public private(set) static var feeRate = 0.001
+
+    /// The user's cost per order, as a fraction (bounded to 0–2 %, like the replays).
+    public static func setFeeRate(_ f: Double) { feeRate = BacktestReport.clampFee(f) }
+
+    /// "0,1 %": the fee counted, for the texts.
+    public static var feeText: String { "\(Format.plain(feeRate * 100, digits: 2)) %" }
     public static let slippage = 0.0005
     public static let defaultCapital = 10_000.0
 

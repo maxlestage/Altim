@@ -36,7 +36,7 @@ struct RotationView: View {
         .navigationTitle("Sélection")
         .navigationDestination(for: Asset.self) { AssetDetailView(asset: $0) }
         .refreshable { await load() }
-        .task(id: model.selectionMarket) { await load() }
+        .task(id: "\(model.selectionMarket.rawValue):\(model.orderFeePercent)") { await load() }
         .onDisappear { model.selectionAssets = [] }
     }
 
@@ -88,7 +88,7 @@ struct RotationView: View {
     private func testCard(_ t: RotationReport.Test, _ r: RotationReport) -> some View {
         let better = t.ret > t.basket
         return Card(title: "Rejoué sur le passé", glow: better ? Theme.buy : Theme.warning) {
-            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance, \(r.testMarketText)) contre tout garder, sans le veto du bot (testé à part au labo). 0,1 % de frais par ordre.")
+            Text("Du \(Format.date(t.from)) au \(Format.date(t.to)), sur ces actifs : la règle (une part fixe par actif, investie seulement en tendance, \(r.testMarketText)) contre tout garder, sans le veto du bot (testé à part au labo). \(Format.plain(model.orderFeePercent, digits: 2)) % de frais par ordre (Réglages).")
                 .font(.caption).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 10) {
                 tile("Parts Altim", t.ret, t.drawdown, Theme.magenta)
@@ -119,7 +119,7 @@ struct RotationView: View {
         guard let client = model.client else { return }
         report = .loading
         do {
-            let r = try await client.rotation(model.selectionMarket)
+            let r = try await client.rotation(model.selectionMarket, feePercent: model.orderFeePercent)
             report = .loaded(r)
             model.selectionAssets = r.selected.map(\.asset)
         } catch {
