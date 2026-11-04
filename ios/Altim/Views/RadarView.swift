@@ -185,14 +185,16 @@ struct RadarView: View {
     }
 
     /// « Point du jour » from what the Radar already loaded (markets, verdicts, next Fed decision).
-    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings, markets: markets) }
+    private var pointLines: [String] { DailyPoint.lines(macro: macro, rows: Array(rows.values), earnings: earnings, markets: markets,
+                                                                  held: Set(Agenda.stockSymbols(model.holdings.map(\.asset)))) }
 
     private func load() async {
         guard let client = model.client, !model.watchlist.isEmpty else { return }
         loading = true
         defer { loading = false }
         async let m = try? client.macro()
-        let stocks = model.watchlist.filter { $0.kind == .stock }.map(\.symbol)
+        // The Radar's stocks and the held ones: results announced for both (Point du jour).
+        let stocks = Agenda.stockSymbols(model.watchlist + model.holdings.map(\.asset))
         async let e = stocks.isEmpty ? [] : ((try? await client.earnings(stocks)) ?? [])
         do {
             let r = try await client.radar(model.watchlist, interval: timeframe.rawValue)

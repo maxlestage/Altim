@@ -31,6 +31,8 @@ final class DailyPointTests: XCTestCase {
         let far = EarningsEvent(symbol: "MSFT", name: "Microsoft", date: "2026-11-30", time: FedCalendarTests.day(2026, 11, 30), moment: nil, epsForecast: nil, lastYearEPS: nil)
         XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [], earnings: [far, soon], now: FedCalendarTests.day(2026, 11, 2)),
                        ["Résultats trimestriels dans les 7 jours : AAPL (jeudi 5 novembre, après la clôture)."])
+        XCTAssertEqual(DailyPoint.lines(macro: nil, rows: [], earnings: [soon], held: ["AAPL"], now: FedCalendarTests.day(2026, 11, 2)),
+                       ["Résultats trimestriels dans les 7 jours : AAPL (jeudi 5 novembre, après la clôture, détenue)."], "action détenue signalée")
         m.marketUp = ["stock": true]
         XCTAssertEqual(DailyPoint.lines(macro: m, rows: [], now: FedCalendarTests.day(2026, 11, 2)).first,
                        "Marché crypto (Bitcoin) : état inconnu (données peu fiables ou indisponibles), le filtre de marché ne s'applique pas ; la règle de l'actif décide seule.",
