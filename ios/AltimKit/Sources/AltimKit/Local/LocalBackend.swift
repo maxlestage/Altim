@@ -181,6 +181,17 @@ public actor LocalBackend {
         return out
     }
 
+    /// Quotes for the live ticks: a lone source far from the daily close is left out (no tick this round) rather than
+    /// replaced by the close, which would make the live price jump back and forth.
+    func liveQuotes(_ list: [Asset]) async -> [Quote] {
+        var out: [Quote] = []
+        for q in await quotes(list) {
+            guard q.agreeing < 2, let a = list.first(where: { $0.symbol == q.symbol && $0.kind == q.kind }) else { out.append(q); continue }
+            if QuoteSources.trusted(q, lastClose: (try? await snapshot(a, .d1))?.candles.last?.close) { out.append(q) }
+        }
+        return out
+    }
+
     /// A radar row: the verdict of the daily trend engine (whatever the chosen timeframe, which only draws the
     /// sparkline), suspended to ATTENDRE when the data is unreliable.
     func radarRow(_ a: Asset, _ tf: Timeframe) async -> RadarRow {
