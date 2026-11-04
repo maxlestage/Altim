@@ -26,6 +26,15 @@ public struct EarningsEvent: Codable, Sendable, Equatable, Identifiable {
     }
 
     /// Whole days from `now` to the report (0 = today).
+    /// "Résultats demain (jeudi 5 novembre, après la clôture)" within the next 7 days, nil otherwise: a held line's
+    /// warning (an action often moves more than usual around its results).
+    public func soonText(now: Date = Date()) -> String? {
+        let d = daysAway(now: now)
+        guard (0...7).contains(d) else { return nil }
+        let when = d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
+        return "Résultats \(when) (\(dayText))"
+    }
+
     public func daysAway(now: Date = Date()) -> Int {
         var cal = Calendar(identifier: .gregorian)
         cal.timeZone = TimeZone(identifier: "America/New_York") ?? .current
