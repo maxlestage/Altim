@@ -43,5 +43,11 @@ final class BacktestWinLossTests: XCTestCase {
         let cheap = TrendEngine.backtest(bars, asset: a), dear = TrendEngine.backtest(bars, asset: a, fee: 0.01)
         XCTAssertFalse(cheap.trades.isEmpty)
         XCTAssertLessThan(dear.strategyReturn, cheap.strategyReturn, "des frais plus élevés coûtent du rendement")
+        let data = [0.0015, 0.002, 0.0025, 0.001, 0.003, 0.0018].enumerated().map { i, d in
+            (Asset(symbol: "A\(i)", kind: .crypto, name: "A\(i)"), BotEngineTests.series(drift: d))
+        }
+        let s1 = Rotation.sleeves(data, kind: .crypto), s2 = Rotation.sleeves(data, kind: .crypto, fee: 0.01)
+        let r1 = try XCTUnwrap(s1, "replay de la Sélection"), r2 = try XCTUnwrap(s2)
+        XCTAssertLessThan(r2.ret, r1.ret, "Sélection : les frais comptés aussi")
     }
 }
