@@ -65,14 +65,10 @@ enum LocalAlertRule {
         if a.shock == "agitated" { cautions.append("Marché agité : taille réduite, stop plus large.") }
         if a.reliability?.level == "medium" { cautions.append("Fiabilité moyenne des données : taille réduite.") }
         if let f = a.fedDecision {
-            // Calendar days in New York's terms are close enough with UTC days: the decision is at 18:00 UTC.
-            let dayNow = (a.now.timeIntervalSince1970 * 1000 / 86_400_000).rounded(.down), dayFed = (f / 86_400_000).rounded(.down)
-            let d = Int(dayFed - dayNow)
+            let d = FedDay.days(f, now: a.now.timeIntervalSince1970 * 1000)
             if (0...3).contains(d) {
-                let fmt = DateFormatter()
-                fmt.locale = Locale(identifier: "fr_FR"); fmt.timeZone = TimeZone(identifier: "UTC"); fmt.dateFormat = "d MMMM"
                 let when = d == 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
-                cautions.append("Décision de taux de la Fed \(when) (\(fmt.string(from: Date(timeIntervalSince1970: f / 1000))), annoncée à 14 h heure de New York) : au labo, ce jour-là et le lendemain ont bougé en moyenne 15 à 20 % de plus que les autres jours.")
+                cautions.append("Décision de taux de la Fed \(when) (\(FedDay.date(f)), annoncée à 14 h heure de New York) : au labo, ce jour-là et le lendemain ont bougé en moyenne 15 à 20 % de plus que les autres jours.")
             }
         }
         if let e = a.earnings, (0...7).contains(e.daysAway(now: a.now)) {
