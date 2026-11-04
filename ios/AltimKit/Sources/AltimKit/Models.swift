@@ -231,7 +231,7 @@ public struct MacroInfo: Codable, Sendable {
 
     /// « 9 décembre (dans 37 jours) », « aujourd'hui », nil when unknown or past.
     public func nextFedText(now: Double = Date().timeIntervalSince1970 * 1000) -> String? {
-        guard let f = nextFed, f + 6 * 3_600_000 >= now else { return nil }
+        guard let f = nextFed, FedDay.days(f, now: now) >= 0 else { return nil }
         let d = FedDay.days(f, now: now)
         let when = d <= 0 ? "aujourd'hui" : d == 1 ? "demain" : "dans \(d) jours"
         return "\(FedDay.date(f)) (\(when))"
