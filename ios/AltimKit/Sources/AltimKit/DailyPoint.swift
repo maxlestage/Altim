@@ -5,7 +5,9 @@ import Foundation
 public enum DailyPoint {
     /// `markets`: the market filter's states read on their own (`MarketBoard.read`), used when the macro report is
     /// missing (its VIX / S&P sources down) so that the market lines do not vanish with it.
+    /// `held`: stock symbols in « Mes avoirs », whose results are announced too (marked « détenue »), Radar or not.
     public static func lines(macro: MacroInfo?, rows: [RadarRow], earnings: [EarningsEvent] = [], markets: [Kind: Bool?]? = nil,
+                             held: Set<String> = [],
                              now: Double = Date().timeIntervalSince1970 * 1000) -> [String] {
         var out: [String] = []
         if let up = macro?.marketUp {
@@ -36,7 +38,7 @@ public enum DailyPoint {
         let date = Date(timeIntervalSince1970: now / 1000)
         let soon = earnings.filter { (0...7).contains($0.daysAway(now: date)) }.sorted { $0.time < $1.time }
         if !soon.isEmpty {
-            out.append("Résultats trimestriels dans les 7 jours : " + soon.prefix(5).map { "\($0.symbol) (\($0.dayText))" }.joined(separator: ", ")
+            out.append("Résultats trimestriels dans les 7 jours : " + soon.prefix(5).map { "\($0.symbol) (\($0.dayText)\(held.contains($0.symbol) ? ", détenue" : ""))" }.joined(separator: ", ")
                        + (soon.count > 5 ? " et \(soon.count - 5) autres" : "") + ".")
         }
         if let fed = macro?.nextFedText(now: now) { out.append("Prochaine décision de taux de la Fed : \(fed).") }
