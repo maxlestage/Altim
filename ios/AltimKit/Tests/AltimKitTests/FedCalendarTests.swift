@@ -59,6 +59,12 @@ extension FedCalendarTests {
         XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 8)), "9 décembre (demain)")
         XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 9) - 3_600_000), "9 décembre (aujourd'hui)")
         XCTAssertNil(m.nextFedText(now: Self.day(2026, 12, 11)), "passée : rien")
+        // 01:00 UTC on 9 December is still 8 December in New York (the day before the decision), whatever the iPhone's zone.
+        XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 9) - 17 * 3_600_000), "9 décembre (demain)")
+        // 02:00 UTC on 10 December is still the evening of 9 December in New York: still « aujourd'hui ».
+        XCTAssertEqual(m.nextFedText(now: Self.day(2026, 12, 9) + 8 * 3_600_000), "9 décembre (aujourd'hui)")
+        XCTAssertEqual(FedCalendar.next([Self.day(2026, 12, 9)], now: Self.day(2026, 12, 9) + 8 * 3_600_000), Self.day(2026, 12, 9))
+        XCTAssertNil(FedCalendar.next([Self.day(2026, 12, 9)], now: Self.day(2026, 12, 9) + 12 * 3_600_000), "lendemain à New York : passée")
         let back = try JSONDecoder().decode(MacroInfo.self, from: JSONEncoder().encode(m))
         XCTAssertEqual(back.nextFed, m.nextFed)
     }
