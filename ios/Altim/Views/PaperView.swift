@@ -84,7 +84,7 @@ struct PaperView: View {
                             titleVisibility: .visible, presenting: selling) { p in
             Button("Vendre \(p.symbol) (simulé)", role: .destructive) { sell(p) }
         } message: { p in
-            Text("Vente fictive de toute la position \(p.symbol) au prix actuel (\(Format.price(prices[p.key]))), moins le glissement de 0,05 % et les frais de 0,1 %. Aucun ordre réel n'est passé.")
+            Text("Vente fictive de toute la position \(p.symbol) au prix actuel (\(Format.price(prices[p.key]))), moins le glissement de 0,05 % et les frais de \(Paper.feeText). Aucun ordre réel n'est passé.")
         }
         .sheet(isPresented: $resetting) { PaperResetSheet().environment(model) }
     }
@@ -287,15 +287,15 @@ struct PaperView: View {
         }
     }
 
-    private static let rules = [
-        "Frais de 0,1 % à l'achat et à la vente, comme le suivi des signaux.",
+    private static var rules: [String] { [
+        "Frais de \(Paper.feeText) à l'achat et à la vente (Réglages, frais par ordre), comme la machine à remonter le temps.",
         "Glissement de 0,05 % contre vous à chaque ordre : achat un peu plus cher, vente un peu moins cher que le prix affiché.",
         "Stop et objectif vérifiés sur les bougies journalières à partir du lendemain de l'achat : la bougie du jour d'achat n'est pas utilisée (son plus bas peut être antérieur à l'achat).",
         "Une bougie qui touche à la fois le stop et l'objectif compte comme le stop (le pire cas : l'ordre dans la journée n'est pas connu).",
         "Ouverture sous le stop (écart) : vente au prix d'ouverture ; objectif : vente à l'objectif, jamais mieux que prévu.",
         "Valeur des positions = ce que rapporterait une vente maintenant (glissement et frais déduits) ; sans prix, au coût.",
         "Tout reste sur cet iPhone. Aucun argent réel, aucun ordre n'est jamais passé.",
-    ]
+    ] }
 
     private func tone(_ verdict: String) -> Tone {
         switch verdict {
@@ -444,7 +444,7 @@ struct PaperBuySheet: View {
     }
 
     private var amountFooter: String {
-        var text = "Frais de 0,1 % et glissement de 0,05 % déduits, comme pour un vrai ordre."
+        var text = "Frais de \(Paper.feeText) et glissement de 0,05 % déduits, comme pour un vrai ordre."
         if let size = BotEngine.size(forFall: verdict.botRisk), size < 100 {
             text += " Pré-rempli avec \(size) % d'une position de 10 % du portefeuille : la taille conseillée par le bot Risque pour un risque accepté de \(Int(BotEngine.riskBudget * 100)) % (Réglages)."
         }
