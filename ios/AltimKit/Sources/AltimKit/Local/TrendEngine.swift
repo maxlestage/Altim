@@ -509,7 +509,7 @@ public enum Rotation {
 
     public static let notes = [
         "Chaque actif de la liste a une part fixe du budget. Elle est investie seulement quand sa tendance de fond est haussière et son momentum positif, et que tout le marché l'est aussi (le Bitcoin pour les cryptos, le S&P 500 pour les actions) ; gardée en liquidités sinon. Vérifié chaque jour.",
-        "C'est une règle de protection : elle a fortement réduit les pertes dans les marchés baissiers, mais elle gagne moins que tout garder dans une forte hausse.",
+        "C'est une règle de protection : elle a fortement réduit les pertes dans les marchés baissiers, mais elle a gagné moins que tout garder dans une forte hausse.",
         "Le test rejoue la règle et son filtre de marché sur l'historique de ces mêmes actifs, sans voir le lendemain, avec 0,1 % de frais par ordre. Au labo, ce filtre a nettement aidé les cryptos (ex. +40 % contre +23 % sans lui, pire baisse −38 % contre −44 %) ; pour les actions, mieux sur la première moitié de l'historique mais un peu moins bien sur la seconde (+19 % contre +21 %).",
         "La liste d'actifs est fixée à l'avance, mais ce sont des actifs connus aujourd'hui : un test sur le passé ne garantit rien pour la suite. Altim ne passe aucun ordre.",
     ]

@@ -450,7 +450,7 @@ struct TimeMachineCard: View {
             }
             Text(BacktestReport.feeNote)
                 .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
-            Text("Le passé ne garantit rien. La règle protège surtout dans les marchés baissiers ; en forte hausse, garder peut faire mieux.")
+            Text("Le passé ne garantit rien. Au test, la règle a surtout protégé dans les marchés baissiers ; en forte hausse, tout garder a souvent fait mieux.")
                 .font(.caption2).foregroundStyle(Theme.textSecondary).fixedSize(horizontal: false, vertical: true)
         }
     }
