@@ -32,9 +32,9 @@ enum FedCalendar {
         return out.sorted()
     }
 
-    /// The next decision from `now` (the day itself included until its end).
+    /// The next decision from `now` (the day itself included until its end in New York).
     static func next(_ decisions: [Double], now: Double) -> Double? {
-        decisions.first { $0 + 6 * 3_600_000 >= now }
+        decisions.first { FedDay.days($0, now: now) >= 0 }
     }
 
     private static func matches(_ pattern: String, _ text: String) -> [(range: Range<String.Index>, groups: [String])] {
