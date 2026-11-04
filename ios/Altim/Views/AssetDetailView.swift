@@ -416,6 +416,7 @@ struct TimeMachineCard: View {
         } else {
             Badge(text: r.verdict.uppercased(), tone: r.tone)
             if let m = r.marketMissingText { Notice(text: m, tone: .warn) }
+            if let n = r.sampleNote { Notice(text: n, tone: .warn) }
             Text("Du \(Format.date(r.from)) au \(Format.date(r.to)) · \(r.days) jours")
                 .font(.caption).foregroundStyle(Theme.textSecondary)
             ViewThatFits(in: .horizontal) {

@@ -89,6 +89,15 @@ public struct BacktestReport: Codable, Sendable {
     /// 0.1 % per order; a retail broker's fee plus the currency conversion on US stocks is often more.
     public static let feeNote = "Les frais comptent beaucoup : au test, avec 0,35 % par ordre au lieu de 0,1 %, le rendement moyen de la règle tombe de +41 % à +29 % (+30 % à +20 % sur l'autre liste d'actifs), et à +19 % (+10 %) avec 0,6 %. Vérifiez ce que vous coûtent un achat et une vente chez votre courtier, change compris pour les actions américaines."
 
+    /// Below 10 trades one asset's replay says little about the rule: one lucky or unlucky trade decides it.
+    public var sampleNote: String? {
+        guard error == nil, trades.count < 10 else { return nil }
+        let n = trades.count
+        return n == 0
+            ? "Aucun trade sur cette période : la règle est restée à l'écart, rien à juger sur cet actif seul."
+            : "Seulement \(n) trade\(n > 1 ? "s" : "") sur cet actif : trop peu pour juger la règle sur lui seul, un trade chanceux ou malchanceux fait le résultat. Les chiffres d'ensemble (Réglages) portent sur un millier de trades."
+    }
+
     /// Why fewer than half of the trades winning is not by itself a bad sign for a trend rule.
     public static let winRateNote = "Une règle de tendance perd souvent un peu et gagne parfois beaucoup : sur l'ensemble des actifs testés, environ un trade sur trois a été gagnant (+15 % en moyenne contre −4 % pour les perdants). C'est l'écart entre gain moyen et perte moyenne qui compte."
 
