@@ -7,6 +7,8 @@ struct HoldingsView: View {
     @Environment(AppModel.self) private var model
     @State private var quotes: [String: Double] = [:]
     @State private var signals: [String: RadarRow] = [:]
+    /// Next quarterly results of the held stocks (Nasdaq calendar, read on the iPhone).
+    @State private var earnings: [String: EarningsEvent] = [:]
     /// Daily candles of the held assets and of the benchmarks (Bitcoin, S&P 500 via SPY): betas, clusters, ATR, today.
     @State private var daily: [String: [Candle]] = [:]
     /// The market data (quotes and candles) was read at least once: the dangers can be measured and kept.
@@ -265,6 +267,9 @@ struct HoldingsView: View {
                 Text("\(Format.quantity(h.quantity)) · \(Format.price(line.price))").font(.caption).foregroundStyle(Theme.textSecondary).lineLimit(1)
                 // The daily verdict (with the trend bot's veto) and the risk bot's worst fall over 20 days.
                 if let s = signals[h.asset.id]?.signal { VerdictLine(action: s.action) }
+                if h.asset.kind == .stock, let t = earnings[h.asset.symbol.uppercased()]?.soonText() {
+                    Text(t).font(.caption2).foregroundStyle(Theme.warning).lineLimit(1).minimumScaleFactor(0.8)
+                }
                 if let r = signals[h.asset.id]?.botRisk {
                     let pct: Int = Int((abs(r) * 100).rounded())
                     Text("risque prévu −\(pct) % sur 20 j").font(.caption2).foregroundStyle(Theme.textSecondary).lineLimit(1)
@@ -292,6 +297,10 @@ struct HoldingsView: View {
             self.error = error.localizedDescription
         }
         if let rows = await r { signals = Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a }) }
+        let stocks = Agenda.stockSymbols(assets)
+        if !stocks.isEmpty, let e = try? await client.earnings(stocks) {
+            earnings = Dictionary(e.map { ($0.symbol.uppercased(), $0) }, uniquingKeysWith: { a, _ in a })
+        }
         await loadDaily(client, assets: assets)
     }
 
