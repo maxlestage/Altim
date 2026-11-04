@@ -36,6 +36,14 @@ public enum SiriText {
         return text
     }
 
+    /// « État des marchés » : the market filter on both markets (MarketBoard), said in full sentences.
+    public static func markets(_ states: [Kind: Bool?]) -> String {
+        guard states.values.contains(where: { $0 != nil }) else {
+            return "L'état des marchés est inconnu pour l'instant : leurs cours n'ont pas pu être lus. Réessayez dans un moment."
+        }
+        return MarketBoard.kinds.map { MarketBoard.text($0, states[$0] ?? nil) }.joined(separator: " ") + " Altim ne passe aucun ordre."
+    }
+
     static func list(_ names: [String]) -> String {
         names.count <= 1 ? names.joined() : names.dropLast().joined(separator: ", ") + " et " + names.last!
     }

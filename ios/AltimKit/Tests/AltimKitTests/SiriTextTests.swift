@@ -22,4 +22,10 @@ final class SiriTextTests: XCTestCase {
         XCTAssertFalse(SiriText.asset(a, row("D", .hold)).contains("suspendu"))
         XCTAssertEqual(SiriText.asset(a, nil), "Le cours de Dcoin est indisponible pour l'instant.")
     }
+
+    func testMarkets() {
+        XCTAssertEqual(SiriText.markets([.crypto: true, .stock: false]),
+                       MarketBoard.text(.crypto, true) + " " + MarketBoard.text(.stock, false) + " Altim ne passe aucun ordre.")
+        XCTAssertTrue(SiriText.markets([.crypto: nil, .stock: nil]).hasPrefix("L'état des marchés est inconnu"), "jamais un état inventé")
+    }
 }
