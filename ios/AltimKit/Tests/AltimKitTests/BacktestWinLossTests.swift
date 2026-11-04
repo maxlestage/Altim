@@ -28,4 +28,9 @@ final class BacktestWinLossTests: XCTestCase {
         r.marketMissing = true
         XCTAssertEqual(r.marketMissingText, "Historique du S&P 500 (SPY) non lu pour l'instant : rejoué sans le filtre de marché, la règle de l'actif seule.")
     }
+
+    func testFeeNoteQuotesTheMeasure() {
+        XCTAssertTrue(BacktestReport.feeNote.contains("+41 % à +29 %"))
+        XCTAssertFalse(BacktestReport.feeNote.contains("garanti"))
+    }
 }
