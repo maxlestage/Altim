@@ -216,6 +216,16 @@ struct AssetPriceIntent: AppIntent {
     }
 }
 
+/// « État des marchés » : the market filter (Bitcoin, S&P 500) read on the device.
+struct MarketsIntent: AppIntent {
+    static var title: LocalizedStringResource = "État des marchés"
+    static var description = IntentDescription("Le filtre de marché d'Altim : le Bitcoin pour les cryptos, le S&P 500 pour les actions, calculé sur l'appareil à partir des cours publics, sans serveur.")
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let states = await MarketBoard.read(AltimClient.standalone(local: LocalBackend(bot: false)))
+        return .result(dialog: "\(SiriText.markets(states))")
+    }
+}
 
 struct AltimShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -225,5 +235,8 @@ struct AltimShortcuts: AppShortcutsProvider {
         AppShortcut(intent: AssetPriceIntent(),
                     phrases: ["Cours avec \(.applicationName)", "Prix avec \(.applicationName)"],
                     shortTitle: "Cours d'un actif", systemImageName: "chart.line.uptrend.xyaxis")
+        AppShortcut(intent: MarketsIntent(),
+                    phrases: ["État des marchés \(.applicationName)", "Marchés \(.applicationName)"],
+                    shortTitle: "État des marchés", systemImageName: "globe")
     }
 }
